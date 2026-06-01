@@ -29,6 +29,45 @@ const PERKS = [
 ];
 
 function Paywall() {
+  const navigate = useNavigate();
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>("annual");
+  const [loading, setLoading] = useState(false);
+
+  async function handleStartTrial() {
+    setLoading(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        toast.info("Sign in to start your trial.");
+        navigate({ to: "/auth" });
+        return;
+      }
+      await startTrial(selectedTier);
+      toast.success("Trial started — 7 days of Premium unlocked.");
+      navigate({ to: "/" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start trial.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRestore() {
+    setLoading(true);
+    try {
+      const state = await restorePurchases();
+      toast.success(
+        state.isPremium
+          ? `Premium restored (${state.tier}).`
+          : "No active purchases found on this account.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
       <div className="rounded-3xl border border-primary/30 bg-[image:var(--gradient-hero)] p-6 shadow-[var(--shadow-glow)]">
