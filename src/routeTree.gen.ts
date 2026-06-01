@@ -9,9 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
@@ -19,6 +21,11 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SwapRoute = SwapRouteImport.update({
   id: '/swap',
   path: '/swap',
@@ -32,6 +39,11 @@ const ShareRoute = ShareRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaybooksRoute = PlaybooksRouteImport.update({
@@ -71,9 +83,11 @@ export interface FileRoutesByFullPath {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesByTo {
@@ -82,9 +96,11 @@ export interface FileRoutesByTo {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesById {
@@ -94,9 +110,11 @@ export interface FileRoutesById {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRouteTypes {
@@ -107,9 +125,11 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -118,9 +138,11 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   id:
     | '__root__'
@@ -129,9 +151,11 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   fileRoutesById: FileRoutesById
 }
@@ -141,14 +165,23 @@ export interface RootRouteChildren {
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
+  TermsRoute: typeof TermsRoute
   ApiCoachRoute: typeof ApiCoachRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/swap': {
       id: '/swap'
       path: '/swap'
@@ -168,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playbooks': {
@@ -221,9 +261,11 @@ const rootRouteChildren: RootRouteChildren = {
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
+  TermsRoute: TermsRoute,
   ApiCoachRoute: ApiCoachRoute,
 }
 export const routeTree = rootRouteImport
