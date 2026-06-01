@@ -13,6 +13,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiCoachRouteImport } from './routes/api/coach'
 
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
@@ -34,18 +35,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCoachRoute = ApiCoachRouteImport.update({
+  id: '/api/coach',
+  path: '/api/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
   '/profile': typeof ProfileRoute
+  '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
   '/profile': typeof ProfileRoute
+  '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,14 @@ export interface FileRoutesById {
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
   '/profile': typeof ProfileRoute
+  '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/coach' | '/paywall' | '/profile'
+  fullPaths: '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/coach' | '/paywall' | '/profile'
-  id: '__root__' | '/' | '/coach' | '/paywall' | '/profile'
+  to: '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
+  id: '__root__' | '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +76,7 @@ export interface RootRouteChildren {
   CoachRoute: typeof CoachRoute
   PaywallRoute: typeof PaywallRoute
   ProfileRoute: typeof ProfileRoute
+  ApiCoachRoute: typeof ApiCoachRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/coach': {
+      id: '/api/coach'
+      path: '/api/coach'
+      fullPath: '/api/coach'
+      preLoaderRoute: typeof ApiCoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachRoute: CoachRoute,
   PaywallRoute: PaywallRoute,
   ProfileRoute: ProfileRoute,
+  ApiCoachRoute: ApiCoachRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
