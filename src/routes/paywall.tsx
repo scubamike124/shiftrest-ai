@@ -196,6 +196,8 @@ function PlanCard({
   elite,
   badge,
   perks,
+  selected,
+  onSelect,
 }: {
   label: string;
   price: string;
@@ -204,17 +206,24 @@ function PlanCard({
   elite?: boolean;
   badge?: string;
   perks?: string[];
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const tone = elite
     ? "border-amber/50 bg-amber/5"
     : highlighted
       ? "border-primary bg-primary/10"
       : "border-border bg-card";
+  const ring = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "";
   const badgeTone = elite
     ? "bg-amber/20 text-amber"
     : "bg-primary/20 text-primary";
   return (
-    <div className={`relative rounded-2xl border p-4 ${tone}`}>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
+    >
       {badge && (
         <span
           className={`absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest ${badgeTone}`}
