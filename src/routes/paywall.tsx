@@ -82,8 +82,8 @@ function Paywall() {
             "Everything in Annual",
             "Smarter AI coach with deeper answers",
             "Multi-week rotation forecasts",
-            "Wearable sync (when available)",
-            "Partner co-planning & priority support",
+            "Apple Watch & Fitbit sleep sync (coming soon)",
+            "Partner co-planning & shared quiet hours",
           ]}
         />
       </div>
