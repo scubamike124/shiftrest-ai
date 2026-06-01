@@ -122,6 +122,8 @@ function RootComponent() {
         <Outlet />
       </div>
       <BottomNav />
+      <Onboarding />
+      <Toaster />
     </QueryClientProvider>
   );
 }
