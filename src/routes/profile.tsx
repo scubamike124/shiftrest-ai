@@ -1,42 +1,69 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Bell, Moon, Sun, ChevronRight, Sparkles } from "lucide-react";
+import {
+  Bell,
+  Moon,
+  Sun,
+  ChevronRight,
+  Sparkles,
+  MapPin,
+  Activity,
+  Users,
+  Heart,
+} from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
       { title: "Profile & Preferences — ShiftRest AI" },
-      { name: "description", content: "Manage your sleep preferences, notifications, and wind-down length." },
+      {
+        name: "description",
+        content: "Manage your sleep preferences, location, partner share, and wearable sync.",
+      },
     ],
   }),
   component: Profile,
 });
 
-type Prefs = {
-  windDownMin: number;
-  sleepHours: number;
-  notifications: boolean;
-  lowLight: boolean;
-};
-
-const DEFAULTS: Prefs = { windDownMin: 120, sleepHours: 8, notifications: true, lowLight: true };
-const KEY = "shiftrest.prefs.v1";
-
 function Profile() {
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);
+  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) setPrefs({ ...DEFAULTS, ...JSON.parse(raw) });
+      const raw = localStorage.getItem(PREFS_KEY);
+      if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {}
   }, []);
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     const next = { ...prefs, [k]: v };
     setPrefs(next);
-    localStorage.setItem(KEY, JSON.stringify(next));
+    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+  }
+
+  function detectLocation() {
+    if (!("geolocation" in navigator)) {
+      toast.error("Geolocation not supported");
+      return;
+    }
+    toast.info("Detecting location…");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const next = {
+          ...prefs,
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          locationLabel: `${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`,
+        };
+        setPrefs(next);
+        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+        toast.success("Location updated");
+      },
+      () => toast.error("Location permission denied"),
+    );
   }
 
   return (
@@ -61,11 +88,34 @@ function Profile() {
           </span>
           <div>
             <p className="text-sm font-semibold">Upgrade to Premium</p>
-            <p className="text-xs text-muted-foreground">Unlock the AI Sleep Coach</p>
+            <p className="text-xs text-muted-foreground">Unlock unlimited Coach + Crew plans</p>
           </div>
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </Link>
+
+      <section className="rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <MapPin className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Location</p>
+              <p className="text-xs text-muted-foreground">{prefs.locationLabel}</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+                Used for sunrise/sunset in your light plan.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={detectLocation}
+            className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
+          >
+            Detect
+          </button>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-border bg-card">
         <SliderRow
@@ -104,6 +154,57 @@ function Profile() {
       </section>
 
       <section className="rounded-2xl border border-border bg-card">
+        <div className="flex flex-col gap-2 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Users className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Partner mode</p>
+              <p className="text-xs text-muted-foreground">
+                Send your sleep windows so they know when to be quiet.
+              </p>
+            </div>
+          </div>
+          <input
+            type="text"
+            placeholder="Your name (shown on the share page)"
+            value={prefs.partnerName}
+            onChange={(e) => update("partnerName", e.target.value)}
+            className="h-11 rounded-xl border border-border bg-input px-3 text-sm"
+          />
+          <Link
+            to="/share"
+            className="flex h-11 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary"
+          >
+            Generate share link
+          </Link>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-mint">
+              <Heart className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Apple Health & Google Fit</p>
+              <p className="text-xs text-muted-foreground">
+                Sync actual sleep to compare against your plan.
+              </p>
+              <p className="mt-0.5 text-[10px] text-amber">
+                Native app required — coming with iOS & Android wrappers.
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-secondary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Soon
+          </span>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card">
         <ToggleRow
           icon={<Bell className="h-5 w-5" />}
           label="Wind-down notifications"
@@ -113,7 +214,7 @@ function Profile() {
         />
         <Divider />
         <ToggleRow
-          icon={<Moon className="h-5 w-5" />}
+          icon={<Activity className="h-5 w-5" />}
           label="Low-light interface"
           desc="Already on. Toggle off for brighter daytime use."
           checked={prefs.lowLight}
@@ -121,9 +222,7 @@ function Profile() {
         />
       </section>
 
-      <p className="text-[10px] leading-relaxed text-muted-foreground/70">
-        {DISCLAIMER}
-      </p>
+      <p className="text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
     </main>
   );
 }

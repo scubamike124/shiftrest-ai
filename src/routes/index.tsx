@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Moon, Plus, Trash2, X } from "lucide-react";
+import { Moon, Plus, Trash2, X, TrendingUp, Sparkles } from "lucide-react";
 import {
   DAYS,
   type Shift,
@@ -11,12 +11,17 @@ import {
   toTimeInput,
   endAbsolute,
 } from "@/lib/shifts";
+import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
+import { loadPrefs } from "@/lib/prefs";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Your Week — ShiftRest AI" },
-      { name: "description", content: "Map your shifts and see automatic wind-down and sleep windows." },
+      {
+        name: "description",
+        content: "Map your shifts and see automatic wind-down and sleep windows.",
+      },
     ],
   }),
   component: Dashboard,
@@ -25,6 +30,7 @@ export const Route = createFileRoute("/")({
 function Dashboard() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [editing, setEditing] = useState<{ day: number } | null>(null);
+  const prefs = useMemo(() => loadPrefs(), []);
 
   useEffect(() => {
     setShifts(loadShifts());
@@ -45,7 +51,9 @@ function Dashboard() {
   }
 
   const today = new Date();
-  const weekday = (today.getDay() + 6) % 7; // Mon=0
+  const weekday = (today.getDay() + 6) % 7;
+  const rotation = useMemo(() => detectRotation(shifts), [shifts]);
+  const debt = useMemo(() => circadianDebt(shifts), [shifts]);
 
   return (
     <main className="flex flex-col gap-6 px-5 pt-12">
@@ -67,8 +75,63 @@ function Dashboard() {
           </div>
           <Moon className="h-8 w-8 text-primary" />
         </div>
-        <NextWindowSummary shifts={shifts} weekday={weekday} />
+        <NextWindowSummary
+          shifts={shifts}
+          weekday={weekday}
+          sleepHours={prefs.sleepHours}
+          windDownMin={prefs.windDownMin}
+        />
       </section>
+
+      {shifts.length > 0 && (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                Circadian debt
+              </p>
+              <p className="mt-1 text-2xl font-bold">
+                {debt.score}
+                <span className="text-sm font-medium text-muted-foreground">/100</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
+            </div>
+            <DebtRing score={debt.score} />
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${debt.score}%`,
+                background:
+                  debt.score >= 60
+                    ? "var(--destructive)"
+                    : debt.score >= 30
+                    ? "var(--amber)"
+                    : "var(--mint)",
+              }}
+            />
+          </div>
+          {debt.reasons.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {debt.reasons.slice(0, 4).map((r) => (
+                <li
+                  key={r}
+                  className="rounded-full bg-secondary px-2.5 py-1 text-[10px] text-muted-foreground"
+                >
+                  {r}
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link
+            to="/plan"
+            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary"
+          >
+            <Sparkles className="h-4 w-4" /> See today's light plan
+          </Link>
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -111,7 +174,29 @@ function Dashboard() {
   );
 }
 
-function NextWindowSummary({ shifts, weekday }: { shifts: Shift[]; weekday: number }) {
+function DebtRing({ score }: { score: number }) {
+  const tone =
+    score >= 60 ? "text-destructive" : score >= 30 ? "text-amber" : "text-mint";
+  return (
+    <span
+      className={`flex h-12 w-12 items-center justify-center rounded-full bg-secondary ${tone}`}
+    >
+      <TrendingUp className="h-5 w-5" />
+    </span>
+  );
+}
+
+function NextWindowSummary({
+  shifts,
+  weekday,
+  sleepHours,
+  windDownMin,
+}: {
+  shifts: Shift[];
+  weekday: number;
+  sleepHours: number;
+  windDownMin: number;
+}) {
   const todayShift = shifts.find((s) => s.day === weekday);
   if (!todayShift) {
     return (
@@ -123,10 +208,10 @@ function NextWindowSummary({ shifts, weekday }: { shifts: Shift[]; weekday: numb
   const end = endAbsolute(todayShift);
   return (
     <div className="mt-4 grid grid-cols-2 gap-3">
-      <Tile label="Wind-down" value={`${fmt(end)} → ${fmt(end + 120)}`} tone="amber" />
+      <Tile label="Wind-down" value={`${fmt(end)} → ${fmt(end + windDownMin)}`} tone="amber" />
       <Tile
         label="Sleep window"
-        value={`${fmt(end + 120)} → ${fmt(end + 120 + 8 * 60)}`}
+        value={`${fmt(end + windDownMin)} → ${fmt(end + windDownMin + sleepHours * 60)}`}
         tone="mint"
       />
     </div>
@@ -206,8 +291,8 @@ function DayRow({
 }
 
 function Timeline({ shift }: { shift: Shift }) {
-  // 24h timeline from 00:00; wrap overnight into 48h band visually
   const total = 24 * 60;
+  const prefs = loadPrefs();
   const segs = useMemo(() => {
     const out: { start: number; len: number; kind: "shift" | "wind" | "sleep" }[] = [];
     const push = (start: number, len: number, kind: "shift" | "wind" | "sleep") => {
@@ -221,13 +306,13 @@ function Timeline({ shift }: { shift: Shift }) {
         remaining -= take;
       }
     };
-    const shiftLen = (endAbsolute(shift) - shift.start);
+    const shiftLen = endAbsolute(shift) - shift.start;
     push(shift.start, shiftLen, "shift");
     const end = endAbsolute(shift);
-    push(end, 120, "wind");
-    push(end + 120, 8 * 60, "sleep");
+    push(end, prefs.windDownMin, "wind");
+    push(end + prefs.windDownMin, prefs.sleepHours * 60, "sleep");
     return out;
-  }, [shift]);
+  }, [shift, prefs.windDownMin, prefs.sleepHours]);
 
   return (
     <div className="mt-3">
@@ -256,21 +341,7 @@ function Timeline({ shift }: { shift: Shift }) {
         <span>6p</span>
         <span>12a</span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-        <Legend color="var(--shift)" label="Shift" />
-        <Legend color="var(--winddown)" label="Wind-down 2h" />
-        <Legend color="var(--sleep)" label="Sleep 8h" />
-      </div>
     </div>
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
   );
 }
 
@@ -313,7 +384,8 @@ function ShiftEditor({
         </div>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Overnight shifts are supported — set an end time earlier than start to wrap to the next day.
+          Overnight shifts are supported — set an end time earlier than start to wrap to the
+          next day.
         </p>
 
         <button
