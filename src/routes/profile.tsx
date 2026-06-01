@@ -38,18 +38,48 @@ export const Route = createFileRoute("/profile")({
 
 function Profile() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [perm, setPerm] = useState<NotifyPermission>("default");
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {}
+    setPerm(getPermission());
   }, []);
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     const next = { ...prefs, [k]: v };
     setPrefs(next);
     localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    if (k === "notifications" || k === "windDownMin") scheduleNextWindDown();
+  }
+
+  async function enableNotifs() {
+    const res = await requestPermission();
+    setPerm(res);
+    if (res === "granted") {
+      update("notifications", true);
+      scheduleNextWindDown();
+      const next = nextWindDownAt();
+      toast.success(
+        next
+          ? `Notifications on. Next ping ${next.at.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.`
+          : "Notifications on. Add a shift to schedule pings.",
+      );
+    } else if (res === "denied") {
+      toast.error("Permission denied — enable in browser settings.");
+    } else if (res === "unsupported") {
+      toast.error("This browser doesn't support notifications.");
+    }
+  }
+
+  function testNotif() {
+    if (getPermission() !== "granted") {
+      toast.error("Enable notifications first.");
+      return;
+    }
+    showNotification("ShiftRest test 🌙", "Your wind-down pings will look like this.");
   }
 
   function detectLocation() {
