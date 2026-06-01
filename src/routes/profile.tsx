@@ -45,6 +45,7 @@ export const Route = createFileRoute("/profile")({
 function Profile() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [perm, setPerm] = useState<NotifyPermission>("default");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -52,7 +53,19 @@ function Profile() {
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {}
     setPerm(getPermission());
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user.email ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUserEmail(session?.user.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    toast.success("Signed out.");
+  }
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     const next = { ...prefs, [k]: v };
