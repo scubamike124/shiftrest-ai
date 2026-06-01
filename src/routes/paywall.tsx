@@ -248,6 +248,6 @@ function PlanCard({
           ))}
         </ul>
       )}
-    </div>
+    </button>
   );
 }
