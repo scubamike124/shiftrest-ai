@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -20,6 +21,11 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SwapRoute = SwapRouteImport.update({
   id: '/swap',
   path: '/swap',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
+  '/terms': typeof TermsRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/share'
     | '/swap'
+    | '/terms'
     | '/api/coach'
   fileRoutesById: FileRoutesById
 }
@@ -157,11 +169,19 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
+  TermsRoute: typeof TermsRoute
   ApiCoachRoute: typeof ApiCoachRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/swap': {
       id: '/swap'
       path: '/swap'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
+  TermsRoute: TermsRoute,
   ApiCoachRoute: ApiCoachRoute,
 }
 export const routeTree = rootRouteImport
