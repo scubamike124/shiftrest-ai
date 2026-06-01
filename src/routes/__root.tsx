@@ -117,6 +117,9 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    scheduleNextWindDown();
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="mx-auto flex min-h-screen max-w-md flex-col pb-24">
