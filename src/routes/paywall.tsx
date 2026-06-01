@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Sparkles, Users } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 
 export const Route = createFileRoute("/paywall")({
@@ -101,24 +101,6 @@ function Paywall() {
         Maybe later
       </Link>
 
-      <section className="mt-8 rounded-3xl border border-mint/30 bg-mint/5 p-5">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-mint/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-mint">
-          <Users className="h-3 w-3" /> Crew & Teams
-        </span>
-        <h2 className="mt-3 text-xl font-bold leading-tight">
-          Sleep health for the whole shift.
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Per-seat plans for hospitals, fire/EMS, airlines, and security teams. Roster
-          imports, fatigue dashboards, and aggregated (anonymous) wellness reporting.
-        </p>
-        <a
-          href="mailto:teams@shiftrest.ai?subject=Crew%20plan%20inquiry"
-          className="mt-4 flex h-12 items-center justify-center rounded-2xl border border-mint/40 bg-card text-sm font-semibold text-mint"
-        >
-          Talk to our team
-        </a>
-      </section>
 
       <p className="mt-6 text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
     </main>
