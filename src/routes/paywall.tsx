@@ -66,20 +66,20 @@ function Paywall() {
         />
         <PlanCard
           label="Annual"
-          price="$49"
-          sub="per year · save 49%"
+          price="$49.99"
+          sub="per year · save 48% ($4.16/mo)"
           highlighted
           badge="Most popular"
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
         <PlanCard
-          label="Elite"
-          price="$119"
-          sub="per year · concierge tier"
+          label="Lifetime"
+          price="$99"
+          sub="one-time · founding member"
           elite
-          badge="Best value"
+          badge="Launch deal"
           perks={[
-            "Everything in Annual",
+            "Everything in Annual, forever",
             "Smarter AI coach with deeper answers",
             "Multi-week rotation forecasts",
             "Apple Watch & Fitbit sleep sync (coming soon)",
