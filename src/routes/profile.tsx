@@ -126,7 +126,7 @@ function Profile() {
           </span>
           <div>
             <p className="text-sm font-semibold">Upgrade to Premium</p>
-            <p className="text-xs text-muted-foreground">Unlock unlimited Coach + Crew plans</p>
+            <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
           </div>
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
