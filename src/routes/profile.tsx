@@ -10,6 +10,9 @@ import {
   Activity,
   Users,
   Heart,
+  Shield,
+  FileText,
+  Trash2,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
