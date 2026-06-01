@@ -82,7 +82,6 @@ function Paywall() {
             "Everything in Annual, forever",
             "Smarter AI coach with deeper answers",
             "Multi-week rotation forecasts",
-            "Apple Watch & Fitbit sleep sync (coming soon)",
             "Partner co-planning & shared quiet hours",
           ]}
         />
