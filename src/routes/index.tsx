@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Moon, Plus, Trash2, X, TrendingUp, Sparkles } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
 import {
   DAYS,
   type Shift,
@@ -27,13 +27,17 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function Dashboard() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [editing, setEditing] = useState<{ day: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const prefs = useMemo(() => loadPrefs(), []);
 
   useEffect(() => {
     setShifts(loadShifts());
+    setMounted(true);
   }, []);
 
   function update(next: Shift[]) {
@@ -50,114 +54,234 @@ function Dashboard() {
     update(shifts.filter((s) => s.id !== id));
   }
 
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
+  const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
   const debt = useMemo(() => circadianDebt(shifts), [shifts]);
+  const todayShift = shifts.find((s) => s.day === weekday);
+
+  // Build week dates starting Monday
+  const weekDates = useMemo(() => {
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - weekday);
+    return DAYS.map((d, i) => {
+      const dt = new Date(monday);
+      dt.setDate(monday.getDate() + i);
+      return { label: d, num: dt.getDate(), idx: i };
+    });
+  }, [today, weekday]);
+
+  // Next sleep window
+  const nextSleep = useMemo(() => {
+    if (!todayShift) return null;
+    const end = endAbsolute(todayShift);
+    const sleepStart = end + prefs.windDownMin;
+    const sleepEnd = sleepStart + prefs.sleepHours * 60;
+    return { start: sleepStart, end: sleepEnd };
+  }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
+
+  const stability = Math.max(0, 100 - debt.score);
 
   return (
-    <main className="flex flex-col gap-6 px-5 pt-12">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          ShiftRest AI
-        </p>
-        <h1 className="mt-2 text-3xl font-bold">Your week, optimized.</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tap a day to log your shift. We'll plot wind-down and sleep windows automatically.
-        </p>
+    <main className="flex flex-col px-5 pt-10 pb-6">
+      {/* Header */}
+      <header className="mb-5 flex items-end justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            ShiftRest AI
+          </p>
+          <h1 className="mt-1 text-[34px] leading-none">
+            {DAYS[weekday]},{" "}
+            <span className="italic opacity-60">{monthDate}</span>
+          </h1>
+        </div>
+        <Link
+          to="/profile"
+          aria-label="Profile"
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-gradient-to-br from-secondary to-background"
+        >
+          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+        </Link>
       </header>
 
-      <section className="rounded-3xl border border-border bg-[image:var(--gradient-hero)] p-5 shadow-[var(--shadow-glow)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Today</p>
-            <h2 className="mt-1 text-xl font-semibold">{DAYS[weekday]}</h2>
-          </div>
-          <Moon className="h-8 w-8 text-primary" />
-        </div>
-        <NextWindowSummary
-          shifts={shifts}
-          weekday={weekday}
-          sleepHours={prefs.sleepHours}
-          windDownMin={prefs.windDownMin}
-        />
-      </section>
+      {/* HERO BENTO */}
+      <section
+        className="relative overflow-hidden rounded-[32px] border border-primary/20 p-6"
+        style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-card)" }}
+      >
+        <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-primary/30 blur-[60px] breathe" />
 
-      {shifts.length > 0 && (
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
+        <div className="relative z-10 flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-6">
             <div>
-              <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                Circadian debt
+              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                Circadian Debt
               </p>
-              <p className="mt-1 text-2xl font-bold">
-                {debt.score}
+              <p className="mt-1 flex items-baseline gap-1">
+                <span
+                  className="text-5xl"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    color: debt.score >= 60 ? "var(--destructive)" : debt.score >= 30 ? "var(--amber)" : "var(--indigo-glow)",
+                  }}
+                >
+                  {mounted ? debt.score : 0}
+                </span>
                 <span className="text-sm font-medium text-muted-foreground">/100</span>
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/80">{rotation.label}</p>
             </div>
-            <DebtRing score={debt.score} />
+
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                Next Sleep
+              </p>
+              <p className="mt-1 text-xl font-semibold">
+                {nextSleep ? fmt(nextSleep.start) : "—"}
+              </p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/80">
+                {nextSleep
+                  ? `${prefs.sleepHours}h window predicted`
+                  : "Add a shift to forecast"}
+              </p>
+            </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary">
+
+          {/* Circadian Ring */}
+          <CircadianRing shift={todayShift} prefs={prefs} mounted={mounted} />
+        </div>
+      </section>
+
+      {/* Quick Action + Stability */}
+      <div className="mt-4 grid grid-cols-5 gap-3">
+        <button
+          onClick={() => setEditing({ day: weekday })}
+          className="col-span-3 flex flex-col justify-between rounded-[24px] border border-primary/40 p-5 text-left active:scale-[0.99]"
+          style={{ background: "var(--gradient-cta)" }}
+        >
+          <p className="text-sm font-semibold leading-tight text-primary-foreground">
+            {todayShift ? "Edit today's\nshift" : "Log today's\nshift"}
+          </p>
+          <span className="mt-4 flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-primary-foreground">
+              <Plus className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary-foreground">
+              {todayShift ? "Edit" : "Add"}
+            </span>
+          </span>
+        </button>
+
+        <div className="col-span-2 flex flex-col items-center justify-center rounded-[24px] border border-border bg-card p-4 text-center">
+          <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+            Stability
+          </p>
+          <p className="mt-1 text-2xl" style={{ fontFamily: "var(--font-display)" }}>
+            {mounted ? stability : 0}%
+          </p>
+          <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary">
             <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${debt.score}%`,
-                background:
-                  debt.score >= 60
-                    ? "var(--destructive)"
-                    : debt.score >= 30
-                    ? "var(--amber)"
-                    : "var(--mint)",
-              }}
+              className="h-full rounded-full transition-all duration-1000"
+              style={{ width: `${mounted ? stability : 0}%`, background: "var(--indigo)" }}
             />
           </div>
-          {debt.reasons.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-1.5">
-              {debt.reasons.slice(0, 4).map((r) => (
-                <li
-                  key={r}
-                  className="rounded-full bg-secondary px-2.5 py-1 text-[10px] text-muted-foreground"
-                >
-                  {r}
-                </li>
-              ))}
-            </ul>
-          )}
-          <Link
-            to="/plan"
-            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary"
-          >
-            <Sparkles className="h-4 w-4" /> See today's light plan
-          </Link>
-        </section>
-      )}
+        </div>
+      </div>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">This week</h3>
-          <span className="text-xs text-muted-foreground">
-            {shifts.length} shift{shifts.length === 1 ? "" : "s"}
+      {/* Weekly bento grid */}
+      <section className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            Weekly Rhythm
+          </h2>
+          <span className="text-[10px] italic text-muted-foreground">
+            {shifts.length} shift{shifts.length === 1 ? "" : "s"} scheduled
           </span>
         </div>
 
-        <div className="flex flex-col gap-3">
-          {DAYS.map((d, idx) => {
-            const shift = shifts.find((s) => s.day === idx);
+        <div className="grid grid-cols-4 gap-3">
+          {weekDates.map(({ label, num, idx }) => {
+            const hasShift = !!shifts.find((s) => s.day === idx);
+            const isToday = idx === weekday;
+            const isPast = idx < weekday;
             return (
-              <DayRow
-                key={d}
-                day={idx}
-                label={d}
-                today={idx === weekday}
-                shift={shift}
-                onAdd={() => setEditing({ day: idx })}
-                onRemove={() => shift && removeShift(shift.id)}
-              />
+              <button
+                key={label}
+                onClick={() => setEditing({ day: idx })}
+                className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
+                  isToday
+                    ? "border border-white/20 shadow-[var(--shadow-glow)]"
+                    : "border border-border bg-card"
+                } ${isPast && !isToday ? "opacity-60" : ""}`}
+                style={
+                  isToday
+                    ? {
+                        background:
+                          "linear-gradient(180deg, var(--indigo) 0%, var(--secondary) 100%)",
+                      }
+                    : undefined
+                }
+              >
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-glow">
+                  {label}
+                </span>
+                <span
+                  className="text-lg leading-none"
+                  style={{ fontFamily: "var(--font-display)", fontStyle: isToday ? "italic" : "normal" }}
+                >
+                  {num}
+                </span>
+                {hasShift && (
+                  <span
+                    className="mt-1 h-1 w-1 rounded-full"
+                    style={{ background: isToday ? "white" : "var(--indigo)" }}
+                  />
+                )}
+              </button>
             );
           })}
+          {/* Add tile */}
+          <button
+            onClick={() => setEditing({ day: weekday })}
+            aria-label="Quick add"
+            className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border bg-transparent text-muted-foreground active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
         </div>
       </section>
+
+      {/* Today shift detail (if any) */}
+      {todayShift && (
+        <section className="mt-6 rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                Tonight's shift
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                {fmt(todayShift.start)} – {fmt(todayShift.end)}
+              </p>
+            </div>
+            <button
+              onClick={() => removeShift(todayShift.id)}
+              aria-label="Remove shift"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+          <Timeline shift={todayShift} />
+          <Link
+            to="/plan"
+            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-foreground"
+          >
+            <Sparkles className="h-4 w-4 text-indigo-glow" />
+            <span className="text-foreground">See today's light plan</span>
+          </Link>
+        </section>
+      )}
 
       {editing && (
         <ShiftEditor
@@ -174,118 +298,63 @@ function Dashboard() {
   );
 }
 
-function DebtRing({ score }: { score: number }) {
-  const tone =
-    score >= 60 ? "text-destructive" : score >= 30 ? "text-amber" : "text-mint";
-  return (
-    <span
-      className={`flex h-12 w-12 items-center justify-center rounded-full bg-secondary ${tone}`}
-    >
-      <TrendingUp className="h-5 w-5" />
-    </span>
-  );
-}
-
-function NextWindowSummary({
-  shifts,
-  weekday,
-  sleepHours,
-  windDownMin,
-}: {
-  shifts: Shift[];
-  weekday: number;
-  sleepHours: number;
-  windDownMin: number;
-}) {
-  const todayShift = shifts.find((s) => s.day === weekday);
-  if (!todayShift) {
-    return (
-      <p className="mt-4 text-sm text-muted-foreground">
-        No shift logged for today — add one below to generate your recovery windows.
-      </p>
-    );
-  }
-  const end = endAbsolute(todayShift);
-  return (
-    <div className="mt-4 grid grid-cols-2 gap-3">
-      <Tile label="Wind-down" value={`${fmt(end)} → ${fmt(end + windDownMin)}`} tone="amber" />
-      <Tile
-        label="Sleep window"
-        value={`${fmt(end + windDownMin)} → ${fmt(end + windDownMin + sleepHours * 60)}`}
-        tone="mint"
-      />
-    </div>
-  );
-}
-
-function Tile({ label, value, tone }: { label: string; value: string; tone: "amber" | "mint" }) {
-  const cls =
-    tone === "amber"
-      ? "border-amber/30 bg-amber/10 text-amber"
-      : "border-mint/30 bg-mint/10 text-mint";
-  return (
-    <div className={`rounded-2xl border ${cls} p-3`}>
-      <p className="text-[10px] uppercase tracking-widest opacity-80">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function DayRow({
-  day,
-  label,
-  today,
+function CircadianRing({
   shift,
-  onAdd,
-  onRemove,
+  prefs,
+  mounted,
 }: {
-  day: number;
-  label: string;
-  today: boolean;
   shift?: Shift;
-  onAdd: () => void;
-  onRemove: () => void;
+  prefs: ReturnType<typeof loadPrefs>;
+  mounted: boolean;
 }) {
+  const R = 58;
+  const C = 2 * Math.PI * R;
+  // base offset to make 0=midnight at top
+  const minsToOffset = (m: number) => (m / 1440) * C;
+  let shiftSeg = { len: 0, off: 0 };
+  let windSeg = { len: 0, off: 0 };
+  let sleepSeg = { len: 0, off: 0 };
+  if (shift) {
+    const start = shift.start;
+    const shiftLen = endAbsolute(shift) - start;
+    const end = endAbsolute(shift) % 1440;
+    const windLen = prefs.windDownMin;
+    const sleepLen = prefs.sleepHours * 60;
+    shiftSeg = { len: minsToOffset(shiftLen), off: minsToOffset(start) };
+    windSeg = { len: minsToOffset(windLen), off: minsToOffset(end) };
+    sleepSeg = { len: minsToOffset(sleepLen), off: minsToOffset((end + windLen) % 1440) };
+  }
+
   return (
-    <div
-      className={`rounded-2xl border bg-card p-4 transition ${
-        today ? "border-primary/50" : "border-border"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span
-            className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
-              today ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
-            }`}
-          >
-            {label[0]}
-          </span>
-          <div>
-            <p className="text-sm font-semibold">{label}</p>
-            <p className="text-xs text-muted-foreground">
-              {shift ? `${fmt(shift.start)} – ${fmt(shift.end)}` : "No shift"}
-            </p>
-          </div>
-        </div>
-        {shift ? (
-          <button
-            onClick={onRemove}
-            aria-label="Remove shift"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            onClick={onAdd}
-            className="flex h-10 items-center gap-1 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-95"
-          >
-            <Plus className="h-4 w-4" /> Add
-          </button>
+    <div className="relative h-32 w-32 shrink-0">
+      <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
+        <circle cx="64" cy="64" r={R} fill="none" stroke="var(--secondary)" strokeWidth="8" />
+        {shift && mounted && (
+          <>
+            <circle
+              cx="64" cy="64" r={R} fill="none"
+              stroke="var(--indigo)" strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={`${shiftSeg.len} ${C}`}
+              strokeDashoffset={-shiftSeg.off}
+            />
+            <circle
+              cx="64" cy="64" r={R} fill="none"
+              stroke="var(--amber)" strokeWidth="6" strokeLinecap="round" opacity="0.8"
+              strokeDasharray={`${windSeg.len} ${C}`}
+              strokeDashoffset={-windSeg.off}
+            />
+            <circle
+              cx="64" cy="64" r={R} fill="none"
+              stroke="var(--indigo-glow)" strokeWidth="4" strokeLinecap="round" opacity="0.7"
+              strokeDasharray={`${sleepSeg.len} ${C}`}
+              strokeDashoffset={-sleepSeg.off}
+            />
+          </>
         )}
+      </svg>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-indigo-glow">
+        <Moon className="h-5 w-5" />
       </div>
-      {shift && <Timeline shift={shift} />}
     </div>
   );
 }
@@ -364,10 +433,12 @@ function ShiftEditor({
       <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            <p className="text-[10px] uppercase tracking-widest text-indigo-glow">
               {DAYS[day]}
             </p>
-            <h3 className="text-xl font-semibold">Log your shift</h3>
+            <h3 className="text-2xl" style={{ fontFamily: "var(--font-display)" }}>
+              Log your shift
+            </h3>
           </div>
           <button
             onClick={onClose}
@@ -390,7 +461,8 @@ function ShiftEditor({
 
         <button
           onClick={() => onSave(parseTime(start), parseTime(end))}
-          className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
+          className="mt-5 h-14 w-full rounded-2xl text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
+          style={{ background: "var(--gradient-cta)" }}
         >
           Save shift
         </button>

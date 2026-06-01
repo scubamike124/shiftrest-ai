@@ -36,57 +36,68 @@
   --color-mint-foreground: var(--mint-foreground);
   --color-amber: var(--amber);
   --color-amber-foreground: var(--amber-foreground);
+  --color-indigo: var(--indigo);
+  --color-indigo-glow: var(--indigo-glow);
   --color-shift: var(--shift);
   --color-winddown: var(--winddown);
   --color-sleep: var(--sleep);
 
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
   --radius: 1rem;
 
-  /* Deep midnight palette — premium dark mode */
-  --background: oklch(0.18 0.03 260);
-  --foreground: oklch(0.96 0.01 250);
+  /* Midnight Indigo — premium dark mode */
+  --background: oklch(0.13 0.03 275);            /* #0a0a1a */
+  --foreground: oklch(0.97 0.01 250);
 
-  --card: oklch(0.22 0.035 260);
-  --card-foreground: oklch(0.96 0.01 250);
+  --card: oklch(0.18 0.05 275);                  /* #141432 */
+  --card-foreground: oklch(0.97 0.01 250);
 
-  --popover: oklch(0.22 0.035 260);
-  --popover-foreground: oklch(0.96 0.01 250);
+  --popover: oklch(0.18 0.05 275);
+  --popover-foreground: oklch(0.97 0.01 250);
 
-  --primary: oklch(0.85 0.16 170);            /* soft mint */
-  --primary-foreground: oklch(0.2 0.04 260);
+  --primary: oklch(0.56 0.22 275);               /* #4f46e5 electric indigo */
+  --primary-foreground: oklch(0.98 0.01 250);
 
-  --secondary: oklch(0.28 0.04 260);
-  --secondary-foreground: oklch(0.96 0.01 250);
+  --secondary: oklch(0.26 0.08 275);             /* deep indigo panel */
+  --secondary-foreground: oklch(0.97 0.01 250);
 
-  --muted: oklch(0.26 0.03 260);
-  --muted-foreground: oklch(0.7 0.02 255);
+  --muted: oklch(0.22 0.06 275);
+  --muted-foreground: oklch(0.72 0.05 270);      /* slate-ish */
 
-  --accent: oklch(0.82 0.14 75);               /* warm amber */
-  --accent-foreground: oklch(0.2 0.04 260);
+  --accent: oklch(0.78 0.16 75);                 /* amber, reserved for warnings */
+  --accent-foreground: oklch(0.18 0.05 275);
 
-  --destructive: oklch(0.65 0.2 25);
+  --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.98 0.01 250);
 
-  --border: oklch(0.32 0.03 260 / 60%);
-  --input: oklch(0.28 0.03 260);
-  --ring: oklch(0.85 0.16 170);
+  --border: oklch(0.3 0.08 275 / 50%);
+  --input: oklch(0.22 0.06 275);
+  --ring: oklch(0.65 0.18 275);
 
-  --mint: oklch(0.85 0.16 170);
-  --mint-foreground: oklch(0.2 0.04 260);
-  --amber: oklch(0.82 0.14 75);
-  --amber-foreground: oklch(0.2 0.04 260);
+  --indigo: oklch(0.56 0.22 275);                /* #4f46e5 */
+  --indigo-glow: oklch(0.72 0.16 275);           /* #818cf8 */
+  --mint: oklch(0.78 0.14 170);                  /* retired-but-available success */
+  --mint-foreground: oklch(0.18 0.05 275);
+  --amber: oklch(0.78 0.16 75);                  /* #f59e0b */
+  --amber-foreground: oklch(0.18 0.05 275);
 
-  --shift: oklch(0.55 0.18 260);               /* indigo for shift blocks */
-  --winddown: oklch(0.7 0.13 75 / 80%);        /* amber wind-down */
-  --sleep: oklch(0.65 0.14 170 / 70%);         /* mint sleep window */
+  --shift: oklch(0.56 0.22 275);
+  --winddown: oklch(0.78 0.16 75 / 80%);
+  --sleep: oklch(0.72 0.16 275 / 70%);
 
-  --gradient-hero: radial-gradient(ellipse at top, oklch(0.3 0.08 260) 0%, oklch(0.16 0.03 260) 60%);
-  --shadow-glow: 0 0 40px -10px oklch(0.85 0.16 170 / 0.4);
+  --gradient-hero: radial-gradient(
+    ellipse at top right,
+    oklch(0.56 0.22 275 / 0.35) 0%,
+    oklch(0.18 0.05 275) 55%,
+    oklch(0.13 0.03 275) 100%
+  );
+  --gradient-cta: linear-gradient(135deg, oklch(0.56 0.22 275), oklch(0.42 0.18 280));
+  --shadow-glow: 0 20px 50px -20px oklch(0.56 0.22 275 / 0.55);
+  --shadow-card: 0 8px 24px -12px oklch(0.05 0.02 275 / 0.6);
 }
 
 @layer base {
@@ -98,9 +109,17 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
   }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
+    font-weight: 400;
   }
 }
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+.breathe { animation: breathe 6s ease-in-out infinite; }
