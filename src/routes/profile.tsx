@@ -13,8 +13,11 @@ import {
   Shield,
   FileText,
   Trash2,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
 import {
   getPermission,
