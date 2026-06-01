@@ -90,9 +90,27 @@ function Paywall() {
       <button className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]">
         Start 7-day free trial
       </button>
-      <p className="mt-2 text-center text-[10px] text-muted-foreground/70">
-        Billed through the App Store. Cancel anytime in your subscriptions.
-      </p>
+
+      <div className="mt-3 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
+        <p>
+          Payment is charged to your Apple ID at confirmation of purchase.
+          Subscriptions <strong>auto-renew</strong> at the same price unless
+          cancelled at least 24 hours before the current period ends. Manage
+          or cancel anytime in Settings → Apple ID → Subscriptions. Any unused
+          portion of a free trial is forfeited when you purchase a subscription.
+          Lifetime is a one-time purchase and does not renew.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+          <Link to="/terms" className="text-primary underline">
+            Terms of Service
+          </Link>
+          <Link to="/privacy" className="text-primary underline">
+            Privacy Policy
+          </Link>
+          <button className="text-primary underline">Restore purchases</button>
+        </div>
+      </div>
+
       <Link
         to="/"
         className="mt-3 text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
