@@ -2,12 +2,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { Send, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/coach")({
   head: () => ({
     meta: [
       { title: "AI Sleep Coach — ShiftRest AI" },
-      { name: "description", content: "Chat with your AI circadian-rhythm coach for actionable, shift-worker-specific sleep tips." },
+      {
+        name: "description",
+        content:
+          "Chat with your AI circadian-rhythm coach for actionable, shift-worker-specific sleep tips.",
+      },
     ],
   }),
   component: Coach,
@@ -29,40 +34,100 @@ const STARTERS = [
   "When should I take caffeine before a night shift?",
 ];
 
-function mockResponse(prompt: string): string {
-  const p = prompt.toLowerCase();
-  if (p.includes("caffeine"))
-    return "For an 11p–7a shift, take 100–200 mg of caffeine about 30 minutes before clock-in, and optionally a small top-up by 2 a.m. Stop all caffeine at least 6 hours before your planned bedtime so it doesn't fragment your daytime sleep.";
-  if (p.includes("blackout") || p.includes("light"))
-    return "Aim for cave-dark. Use blackout curtains plus a sleep mask, cover small LEDs with electrical tape, and consider amber/red bulbs in the bathroom for any wake-ups. On the commute home, wear amber/blue-blocking glasses so morning light doesn't suppress melatonin.";
-  if (p.includes("sleep") || p.includes("overnight") || p.includes("night"))
-    return "After a 7 a.m. clock-out, treat 7–9 a.m. as your wind-down: low light, light snack, no screens. Anchor sleep 9 a.m.–5 p.m. in a cool (65–68°F), dark, quiet room. Keep the schedule consistent across consecutive nights to stabilize your rhythm.";
-  return "Great question. A solid rule for shift workers: protect a fixed sleep window, control light aggressively at both ends, and keep meals/caffeine on a predictable schedule. Want me to build a plan around a specific shift block?";
-}
-
 function Coach() {
   const [messages, setMessages] = useState<Msg[]>(SEED);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      listRef.current?.scrollTo({
+        top: listRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }
+
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
-    const next = [...messages, { role: "user" as const, content: trimmed }];
-    setMessages(next);
+    const userMsg: Msg = { role: "user", content: trimmed };
+    const baseMessages = [...messages, userMsg];
+    setMessages(baseMessages);
     setInput("");
     setSending(true);
-    // TODO: replace with real call to OpenAI GPT-4o-mini via a server function.
-    // System prompt: empathetic, professional circadian-rhythm expert giving
-    // shift workers actionable tips on fatigue, blackout curtains, light
-    // exposure, and erratic schedules.
-    await new Promise((r) => setTimeout(r, 600));
-    setMessages([...next, { role: "assistant", content: mockResponse(trimmed) }]);
-    setSending(false);
-    requestAnimationFrame(() => {
-      listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-    });
+    scrollToBottom();
+
+    try {
+      const resp = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: baseMessages }),
+      });
+
+      if (!resp.ok || !resp.body) {
+        const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
+        toast.error(errJson.error || "Coach is unavailable");
+        setMessages(baseMessages);
+        return;
+      }
+
+      // Add placeholder assistant message
+      setMessages([...baseMessages, { role: "assistant", content: "" }]);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let assistant = "";
+      let done = false;
+
+      while (!done) {
+        const { done: rDone, value } = await reader.read();
+        if (rDone) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, nl);
+          buffer = buffer.slice(nl + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (json === "[DONE]") {
+            done = true;
+            break;
+          }
+          try {
+            const parsed = JSON.parse(json);
+            const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
+            if (chunk) {
+              assistant += chunk;
+              setMessages((prev) => {
+                const next = [...prev];
+                next[next.length - 1] = { role: "assistant", content: assistant };
+                return next;
+              });
+              scrollToBottom();
+            }
+          } catch {
+            buffer = line + "\n" + buffer;
+            break;
+          }
+        }
+      }
+
+      if (!assistant) {
+        setMessages(baseMessages);
+        toast.error("Empty response from coach");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Network error — please try again");
+      setMessages(baseMessages);
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -74,7 +139,9 @@ function Coach() {
           </span>
           <div>
             <h1 className="text-lg font-semibold">AI Sleep Coach</h1>
-            <p className="text-xs text-muted-foreground">Circadian-rhythm expert · always on</p>
+            <p className="text-xs text-muted-foreground">
+              Circadian-rhythm expert · always on
+            </p>
           </div>
         </div>
       </header>
@@ -83,16 +150,9 @@ function Coach() {
         <div className="flex flex-col gap-3">
           {messages.map((m, i) => (
             <Bubble key={i} role={m.role}>
-              {m.content}
+              {m.content || (sending && i === messages.length - 1 ? <Typing /> : "")}
             </Bubble>
           ))}
-          {sending && (
-            <Bubble role="assistant">
-              <span className="inline-flex gap-1">
-                <Dot /> <Dot delay={120} /> <Dot delay={240} />
-              </span>
-            </Bubble>
-          )}
         </div>
 
         {messages.length <= 1 && (
@@ -152,20 +212,36 @@ function Coach() {
   );
 }
 
-function Bubble({ role, children }: { role: "user" | "assistant"; children: React.ReactNode }) {
+function Bubble({
+  role,
+  children,
+}: {
+  role: "user" | "assistant";
+  children: React.ReactNode;
+}) {
   const isUser = role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+        className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
           isUser
             ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-card text-foreground border border-border"
+            : "rounded-bl-md border border-border bg-card text-foreground"
         }`}
       >
         {children}
       </div>
     </div>
+  );
+}
+
+function Typing() {
+  return (
+    <span className="inline-flex gap-1">
+      <Dot />
+      <Dot delay={120} />
+      <Dot delay={240} />
+    </span>
   );
 }
 
