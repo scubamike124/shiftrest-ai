@@ -9,15 +9,39 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SwapRouteImport } from './routes/swap'
+import { Route as ShareRouteImport } from './routes/share'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PlaybooksRouteImport } from './routes/playbooks'
+import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 
+const SwapRoute = SwapRouteImport.update({
+  id: '/swap',
+  path: '/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareRoute = ShareRouteImport.update({
+  id: '/share',
+  path: '/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlaybooksRoute = PlaybooksRouteImport.update({
+  id: '/playbooks',
+  path: '/playbooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanRoute = PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaywallRoute = PaywallRouteImport.update({
@@ -45,14 +69,22 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
+  '/plan': typeof PlanRoute
+  '/playbooks': typeof PlaybooksRoute
   '/profile': typeof ProfileRoute
+  '/share': typeof ShareRoute
+  '/swap': typeof SwapRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
+  '/plan': typeof PlanRoute
+  '/playbooks': typeof PlaybooksRoute
   '/profile': typeof ProfileRoute
+  '/share': typeof ShareRoute
+  '/swap': typeof SwapRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRoutesById {
@@ -60,32 +92,96 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/coach': typeof CoachRoute
   '/paywall': typeof PaywallRoute
+  '/plan': typeof PlanRoute
+  '/playbooks': typeof PlaybooksRoute
   '/profile': typeof ProfileRoute
+  '/share': typeof ShareRoute
+  '/swap': typeof SwapRoute
   '/api/coach': typeof ApiCoachRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
+  fullPaths:
+    | '/'
+    | '/coach'
+    | '/paywall'
+    | '/plan'
+    | '/playbooks'
+    | '/profile'
+    | '/share'
+    | '/swap'
+    | '/api/coach'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
-  id: '__root__' | '/' | '/coach' | '/paywall' | '/profile' | '/api/coach'
+  to:
+    | '/'
+    | '/coach'
+    | '/paywall'
+    | '/plan'
+    | '/playbooks'
+    | '/profile'
+    | '/share'
+    | '/swap'
+    | '/api/coach'
+  id:
+    | '__root__'
+    | '/'
+    | '/coach'
+    | '/paywall'
+    | '/plan'
+    | '/playbooks'
+    | '/profile'
+    | '/share'
+    | '/swap'
+    | '/api/coach'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CoachRoute: typeof CoachRoute
   PaywallRoute: typeof PaywallRoute
+  PlanRoute: typeof PlanRoute
+  PlaybooksRoute: typeof PlaybooksRoute
   ProfileRoute: typeof ProfileRoute
+  ShareRoute: typeof ShareRoute
+  SwapRoute: typeof SwapRoute
   ApiCoachRoute: typeof ApiCoachRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/swap': {
+      id: '/swap'
+      path: '/swap'
+      fullPath: '/swap'
+      preLoaderRoute: typeof SwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share': {
+      id: '/share'
+      path: '/share'
+      fullPath: '/share'
+      preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/playbooks': {
+      id: '/playbooks'
+      path: '/playbooks'
+      fullPath: '/playbooks'
+      preLoaderRoute: typeof PlaybooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plan': {
+      id: '/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof PlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/paywall': {
@@ -123,9 +219,23 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CoachRoute: CoachRoute,
   PaywallRoute: PaywallRoute,
+  PlanRoute: PlanRoute,
+  PlaybooksRoute: PlaybooksRoute,
   ProfileRoute: ProfileRoute,
+  ShareRoute: ShareRoute,
+  SwapRoute: SwapRoute,
   ApiCoachRoute: ApiCoachRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
