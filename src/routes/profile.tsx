@@ -250,6 +250,28 @@ function Profile() {
           checked={prefs.notifications}
           onChange={(v) => update("notifications", v)}
         />
+        <div className="flex gap-2 px-4 pb-4">
+          {perm !== "granted" ? (
+            <button
+              onClick={enableNotifs}
+              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+            >
+              {perm === "unsupported" ? "Not supported" : "Enable browser notifications"}
+            </button>
+          ) : (
+            <>
+              <span className="flex h-10 flex-1 items-center justify-center rounded-xl bg-mint/15 text-xs font-semibold text-mint">
+                Permission granted
+              </span>
+              <button
+                onClick={testNotif}
+                className="h-10 rounded-xl bg-secondary px-4 text-sm font-semibold"
+              >
+                Test
+              </button>
+            </>
+          )}
+        </div>
         <Divider />
         <ToggleRow
           icon={<Activity className="h-5 w-5" />}
