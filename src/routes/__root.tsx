@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomNav } from "../components/BottomNav";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
+import { scheduleNextWindDown } from "../lib/notify";
 
 function NotFoundComponent() {
   return (
