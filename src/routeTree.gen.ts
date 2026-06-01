@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
@@ -32,6 +33,11 @@ const ShareRoute = ShareRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlaybooksRoute = PlaybooksRouteImport.update({
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/privacy'
     | '/profile'
     | '/share'
     | '/swap'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/playbooks': {
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
@@ -229,3 +250,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
