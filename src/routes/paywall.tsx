@@ -105,6 +105,8 @@ function Paywall() {
           label="Monthly"
           price="$7.99"
           sub="per month"
+          selected={selectedTier === "monthly"}
+          onSelect={() => setSelectedTier("monthly")}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
         />
         <PlanCard
@@ -113,6 +115,8 @@ function Paywall() {
           sub="per year · save 48% ($4.16/mo)"
           highlighted
           badge="Most popular"
+          selected={selectedTier === "annual"}
+          onSelect={() => setSelectedTier("annual")}
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
         <PlanCard
@@ -121,6 +125,8 @@ function Paywall() {
           sub="one-time · founding member"
           elite
           badge="Launch deal"
+          selected={selectedTier === "lifetime"}
+          onSelect={() => setSelectedTier("lifetime")}
           perks={[
             "Everything in Annual, forever",
             "Smarter AI coach with deeper answers",
@@ -130,8 +136,16 @@ function Paywall() {
         />
       </div>
 
-      <button className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]">
-        Start 7-day free trial
+      <button
+        onClick={handleStartTrial}
+        disabled={loading}
+        className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-60"
+      >
+        {loading
+          ? "Please wait…"
+          : selectedTier === "lifetime"
+            ? "Unlock Lifetime — $99"
+            : "Start 7-day free trial"}
       </button>
 
       <div className="mt-3 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
@@ -150,7 +164,14 @@ function Paywall() {
           <Link to="/privacy" className="text-primary underline">
             Privacy Policy
           </Link>
-          <button className="text-primary underline">Restore purchases</button>
+          <button
+            type="button"
+            onClick={handleRestore}
+            disabled={loading}
+            className="text-primary underline disabled:opacity-60"
+          >
+            Restore purchases
+          </button>
         </div>
       </div>
 
