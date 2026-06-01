@@ -44,14 +44,16 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 };
 
 function PlanPage() {
+  const [mounted, setMounted] = useState(false);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const prefs = useMemo(() => loadPrefs(), []);
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);
 
   useEffect(() => {
     setShifts(loadShifts());
+    setMounted(true);
   }, []);
 
   const shift = shifts.find((s) => s.day === activeDay);
@@ -60,8 +62,8 @@ function PlanPage() {
     [prefs.lat, prefs.lon, today],
   );
   const events = useMemo(
-    () => (shift ? buildLightPlan(shift, prefs, sun) : []),
-    [shift, prefs, sun],
+    () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
+    [mounted, shift, prefs, sun],
   );
 
   function speak() {
