@@ -57,14 +57,43 @@ function Paywall() {
         ))}
       </ul>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        <PlanCard label="Monthly" price="$7.99" sub="per month" />
-        <PlanCard label="Annual" price="$49" sub="per year · save 49%" highlighted />
+      <div className="mt-6 flex flex-col gap-3">
+        <PlanCard
+          label="Monthly"
+          price="$7.99"
+          sub="per month"
+          perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
+        />
+        <PlanCard
+          label="Annual"
+          price="$49"
+          sub="per year · save 49%"
+          highlighted
+          badge="Most popular"
+          perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
+        />
+        <PlanCard
+          label="Elite"
+          price="$119"
+          sub="per year · concierge tier"
+          elite
+          badge="Best value"
+          perks={[
+            "Everything in Annual",
+            "Priority Gemini-3 Pro coach",
+            "Multi-week rotation forecasts",
+            "Wearable sync (when available)",
+            "Partner co-planning & priority support",
+          ]}
+        />
       </div>
 
       <button className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]">
         Start 7-day free trial
       </button>
+      <p className="mt-2 text-center text-[10px] text-muted-foreground/70">
+        Billed through the App Store. Cancel anytime in your subscriptions.
+      </p>
       <Link
         to="/"
         className="mt-3 text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
