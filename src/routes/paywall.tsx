@@ -80,7 +80,7 @@ function Paywall() {
           badge="Best value"
           perks={[
             "Everything in Annual",
-            "Priority Gemini-3 Pro coach",
+            "Smarter AI coach with deeper answers",
             "Multi-week rotation forecasts",
             "Wearable sync (when available)",
             "Partner co-planning & priority support",
