@@ -130,21 +130,52 @@ function PlanCard({
   price,
   sub,
   highlighted,
+  elite,
+  badge,
+  perks,
 }: {
   label: string;
   price: string;
   sub: string;
   highlighted?: boolean;
+  elite?: boolean;
+  badge?: string;
+  perks?: string[];
 }) {
+  const tone = elite
+    ? "border-amber/50 bg-amber/5"
+    : highlighted
+      ? "border-primary bg-primary/10"
+      : "border-border bg-card";
+  const badgeTone = elite
+    ? "bg-amber/20 text-amber"
+    : "bg-primary/20 text-primary";
   return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        highlighted ? "border-primary bg-primary/10" : "border-border bg-card"
-      }`}
-    >
-      <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-bold">{price}</p>
-      <p className="text-[11px] text-muted-foreground">{sub}</p>
+    <div className={`relative rounded-2xl border p-4 ${tone}`}>
+      {badge && (
+        <span
+          className={`absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest ${badgeTone}`}
+        >
+          {badge}
+        </span>
+      )}
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">{label}</p>
+        <div className="text-right">
+          <p className="text-2xl font-bold leading-none">{price}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{sub}</p>
+        </div>
+      </div>
+      {perks && perks.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-1.5">
+          {perks.map((p) => (
+            <li key={p} className="flex items-start gap-2 text-[11px] text-muted-foreground">
+              <Check className={`mt-0.5 h-3 w-3 shrink-0 ${elite ? "text-amber" : "text-primary"}`} />
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
