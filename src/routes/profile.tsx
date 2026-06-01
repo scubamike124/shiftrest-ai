@@ -13,8 +13,11 @@ import {
   Shield,
   FileText,
   Trash2,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
 import {
   getPermission,
@@ -42,6 +45,7 @@ export const Route = createFileRoute("/profile")({
 function Profile() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [perm, setPerm] = useState<NotifyPermission>("default");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -49,7 +53,19 @@ function Profile() {
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {}
     setPerm(getPermission());
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user.email ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUserEmail(session?.user.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    toast.success("Signed out.");
+  }
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     const next = { ...prefs, [k]: v };
@@ -134,6 +150,41 @@ function Profile() {
         </div>
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </Link>
+
+      <section className="rounded-2xl border border-border bg-card p-4">
+        {userEmail ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+                <LogOut className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Signed in</p>
+                <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <Link to="/auth" className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <LogIn className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Sign in or create account</p>
+                <p className="text-xs text-muted-foreground">Sync your shifts across devices</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-border bg-card">
         <div className="flex items-center justify-between p-4">

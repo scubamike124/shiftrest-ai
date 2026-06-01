@@ -1,6 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { startTrial, restorePurchases, type SubscriptionTier } from "@/lib/subscription";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({
@@ -25,6 +29,45 @@ const PERKS = [
 ];
 
 function Paywall() {
+  const navigate = useNavigate();
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>("annual");
+  const [loading, setLoading] = useState(false);
+
+  async function handleStartTrial() {
+    setLoading(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        toast.info("Sign in to start your trial.");
+        navigate({ to: "/auth" });
+        return;
+      }
+      await startTrial(selectedTier);
+      toast.success("Trial started — 7 days of Premium unlocked.");
+      navigate({ to: "/" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start trial.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRestore() {
+    setLoading(true);
+    try {
+      const state = await restorePurchases();
+      toast.success(
+        state.isPremium
+          ? `Premium restored (${state.tier}).`
+          : "No active purchases found on this account.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Restore failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
       <div className="rounded-3xl border border-primary/30 bg-[image:var(--gradient-hero)] p-6 shadow-[var(--shadow-glow)]">
@@ -62,6 +105,8 @@ function Paywall() {
           label="Monthly"
           price="$7.99"
           sub="per month"
+          selected={selectedTier === "monthly"}
+          onSelect={() => setSelectedTier("monthly")}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
         />
         <PlanCard
@@ -70,6 +115,8 @@ function Paywall() {
           sub="per year · save 48% ($4.16/mo)"
           highlighted
           badge="Most popular"
+          selected={selectedTier === "annual"}
+          onSelect={() => setSelectedTier("annual")}
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
         <PlanCard
@@ -78,6 +125,8 @@ function Paywall() {
           sub="one-time · founding member"
           elite
           badge="Launch deal"
+          selected={selectedTier === "lifetime"}
+          onSelect={() => setSelectedTier("lifetime")}
           perks={[
             "Everything in Annual, forever",
             "Smarter AI coach with deeper answers",
@@ -87,8 +136,16 @@ function Paywall() {
         />
       </div>
 
-      <button className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]">
-        Start 7-day free trial
+      <button
+        onClick={handleStartTrial}
+        disabled={loading}
+        className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-60"
+      >
+        {loading
+          ? "Please wait…"
+          : selectedTier === "lifetime"
+            ? "Unlock Lifetime — $99"
+            : "Start 7-day free trial"}
       </button>
 
       <div className="mt-3 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
@@ -107,7 +164,14 @@ function Paywall() {
           <Link to="/privacy" className="text-primary underline">
             Privacy Policy
           </Link>
-          <button className="text-primary underline">Restore purchases</button>
+          <button
+            type="button"
+            onClick={handleRestore}
+            disabled={loading}
+            className="text-primary underline disabled:opacity-60"
+          >
+            Restore purchases
+          </button>
         </div>
       </div>
 
@@ -132,6 +196,8 @@ function PlanCard({
   elite,
   badge,
   perks,
+  selected,
+  onSelect,
 }: {
   label: string;
   price: string;
@@ -140,17 +206,24 @@ function PlanCard({
   elite?: boolean;
   badge?: string;
   perks?: string[];
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const tone = elite
     ? "border-amber/50 bg-amber/5"
     : highlighted
       ? "border-primary bg-primary/10"
       : "border-border bg-card";
+  const ring = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "";
   const badgeTone = elite
     ? "bg-amber/20 text-amber"
     : "bg-primary/20 text-primary";
   return (
-    <div className={`relative rounded-2xl border p-4 ${tone}`}>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
+    >
       {badge && (
         <span
           className={`absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest ${badgeTone}`}
@@ -175,6 +248,6 @@ function PlanCard({
           ))}
         </ul>
       )}
-    </div>
+    </button>
   );
 }
