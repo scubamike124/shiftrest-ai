@@ -1,6 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Check, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { startTrial, restorePurchases, type SubscriptionTier } from "@/lib/subscription";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({
