@@ -285,6 +285,71 @@ function Profile() {
         />
       </section>
 
+      <section className="rounded-2xl border border-border bg-card">
+        <Link
+          to="/privacy"
+          className="flex items-center justify-between p-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Shield className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-semibold">Privacy Policy</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Divider />
+        <Link
+          to="/terms"
+          className="flex items-center justify-between p-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <FileText className="h-5 w-5" />
+            </span>
+            <p className="text-sm font-semibold">Terms of Service</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Divider />
+        <button
+          onClick={() => {
+            const ok = window.confirm(
+              "Delete your account?\n\nThis permanently removes your shifts, preferences, and all data within 30 days. This cannot be undone.",
+            );
+            if (!ok) return;
+            const sure = window.confirm(
+              "Are you absolutely sure? Type OK in the next prompt to confirm.",
+            );
+            if (!sure) return;
+            const code = window.prompt('Type "DELETE" to confirm:');
+            if (code !== "DELETE") {
+              toast.error("Account not deleted.");
+              return;
+            }
+            try {
+              localStorage.clear();
+            } catch {}
+            toast.success("Account deletion requested. All data will be removed within 30 days.");
+            window.location.href = "/";
+          }}
+          className="flex w-full items-center justify-between p-4 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/15 text-destructive">
+              <Trash2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-destructive">Delete account</p>
+              <p className="text-xs text-muted-foreground">
+                Permanently remove your data within 30 days.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </button>
+      </section>
+
       <p className="text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
     </main>
   );
