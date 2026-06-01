@@ -13,6 +13,14 @@ import {
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
+import {
+  getPermission,
+  requestPermission,
+  scheduleNextWindDown,
+  showNotification,
+  nextWindDownAt,
+  type NotifyPermission,
+} from "@/lib/notify";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
@@ -30,18 +38,48 @@ export const Route = createFileRoute("/profile")({
 
 function Profile() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [perm, setPerm] = useState<NotifyPermission>("default");
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PREFS_KEY);
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {}
+    setPerm(getPermission());
   }, []);
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
     const next = { ...prefs, [k]: v };
     setPrefs(next);
     localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    if (k === "notifications" || k === "windDownMin") scheduleNextWindDown();
+  }
+
+  async function enableNotifs() {
+    const res = await requestPermission();
+    setPerm(res);
+    if (res === "granted") {
+      update("notifications", true);
+      scheduleNextWindDown();
+      const next = nextWindDownAt();
+      toast.success(
+        next
+          ? `Notifications on. Next ping ${next.at.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.`
+          : "Notifications on. Add a shift to schedule pings.",
+      );
+    } else if (res === "denied") {
+      toast.error("Permission denied — enable in browser settings.");
+    } else if (res === "unsupported") {
+      toast.error("This browser doesn't support notifications.");
+    }
+  }
+
+  function testNotif() {
+    if (getPermission() !== "granted") {
+      toast.error("Enable notifications first.");
+      return;
+    }
+    showNotification("ShiftRest test 🌙", "Your wind-down pings will look like this.");
   }
 
   function detectLocation() {
@@ -212,6 +250,28 @@ function Profile() {
           checked={prefs.notifications}
           onChange={(v) => update("notifications", v)}
         />
+        <div className="flex gap-2 px-4 pb-4">
+          {perm !== "granted" ? (
+            <button
+              onClick={enableNotifs}
+              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+            >
+              {perm === "unsupported" ? "Not supported" : "Enable browser notifications"}
+            </button>
+          ) : (
+            <>
+              <span className="flex h-10 flex-1 items-center justify-center rounded-xl bg-mint/15 text-xs font-semibold text-mint">
+                Permission granted
+              </span>
+              <button
+                onClick={testNotif}
+                className="h-10 rounded-xl bg-secondary px-4 text-sm font-semibold"
+              >
+                Test
+              </button>
+            </>
+          )}
+        </div>
         <Divider />
         <ToggleRow
           icon={<Activity className="h-5 w-5" />}

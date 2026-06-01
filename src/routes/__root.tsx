@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomNav } from "../components/BottomNav";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
+import { scheduleNextWindDown } from "../lib/notify";
 
 function NotFoundComponent() {
   return (
@@ -116,6 +117,9 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    scheduleNextWindDown();
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="mx-auto flex min-h-screen max-w-md flex-col pb-24">
