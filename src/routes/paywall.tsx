@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Sparkles, Users } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 
 export const Route = createFileRoute("/paywall")({
