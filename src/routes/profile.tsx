@@ -13,6 +13,14 @@ import {
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
+import {
+  getPermission,
+  requestPermission,
+  scheduleNextWindDown,
+  showNotification,
+  nextWindDownAt,
+  type NotifyPermission,
+} from "@/lib/notify";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
