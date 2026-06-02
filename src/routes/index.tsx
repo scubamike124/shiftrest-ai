@@ -54,7 +54,8 @@ function Dashboard() {
     update(shifts.filter((s) => s.id !== id));
   }
 
-  const today = useMemo(() => new Date(), []);
+  const [today, setToday] = useState<Date>(() => new Date(0));
+  useEffect(() => { setToday(new Date()); }, []);
   const weekday = (today.getDay() + 6) % 7;
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
