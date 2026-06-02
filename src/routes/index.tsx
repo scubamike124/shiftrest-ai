@@ -93,8 +93,8 @@ function Dashboard() {
             ShiftRest AI
           </p>
           <h1 className="mt-1 text-[34px] leading-none">
-            {DAYS[weekday]},{" "}
-            <span className="italic opacity-60">{monthDate}</span>
+            {mounted ? DAYS[weekday] : "—"},{" "}
+            <span className="italic opacity-60">{mounted ? monthDate : ""}</span>
           </h1>
         </div>
         <Link
