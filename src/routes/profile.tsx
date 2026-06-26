@@ -397,42 +397,54 @@ function Profile() {
         </Link>
         <Divider />
         <button
-          onClick={() => {
+          disabled={deleting}
+          onClick={async () => {
             const ok = window.confirm(
-              "Delete your account?\n\nThis permanently removes your shifts, preferences, and all data within 30 days. This cannot be undone.",
+              "Delete your account?\n\nThis permanently and immediately removes your account, shifts, preferences, and coach history. This cannot be undone.",
             );
             if (!ok) return;
-            const sure = window.confirm(
-              "Are you absolutely sure? Type OK in the next prompt to confirm.",
-            );
+            const sure = window.confirm("Are you absolutely sure? This is final.");
             if (!sure) return;
             const code = window.prompt('Type "DELETE" to confirm:');
             if (code !== "DELETE") {
               toast.error("Account not deleted.");
               return;
             }
+            setDeleting(true);
             try {
-              localStorage.clear();
-              clearPrefsMigrationFlag();
-            } catch {}
-            toast.success("Account deletion requested. All data will be removed within 30 days.");
-            window.location.href = "/";
+              await deleteAccount({ data: undefined });
+              await queryClient.cancelQueries();
+              queryClient.clear();
+              await supabase.auth.signOut();
+              try {
+                localStorage.clear();
+                clearPrefsMigrationFlag();
+              } catch {}
+              toast.success("Account deleted.");
+              navigate({ to: "/auth", replace: true });
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Could not delete account");
+              setDeleting(false);
+            }
           }}
-          className="flex w-full items-center justify-between p-4 text-left"
+          className="flex w-full items-center justify-between p-4 text-left disabled:opacity-60"
         >
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-destructive/15 text-destructive">
               <Trash2 className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-destructive">Delete account</p>
+              <p className="text-sm font-semibold text-destructive">
+                {deleting ? "Deleting…" : "Delete account"}
+              </p>
               <p className="text-xs text-muted-foreground">
-                Permanently remove your data within 30 days.
+                Permanently and immediately remove your account and data.
               </p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
+
       </section>
 
       <p className="text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
