@@ -1,5 +1,5 @@
 import { fetchShifts, endAbsolute, type Shift } from "./shifts";
-import { loadPrefs } from "./prefs";
+import { fetchPrefs } from "./prefs";
 
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
