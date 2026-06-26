@@ -47,7 +47,7 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
   const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
-  const prefs = useMemo(() => loadPrefs(), []);
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);
