@@ -19,7 +19,7 @@ export const DEFAULT_PREFS: Prefs = {
   lowLight: true,
   lat: 40.7128,
   lon: -74.006,
-  locationLabel: "New York, NY",
+  locationLabel: "",
   partnerName: "",
   onboarded: false,
 };

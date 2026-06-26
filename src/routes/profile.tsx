@@ -66,6 +66,8 @@ function Profile() {
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
   useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
+  const [cityDraft, setCityDraft] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (partial: Partial<Prefs>) => savePrefs(partial),
@@ -132,23 +134,75 @@ function Profile() {
     showNotification("ShiftRest test 🌙", "Your wind-down pings will look like this.");
   }
 
+  async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+    try {
+      const r = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&count=1&language=en&format=json`,
+      );
+      const j = await r.json();
+      const hit = j?.results?.[0];
+      if (!hit) return null;
+      const region = hit.admin1 ?? hit.country_code ?? hit.country;
+      return region ? `${hit.name}, ${region}` : hit.name;
+    } catch {
+      return null;
+    }
+  }
+
+  async function geocodeCity(name: string): Promise<{ lat: number; lon: number; label: string } | null> {
+    try {
+      const r = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`,
+      );
+      const j = await r.json();
+      const hit = j?.results?.[0];
+      if (!hit) return null;
+      const region = hit.admin1 ?? hit.country;
+      return {
+        lat: hit.latitude,
+        lon: hit.longitude,
+        label: region ? `${hit.name}, ${region}` : hit.name,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function detectLocation() {
     if (!("geolocation" in navigator)) {
-      toast.error("Geolocation not supported");
+      toast.error("Geolocation not supported — enter your city below.");
       return;
     }
     toast.info("Detecting location…");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        mutation.mutate({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          locationLabel: `${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`,
-        });
-        toast.success("Location updated");
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const label =
+          (await reverseGeocode(lat, lon)) ?? `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+        mutation.mutate({ lat, lon, locationLabel: label });
+        toast.success(`Location set to ${label}`);
       },
-      () => toast.error("Location permission denied"),
+      () => toast.error("Couldn't detect — enter your city below."),
     );
+  }
+
+  async function saveCity() {
+    const q = cityDraft.trim();
+    if (!q) return;
+    setGeocoding(true);
+    try {
+      const hit = await geocodeCity(q);
+      if (!hit) {
+        toast.error("City not found — try a nearby larger city.");
+        return;
+      }
+      mutation.mutate({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      setCityDraft("");
+      toast.success(`Location set to ${hit.label}`);
+    } finally {
+      setGeocoding(false);
+    }
   }
 
 
@@ -223,7 +277,9 @@ function Profile() {
             </span>
             <div>
               <p className="text-sm font-semibold">Location</p>
-              <p className="text-xs text-muted-foreground">{prefs.locationLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {prefs.locationLabel || "Not set"}
+              </p>
               <p className="mt-0.5 text-[10px] text-muted-foreground/70">
                 Used for sunrise/sunset in your light plan.
               </p>
@@ -234,6 +290,28 @@ function Profile() {
             className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
           >
             Detect
+          </button>
+        </div>
+        <div className="flex gap-2 px-4 pb-4">
+          <input
+            type="text"
+            placeholder="Or type a city (e.g. Austin, TX)"
+            value={cityDraft}
+            onChange={(e) => setCityDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                saveCity();
+              }
+            }}
+            className="h-10 flex-1 rounded-xl border border-border bg-input px-3 text-sm"
+          />
+          <button
+            onClick={saveCity}
+            disabled={geocoding || !cityDraft.trim()}
+            className="rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {geocoding ? "…" : "Save"}
           </button>
         </div>
       </section>
