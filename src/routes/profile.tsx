@@ -134,23 +134,75 @@ function Profile() {
     showNotification("ShiftRest test 🌙", "Your wind-down pings will look like this.");
   }
 
+  async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+    try {
+      const r = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&count=1&language=en&format=json`,
+      );
+      const j = await r.json();
+      const hit = j?.results?.[0];
+      if (!hit) return null;
+      const region = hit.admin1 ?? hit.country_code ?? hit.country;
+      return region ? `${hit.name}, ${region}` : hit.name;
+    } catch {
+      return null;
+    }
+  }
+
+  async function geocodeCity(name: string): Promise<{ lat: number; lon: number; label: string } | null> {
+    try {
+      const r = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`,
+      );
+      const j = await r.json();
+      const hit = j?.results?.[0];
+      if (!hit) return null;
+      const region = hit.admin1 ?? hit.country;
+      return {
+        lat: hit.latitude,
+        lon: hit.longitude,
+        label: region ? `${hit.name}, ${region}` : hit.name,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function detectLocation() {
     if (!("geolocation" in navigator)) {
-      toast.error("Geolocation not supported");
+      toast.error("Geolocation not supported — enter your city below.");
       return;
     }
     toast.info("Detecting location…");
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        mutation.mutate({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          locationLabel: `${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`,
-        });
-        toast.success("Location updated");
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const label =
+          (await reverseGeocode(lat, lon)) ?? `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+        mutation.mutate({ lat, lon, locationLabel: label });
+        toast.success(`Location set to ${label}`);
       },
-      () => toast.error("Location permission denied"),
+      () => toast.error("Couldn't detect — enter your city below."),
     );
+  }
+
+  async function saveCity() {
+    const q = cityDraft.trim();
+    if (!q) return;
+    setGeocoding(true);
+    try {
+      const hit = await geocodeCity(q);
+      if (!hit) {
+        toast.error("City not found — try a nearby larger city.");
+        return;
+      }
+      mutation.mutate({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      setCityDraft("");
+      toast.success(`Location set to ${hit.label}`);
+    } finally {
+      setGeocoding(false);
+    }
   }
 
 
