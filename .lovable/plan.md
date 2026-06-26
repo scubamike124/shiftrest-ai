@@ -1,161 +1,118 @@
+# Phase 1 / Task 2 — Persist Preferences + Onboarding
 
-# Phase 1 / Task 1 — Persist Shifts in Supabase
+## Investigation summary
 
-## Goal
-Replace `localStorage`-only shift storage with a Supabase-backed `shifts` table so users keep their schedule across devices and browser clears. No UI redesign. No changes to payments, coach history, OAuth, or password reset.
+Current localStorage keys in use:
+- `shiftrest.prefs.v1` (`src/lib/prefs.ts`) — `windDownMin`, `sleepHours`, `notifications`, `lowLight`, `lat`, `lon`, `locationLabel`, `partnerName`
+- `shiftrest.onboarded.v1` (`src/components/Onboarding.tsx`) — completion flag
 
-## 1. Current state (investigation findings)
+Consumers of `loadPrefs()`: `src/routes/index.tsx`, `plan.tsx`, `swap.tsx`, `share.tsx`, `profile.tsx`, `src/lib/notify.ts`.
+Writers: `src/routes/profile.tsx` (settings form + location detect), `src/components/Onboarding.tsx` (sets flag only).
 
-- `src/lib/shifts.ts` defines `Shift = { id, day (0–6), start (min from 00:00), end (min) }` and reads/writes the JSON array under `localStorage["shiftrest.shifts.v1"]`.
-- Call sites for `loadShifts` / `saveShifts`:
-  - `src/routes/index.tsx` — main editor; reads on mount, writes on every add/delete.
-  - `src/routes/plan.tsx` — reads on mount.
-  - `src/routes/share.tsx` — reads own shifts.
-  - `src/routes/swap.tsx` — reads current shifts.
-  - `src/routes/playbooks.tsx` — overwrites all shifts when applying a template.
-  - `src/lib/notify.ts` — reads to schedule wind-down notifications.
-- `src/routes/coach.tsx`, `src/routes/profile.tsx`, `src/routes/paywall.tsx`, `src/components/Onboarding.tsx` only import the `DISCLAIMER` constant — untouched by this task.
-- No `shifts` table exists today; only `profiles` is in the DB. Auth (email + OAuth) is already wired.
+No prefs table exists yet. `profiles` already has `id, display_name, email, subscription_*`.
 
-## 2. Database design
+## Recommendation: Option B — new `user_prefs` table
 
-Single table `public.shifts`, one row per shift, owned by the signed-in user. Keep current numeric `day` + `start` + `end` model rather than absolute timestamps — the entire app's logic (debt score, plan, playbooks, notifications) is built around weekday-relative minutes, and changing the shape is out of scope.
+Reasons:
+- `profiles` is identity/billing; mixing app preference fields bloats it and risks coupling subscription logic to settings writes.
+- A dedicated table keeps RLS scope tight, lets us evolve the schema without touching auth-critical rows, and supports cheap "preferences last updated" tracking for migration conflict checks.
+- One-to-one with auth user via `user_id` PK; trivial upsert pattern.
 
-The plan request mentions `title`, `start_time`, `end_time`, `shift_type`, `notes`. The current app does not use any of those — adding them as nullable optional columns is safe and forward-compatible, but we will not wire UI for them in this task.
+## Database schema
 
-### Schema
-```text
-public.shifts
-  id            uuid    PK, default gen_random_uuid()
-  user_id       uuid    NOT NULL, FK -> auth.users(id) ON DELETE CASCADE
-  day           int2    NOT NULL  (0=Mon .. 6=Sun)  CHECK 0..6
-  start_min     int2    NOT NULL  CHECK 0..1439
-  end_min       int2    NOT NULL  CHECK 0..1439
-  title         text    NULL
-  shift_type    text    NULL
-  notes         text    NULL
-  created_at    timestamptz NOT NULL DEFAULT now()
-  updated_at    timestamptz NOT NULL DEFAULT now()
-
-INDEX shifts_user_id_idx ON (user_id)
-TRIGGER shifts_updated_at  BEFORE UPDATE -> public.set_updated_at()  (already exists)
-```
-
-### Migration SQL (preview — not executed yet)
 ```sql
-CREATE TABLE public.shifts (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  day         SMALLINT NOT NULL CHECK (day BETWEEN 0 AND 6),
-  start_min   SMALLINT NOT NULL CHECK (start_min BETWEEN 0 AND 1439),
-  end_min     SMALLINT NOT NULL CHECK (end_min BETWEEN 0 AND 1439),
-  title       TEXT,
-  shift_type  TEXT,
-  notes       TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE public.user_prefs (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  wind_down_min smallint NOT NULL DEFAULT 120,
+  sleep_hours numeric(3,1) NOT NULL DEFAULT 8,
+  notifications boolean NOT NULL DEFAULT true,
+  low_light boolean NOT NULL DEFAULT true,
+  lat double precision NOT NULL DEFAULT 40.7128,
+  lon double precision NOT NULL DEFAULT -74.006,
+  location_label text NOT NULL DEFAULT 'New York, NY',
+  partner_name text NOT NULL DEFAULT '',
+  onboarded_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.shifts TO authenticated;
-GRANT ALL ON public.shifts TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_prefs TO authenticated;
+GRANT ALL ON public.user_prefs TO service_role;
 
-ALTER TABLE public.shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_prefs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users select own shifts" ON public.shifts
-  FOR SELECT TO authenticated USING (auth.uid() = user_id);
-CREATE POLICY "Users insert own shifts" ON public.shifts
-  FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users update own shifts" ON public.shifts
-  FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users delete own shifts" ON public.shifts
-  FOR DELETE TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users select own prefs"  ON public.user_prefs FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own prefs"  ON public.user_prefs FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users update own prefs"  ON public.user_prefs FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users delete own prefs"  ON public.user_prefs FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
-CREATE INDEX shifts_user_id_idx ON public.shifts (user_id);
-
-CREATE TRIGGER shifts_updated_at
-  BEFORE UPDATE ON public.shifts
+CREATE TRIGGER user_prefs_set_updated_at
+  BEFORE UPDATE ON public.user_prefs
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 ```
 
-## 3. `src/lib/shifts.ts` — change shape
+Onboarding flag = `onboarded_at IS NOT NULL`. No separate table needed.
 
-Keep the `Shift` type, `DAYS`, `fmt`, `parseTime`, `toTimeInput`, `endAbsolute`, `DISCLAIMER` exports unchanged.
+## Code plan
 
-Replace the two storage functions:
-- `loadShifts()` → `async fetchShifts(): Promise<Shift[]>` — reads current user's rows via `supabase.from('shifts').select(...).order('day').order('start_min')`, maps DB → `Shift`. If no session, returns `[]`.
-- `saveShifts(next)` → split into granular ops because re-writing the whole array per change is wasteful and racy:
-  - `addShift(input: Omit<Shift,'id'>): Promise<Shift>`
-  - `updateShift(id, patch): Promise<void>`  (not currently used by UI but cheap to add)
-  - `deleteShift(id): Promise<void>`
-  - `replaceAllShifts(next: Shift[]): Promise<void>` — used only by Playbooks ("Apply"); deletes all existing user rows then bulk-inserts.
-- Add `migrateLocalShiftsIfNeeded(userId): Promise<void>` — guarded by a sentinel localStorage key `shiftrest.shifts.migrated.v1`. On the first authenticated load: if old `shiftrest.shifts.v1` exists and the sentinel is unset, insert each row with the user id, then set the sentinel and remove the legacy key. Idempotent; survives repeated logins. If the user already has rows in the DB, skip insert (treat as "already migrated").
+### `src/lib/prefs.ts` — rewrite to async, cloud-backed
+- Keep `Prefs` shape + `DEFAULT_PREFS` for compatibility.
+- New API:
+  - `fetchPrefs()` → returns row or `DEFAULT_PREFS` (logged out / no row).
+  - `savePrefs(partial)` → upsert by `auth.uid()`; no-op when logged out.
+  - `markOnboarded()` → upsert `onboarded_at = now()`.
+  - `isOnboarded()` → boolean from row.
+  - `migrateLocalPrefsIfNeeded()` → idempotent, guarded by `localStorage` flag `shiftrest.prefs.migrated.v1`:
+    1. If guard set → exit.
+    2. If row exists AND `updated_at` newer than legacy save → set guard, drop legacy keys, exit (don't overwrite cloud).
+    3. Else read legacy `shiftrest.prefs.v1` + `shiftrest.onboarded.v1`, upsert merged values, set guard, remove legacy keys.
+- Keep a synchronous `loadPrefsSync()` returning `DEFAULT_PREFS` only — used during SSR / pre-auth render to avoid layout shift; replaced by query data once mounted.
 
-DB row ↔ `Shift` mapping:
-```text
-{ id, day, start_min, end_min }  ⇄  { id, day, start, end }
-```
+### `src/components/Onboarding.tsx`
+- Replace localStorage check with query of `user_prefs.onboarded_at`.
+- On "Get started" → call `markOnboarded()` then close.
+- Logged-out: show onboarding once per browser using existing localStorage flag (no auth = nothing to sync).
 
-## 4. Component changes (minimal, presentation untouched)
+### `src/routes/profile.tsx`
+- Replace local state seeding from `localStorage` with `useQuery(['prefs'])` → `fetchPrefs()`.
+- Replace direct `localStorage.setItem` calls (lines 73, 119) with `useMutation` → `savePrefs()`, invalidate `['prefs']`.
+- Keep "Delete all local data" button but also clear migration guard.
 
-- **`src/routes/index.tsx`** — replace `loadShifts()` with a TanStack Query `useQuery({ queryKey: ['shifts'], queryFn: fetchShifts })`. Replace `saveShifts(next)` in `addShift` / `removeShift` with `useMutation` wrapping `addShift` / `deleteShift`, then `queryClient.invalidateQueries(['shifts'])`. UI markup unchanged.
-- **`src/routes/plan.tsx`** — swap `loadShifts()` for `useQuery(['shifts'], fetchShifts)`. Render unchanged.
-- **`src/routes/share.tsx`** — same swap for the "my shifts" branch.
-- **`src/routes/swap.tsx`** — same swap before the AI call.
-- **`src/routes/playbooks.tsx`** — replace `saveShifts(shifts)` with `await replaceAllShifts(shifts)` then navigate.
-- **`src/lib/notify.ts`** — `scheduleNextWindDown` becomes async (`await fetchShifts()`); the single caller in `src/routes/__root.tsx` already runs it in an effect, so we just drop the `await` and ignore the promise.
-- **Move route gating** — these routes now require a session. Move them under `src/routes/_authenticated/` (the integration-managed gate already exists per project rules) **or** keep them top-level and have `fetchShifts` return `[]` when signed-out. **Decision for this task:** keep top-level, return `[]` when signed-out, and let the existing `/auth` CTA in the UI handle the sign-in nudge — moving routes is a navigation change out of scope.
+### Consumers (`index.tsx`, `plan.tsx`, `swap.tsx`, `share.tsx`, `lib/notify.ts`)
+- Replace synchronous `loadPrefs()` with `useQuery(['prefs'], fetchPrefs)` in components.
+- `notify.ts` already async — switch its internal `loadPrefs()` calls to `await fetchPrefs()`.
 
-No server functions needed — the browser Supabase client + RLS is sufficient and matches existing patterns in the project.
+### `src/routes/__root.tsx`
+- After auth state becomes `SIGNED_IN`, call `migrateLocalPrefsIfNeeded()` (alongside existing shifts migration).
+- Invalidate `['prefs']` on `SIGNED_IN` / `SIGNED_OUT`.
 
-## 5. Files that will change
+## Files to change
+1. `supabase/migrations/<ts>_user_prefs.sql` (new, via migration tool)
+2. `src/lib/prefs.ts` (rewrite)
+3. `src/components/Onboarding.tsx`
+4. `src/routes/profile.tsx`
+5. `src/routes/index.tsx`
+6. `src/routes/plan.tsx`
+7. `src/routes/swap.tsx`
+8. `src/routes/share.tsx`
+9. `src/lib/notify.ts`
+10. `src/routes/__root.tsx`
 
-```text
-supabase/migrations/<new>.sql        NEW   shifts table + RLS + grants + trigger
-src/lib/shifts.ts                    EDIT  swap storage layer; keep types/helpers
-src/routes/index.tsx                 EDIT  useQuery/useMutation; same JSX
-src/routes/plan.tsx                  EDIT  useQuery
-src/routes/share.tsx                 EDIT  useQuery
-src/routes/swap.tsx                  EDIT  useQuery (or one-shot fetch in handler)
-src/routes/playbooks.tsx             EDIT  await replaceAllShifts
-src/lib/notify.ts                    EDIT  await fetchShifts
-src/routes/__root.tsx                EDIT  call the migration helper once after auth, and await the notify scheduler
-```
+## Risks
+- **SSR / logged-out reads**: components must tolerate `DEFAULT_PREFS` during first render. Mitigation: `useQuery` with `initialData: DEFAULT_PREFS`.
+- **Race on first login**: migration vs initial fetch. Mitigation: await migration before invalidating `['prefs']` in `__root.tsx`.
+- **Overwriting newer cloud prefs**: handled by "row exists → skip migration" guard.
+- **Notification scheduler** runs from `notify.ts` outside React; must read prefs via direct Supabase call, not query cache.
+- **Onboarding flash** for signed-in users on slow networks: gate modal on `query.isSuccess && !onboarded_at`.
 
-Files explicitly **not** touched: `coach.tsx`, `paywall.tsx`, `profile.tsx`, `auth.tsx`, `Onboarding.tsx`, `subscription.ts`, the supabase auto-generated integration files.
-
-## 6. Risks & mitigations
-
-- **Signed-out users on `/`** — page currently works offline via localStorage. After the change, signed-out users see an empty schedule. Mitigation: leave the existing "Sign in" UI affordances; surface a small "Sign in to save your schedule" hint when not authenticated (copy-only, no redesign).
-- **Migration double-insert** — handled by the sentinel key + the "skip if DB already has rows" guard.
-- **Race on Playbooks "Apply"** — `replaceAllShifts` does delete-then-insert; wrap in a single Supabase transaction is not possible from the client, so we accept brief inconsistency. Mitigation: invalidate query after both calls succeed; on partial failure, surface a toast.
-- **Latency** — first paint of `/` no longer instant. Mitigation: TanStack Query's cache + show the existing empty state while loading (no spinner change).
-- **RLS regression on other tables** — none; we only add policies on the new table.
-- **Type drift** — Supabase types regenerate after migration; component code must be written after the migration runs.
-- **SSR** — `fetchShifts` runs only client-side (browser Supabase client). Routes already render with `mounted` guards, so SSR shape is unaffected.
-
-## 7. Test checklist
-
-Functional (one signed-in user):
-1. Sign in → empty schedule renders.
-2. Add a shift → row appears in DB (`select * from shifts where user_id=...`), UI updates.
-3. Edit a shift (delete + re-add via existing UI) → DB reflects new row, old row gone.
-4. Delete a shift → row removed in DB, UI updates.
-5. Apply a Playbook → previous shifts cleared, new set inserted; counts match.
-6. Hard refresh → schedule reloads from DB, identical to pre-refresh.
-7. Log out → schedule view empties; sign back in → schedule restored.
-
-Migration:
-8. Pre-seed `localStorage["shiftrest.shifts.v1"]` with 2 shifts, sign in → both rows appear in DB exactly once, sentinel set, legacy key removed.
-9. Reload after migration → no duplicate insert, sentinel still set.
-10. Sign in as a second user on same browser → sees their own shifts only, no leakage from user A's migrated rows.
-
-Security (RLS):
-11. As user B, attempt `select * from shifts where user_id='<user A id>'` via browser client → returns 0 rows.
-12. As user B, attempt `update`/`delete` on user A's row id → 0 rows affected.
-13. Anonymous (signed-out) `select` → permission denied / 0 rows.
-
-Notifications:
-14. With shifts saved server-side, "Test notification" still fires; scheduler uses fresh DB read.
-
-## 8. Out of scope (explicit)
-Payments, coach history persistence, OAuth provider config, password reset, account deletion UI, UI redesign, server functions, edge functions. No changes to `Shift` field semantics (day/start/end remain minutes-from-midnight).
+## Test checklist
+1. Fresh browser, sign up → onboarding shows → complete → refresh → does not show.
+2. Sign out → sign back in → onboarding still does not show.
+3. Change wind-down, sleep hours, partner name in Profile → refresh → values persist.
+4. Sign in on a second browser → same prefs appear.
+5. Change a pref on browser B → refresh browser A → updated value present (after refetch / sign-in).
+6. Log out → navigate to Plan / Index / Share → no crash; defaults render.
+7. Pre-existing user with legacy localStorage prefs: sign in → values migrated to cloud, legacy keys cleared, no duplicate on second login.
+8. User with cloud prefs already + stale localStorage: sign in → cloud values win, legacy keys cleared.
+9. Notifications toggle → Test notification still fires; wind-down scheduler picks up new prefs after save.
+10. Delete account flow unaffected (cascade removes `user_prefs` row).
