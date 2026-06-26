@@ -98,7 +98,14 @@ export async function updateShift(
   id: string,
   patch: Partial<ShiftInput>,
 ): Promise<void> {
-  const row: Record<string, unknown> = {};
+  const row: {
+    day?: number;
+    start_min?: number;
+    end_min?: number;
+    employer_id?: string | null;
+    title?: string | null;
+    notes?: string | null;
+  } = {};
   if (patch.day !== undefined) row.day = patch.day;
   if (patch.start !== undefined) row.start_min = patch.start;
   if (patch.end !== undefined) row.end_min = patch.end;

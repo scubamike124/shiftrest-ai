@@ -150,7 +150,19 @@ export async function updateEmployer(
       .eq("user_id", userId)
       .eq("is_default", true);
   }
-  const row: Record<string, unknown> = {};
+  const row: {
+    name?: string;
+    color?: string;
+    is_default?: boolean;
+    location?: string | null;
+    department?: string | null;
+    supervisor?: string | null;
+    pay_rate?: number | null;
+    pay_currency?: string | null;
+    commute_min?: number | null;
+    reminder_offset_min?: number | null;
+    recovery_notes?: string | null;
+  } = {};
   if (patch.name !== undefined) row.name = patch.name.trim() || "Untitled";
   if (patch.color !== undefined) row.color = patch.color;
   if (patch.isDefault !== undefined) row.is_default = patch.isDefault;
