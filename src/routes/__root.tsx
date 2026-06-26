@@ -128,9 +128,10 @@ function RootComponent() {
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
-      await migrateLocalShiftsIfNeeded();
+      await Promise.all([migrateLocalShiftsIfNeeded(), migrateLocalPrefsIfNeeded()]);
       if (cancelled) return;
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      queryClient.invalidateQueries({ queryKey: ["prefs"] });
       await scheduleNextWindDown();
     }
     bootstrap();
