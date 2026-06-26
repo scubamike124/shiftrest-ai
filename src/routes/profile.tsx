@@ -45,6 +45,9 @@ import {
   nextWindDownAt,
   type NotifyPermission,
 } from "@/lib/notify";
+import { getSubscriptionState } from "@/lib/subscription";
+import { createPortalSession } from "@/lib/billing.functions";
+import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/profile")({
