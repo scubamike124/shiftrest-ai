@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Moon, Mail, Lock, Apple } from "lucide-react";
+import { Moon, Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
@@ -89,13 +89,7 @@ function AuthPage() {
       </p>
 
       <div className="mt-8 flex flex-col gap-3">
-        <button
-          onClick={() => handleOAuth("apple")}
-          disabled={loading}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-foreground text-sm font-semibold text-background active:scale-[0.99] disabled:opacity-60"
-        >
-          <Apple className="h-5 w-5" /> Continue with Apple
-        </button>
+        {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
         <button
           onClick={() => handleOAuth("google")}
           disabled={loading}

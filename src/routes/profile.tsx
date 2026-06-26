@@ -404,12 +404,12 @@ function Profile() {
               <Heart className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold">Apple Health & Google Fit</p>
+              <p className="text-sm font-semibold">Wearable & health sync</p>
               <p className="text-xs text-muted-foreground">
                 Sync actual sleep to compare against your plan.
               </p>
               <p className="mt-0.5 text-[10px] text-amber">
-                Native app required — coming with iOS & Android wrappers.
+                Coming soon — connect your watch and sleep tracker.
               </p>
             </div>
           </div>
