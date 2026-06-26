@@ -89,6 +89,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_prefs: {
+        Row: {
+          created_at: string
+          lat: number
+          location_label: string
+          lon: number
+          low_light: boolean
+          notifications: boolean
+          onboarded_at: string | null
+          partner_name: string
+          sleep_hours: number
+          updated_at: string
+          user_id: string
+          wind_down_min: number
+        }
+        Insert: {
+          created_at?: string
+          lat?: number
+          location_label?: string
+          lon?: number
+          low_light?: boolean
+          notifications?: boolean
+          onboarded_at?: string | null
+          partner_name?: string
+          sleep_hours?: number
+          updated_at?: string
+          user_id: string
+          wind_down_min?: number
+        }
+        Update: {
+          created_at?: string
+          lat?: number
+          location_label?: string
+          lon?: number
+          low_light?: boolean
+          notifications?: boolean
+          onboarded_at?: string | null
+          partner_name?: string
+          sleep_hours?: number
+          updated_at?: string
+          user_id?: string
+          wind_down_min?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
