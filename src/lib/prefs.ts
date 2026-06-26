@@ -164,7 +164,7 @@ export async function migrateLocalPrefsIfNeeded(): Promise<void> {
 
   const { error } = await supabase
     .from("user_prefs")
-    .upsert(row, { onConflict: "user_id" });
+    .upsert(row as never, { onConflict: "user_id" });
 
   if (error) {
     console.error("migrateLocalPrefsIfNeeded failed", error);
