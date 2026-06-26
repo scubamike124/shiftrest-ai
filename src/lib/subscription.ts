@@ -1,5 +1,5 @@
-// Subscription helpers — works in mock mode until RevenueCat keys are wired in
-// for the native iOS build. On the web we just read/write the profile row.
+// Subscription helpers — server-side subscription state for the web product.
+// Reads/writes the profile row.
 import { supabase } from "@/integrations/supabase/client";
 
 export type SubscriptionTier = "free" | "monthly" | "annual" | "lifetime";
@@ -34,12 +34,10 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
   return { tier, expiresAt, trialEndsAt, isPremium };
 }
 
-// Called from the paywall. On the web this is a mock that starts a 7-day trial.
-// On native iOS, RevenueCat's `Purchases.purchasePackage()` runs first, and on
-// success this server-side write is what makes the rest of the app unlock.
+// Called from the paywall. Starts a 7-day Premium trial for the signed-in user.
 export async function startTrial(tier: SubscriptionTier): Promise<void> {
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session) throw new Error("Sign in to start your trial.");
+  if (!session.session) throw new Error("Sign in to start your free trial.");
 
   const trialEnds = new Date();
   trialEnds.setDate(trialEnds.getDate() + 7);
@@ -53,8 +51,7 @@ export async function startTrial(tier: SubscriptionTier): Promise<void> {
     .eq("id", session.session.user.id);
 }
 
-// Restore purchases — on web, refetches profile. On native, RevenueCat's
-// `Purchases.restorePurchases()` is invoked first, then this re-syncs.
+// Restore purchases — refetches the latest subscription state from the server.
 export async function restorePurchases(): Promise<SubscriptionState> {
   return getSubscriptionState();
 }

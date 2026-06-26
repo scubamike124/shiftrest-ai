@@ -8,7 +8,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/playbooks")({
   head: () => ({
     meta: [
-      { title: "Recovery Playbooks — ShiftRest AI" },
+      { title: "Recovery Playbooks — RestPilot AI" },
       {
         name: "description",
         content:

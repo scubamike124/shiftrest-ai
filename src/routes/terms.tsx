@@ -4,16 +4,16 @@ import { ChevronLeft } from "lucide-react";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Terms of Service — ShiftRest AI" },
+      { title: "Terms of Service — RestPilot AI" },
       {
         name: "description",
         content:
-          "Terms governing your use of ShiftRest AI and Premium subscriptions.",
+          "Terms governing your use of RestPilot AI and Premium subscriptions.",
       },
-      { property: "og:title", content: "Terms of Service — ShiftRest AI" },
+      { property: "og:title", content: "Terms of Service — RestPilot AI" },
       {
         property: "og:description",
-        content: "Terms governing your use of ShiftRest AI.",
+        content: "Terms governing your use of RestPilot AI.",
       },
       { property: "og:url", content: "/terms" },
     ],
@@ -46,15 +46,15 @@ function Terms() {
           1. Acceptance
         </h2>
         <p>
-          By using ShiftRest AI you agree to these terms. If you do not
-          agree, do not use the app.
+          By using RestPilot AI you agree to these terms. If you do not
+          agree, please do not use the service.
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
           2. The service
         </h2>
         <p>
-          ShiftRest helps shift workers plan sleep windows, wind-down
+          RestPilot AI helps shift workers plan sleep windows, wind-down
           routines, and recovery schedules. It is an informational tool, not
           a medical device, and does not provide medical advice.
         </p>
@@ -68,19 +68,19 @@ function Terms() {
             $99 (one-time).
           </li>
           <li>
-            Subscriptions are billed through your Apple ID at confirmation of
-            purchase.
+            Paid subscriptions renew automatically at the listed price until
+            cancelled.
           </li>
           <li>
-            Subscriptions <strong>auto-renew</strong> at the same price unless
-            cancelled at least 24 hours before the current period ends.
+            You can manage or cancel your plan anytime from your account
+            settings.
           </li>
           <li>
-            Manage or cancel anytime in Settings → Apple ID → Subscriptions.
+            Lifetime is a one-time purchase and does not renew.
           </li>
           <li>
-            Any unused portion of a free trial is forfeited when you purchase a
-            subscription.
+            Any unused portion of a free trial is forfeited when a paid plan
+            begins.
           </li>
         </ul>
 
@@ -88,8 +88,8 @@ function Terms() {
           4. Acceptable use
         </h2>
         <p>
-          Don't reverse-engineer the app, abuse the API, or use it in ways
-          that violate law or harm others.
+          Don't reverse-engineer the service, abuse the API, or use it in ways
+          that violate the law or harm others.
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
@@ -134,10 +134,10 @@ function Terms() {
         <p>
           Email{" "}
           <a
-            href="mailto:support@shiftrest.app"
+            href="mailto:support@restpilot.ai"
             className="text-primary underline"
           >
-            support@shiftrest.app
+            support@restpilot.ai
           </a>
           .
         </p>

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/paywall")({
   head: () => ({
     meta: [
-      { title: "ShiftRest Premium — Unlock the AI Sleep Coach" },
+      { title: "RestPilot Premium — Unlock the AI Sleep Coach" },
       {
         name: "description",
         content:
@@ -38,7 +38,7 @@ function Paywall() {
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
-        toast.info("Sign in to start your trial.");
+        toast.info("Sign in to start your free trial.");
         navigate({ to: "/auth" });
         return;
       }
@@ -46,7 +46,7 @@ function Paywall() {
       toast.success("Trial started — 7 days of Premium unlocked.");
       navigate({ to: "/" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not start trial.");
+      toast.error(err instanceof Error ? err.message : "We couldn't start your trial. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ function Paywall() {
           : "No active purchases found on this account.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Restore failed.");
+      toast.error(err instanceof Error ? err.message : "We couldn't restore your purchases.");
     } finally {
       setLoading(false);
     }
@@ -78,7 +78,7 @@ function Paywall() {
           Sleep like the sun never moved.
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          ShiftRest Premium gives you the AI Sleep Coach and adaptive notifications built
+          RestPilot Premium gives you the AI Sleep Coach and adaptive notifications built
           for the chaos of shift work.
         </p>
       </div>

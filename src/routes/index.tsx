@@ -19,7 +19,7 @@ import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your Week — ShiftRest AI" },
+      { title: "Your Week — RestPilot AI" },
       {
         name: "description",
         content: "Map your shifts and see automatic wind-down and sleep windows.",
@@ -104,7 +104,7 @@ function Dashboard() {
       <header className="mb-5 flex items-end justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            ShiftRest AI
+            RestPilot AI
           </p>
           <h1 className="mt-1 text-[34px] leading-none">
             {mounted ? DAYS[weekday] : "—"},{" "}

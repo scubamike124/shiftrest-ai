@@ -20,7 +20,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/plan")({
   head: () => ({
     meta: [
-      { title: "Smart Light Plan — ShiftRest AI" },
+      { title: "Smart Light Plan — RestPilot AI" },
       {
         name: "description",
         content:
