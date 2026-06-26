@@ -144,15 +144,21 @@ function Profile() {
   }
 
   async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+    // BigDataCloud's free no-auth reverse geocoder. Returns city + region without an API key.
     try {
       const r = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&count=1&language=en&format=json`,
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
       );
+      if (!r.ok) return null;
       const j = await r.json();
-      const hit = j?.results?.[0];
-      if (!hit) return null;
-      const region = hit.admin1 ?? hit.country_code ?? hit.country;
-      return region ? `${hit.name}, ${region}` : hit.name;
+      const city =
+        j?.city ||
+        j?.locality ||
+        j?.localityInfo?.administrative?.find((a: { adminLevel?: number; name?: string }) => a.adminLevel === 8)?.name ||
+        j?.principalSubdivision;
+      const region = j?.principalSubdivision || j?.countryName;
+      if (!city) return null;
+      return region && region !== city ? `${city}, ${region}` : city;
     } catch {
       return null;
     }
@@ -187,14 +193,21 @@ function Profile() {
       async (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        const label =
-          (await reverseGeocode(lat, lon)) ?? `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+        const label = await reverseGeocode(lat, lon);
+        if (!label) {
+          // Save coordinates for sunrise/sunset calculations, but leave the
+          // user-facing label empty so we never display raw lat/lon.
+          mutation.mutate({ lat, lon, locationLabel: "" });
+          toast.error("Couldn't look up your city — please type it below.");
+          return;
+        }
         mutation.mutate({ lat, lon, locationLabel: label });
         toast.success(`Location set to ${label}`);
       },
       () => toast.error("Couldn't detect — enter your city below."),
     );
   }
+
 
   async function saveCity() {
     const q = cityDraft.trim();
