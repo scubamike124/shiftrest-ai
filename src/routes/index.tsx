@@ -14,7 +14,7 @@ import {
   endAbsolute,
 } from "@/lib/shifts";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
-import { loadPrefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 
 export const Route = createFileRoute("/")({
   head: () => ({
