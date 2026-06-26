@@ -60,7 +60,7 @@ export async function scheduleNextWindDown() {
     window.clearTimeout(timer);
     timer = null;
   }
-  const prefs = loadPrefs();
+  const prefs = await fetchPrefs();
   if (!prefs.notifications) return;
   if (getPermission() !== "granted") return;
   const next = await nextWindDownAt();
