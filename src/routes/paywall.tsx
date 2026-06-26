@@ -1,9 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, ShieldCheck } from "lucide-react";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { DISCLAIMER } from "@/lib/shifts";
-import { startTrial, restorePurchases, type SubscriptionTier } from "@/lib/subscription";
+import { restorePurchases, type SubscriptionTier } from "@/lib/subscription";
 import { supabase } from "@/integrations/supabase/client";
+import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
+import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/paywall")({
@@ -28,25 +31,44 @@ const PERKS = [
   { title: "Light & caffeine timing", desc: "Per-shift recommendations that adapt to sunrise and your wake time." },
 ];
 
+const PRICE_IDS: Record<SubscriptionTier, string> = {
+  free: "",
+  monthly: "restpilot_monthly",
+  annual: "restpilot_annual",
+  lifetime: "restpilot_lifetime",
+};
+
 function Paywall() {
   const navigate = useNavigate();
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>("annual");
+  const [selectedTier, setSelectedTier] = useState<Exclude<SubscriptionTier, "free">>("annual");
   const [loading, setLoading] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  async function handleStartTrial() {
+  async function handleCheckout() {
+    if (!isPaymentsConfigured()) {
+      toast.error("Payments aren't configured for this build yet.");
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
-        toast.info("Sign in to start your free trial.");
+        toast.info("Sign in to continue to checkout.");
         navigate({ to: "/auth" });
         return;
       }
-      await startTrial(selectedTier);
-      toast.success("Trial started — 7 days of Premium unlocked.");
-      navigate({ to: "/" });
+      const result = await createCheckoutSession({
+        data: {
+          priceId: PRICE_IDS[selectedTier],
+          environment: getStripeEnvironment(),
+          returnUrl: `${window.location.origin}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        },
+      });
+      if ("error" in result) throw new Error(result.error);
+      if (!result.clientSecret) throw new Error("Checkout could not be started.");
+      setClientSecret(result.clientSecret);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "We couldn't start your trial. Please try again.");
+      toast.error(err instanceof Error ? err.message : "We couldn't open checkout. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -59,7 +81,7 @@ function Paywall() {
       toast.success(
         state.isPremium
           ? `Premium restored (${state.tier}).`
-          : "No active purchases found on this account.",
+          : "No active subscription found on this account.",
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "We couldn't restore your purchases.");
@@ -67,6 +89,29 @@ function Paywall() {
       setLoading(false);
     }
   }
+
+  if (clientSecret) {
+    return (
+      <main className="flex flex-col px-5 pt-12 pb-6">
+        <button
+          onClick={() => setClientSecret(null)}
+          className="mb-4 self-start text-xs font-medium text-primary underline"
+        >
+          ← Back to plans
+        </button>
+        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret: async () => clientSecret }}>
+          <EmbeddedCheckout />
+        </EmbeddedCheckoutProvider>
+      </main>
+    );
+  }
+
+  const isLifetime = selectedTier === "lifetime";
+  const ctaLabel = loading
+    ? "Please wait…"
+    : isLifetime
+      ? "Become a Founding Member"
+      : "Start 7-day free trial";
 
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
@@ -104,7 +149,7 @@ function Paywall() {
         <PlanCard
           label="Monthly"
           price="$7.99"
-          sub="per month"
+          sub="per month · 7-day free trial"
           selected={selectedTier === "monthly"}
           onSelect={() => setSelectedTier("monthly")}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
@@ -112,7 +157,7 @@ function Paywall() {
         <PlanCard
           label="Annual"
           price="$49.99"
-          sub="per year · save 48% ($4.16/mo)"
+          sub="per year · save 48% · 7-day free trial"
           highlighted
           badge="Most popular"
           selected={selectedTier === "annual"}
@@ -122,9 +167,9 @@ function Paywall() {
         <PlanCard
           label="Lifetime"
           price="$99"
-          sub="one-time · founding member"
+          sub="one-time payment · no renewal"
           elite
-          badge="Launch deal"
+          badge="Founding Member — Limited Time"
           selected={selectedTier === "lifetime"}
           onSelect={() => setSelectedTier("lifetime")}
           perks={[
@@ -137,18 +182,27 @@ function Paywall() {
       </div>
 
       <button
-        onClick={handleStartTrial}
+        onClick={handleCheckout}
         disabled={loading}
         className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-60"
       >
-        {loading
-          ? "Please wait…"
-          : selectedTier === "lifetime"
-            ? "Unlock Lifetime — $99"
-            : "Start 7-day free trial"}
+        {ctaLabel}
       </button>
 
-      <div className="mt-3 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
+      {!isLifetime && (
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          No charge today · Cancel anytime before your trial ends
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-col items-center gap-1.5 text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <ShieldCheck className="h-3 w-3" /> Secure checkout powered by Stripe
+        </span>
+        <span className="tracking-wide">Visa · Mastercard · American Express · Apple Pay · Google Pay</span>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
         <p>
           Subscriptions renew automatically at the listed price unless
           canceled before the renewal date. You can manage or cancel your
@@ -179,7 +233,6 @@ function Paywall() {
       >
         Maybe later
       </Link>
-
 
       <p className="mt-6 text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
     </main>
@@ -213,9 +266,7 @@ function PlanCard({
       ? "border-primary bg-primary/10"
       : "border-border bg-card";
   const ring = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "";
-  const badgeTone = elite
-    ? "bg-amber/20 text-amber"
-    : "bg-primary/20 text-primary";
+  const badgeTone = elite ? "bg-amber/20 text-amber" : "bg-primary/20 text-primary";
   return (
     <button
       type="button"
