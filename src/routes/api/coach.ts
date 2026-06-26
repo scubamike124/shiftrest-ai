@@ -8,7 +8,10 @@ export const Route = createFileRoute("/api/coach")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const { messages } = (await request.json()) as { messages: Msg[] };
+          const { messages, context } = (await request.json()) as {
+            messages: Msg[];
+            context?: string;
+          };
           if (!Array.isArray(messages) || messages.length === 0) {
             return new Response(JSON.stringify({ error: "messages required" }), {
               status: 400,
@@ -34,7 +37,7 @@ export const Route = createFileRoute("/api/coach")({
               body: JSON.stringify({
                 model: "google/gemini-3-flash-preview",
                 messages: [
-                  { role: "system", content: SYSTEM_PROMPT },
+                  { role: "system", content: buildCoachSystemPrompt(context) },
                   ...messages.slice(-20),
                 ],
                 stream: true,
