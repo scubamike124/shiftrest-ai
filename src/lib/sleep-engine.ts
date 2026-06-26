@@ -1,7 +1,31 @@
 import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
 
-// ───── Sunrise / sunset (NOAA simplified). Returns minutes from local midnight.
-export function sunTimes(date: Date, lat: number, lon: number) {
+// ───── Sunrise / sunset (NOAA simplified). Returns minutes from local midnight
+// AT THE GIVEN LOCATION — never the browser timezone. The previous version
+// used `date.getTimezoneOffset()` which produced wildly wrong values
+// (e.g. "Sunrise 9:26 AM, Sunset 12:31 AM") whenever the user's browser
+// timezone did not match the saved lat/lon.
+//
+// Pass `tzOffsetMin` if you have a real IANA-resolved offset for the
+// location; otherwise we approximate from longitude (each 15° = 1 hour),
+// which is the standard astronomical fallback and is correct to within ~30
+// minutes anywhere on Earth.
+export function sunTimes(
+  date: Date,
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+  tzOffsetMin?: number,
+): { sunrise: number | null; sunset: number | null } {
+  if (
+    lat == null ||
+    lon == null ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon) ||
+    Math.abs(lat) > 90 ||
+    Math.abs(lon) > 180
+  ) {
+    return { sunrise: null, sunset: null };
+  }
   const rad = Math.PI / 180;
   const deg = 180 / Math.PI;
   const dayOfYear =
@@ -30,7 +54,9 @@ export function sunTimes(date: Date, lat: number, lon: number) {
   const ha = Math.acos(cosH) * deg;
   const sunriseUTC = 720 - 4 * (lon + ha) - eqTime;
   const sunsetUTC = 720 - 4 * (lon - ha) - eqTime;
-  const offsetMin = -date.getTimezoneOffset();
+  // Offset for the LOCATION, not the browser.
+  const offsetMin =
+    typeof tzOffsetMin === "number" ? tzOffsetMin : Math.round(lon / 15) * 60;
   const norm = (m: number) => ((Math.round(m + offsetMin) % 1440) + 1440) % 1440;
   return { sunrise: norm(sunriseUTC), sunset: norm(sunsetUTC) };
 }
