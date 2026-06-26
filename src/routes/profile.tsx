@@ -277,7 +277,9 @@ function Profile() {
             </span>
             <div>
               <p className="text-sm font-semibold">Location</p>
-              <p className="text-xs text-muted-foreground">{prefs.locationLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {prefs.locationLabel || "Not set"}
+              </p>
               <p className="mt-0.5 text-[10px] text-muted-foreground/70">
                 Used for sunrise/sunset in your light plan.
               </p>
@@ -288,6 +290,28 @@ function Profile() {
             className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
           >
             Detect
+          </button>
+        </div>
+        <div className="flex gap-2 px-4 pb-4">
+          <input
+            type="text"
+            placeholder="Or type a city (e.g. Austin, TX)"
+            value={cityDraft}
+            onChange={(e) => setCityDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                saveCity();
+              }
+            }}
+            className="h-10 flex-1 rounded-xl border border-border bg-input px-3 text-sm"
+          />
+          <button
+            onClick={saveCity}
+            disabled={geocoding || !cityDraft.trim()}
+            className="rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {geocoding ? "…" : "Save"}
           </button>
         </div>
       </section>
