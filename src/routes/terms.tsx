@@ -76,13 +76,25 @@ function Terms() {
             settings.
           </li>
           <li>
-            Lifetime is a one-time purchase and does not renew.
-          </li>
-          <li>
             Any unused portion of a free trial is forfeited when a paid plan
             begins.
           </li>
         </ul>
+
+        <h2 className="text-base font-semibold text-foreground">
+          4. Lifetime Membership
+        </h2>
+        <p>
+          Lifetime Membership means a one-time purchase that grants access to
+          the Lifetime features included with your purchase for as long as
+          RestPilot AI is actively operated and commercially available.
+          Lifetime access refers to the lifetime of the RestPilot AI service,
+          not the lifetime of the purchaser. If the service is permanently
+          discontinued, Lifetime access will end when the service is no
+          longer available. Lifetime access does not automatically include
+          future premium products or separate services unless explicitly
+          stated.
+        </p>
 
         <h2 className="text-base font-semibold text-foreground">
           4. Acceptable use
