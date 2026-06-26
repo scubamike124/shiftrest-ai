@@ -481,27 +481,43 @@ function Timeline({ shift }: { shift: Shift }) {
 function ShiftEditor({
   day,
   existing,
+  employers,
+  defaultEmployerId,
   onClose,
   onSave,
 }: {
   day: number;
   existing?: Shift;
+  employers: Employer[];
+  defaultEmployerId: string | null;
   onClose: () => void;
-  onSave: (start: number, end: number) => void;
+  onSave: (payload: {
+    start: number;
+    end: number;
+    employerId: string | null;
+    title: string;
+    notes: string;
+  }) => void;
 }) {
   const [start, setStart] = useState(toTimeInput(existing?.start ?? 23 * 60));
   const [end, setEnd] = useState(toTimeInput(existing?.end ?? 7 * 60));
+  const [employerId, setEmployerId] = useState<string | null>(
+    existing?.employerId ?? defaultEmployerId,
+  );
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const showPicker = employers.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-indigo-glow">
               {DAYS[day]}
             </p>
             <h3 className="text-2xl" style={{ fontFamily: "var(--font-display)" }}>
-              Log your shift
+              {existing ? "Edit shift" : "Log your shift"}
             </h3>
           </div>
           <button
@@ -513,10 +529,62 @@ function ShiftEditor({
           </button>
         </div>
 
+        {showPicker && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Employer</p>
+            <div className="flex flex-wrap gap-2">
+              {employers.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => setEmployerId(e.id)}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    employerId === e.id
+                      ? "border-transparent text-primary-foreground"
+                      : "border-border bg-secondary text-foreground"
+                  }`}
+                  style={employerId === e.id ? { background: e.color } : undefined}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: e.color }}
+                  />
+                  {e.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <TimeField label="Starts" value={start} onChange={setStart} />
           <TimeField label="Ends" value={end} onChange={setEnd} />
         </div>
+
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Shift name <span className="opacity-60">(optional)</span>
+          </span>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Night Shift, ER Coverage, Overtime"
+            className="h-11 rounded-xl border border-border bg-input px-3 text-sm font-medium outline-none focus:border-primary"
+          />
+        </label>
+
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Notes <span className="opacity-60">(optional)</span>
+          </span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="Anything to remember about this shift"
+            className="resize-none rounded-xl border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </label>
 
         <p className="mt-3 text-xs text-muted-foreground">
           Overnight shifts are supported — set an end time earlier than start to wrap to the
@@ -524,7 +592,15 @@ function ShiftEditor({
         </p>
 
         <button
-          onClick={() => onSave(parseTime(start), parseTime(end))}
+          onClick={() =>
+            onSave({
+              start: parseTime(start),
+              end: parseTime(end),
+              employerId,
+              title,
+              notes,
+            })
+          }
           className="mt-5 h-14 w-full rounded-2xl text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
