@@ -282,21 +282,56 @@ function Profile() {
         </p>
       </header>
 
-      <Link
-        to="/paywall"
-        className="flex items-center justify-between rounded-2xl border border-primary/30 bg-primary/10 p-4"
-      >
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold">Upgrade to Premium</p>
-            <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
+      {subState?.isPremium ? (
+        <section className="rounded-2xl border border-primary/30 bg-primary/10 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold capitalize">
+                Premium · {subState.tier}
+                {subState.status === "trialing" && " (free trial)"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {subState.tier === "lifetime"
+                  ? "Lifetime access — thank you for being a Founding Member."
+                  : subState.cancelAtPeriodEnd && subState.expiresAt
+                    ? `Cancels on ${subState.expiresAt.toLocaleDateString()}`
+                    : subState.expiresAt
+                      ? `Renews on ${subState.expiresAt.toLocaleDateString()}`
+                      : "Active"}
+              </p>
+            </div>
           </div>
-        </div>
-        <ChevronRight className="h-5 w-5 text-muted-foreground" />
-      </Link>
+          {subState.tier !== "lifetime" && (
+            <button
+              type="button"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="mt-3 h-10 w-full rounded-xl border border-primary/40 bg-card text-xs font-semibold text-primary disabled:opacity-60"
+            >
+              {portalLoading ? "Opening…" : "Manage subscription"}
+            </button>
+          )}
+        </section>
+      ) : (
+        <Link
+          to="/paywall"
+          className="flex items-center justify-between rounded-2xl border border-primary/30 bg-primary/10 p-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Upgrade to Premium</p>
+              <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+      )}
 
       <section className="rounded-2xl border border-border bg-card p-4">
         {userEmail ? (
