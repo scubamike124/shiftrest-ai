@@ -65,26 +65,13 @@ function PlanPage() {
     [mounted, shift, prefs, sun],
   );
 
-  function speak() {
-    if (!("speechSynthesis" in window)) {
-      toast.error("Voice not supported in this browser");
-      return;
-    }
-    if (events.length === 0) {
-      toast.info("No shift to brief on");
-      return;
-    }
-    const intro = `Good morning. Here is your sleep and light plan for ${DAYS[activeDay]}.`;
+  function buildPlanText(): string | null {
+    if (!shift || events.length === 0) return null;
+    const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
     const body = events
-      .map((e) => `At ${fmt(e.time)}, ${e.title}. ${e.detail}`)
-      .join(" ");
-    const outro = "Stay sharp out there.";
-    const u = new SpeechSynthesisUtterance(`${intro} ${body} ${outro}`);
-    u.rate = 1.0;
-    u.pitch = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-    toast.success("Briefing started");
+      .map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`)
+      .join("\n");
+    return `${intro}\n${body}`;
   }
 
   return (
