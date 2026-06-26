@@ -20,6 +20,15 @@ import {
   LogOut,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import {
+  fetchEmployers,
+  addEmployer,
+  updateEmployer,
+  deleteEmployer,
+  EMPLOYER_COLORS,
+  type Employer,
+} from "@/lib/employers";
+import { Briefcase, Plus as PlusIcon, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_PREFS,
@@ -316,6 +325,9 @@ function Profile() {
         </div>
       </section>
 
+      <EmployersSection />
+
+
       <section className="rounded-2xl border border-border bg-card">
         <SliderRow
           icon={<Moon className="h-5 w-5" />}
@@ -533,6 +545,201 @@ function Profile() {
 function Divider() {
   return <div className="mx-4 h-px bg-border" />;
 }
+
+function EmployersSection() {
+  const queryClient = useQueryClient();
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+  });
+  const [editing, setEditing] = useState<Employer | "new" | null>(null);
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["employers"] });
+    queryClient.invalidateQueries({ queryKey: ["shifts"] });
+  };
+
+  return (
+    <section className="rounded-2xl border border-border bg-card">
+      <div className="flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+            <Briefcase className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">Employers</p>
+            <p className="text-xs text-muted-foreground">
+              {employers.length === 0
+                ? "Add your first employer"
+                : `${employers.length} employer${employers.length === 1 ? "" : "s"} · used for color coding and AI context`}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setEditing("new")}
+          aria-label="Add employer"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground"
+        >
+          <PlusIcon className="h-4 w-4" />
+        </button>
+      </div>
+      {employers.length > 0 && (
+        <div className="flex flex-col gap-2 px-4 pb-4">
+          {employers.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => setEditing(e)}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3 text-left active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span
+                  className="h-8 w-8 shrink-0 rounded-lg"
+                  style={{ background: e.color }}
+                />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{e.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {e.isDefault ? "Default employer" : "Tap to edit"}
+                  </p>
+                </div>
+              </div>
+              {e.isDefault && <Star className="h-4 w-4 text-amber" fill="currentColor" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {editing && (
+        <EmployerEditor
+          employer={editing === "new" ? null : editing}
+          existingCount={employers.length}
+          onClose={() => setEditing(null)}
+          onSave={async (patch) => {
+            if (editing === "new") {
+              await addEmployer(patch);
+            } else {
+              await updateEmployer(editing.id, patch);
+            }
+            invalidate();
+            setEditing(null);
+          }}
+          onDelete={
+            editing !== "new" && employers.length > 1
+              ? async () => {
+                  await deleteEmployer(editing.id);
+                  invalidate();
+                  setEditing(null);
+                }
+              : undefined
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+function EmployerEditor({
+  employer,
+  existingCount,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  employer: Employer | null;
+  existingCount: number;
+  onClose: () => void;
+  onSave: (patch: { name: string; color: string; isDefault: boolean }) => void | Promise<void>;
+  onDelete?: () => void | Promise<void>;
+}) {
+  const [name, setName] = useState(employer?.name ?? "");
+  const [color, setColor] = useState(
+    employer?.color ?? EMPLOYER_COLORS[existingCount % EMPLOYER_COLORS.length],
+  );
+  const [isDefault, setIsDefault] = useState(employer?.isDefault ?? existingCount === 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-h-[90vh] overflow-y-auto">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold">
+            {employer ? "Edit employer" : "Add employer"}
+          </h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm"
+          >
+            ✕
+          </button>
+        </div>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">Employer name</span>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Hospital, Amazon, Fire Dept…"
+            className="h-12 rounded-xl border border-border bg-input px-3 text-base font-medium outline-none focus:border-primary"
+          />
+        </label>
+
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Color</p>
+          <div className="flex flex-wrap gap-2">
+            {EMPLOYER_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                aria-label={`Pick ${c}`}
+                className={`h-9 w-9 rounded-xl border-2 transition ${
+                  color === c ? "border-foreground scale-110" : "border-transparent"
+                }`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <label className="mt-4 flex cursor-pointer items-center justify-between rounded-xl bg-secondary/50 p-3">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-amber" />
+            <span className="text-sm font-semibold">Default employer</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={isDefault}
+            onChange={(e) => setIsDefault(e.target.checked)}
+            className="h-5 w-5 accent-[var(--primary)]"
+          />
+        </label>
+
+        <button
+          onClick={() => onSave({ name: name.trim(), color, isDefault })}
+          disabled={!name.trim()}
+          className="mt-5 h-14 w-full rounded-2xl text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-50"
+          style={{ background: "var(--gradient-cta)" }}
+        >
+          Save employer
+        </button>
+
+        {onDelete && (
+          <button
+            onClick={() => {
+              if (window.confirm(`Delete "${employer?.name}"? Shifts at this employer will lose their tag but remain on your schedule.`)) {
+                onDelete();
+              }
+            }}
+            className="mt-3 h-12 w-full rounded-2xl bg-destructive/15 text-sm font-semibold text-destructive"
+          >
+            Delete employer
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 function SliderRow({
   icon,

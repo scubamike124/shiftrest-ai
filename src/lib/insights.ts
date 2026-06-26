@@ -3,6 +3,7 @@
 // and the AI coach as grounding context.
 
 import { DAYS, type Shift, endAbsolute } from "./shifts";
+import type { Employer } from "./employers";
 import { circadianDebt, detectRotation } from "./sleep-engine";
 import type { Prefs } from "./prefs";
 
@@ -113,12 +114,17 @@ export function computeInsights(
   shifts: Shift[],
   prefs: Prefs,
   now: Date,
+  employers: Employer[] = [],
 ): Insights {
   const weekday = (now.getDay() + 6) % 7;
   const fatigueToday = dayFatigue(shifts, weekday, prefs);
   const fatigueForecast: FatiguePoint[] = [0, 1, 2].map((offset) =>
     dayFatigue(shifts, (weekday + offset) % 7, prefs),
   );
+
+  const employerById = new Map(employers.map((e) => [e.id, e]));
+  const employerLabel = (s: Shift) =>
+    s.employerId ? employerById.get(s.employerId)?.name : undefined;
 
   // Recovery = inverse of circadian debt, weighted by today's fatigue.
   const debt = circadianDebt(shifts);
@@ -143,6 +149,32 @@ export function computeInsights(
   if (debt.reasons.length) signals.push(...debt.reasons.slice(0, 3));
   if (!shifts.find((s) => s.day === weekday)) signals.push("No shift today");
 
+  // Multi-employer signals: e.g. "Working 2 employers this week" or
+  // "Stacking St. Mary's overnight → Urgent Care evening on Wed".
+  const employersThisWeek = new Set(
+    shifts.map((s) => s.employerId).filter(Boolean) as string[],
+  );
+  if (employersThisWeek.size > 1) {
+    const names = Array.from(employersThisWeek)
+      .map((id) => employerById.get(id)?.name)
+      .filter(Boolean);
+    signals.push(`Working ${employersThisWeek.size} employers: ${names.join(", ")}`);
+    // Same-day double-up (different employer back-to-back across 24h)
+    for (let d = 0; d < 7; d++) {
+      const a = shifts.find((s) => s.day === d);
+      const b = shifts.find((s) => s.day === (d + 1) % 7);
+      if (a && b && a.employerId && b.employerId && a.employerId !== b.employerId) {
+        const gap = b.start + 1440 - endAbsolute(a);
+        if (gap < 14 * 60) {
+          signals.push(
+            `${employerById.get(a.employerId)?.name ?? "Job A"} → ${employerById.get(b.employerId)?.name ?? "Job B"} on ${DAYS[(d + 1) % 7]} (short gap)`,
+          );
+          break;
+        }
+      }
+    }
+  }
+
   // Find next upcoming shift in next 72h
   let nextShift: Insights["nextShift"];
   for (let offset = 0; offset < 7; offset++) {
@@ -163,14 +195,21 @@ export function computeInsights(
   const contextString = [
     `Today is ${DAYS[weekday]}.`,
     todayShift
-      ? `On shift ${fmtHM(todayShift.start)}–${fmtHM(todayShift.end)} (${shiftType(todayShift)}).`
+      ? `On shift ${fmtHM(todayShift.start)}–${fmtHM(todayShift.end)} (${shiftType(todayShift)})${
+          employerLabel(todayShift) ? ` at ${employerLabel(todayShift)}` : ""
+        }${todayShift.title ? ` — ${todayShift.title}` : ""}.`
       : "No shift today.",
     nextShift
-      ? `Next shift in ~${nextShift.hoursAway}h: ${DAYS[nextShift.shift.day]} ${fmtHM(nextShift.shift.start)}–${fmtHM(nextShift.shift.end)}.`
+      ? `Next shift in ~${nextShift.hoursAway}h: ${DAYS[nextShift.shift.day]} ${fmtHM(nextShift.shift.start)}–${fmtHM(nextShift.shift.end)}${
+          employerLabel(nextShift.shift) ? ` at ${employerLabel(nextShift.shift)}` : ""
+        }.`
       : "",
     `Rotation pattern: ${rotation}.`,
     `Fatigue today ${fatigueToday.score}/100 (${fatigueToday.band}); next 2 days ${fatigueForecast[1].score}, ${fatigueForecast[2].score}.`,
     `Recovery score ${recoveryScore}/100 (${recoveryBand}).`,
+    employers.length > 1
+      ? `Employers (${employers.length}): ${employers.map((e) => e.name).join(", ")}.`
+      : "",
     signals.length ? `Signals: ${signals.join("; ")}.` : "",
     `Sleep target ${prefs.sleepHours}h, wind-down ${prefs.windDownMin}min.`,
   ]

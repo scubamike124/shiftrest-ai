@@ -7,12 +7,14 @@ import {
   type Shift,
   fetchShifts,
   addShift as addShiftRemote,
+  updateShift as updateShiftRemote,
   deleteShift as deleteShiftRemote,
   fmt,
   parseTime,
   toTimeInput,
   endAbsolute,
 } from "@/lib/shifts";
+import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
@@ -39,6 +41,11 @@ function Dashboard() {
     queryKey: ["shifts"],
     queryFn: fetchShifts,
   });
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+  });
+  const defaultEmployer = employers.find((e) => e.isDefault) ?? employers[0];
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
@@ -47,11 +54,20 @@ function Dashboard() {
     setMounted(true);
   }, []);
 
-  const addMutation = useMutation({
-    mutationFn: async (input: { day: number; start: number; end: number }) => {
-      // Replace any existing shift on this day (mirrors prior single-shift-per-day UX).
+  const saveMutation = useMutation({
+    mutationFn: async (input: {
+      day: number;
+      start: number;
+      end: number;
+      employerId: string | null;
+      title: string;
+      notes: string;
+    }) => {
       const existing = shifts.find((x) => x.day === input.day);
-      if (existing) await deleteShiftRemote(existing.id);
+      if (existing) {
+        await updateShiftRemote(existing.id, input);
+        return existing;
+      }
       return addShiftRemote(input);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
@@ -61,10 +77,6 @@ function Dashboard() {
     mutationFn: (id: string) => deleteShiftRemote(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
   });
-
-  function addShift(day: number, start: number, end: number) {
-    addMutation.mutate({ day, start, end });
-  }
 
   function removeShift(id: string) {
     deleteMutation.mutate(id);
@@ -100,8 +112,8 @@ function Dashboard() {
 
   const stability = Math.max(0, 100 - debt.score);
   const insights = useMemo(
-    () => (mounted ? computeInsights(shifts, prefs, today) : null),
-    [shifts, prefs, today, mounted],
+    () => (mounted ? computeInsights(shifts, prefs, today, employers) : null),
+    [shifts, prefs, today, mounted, employers],
   );
 
   return (
@@ -261,12 +273,16 @@ function Dashboard() {
                 >
                   {num}
                 </span>
-                {hasShift && (
-                  <span
-                    className="mt-1 h-1 w-1 rounded-full"
-                    style={{ background: isToday ? "white" : "var(--indigo)" }}
-                  />
-                )}
+                {hasShift && (() => {
+                  const s = shifts.find((x) => x.day === idx)!;
+                  const emp = employers.find((e) => e.id === s.employerId);
+                  return (
+                    <span
+                      className="mt-1 h-1.5 w-1.5 rounded-full"
+                      style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
+                    />
+                  );
+                })()}
               </button>
             );
           })}
@@ -282,43 +298,62 @@ function Dashboard() {
       </section>
 
       {/* Today shift detail (if any) */}
-      {todayShift && (
-        <section className="mt-6 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
-                Tonight's shift
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {fmt(todayShift.start)} – {fmt(todayShift.end)}
-              </p>
-            </div>
-            <button
-              onClick={() => removeShift(todayShift.id)}
-              aria-label="Remove shift"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-          <Timeline shift={todayShift} />
-          <Link
-            to="/plan"
-            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-foreground"
+      {todayShift && (() => {
+        const emp = employers.find((e) => e.id === todayShift.employerId);
+        return (
+          <section
+            className="mt-6 rounded-2xl border bg-card p-4"
+            style={{ borderColor: emp ? `${emp.color}55` : "var(--border)" }}
           >
-            <Sparkles className="h-4 w-4 text-indigo-glow" />
-            <span className="text-foreground">See today's light plan</span>
-          </Link>
-        </section>
-      )}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  {emp && (
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: emp.color }}
+                    />
+                  )}
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                    {emp ? emp.name : "Tonight's shift"}
+                  </p>
+                </div>
+                <p className="mt-1 text-lg font-semibold">
+                  {fmt(todayShift.start)} – {fmt(todayShift.end)}
+                </p>
+                {todayShift.title && (
+                  <p className="text-xs text-muted-foreground">{todayShift.title}</p>
+                )}
+              </div>
+              <button
+                onClick={() => removeShift(todayShift.id)}
+                aria-label="Remove shift"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <Timeline shift={todayShift} />
+            <Link
+              to="/plan"
+              className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-foreground"
+            >
+              <Sparkles className="h-4 w-4 text-indigo-glow" />
+              <span className="text-foreground">See today's light plan</span>
+            </Link>
+          </section>
+        );
+      })()}
 
       {editing && (
         <ShiftEditor
           day={editing.day}
           existing={shifts.find((s) => s.day === editing.day)}
+          employers={employers}
+          defaultEmployerId={defaultEmployer?.id ?? null}
           onClose={() => setEditing(null)}
-          onSave={(start, end) => {
-            addShift(editing.day, start, end);
+          onSave={(payload) => {
+            saveMutation.mutate({ day: editing.day, ...payload });
             setEditing(null);
           }}
         />
@@ -446,27 +481,43 @@ function Timeline({ shift }: { shift: Shift }) {
 function ShiftEditor({
   day,
   existing,
+  employers,
+  defaultEmployerId,
   onClose,
   onSave,
 }: {
   day: number;
   existing?: Shift;
+  employers: Employer[];
+  defaultEmployerId: string | null;
   onClose: () => void;
-  onSave: (start: number, end: number) => void;
+  onSave: (payload: {
+    start: number;
+    end: number;
+    employerId: string | null;
+    title: string;
+    notes: string;
+  }) => void;
 }) {
   const [start, setStart] = useState(toTimeInput(existing?.start ?? 23 * 60));
   const [end, setEnd] = useState(toTimeInput(existing?.end ?? 7 * 60));
+  const [employerId, setEmployerId] = useState<string | null>(
+    existing?.employerId ?? defaultEmployerId,
+  );
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+  const showPicker = employers.length > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-indigo-glow">
               {DAYS[day]}
             </p>
             <h3 className="text-2xl" style={{ fontFamily: "var(--font-display)" }}>
-              Log your shift
+              {existing ? "Edit shift" : "Log your shift"}
             </h3>
           </div>
           <button
@@ -478,10 +529,62 @@ function ShiftEditor({
           </button>
         </div>
 
+        {showPicker && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Employer</p>
+            <div className="flex flex-wrap gap-2">
+              {employers.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => setEmployerId(e.id)}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    employerId === e.id
+                      ? "border-transparent text-primary-foreground"
+                      : "border-border bg-secondary text-foreground"
+                  }`}
+                  style={employerId === e.id ? { background: e.color } : undefined}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: e.color }}
+                  />
+                  {e.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <TimeField label="Starts" value={start} onChange={setStart} />
           <TimeField label="Ends" value={end} onChange={setEnd} />
         </div>
+
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Shift name <span className="opacity-60">(optional)</span>
+          </span>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Night Shift, ER Coverage, Overtime"
+            className="h-11 rounded-xl border border-border bg-input px-3 text-sm font-medium outline-none focus:border-primary"
+          />
+        </label>
+
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Notes <span className="opacity-60">(optional)</span>
+          </span>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            placeholder="Anything to remember about this shift"
+            className="resize-none rounded-xl border border-border bg-input px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </label>
 
         <p className="mt-3 text-xs text-muted-foreground">
           Overnight shifts are supported — set an end time earlier than start to wrap to the
@@ -489,7 +592,15 @@ function ShiftEditor({
         </p>
 
         <button
-          onClick={() => onSave(parseTime(start), parseTime(end))}
+          onClick={() =>
+            onSave({
+              start: parseTime(start),
+              end: parseTime(end),
+              employerId,
+              title,
+              notes,
+            })
+          }
           className="mt-5 h-14 w-full rounded-2xl text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >

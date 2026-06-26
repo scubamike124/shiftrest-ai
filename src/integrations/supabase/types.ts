@@ -38,6 +38,69 @@ export type Database = {
         }
         Relationships: []
       }
+      employers: {
+        Row: {
+          archived_at: string | null
+          color: string
+          commute_min: number | null
+          created_at: string
+          department: string | null
+          id: string
+          is_default: boolean
+          location: string | null
+          metadata: Json
+          name: string
+          pay_currency: string | null
+          pay_rate: number | null
+          recovery_notes: string | null
+          reminder_offset_min: number | null
+          sort_order: number
+          supervisor: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          color?: string
+          commute_min?: number | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          is_default?: boolean
+          location?: string | null
+          metadata?: Json
+          name: string
+          pay_currency?: string | null
+          pay_rate?: number | null
+          recovery_notes?: string | null
+          reminder_offset_min?: number | null
+          sort_order?: number
+          supervisor?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          color?: string
+          commute_min?: number | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          is_default?: boolean
+          location?: string | null
+          metadata?: Json
+          name?: string
+          pay_currency?: string | null
+          pay_rate?: number | null
+          recovery_notes?: string | null
+          reminder_offset_min?: number | null
+          sort_order?: number
+          supervisor?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -78,8 +141,10 @@ export type Database = {
         Row: {
           created_at: string
           day: number
+          employer_id: string | null
           end_min: number
           id: string
+          metadata: Json
           notes: string | null
           shift_type: string | null
           start_min: number
@@ -90,8 +155,10 @@ export type Database = {
         Insert: {
           created_at?: string
           day: number
+          employer_id?: string | null
           end_min: number
           id?: string
+          metadata?: Json
           notes?: string | null
           shift_type?: string | null
           start_min: number
@@ -102,8 +169,10 @@ export type Database = {
         Update: {
           created_at?: string
           day?: number
+          employer_id?: string | null
           end_min?: number
           id?: string
+          metadata?: Json
           notes?: string | null
           shift_type?: string | null
           start_min?: number
@@ -111,7 +180,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shifts_employer_id_fkey"
+            columns: ["employer_id"]
+            isOneToOne: false
+            referencedRelation: "employers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_prefs: {
         Row: {
