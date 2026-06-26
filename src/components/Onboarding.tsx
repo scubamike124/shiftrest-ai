@@ -8,7 +8,7 @@ const SLIDES = [
   {
     icon: Moon,
     title: "Sleep like the sun never moved.",
-    body: "Log your shifts and ShiftRest plots automatic wind-down and 8-hour sleep windows tailored to your rotation.",
+    body: "Log your shifts and RestPilot plots automatic wind-down and 8-hour sleep windows tailored to your rotation.",
   },
   {
     icon: Sparkles,
@@ -90,7 +90,7 @@ export function Onboarding() {
             onClick={finish}
             className="text-xs font-medium text-muted-foreground"
           >
-            Skip
+            Skip intro
           </button>
         )}
       </div>

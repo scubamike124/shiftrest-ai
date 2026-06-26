@@ -4,16 +4,16 @@ import { ChevronLeft } from "lucide-react";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Privacy Policy — ShiftRest AI" },
+      { title: "Privacy Policy — RestPilot AI" },
       {
         name: "description",
         content:
-          "How ShiftRest AI collects, uses, stores, and protects your data.",
+          "How RestPilot AI collects, uses, stores, and protects your data.",
       },
-      { property: "og:title", content: "Privacy Policy — ShiftRest AI" },
+      { property: "og:title", content: "Privacy Policy — RestPilot AI" },
       {
         property: "og:description",
-        content: "How ShiftRest AI handles your data.",
+        content: "How RestPilot AI handles your data.",
       },
       { property: "og:url", content: "/privacy" },
     ],
@@ -43,7 +43,7 @@ function Privacy() {
 
       <section className="prose prose-invert max-w-none space-y-4 text-sm text-muted-foreground">
         <p>
-          ShiftRest AI ("we", "us") respects your privacy. This policy explains
+          RestPilot AI ("we", "us") respects your privacy. This policy explains
           what we collect, why, and your choices.
         </p>
 
@@ -87,7 +87,7 @@ function Privacy() {
           3. Health data disclaimer
         </h2>
         <p>
-          ShiftRest is not a medical device and does not provide medical
+          RestPilot AI is not a medical device and does not provide medical
           advice. Recommendations are educational. Consult a healthcare
           professional for sleep or health concerns.
         </p>
@@ -105,7 +105,7 @@ function Privacy() {
         </h2>
         <p>
           You can request a copy of your data, correct it, or delete your
-          account at any time from <strong>Profile → Delete account</strong>.
+          account at any time from <strong>Profile → Delete Account</strong>.
           Account deletion is permanent and removes all associated data within
           30 days.
         </p>
@@ -114,7 +114,7 @@ function Privacy() {
           6. Children
         </h2>
         <p>
-          ShiftRest is not directed to children under 13. We do not knowingly
+          RestPilot AI is not directed to children under 13. We do not knowingly
           collect data from children.
         </p>
 
@@ -124,10 +124,10 @@ function Privacy() {
         <p>
           Questions? Email{" "}
           <a
-            href="mailto:privacy@shiftrest.app"
+            href="mailto:privacy@restpilot.ai"
             className="text-primary underline"
           >
-            privacy@shiftrest.app
+            privacy@restpilot.ai
           </a>
           .
         </p>

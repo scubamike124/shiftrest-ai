@@ -41,7 +41,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/profile")({
   head: () => ({
     meta: [
-      { title: "Profile & Preferences — ShiftRest AI" },
+      { title: "Profile & Preferences — RestPilot AI" },
       {
         name: "description",
         content: "Manage your sleep preferences, location, partner share, and wearable sync.",
@@ -131,7 +131,7 @@ function Profile() {
       toast.error("Enable notifications first.");
       return;
     }
-    showNotification("ShiftRest test 🌙", "Your wind-down pings will look like this.");
+    showNotification("RestPilot test 🌙", "Your wind-down pings will look like this.");
   }
 
   async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
@@ -214,7 +214,7 @@ function Profile() {
         </p>
         <h1 className="mt-2 text-3xl font-bold">Your preferences</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Fine-tune how ShiftRest plans your recovery windows.
+          Fine-tune how RestPilot plans your recovery windows.
         </p>
       </header>
 
@@ -250,7 +250,7 @@ function Profile() {
               onClick={handleSignOut}
               className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
             >
-              Sign out
+              Sign Out
             </button>
           </div>
         ) : (
@@ -260,7 +260,7 @@ function Profile() {
                 <LogIn className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold">Sign in or create account</p>
+                <p className="text-sm font-semibold">Sign In or create account</p>
                 <p className="text-xs text-muted-foreground">Sync your shifts across devices</p>
               </div>
             </div>
@@ -501,7 +501,7 @@ function Profile() {
               toast.success("Account deleted.");
               navigate({ to: "/auth", replace: true });
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Could not delete account");
+              toast.error(err instanceof Error ? err.message : "We couldn't delete your account. Please try again.");
               setDeleting(false);
             }
           }}
@@ -513,7 +513,7 @@ function Profile() {
             </span>
             <div>
               <p className="text-sm font-semibold text-destructive">
-                {deleting ? "Deleting…" : "Delete account"}
+                {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
                 Permanently and immediately remove your account and data.

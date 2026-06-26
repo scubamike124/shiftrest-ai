@@ -8,8 +8,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — ShiftRest AI" },
-      { name: "description", content: "Sign in or create your ShiftRest account." },
+      { title: "Sign In — RestPilot AI" },
+      { name: "description", content: "Sign in or create your RestPilot AI account." },
     ],
   }),
   component: AuthPage,
@@ -47,7 +47,9 @@ function AuthPage() {
         navigate({ to: "/" });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Authentication failed");
+      toast.error(
+        err instanceof Error ? err.message : "We couldn't sign you in. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -60,13 +62,13 @@ function AuthPage() {
         redirect_uri: window.location.origin,
       });
       if (result.error) {
-        toast.error(result.error.message ?? "Sign-in failed");
+        toast.error(result.error.message ?? "We couldn't sign you in. Please try again.");
         return;
       }
       if (result.redirected) return;
       navigate({ to: "/" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Sign-in failed");
+      toast.error(err instanceof Error ? err.message : "We couldn't sign you in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -142,7 +144,7 @@ function AuthPage() {
           disabled={loading}
           className="h-12 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
         >
-          {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+          {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
         </button>
       </form>
 
@@ -151,7 +153,7 @@ function AuthPage() {
           type="button"
           onClick={async () => {
             if (!email) {
-              toast.error("Enter your email first, then tap Forgot password.");
+              toast.error("Enter your email first, then tap Forgot Password.");
               return;
             }
             try {
@@ -160,12 +162,14 @@ function AuthPage() {
               });
               toast.success("If that email exists, a reset link is on the way.");
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : "Could not send reset email");
+              toast.error(
+                err instanceof Error ? err.message : "We couldn't send the reset email. Please try again.",
+              );
             }
           }}
           className="mt-3 text-center text-xs text-primary underline-offset-4 hover:underline"
         >
-          Forgot password?
+          Forgot Password?
         </button>
       )}
 
@@ -175,8 +179,9 @@ function AuthPage() {
       >
         {mode === "signin"
           ? "New here? Create an account"
-          : "Already have an account? Sign in"}
+          : "Already have an account? Sign In"}
       </button>
+
 
 
       <p className="mt-auto pt-8 text-center text-[10px] text-muted-foreground/70">

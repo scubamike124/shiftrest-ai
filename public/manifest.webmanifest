@@ -1,6 +1,6 @@
 {
-  "name": "ShiftRest AI",
-  "short_name": "ShiftRest",
+  "name": "RestPilot AI",
+  "short_name": "RestPilot",
   "description": "Sleep optimizer & AI coach for shift workers.",
   "start_url": "/",
   "display": "standalone",

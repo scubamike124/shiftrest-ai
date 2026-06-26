@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/share")({
   head: () => ({
     meta: [
-      { title: "Partner Mode — ShiftRest AI" },
+      { title: "Partner Mode — RestPilot AI" },
       {
         name: "description",
         content:
@@ -84,7 +84,7 @@ function SharePage() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "My ShiftRest sleep windows",
+          title: "My RestPilot sleep windows",
           text: "Heads up — these are my recovery windows this week.",
           url: link,
         });
@@ -152,7 +152,7 @@ function PartnerView({ payload }: { payload: Payload }) {
         </span>
         <h1 className="mt-4 text-2xl font-bold">{payload.name}'s sleep windows</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Quiet hours this week. Read-only — shared via ShiftRest AI.
+          Quiet hours this week. Read-only — shared via RestPilot AI.
         </p>
       </header>
 
@@ -196,7 +196,7 @@ function PartnerView({ payload }: { payload: Payload }) {
         href="/"
         className="mx-auto mt-2 text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
       >
-        Powered by ShiftRest AI
+        Powered by RestPilot AI
       </a>
     </main>
   );

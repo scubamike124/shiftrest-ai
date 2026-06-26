@@ -8,7 +8,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/swap")({
   head: () => ({
     meta: [
-      { title: "Shift Swap Copilot — ShiftRest AI" },
+      { title: "Shift Swap Copilot — RestPilot AI" },
       {
         name: "description",
         content:
