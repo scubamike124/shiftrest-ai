@@ -56,9 +56,16 @@ function PlanPage() {
   }, []);
 
   const shift = shifts.find((s: Shift) => s.day === activeDay);
+  // Only compute sunrise/sunset when the user has VERIFIED a location.
+  // `locationLabel` is the source of truth — `lat`/`lon` still hold defaults
+  // for backwards-compat but must not be treated as a real location.
+  const hasVerifiedLocation = !!prefs.locationLabel?.trim();
   const sun = useMemo(
-    () => sunTimes(today, prefs.lat, prefs.lon),
-    [prefs.lat, prefs.lon, today],
+    () =>
+      hasVerifiedLocation
+        ? sunTimes(today, prefs.lat, prefs.lon)
+        : { sunrise: null, sunset: null },
+    [hasVerifiedLocation, prefs.lat, prefs.lon, today],
   );
   const events = useMemo(
     () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
@@ -87,7 +94,7 @@ function PlanPage() {
         </p>
       </header>
 
-      {!prefs.locationLabel && (
+      {!hasVerifiedLocation && (
         <Link
           to="/profile"
           className="flex items-center justify-between rounded-2xl border border-amber/40 bg-amber/10 p-3 text-xs"
@@ -120,7 +127,7 @@ function PlanPage() {
         })}
       </div>
 
-      {sun.sunrise != null && sun.sunset != null && (
+      {hasVerifiedLocation && sun.sunrise != null && sun.sunset != null && (
         <div className="flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-xs">
           <span className="flex items-center gap-2 text-amber">
             <Sun className="h-4 w-4" /> Sunrise {fmt(sun.sunrise)}
@@ -133,9 +140,10 @@ function PlanPage() {
 
       {!shift ? (
         <div className="rounded-2xl border border-border bg-card p-6 text-center">
-          <p className="text-sm font-semibold">No shift on {DAYS[activeDay]}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add a shift on the Schedule tab to generate a plan.
+          <p className="text-sm font-semibold">No shift scheduled today</p>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Add today's shift and RestPilot AI will generate your personalized
+            light, caffeine, blackout, and recovery plan.
           </p>
           <Link
             to="/"
