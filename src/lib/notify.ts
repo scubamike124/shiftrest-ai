@@ -31,7 +31,7 @@ export async function nextWindDownAt(
 ): Promise<{ at: Date; shift: Shift } | null> {
   const shifts = await fetchShifts();
   if (!shifts.length) return null;
-  const prefs = loadPrefs();
+  const prefs = await fetchPrefs();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const nowDay = (now.getDay() + 6) % 7;
 
