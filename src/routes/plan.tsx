@@ -56,10 +56,13 @@ function PlanPage() {
   }, []);
 
   const shift = shifts.find((s: Shift) => s.day === activeDay);
-  // Only compute sunrise/sunset when the user has VERIFIED a location.
-  // `locationLabel` is the source of truth — `lat`/`lon` still hold defaults
-  // for backwards-compat but must not be treated as a real location.
-  const hasVerifiedLocation = !!prefs.locationLabel?.trim();
+  // Only compute sunrise/sunset when the user has VERIFIED a real location.
+  // A coords-shaped label like "33.66, -117.88" is a legacy fallback from a
+  // broken reverse-geocode path and must NOT count as verified.
+  const rawLabel = prefs.locationLabel?.trim() ?? "";
+  const isCoordsLabel = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawLabel);
+  const hasVerifiedLocation = rawLabel.length > 0 && !isCoordsLabel;
+  const displayLabel = hasVerifiedLocation ? rawLabel : "";
   const sun = useMemo(
     () =>
       hasVerifiedLocation
