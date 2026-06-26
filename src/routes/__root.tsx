@@ -132,6 +132,7 @@ function RootComponent() {
       if (cancelled) return;
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       queryClient.invalidateQueries({ queryKey: ["prefs"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
     }
     bootstrap();

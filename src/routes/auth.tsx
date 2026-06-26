@@ -146,6 +146,29 @@ function AuthPage() {
         </button>
       </form>
 
+      {mode === "signin" && (
+        <button
+          type="button"
+          onClick={async () => {
+            if (!email) {
+              toast.error("Enter your email first, then tap Forgot password.");
+              return;
+            }
+            try {
+              await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+              });
+              toast.success("If that email exists, a reset link is on the way.");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Could not send reset email");
+            }
+          }}
+          className="mt-3 text-center text-xs text-primary underline-offset-4 hover:underline"
+        >
+          Forgot password?
+        </button>
+      )}
+
       <button
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
         className="mt-5 text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
@@ -154,6 +177,7 @@ function AuthPage() {
           ? "New here? Create an account"
           : "Already have an account? Sign in"}
       </button>
+
 
       <p className="mt-auto pt-8 text-center text-[10px] text-muted-foreground/70">
         By continuing, you agree to our{" "}
