@@ -14,7 +14,7 @@ import {
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
-import { loadPrefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/plan")({
