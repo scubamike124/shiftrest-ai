@@ -76,16 +76,28 @@ function Terms() {
             settings.
           </li>
           <li>
-            Lifetime is a one-time purchase and does not renew.
-          </li>
-          <li>
             Any unused portion of a free trial is forfeited when a paid plan
             begins.
           </li>
         </ul>
 
         <h2 className="text-base font-semibold text-foreground">
-          4. Acceptable use
+          4. Lifetime Membership
+        </h2>
+        <p>
+          Lifetime Membership means a one-time purchase that grants access to
+          the Lifetime features included with your purchase for as long as
+          RestPilot AI is actively operated and commercially available.
+          Lifetime access refers to the lifetime of the RestPilot AI service,
+          not the lifetime of the purchaser. If the service is permanently
+          discontinued, Lifetime access will end when the service is no
+          longer available. Lifetime access does not automatically include
+          future premium products or separate services unless explicitly
+          stated.
+        </p>
+
+        <h2 className="text-base font-semibold text-foreground">
+          5. Acceptable use
         </h2>
         <p>
           Don't reverse-engineer the service, abuse the API, or use it in ways
@@ -93,7 +105,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          5. Medical disclaimer
+          6. Medical disclaimer
         </h2>
         <p>
           Recommendations are educational. Always consult a qualified
@@ -101,7 +113,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          6. Limitation of liability
+          7. Limitation of liability
         </h2>
         <p>
           The service is provided "as is" without warranties. To the maximum
@@ -110,7 +122,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          7. Termination
+          8. Termination
         </h2>
         <p>
           You can delete your account anytime from{" "}
@@ -121,7 +133,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          8. Changes
+          9. Changes
         </h2>
         <p>
           We may update these terms. Continued use after changes constitutes
@@ -129,7 +141,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          9. Contact
+          10. Contact
         </h2>
         <p>
           Email{" "}
