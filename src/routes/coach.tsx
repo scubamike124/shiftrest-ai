@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Send, Sparkles } from "lucide-react";
-import { DISCLAIMER } from "@/lib/shifts";
+import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
+import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { toast } from "sonner";
 
@@ -42,6 +44,16 @@ function Coach() {
     queryFn: fetchCoachHistory,
     staleTime: 60_000,
   });
+  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
+  const { data: prefs = DEFAULT_PREFS } = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    initialData: DEFAULT_PREFS,
+  });
+  const coachContext = useMemo(
+    () => computeInsights(shifts, prefs, new Date()).contextString,
+    [shifts, prefs],
+  );
   const [messages, setMessages] = useState<Msg[]>(SEED);
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
@@ -79,7 +91,7 @@ function Coach() {
       const resp = await fetch("/api/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: baseMessages }),
+        body: JSON.stringify({ messages: baseMessages, context: coachContext }),
       });
 
       if (!resp.ok || !resp.body) {
