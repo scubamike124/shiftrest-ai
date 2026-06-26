@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Send, Sparkles } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/coach")({
@@ -35,10 +37,23 @@ const STARTERS = [
 ];
 
 function Coach() {
+  const { data: history } = useQuery({
+    queryKey: ["coach-history"],
+    queryFn: fetchCoachHistory,
+    staleTime: 60_000,
+  });
   const [messages, setMessages] = useState<Msg[]>(SEED);
+  const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Hydrate once when history first arrives. Past that, local state owns the thread.
+  useEffect(() => {
+    if (hydrated || history === undefined) return;
+    if (history.length > 0) setMessages(history as Msg[]);
+    setHydrated(true);
+  }, [history, hydrated]);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -48,6 +63,7 @@ function Coach() {
       });
     });
   }
+
 
   async function send(text: string) {
     const trimmed = text.trim();

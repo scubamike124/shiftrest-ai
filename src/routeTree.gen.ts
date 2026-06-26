@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
@@ -35,6 +36,11 @@ const SwapRoute = SwapRouteImport.update({
 const ShareRoute = ShareRouteImport.update({
   id: '/share',
   path: '/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/playbooks': typeof PlaybooksRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/playbooks': typeof PlaybooksRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/playbooks': typeof PlaybooksRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/playbooks'
     | '/privacy'
     | '/profile'
+    | '/reset-password'
     | '/share'
     | '/swap'
     | '/terms'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/playbooks'
     | '/privacy'
     | '/profile'
+    | '/reset-password'
     | '/share'
     | '/swap'
     | '/terms'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/playbooks'
     | '/privacy'
     | '/profile'
+    | '/reset-password'
     | '/share'
     | '/swap'
     | '/terms'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   PlaybooksRoute: typeof PlaybooksRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/share'
       fullPath: '/share'
       preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlaybooksRoute: PlaybooksRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
