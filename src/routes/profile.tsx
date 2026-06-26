@@ -285,10 +285,14 @@ function Profile() {
           <input
             type="text"
             placeholder="Your name (shown on the share page)"
-            value={prefs.partnerName}
-            onChange={(e) => update("partnerName", e.target.value)}
+            value={partnerDraft}
+            onChange={(e) => setPartnerDraft(e.target.value)}
+            onBlur={() => {
+              if (partnerDraft !== prefs.partnerName) update("partnerName", partnerDraft);
+            }}
             className="h-11 rounded-xl border border-border bg-input px-3 text-sm"
           />
+
           <Link
             to="/share"
             className="flex h-11 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary"
