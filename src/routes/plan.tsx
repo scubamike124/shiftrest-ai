@@ -93,7 +93,7 @@ function PlanPage() {
         <h1 className="mt-2 text-3xl font-bold">Today's recipe.</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Hour-by-hour light, caffeine, and blackout plan
-          {prefs.locationLabel ? ` — tuned to ${prefs.locationLabel}.` : "."}
+          {displayLabel ? ` — tuned to ${displayLabel}.` : "."}
         </p>
       </header>
 
