@@ -167,13 +167,13 @@ function Paywall() {
         <PlanCard
           label="Lifetime"
           price="$99"
-          sub="one-time payment · no renewal"
+          sub="One-time payment · Lifetime of the service"
           elite
           badge="Founding Member — Limited Time"
           selected={selectedTier === "lifetime"}
           onSelect={() => setSelectedTier("lifetime")}
           perks={[
-            "Everything in Annual, forever",
+            "Everything in Annual, for the lifetime of the service",
             "Smarter AI coach with deeper answers",
             "Multi-week rotation forecasts",
             "Partner co-planning & shared quiet hours",
