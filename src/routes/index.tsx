@@ -39,7 +39,7 @@ function Dashboard() {
   });
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const prefs = useMemo(() => loadPrefs(), []);
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
 
   useEffect(() => {
     setMounted(true);
