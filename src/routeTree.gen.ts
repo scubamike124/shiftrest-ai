@@ -21,7 +21,9 @@ import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
+import { Route as ApiBriefRouteImport } from './routes/api/brief'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -83,9 +85,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCoachRoute = ApiCoachRouteImport.update({
   id: '/api/coach',
   path: '/api/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBriefRoute = ApiBriefRouteImport.update({
+  id: '/api/brief',
+  path: '/api/brief',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -102,7 +114,9 @@ export interface FileRoutesByFullPath {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,7 +131,9 @@ export interface FileRoutesByTo {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,7 +149,9 @@ export interface FileRoutesById {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,7 +168,9 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/brief'
     | '/api/coach'
+    | '/api/tts'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -165,7 +185,9 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/brief'
     | '/api/coach'
+    | '/api/tts'
   id:
     | '__root__'
     | '/'
@@ -180,7 +202,9 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/brief'
     | '/api/coach'
+    | '/api/tts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -196,7 +220,9 @@ export interface RootRouteChildren {
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
+  ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
+  ApiTtsRoute: typeof ApiTtsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -285,11 +311,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/coach': {
       id: '/api/coach'
       path: '/api/coach'
       fullPath: '/api/coach'
       preLoaderRoute: typeof ApiCoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/brief': {
+      id: '/api/brief'
+      path: '/api/brief'
+      fullPath: '/api/brief'
+      preLoaderRoute: typeof ApiBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -308,7 +348,9 @@ const rootRouteChildren: RootRouteChildren = {
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
+  ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
+  ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

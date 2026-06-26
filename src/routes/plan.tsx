@@ -5,7 +5,6 @@ import {
   Moon,
   Coffee,
   Glasses,
-  Volume2,
   Share2,
   Sparkles,
   BookOpen,
@@ -15,7 +14,7 @@ import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
-import { toast } from "sonner";
+import { VoicePlayer } from "@/components/VoicePlayer";
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
@@ -66,26 +65,13 @@ function PlanPage() {
     [mounted, shift, prefs, sun],
   );
 
-  function speak() {
-    if (!("speechSynthesis" in window)) {
-      toast.error("Voice not supported in this browser");
-      return;
-    }
-    if (events.length === 0) {
-      toast.info("No shift to brief on");
-      return;
-    }
-    const intro = `Good morning. Here is your sleep and light plan for ${DAYS[activeDay]}.`;
+  function buildPlanText(): string | null {
+    if (!shift || events.length === 0) return null;
+    const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
     const body = events
-      .map((e) => `At ${fmt(e.time)}, ${e.title}. ${e.detail}`)
-      .join(" ");
-    const outro = "Stay sharp out there.";
-    const u = new SpeechSynthesisUtterance(`${intro} ${body} ${outro}`);
-    u.rate = 1.0;
-    u.pitch = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-    toast.success("Briefing started");
+      .map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`)
+      .join("\n");
+    return `${intro}\n${body}`;
   }
 
   return (
@@ -161,12 +147,9 @@ function PlanPage() {
       ) : (
         <>
           <div className="flex gap-2">
-            <button
-              onClick={speak}
-              className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
-            >
-              <Volume2 className="h-4 w-4" /> Voice briefing
-            </button>
+            <div className="flex-1">
+              <VoicePlayer buildPlanText={buildPlanText} />
+            </div>
             <Link
               to="/share"
               className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground active:scale-95"
