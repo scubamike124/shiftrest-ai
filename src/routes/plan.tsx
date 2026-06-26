@@ -96,9 +96,22 @@ function PlanPage() {
         </p>
         <h1 className="mt-2 text-3xl font-bold">Today's recipe.</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Hour-by-hour light, caffeine, and blackout plan — tuned to {prefs.locationLabel}.
+          Hour-by-hour light, caffeine, and blackout plan
+          {prefs.locationLabel ? ` — tuned to ${prefs.locationLabel}.` : "."}
         </p>
       </header>
+
+      {!prefs.locationLabel && (
+        <Link
+          to="/profile"
+          className="flex items-center justify-between rounded-2xl border border-amber/40 bg-amber/10 p-3 text-xs"
+        >
+          <span className="text-amber">
+            Set your location for accurate sunrise & sunset timing.
+          </span>
+          <span className="font-semibold text-amber">Open profile →</span>
+        </Link>
+      )}
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {DAYS.map((d, i) => {
