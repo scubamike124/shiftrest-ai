@@ -97,7 +97,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          4. Acceptable use
+          5. Acceptable use
         </h2>
         <p>
           Don't reverse-engineer the service, abuse the API, or use it in ways
@@ -105,7 +105,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          5. Medical disclaimer
+          6. Medical disclaimer
         </h2>
         <p>
           Recommendations are educational. Always consult a qualified
@@ -113,7 +113,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          6. Limitation of liability
+          7. Limitation of liability
         </h2>
         <p>
           The service is provided "as is" without warranties. To the maximum
@@ -122,7 +122,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          7. Termination
+          8. Termination
         </h2>
         <p>
           You can delete your account anytime from{" "}
@@ -133,7 +133,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          8. Changes
+          9. Changes
         </h2>
         <p>
           We may update these terms. Continued use after changes constitutes
@@ -141,7 +141,7 @@ function Terms() {
         </p>
 
         <h2 className="text-base font-semibold text-foreground">
-          9. Contact
+          10. Contact
         </h2>
         <p>
           Email{" "}
