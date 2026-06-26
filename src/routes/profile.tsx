@@ -53,6 +53,9 @@ export const Route = createFileRoute("/profile")({
 
 function Profile() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const deleteAccount = useServerFn(deleteAccountFn);
+  const [deleting, setDeleting] = useState(false);
   const { data: prefs = DEFAULT_PREFS } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
