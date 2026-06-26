@@ -31,7 +31,7 @@ function SwapPage() {
     setAnalysis("");
     try {
       const current = await fetchShifts();
-      const prefs = loadPrefs();
+      const prefs = await fetchPrefs();
       const proposed = {
         day: DAYS[day],
         start: fmt(parseTime(start)),
