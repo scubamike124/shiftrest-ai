@@ -5,7 +5,6 @@ import {
   Moon,
   Coffee,
   Glasses,
-  Volume2,
   Share2,
   Sparkles,
   BookOpen,
@@ -15,7 +14,7 @@ import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
-import { toast } from "sonner";
+import { VoicePlayer } from "@/components/VoicePlayer";
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
