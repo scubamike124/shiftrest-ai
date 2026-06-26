@@ -319,7 +319,7 @@ function CircadianRing({
   mounted,
 }: {
   shift?: Shift;
-  prefs: ReturnType<typeof loadPrefs>;
+  prefs: Prefs;
   mounted: boolean;
 }) {
   const R = 58;
