@@ -207,7 +207,10 @@ function Paywall() {
           Subscriptions renew automatically at the listed price unless
           canceled before the renewal date. You can manage or cancel your
           plan anytime from your account settings. Lifetime is a one-time
-          purchase and does not renew.
+          purchase that grants access for the lifetime of the RestPilot AI
+          service (not the lifetime of the purchaser). See the{" "}
+          <Link to="/terms" className="text-primary underline">Terms</Link>{" "}
+          for full details.
         </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
           <Link to="/terms" className="text-primary underline">
