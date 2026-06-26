@@ -408,6 +408,7 @@ function Profile() {
             }
             try {
               localStorage.clear();
+              clearPrefsMigrationFlag();
             } catch {}
             toast.success("Account deletion requested. All data will be removed within 30 days.");
             window.location.href = "/";
