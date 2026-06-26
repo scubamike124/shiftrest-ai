@@ -95,6 +95,12 @@ function Profile() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["prefs"] }),
   });
 
+  const { data: subState, refetch: refetchSub } = useQuery({
+    queryKey: ["subscription-state"],
+    queryFn: getSubscriptionState,
+  });
+  const [portalLoading, setPortalLoading] = useState(false);
+
   useEffect(() => {
     setPerm(getPermission());
     supabase.auth.getSession().then(({ data }) => {
@@ -103,12 +109,45 @@ function Profile() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user.email ?? null);
     });
+    // Handle return from Stripe Checkout
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("checkout") === "success") {
+        toast.success("Payment received — Premium is unlocking now.");
+        // Webhook may take a moment; retry briefly.
+        setTimeout(() => refetchSub(), 1500);
+        setTimeout(() => refetchSub(), 4000);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [refetchSub]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     toast.success("Signed out.");
+  }
+
+  async function handleManageSubscription() {
+    if (!isPaymentsConfigured()) {
+      toast.error("Payments aren't configured for this build yet.");
+      return;
+    }
+    setPortalLoading(true);
+    try {
+      const result = await createPortalSession({
+        data: {
+          environment: getStripeEnvironment(),
+          returnUrl: `${window.location.origin}/profile`,
+        },
+      });
+      if ("error" in result) throw new Error(result.error);
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't open the billing portal.");
+    } finally {
+      setPortalLoading(false);
+    }
   }
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
