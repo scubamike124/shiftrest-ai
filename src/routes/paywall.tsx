@@ -150,12 +150,10 @@ function Paywall() {
 
       <div className="mt-3 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
         <p>
-          Payment is charged to your Apple ID at confirmation of purchase.
-          Subscriptions <strong>auto-renew</strong> at the same price unless
-          cancelled at least 24 hours before the current period ends. Manage
-          or cancel anytime in Settings → Apple ID → Subscriptions. Any unused
-          portion of a free trial is forfeited when you purchase a subscription.
-          Lifetime is a one-time purchase and does not renew.
+          Subscriptions renew automatically at the listed price unless
+          canceled before the renewal date. You can manage or cancel your
+          plan anytime from your account settings. Lifetime is a one-time
+          purchase and does not renew.
         </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
           <Link to="/terms" className="text-primary underline">
