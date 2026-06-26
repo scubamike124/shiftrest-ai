@@ -1,0 +1,296 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Square,
+  Loader2,
+  Volume2,
+  Sparkles,
+} from "lucide-react";
+import { toast } from "sonner";
+import { expandForSpeech, VOICES, type VoiceId } from "@/lib/voice-rewriter";
+
+type Props = {
+  // Returns the raw plan text. We call /api/brief to rewrite it, then /api/tts.
+  buildPlanText: () => string | null;
+  className?: string;
+};
+
+const SPEEDS = [0.75, 1.0, 1.25, 1.5] as const;
+type Speed = (typeof SPEEDS)[number];
+
+const SPEED_KEY = "rp.voice.speed";
+const VOICE_KEY = "rp.voice.voiceId";
+
+function fmtTime(s: number) {
+  if (!isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+export function VoicePlayer({ buildPlanText, className }: Props) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const urlRef = useRef<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [speed, setSpeed] = useState<Speed>(1.0);
+  const [voice, setVoice] = useState<VoiceId>("sage");
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Hydrate prefs
+  useEffect(() => {
+    const s = Number(localStorage.getItem(SPEED_KEY));
+    if (SPEEDS.includes(s as Speed)) setSpeed(s as Speed);
+    const v = localStorage.getItem(VOICE_KEY) as VoiceId | null;
+    if (v && VOICES.some((x) => x.id === v)) setVoice(v);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      audioRef.current?.pause();
+    };
+  }, []);
+
+  // Keep audio.playbackRate in sync
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed;
+    localStorage.setItem(SPEED_KEY, String(speed));
+  }, [speed]);
+
+  function resetAudio() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null;
+    }
+    setPlaying(false);
+    setReady(false);
+    setCurrent(0);
+    setDuration(0);
+  }
+
+  async function generateAndPlay() {
+    const plan = buildPlanText();
+    if (!plan) {
+      toast.info("Nothing to brief yet");
+      return;
+    }
+    setLoading(true);
+    resetAudio();
+    try {
+      // 1. Rewrite into conversational script
+      const briefRes = await fetch("/api/brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      if (!briefRes.ok) {
+        const e = await briefRes.json().catch(() => ({}));
+        throw new Error(e.error || "Briefing failed");
+      }
+      const { script } = (await briefRes.json()) as { script: string };
+      const spoken = expandForSpeech(script);
+
+      // 2. Synthesize speech
+      const ttsRes = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: spoken, voice }),
+      });
+      if (!ttsRes.ok) {
+        const e = await ttsRes.json().catch(() => ({}));
+        throw new Error(e.error || "Voice generation failed");
+      }
+      const blob = await ttsRes.blob();
+      const url = URL.createObjectURL(blob);
+      urlRef.current = url;
+
+      const audio = audioRef.current ?? new Audio();
+      audioRef.current = audio;
+      audio.src = url;
+      audio.playbackRate = speed;
+      audio.onloadedmetadata = () => {
+        // Some browsers report Infinity for streamed mp3; force a seek to compute duration.
+        if (!isFinite(audio.duration)) {
+          audio.currentTime = 1e6;
+          audio.ontimeupdate = () => {
+            audio.ontimeupdate = null;
+            audio.currentTime = 0;
+            setDuration(audio.duration);
+          };
+        } else {
+          setDuration(audio.duration);
+        }
+        setReady(true);
+      };
+      audio.ontimeupdate = () => setCurrent(audio.currentTime);
+      audio.onplay = () => setPlaying(true);
+      audio.onpause = () => setPlaying(false);
+      audio.onended = () => {
+        setPlaying(false);
+        setCurrent(audio.duration || 0);
+      };
+      await audio.play();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Voice briefing failed");
+      resetAudio();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function togglePlay() {
+    const a = audioRef.current;
+    if (!a || !ready) return;
+    if (a.paused) a.play();
+    else a.pause();
+  }
+
+  function stop() {
+    const a = audioRef.current;
+    if (!a) return;
+    a.pause();
+    a.currentTime = 0;
+    setCurrent(0);
+  }
+
+  function restart() {
+    const a = audioRef.current;
+    if (!a) return;
+    a.currentTime = 0;
+    a.play();
+  }
+
+  function seek(v: number) {
+    const a = audioRef.current;
+    if (!a || !isFinite(duration)) return;
+    a.currentTime = v;
+    setCurrent(v);
+  }
+
+  function cycleSpeed() {
+    const i = SPEEDS.indexOf(speed);
+    const next = SPEEDS[(i + 1) % SPEEDS.length];
+    setSpeed(next);
+  }
+
+  function pickVoice(v: VoiceId) {
+    setVoice(v);
+    localStorage.setItem(VOICE_KEY, v);
+    setShowSettings(false);
+    toast.success(`Voice set to ${VOICES.find((x) => x.id === v)?.label}`);
+  }
+
+  return (
+    <div className={`rounded-2xl border border-border bg-card ${className ?? ""}`}>
+      {!ready && !loading && (
+        <button
+          onClick={generateAndPlay}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
+        >
+          <Volume2 className="h-4 w-4" /> Voice briefing
+        </button>
+      )}
+
+      {loading && (
+        <div className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Preparing your briefing…
+        </div>
+      )}
+
+      {ready && (
+        <div className="flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={togglePlay}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[var(--shadow-glow)] active:scale-95"
+              aria-label={playing ? "Pause" : "Play"}
+            >
+              {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 translate-x-[1px]" />}
+            </button>
+            <button
+              onClick={restart}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground active:scale-95"
+              aria-label="Restart"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+            <button
+              onClick={stop}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground active:scale-95"
+              aria-label="Stop"
+            >
+              <Square className="h-4 w-4" />
+            </button>
+            <button
+              onClick={cycleSpeed}
+              className="ml-auto flex h-9 min-w-12 items-center justify-center rounded-full border border-border px-3 text-xs font-semibold text-foreground active:scale-95"
+              aria-label="Playback speed"
+            >
+              {speed}×
+            </button>
+            <button
+              onClick={() => setShowSettings((s) => !s)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground active:scale-95"
+              aria-label="Voice options"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div>
+            <input
+              type="range"
+              min={0}
+              max={isFinite(duration) && duration > 0 ? duration : 1}
+              step={0.1}
+              value={current}
+              onChange={(e) => seek(Number(e.target.value))}
+              className="w-full accent-primary"
+              aria-label="Seek"
+            />
+            <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+              <span>{fmtTime(current)}</span>
+              <span>{fmtTime(duration)}</span>
+            </div>
+          </div>
+
+          {showSettings && (
+            <div className="flex flex-col gap-1 rounded-xl border border-border bg-secondary/40 p-2">
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Voice
+              </p>
+              {VOICES.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => pickVoice(v.id)}
+                  className={`flex items-center justify-between rounded-lg px-2 py-2 text-left text-xs ${
+                    voice === v.id ? "bg-primary/15 text-primary" : "text-foreground"
+                  }`}
+                >
+                  <span className="font-semibold">{v.label}</span>
+                  <span className="text-[11px] text-muted-foreground">{v.tone}</span>
+                </button>
+              ))}
+              <button
+                onClick={generateAndPlay}
+                className="mt-1 rounded-lg bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground"
+              >
+                Regenerate with selected voice
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
