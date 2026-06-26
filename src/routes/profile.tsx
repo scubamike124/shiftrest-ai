@@ -66,6 +66,8 @@ function Profile() {
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
   useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
+  const [cityDraft, setCityDraft] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (partial: Partial<Prefs>) => savePrefs(partial),
