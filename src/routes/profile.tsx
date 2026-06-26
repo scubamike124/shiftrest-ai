@@ -20,6 +20,15 @@ import {
   LogOut,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
+import {
+  fetchEmployers,
+  addEmployer,
+  updateEmployer,
+  deleteEmployer,
+  EMPLOYER_COLORS,
+  type Employer,
+} from "@/lib/employers";
+import { Briefcase, Plus as PlusIcon, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_PREFS,
