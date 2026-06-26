@@ -1,101 +1,125 @@
-## Phase 2: Premium AI Experience — Investigation & Plan
+# Stripe Web Billing — Investigation & Plan
 
-This is the investigation deliverable. Nothing ships until you approve and pick a slice.
+## Recommended approach: Lovable's built-in Stripe Payments
 
-### Current baseline (what I confirmed in the repo)
+Lovable has a built-in Stripe integration (`enable_stripe_payments`) that requires **no Stripe account setup, no API key entry, and no webhook configuration on your end**. Lovable manages the Stripe account, keys, webhooks, and Customer Portal wiring. A test (sandbox) environment is created instantly; going live requires a short verification step.
 
-- Voice briefing today: `src/routes/plan.tsx` uses browser `SpeechSynthesisUtterance`. That's the robotic voice. It has no controls (no pause/seek/speed), no abbreviation expansion, and no streaming.
-- Shifts table: `public.shifts` already has nullable `title`, `notes`, `shift_type` columns — but no `job_id`. There is no `jobs` table yet.
-- AI Coach: `src/routes/api/coach.ts` streams `google/gemini-3-flash-preview` through the Lovable AI Gateway. History persists in `coach_messages` and is hydrated on mount — good base for memory.
-- Dashboard: `src/routes/index.tsx` is mostly a static bento + ring; no AI advice card, no fatigue score, no recovery score.
-- No wearable code anywhere.
+This is strongly preferred over bring-your-own-key (BYOK) Stripe. The rest of this plan assumes built-in Stripe Payments. If you insist on BYOK, the same architecture applies — only the setup and secret management differ.
 
-### Recommended architecture (one-pass, additive)
+Note on tax: as part of setup, Stripe will be configured with full compliance handling (Stripe handles tax calc, collection, filing, disputes, transactional support for ~80 countries at +3.5% per transaction). Adjustable per-transaction later.
 
-**TTS (Section 1 + 2)** — switch from browser SpeechSynthesis to Lovable AI Gateway `openai/gpt-4o-mini-tts` via a new server route `src/routes/api/tts.ts`. PCM streaming + WebAudio scheduling so playback starts in <1s. Free credits already wired (`LOVABLE_API_KEY` exists). Voice presets map to OpenAI voices: Calm Female=`shimmer`, Calm Male=`onyx`, Friendly=`nova`, Professional=`alloy`, Energetic=`fable`. Selected voice + speed stored in `user_prefs` (new columns). Abbreviation expander lives in `src/lib/voice-rewriter.ts`: deterministic regex pass (`mg`→`milligrams`, `30 min`→`30 minutes`, `100-200`→`one hundred to two hundred`, time/temperature, etc.). For polish on full briefings, a server fn calls Gemini-3-flash with a "rewrite this as a warm coach speaking aloud, expand all abbreviations, no lists, no punctuation tricks" prompt before TTS. Player component (`src/components/VoicePlayer.tsx`) owns AudioContext, exposes play/pause/resume/stop/restart/seek/speed/progress, and is reused everywhere voice plays.
+---
 
-**Multi-employer (Section 3)** — additive migration:
-- New `public.jobs` (`id, user_id, name, color, is_default, created_at, updated_at`) + RLS + GRANTs.
-- Extend `public.shifts` with `job_id uuid REFERENCES jobs(id) ON DELETE SET NULL`. (`title`/`notes` already exist — reuse them as shift name + notes.)
-- Auto-create "My Job" on first read for legacy users; legacy shifts get `job_id = null`, treated as the default.
-- `src/lib/jobs.ts` (CRUD), shift form gains Job picker + color pill, week grid color-codes by job.
-- Coach + Plan prompts include the job name so AI can say "before your St. Mary's night".
-- Playbooks' `replaceAllShifts` becomes per-job scoped.
+## 1. Stripe products & prices
 
-**AI Dashboard + Fatigue + Recovery (Sections 4, 5, 6)** — one shared "insights" pipeline so we don't pay for three separate AI calls:
-- New `src/lib/insights.functions.ts` server fn (`generateDailyInsights`). Inputs: last 14 days of shifts (grouped by job), prefs, today's date. Returns one structured JSON: `recoveryScore (0-100)`, `fatigueLevel (low|moderate|high|critical)`, `sleepDebtHours`, `recommendedNap {start, durationMin}`, `caffeineWindow {on, cutoff}`, `bedtimeTonight`, `topAdvice` (1 sentence), `warnings[]`, `weeklyTrend`.
-- Cache the result for 6h in a new `public.daily_insights` table keyed by `user_id + date` so the dashboard renders instantly and AI is called at most ~4×/day per user. Stale-while-revalidate via TanStack Query.
-- Dashboard re-renders cards from this single payload — no extra round-trips. Fatigue badge, recovery score ring, advice card, nap suggestion, caffeine windows all read the same object.
-- Recovery Planner page = the same payload presented as a checklist (sleep / nap / hydration / meals / light / caffeine).
+Three products, each with one price:
 
-**Weekly Report (Section 7)** — same pipeline, different scope. `generateWeeklyReport` server fn called once per ISO week, cached in `public.weekly_reports`. Returns `avgSleepHrs, recoveryTrend, fatigueTrend, bestDay, worstDay, suggestions[]`. New route `src/routes/report.tsx`.
+| Product | Price ID purpose | Type | Amount | Trial |
+|---|---|---|---|---|
+| RestPilot Monthly | `price_monthly` | recurring, 1 month | $7.99 USD | 7-day free trial |
+| RestPilot Annual | `price_annual` | recurring, 1 year | $49.99 USD | 7-day free trial |
+| RestPilot Lifetime Founder | `price_lifetime` | one-time | $99.00 USD | none |
 
-**Coach memory (Section 8)** — small upgrade, no new tables. Before each completion in `api/coach.ts`, server-side enrich the system prompt with: current jobs (names only), recent rotation summary (already computable from shifts), latest `daily_insights` row, and the last ~20 user/assistant turns (already persisted). Coach immediately "remembers" context without a vector DB.
+Trial is applied via `subscription_data.trial_period_days: 7` on the Checkout session for the two recurring plans only.
 
-**Wearables (Section 9)** — architecture only. Define `src/lib/wearables/provider.ts` interface (`fetchSleep(range): SleepSession[]`, `connect(): Promise<Connection>`, `disconnect()`). Stub providers `apple-health.ts`, `google-fit.ts`, `fitbit.ts`, `garmin.ts`, `oura.ts`, `whoop.ts` that throw "coming soon". New `public.sleep_sessions` table ready to receive normalized data later. No UI beyond the existing "coming soon" tile. Real integrations need OAuth apps + (for Apple/Google) Capacitor — that's a separate future phase.
+## 2. Environment variables
 
-### Recommended implementation order (cheapest → most valuable bundles)
+With built-in Stripe Payments, Lovable injects everything automatically (publishable key, secret key, webhook secret, price IDs via the product catalog tool). No env vars to manage manually.
 
-Bundle A — **TTS overhaul + player** (Sections 1+2). Highest user-perceivable lift, no schema changes, 1 server route + 1 component + 1 rewriter. Sets the voice infra for every future spoken feature.
+For reference, behind the scenes the following are populated:
+- `STRIPE_SECRET_KEY` (Lovable-managed)
+- `STRIPE_WEBHOOK_SECRET` (Lovable-managed)
+- `STRIPE_PUBLISHABLE_KEY` (Lovable-managed, used client-side if needed)
 
-Bundle B — **Multi-employer** (Section 3). One migration + jobs CRUD + UI tweaks. Unlocks per-job context for every AI feature in Bundle C, so it has to land before C.
+## 3. Database changes (`profiles` table)
 
-Bundle C — **Insights pipeline + AI Dashboard + Fatigue + Recovery Planner** (Sections 4+5+6). One AI call shape, one cache table, three surfaces. Biggest "wow" moment. Coach memory (Section 8) is a 50-line patch tacked onto the end of this bundle since it reads the same insights row.
+Add Stripe-specific columns; keep existing `subscription_tier`, `trial_ends_at`, `subscription_expires_at`. Drop the unused `revenuecat_user_id` column.
 
-Bundle D — **Weekly Report** (Section 7). Reuses the insights helpers; mostly a new route + cache table.
+New columns on `public.profiles`:
+- `stripe_customer_id text` — links the user to their Stripe customer.
+- `stripe_subscription_id text` — current active subscription (null for lifetime or free).
+- `subscription_status text` — mirror of Stripe status: `trialing`, `active`, `past_due`, `canceled`, `unpaid`, `incomplete`, `incomplete_expired`, or `lifetime`.
+- `cancel_at_period_end boolean default false`.
+- Index on `stripe_customer_id` for fast webhook lookup.
 
-Bundle E — **Wearables scaffolding** (Section 9). Interface + stub providers + table; zero UI change.
+`isPremium` becomes: `tier === "lifetime"` OR `status IN ('trialing','active')` (no manual expiry math needed — Stripe is source of truth).
 
-### Files that will change (by bundle)
+Writes to subscription fields happen **only** in the webhook handler using `supabaseAdmin` (service role). RLS stays read-only-self for the user.
 
-- A: `src/routes/api/tts.ts` (new), `src/lib/voice-rewriter.ts` (new), `src/lib/voice-rewriter.functions.ts` (new, Gemini polish), `src/components/VoicePlayer.tsx` (new), `src/routes/plan.tsx` (swap `speak()` → `<VoicePlayer text={…}/>`), `src/lib/prefs.ts` (+`voicePreset`, `voiceSpeed`), profile UI for voice + speed.
-- B: migration (jobs + shifts.job_id), `src/lib/jobs.ts` (new), `src/routes/index.tsx` (job picker on shift form, color pills), `src/lib/playbooks.ts` (per-job), `src/routes/swap.tsx` + `src/routes/api/coach.ts` (job context in prompts).
-- C: migration (`daily_insights`), `src/lib/insights.functions.ts` (new), `src/routes/index.tsx` (advice/fatigue/recovery cards), `src/routes/plan.tsx` (read nap + caffeine from insights), new `src/routes/recovery.tsx`, `src/routes/api/coach.ts` (memory enrichment).
-- D: migration (`weekly_reports`), `src/lib/weekly-report.functions.ts`, new `src/routes/report.tsx`, nav entry.
-- E: migration (`sleep_sessions`), `src/lib/wearables/*` stubs.
+## 4. Webhook event plan
 
-### Database changes summary
+One route: `src/routes/api/public/stripe-webhook.ts` (POST). Signature-verified using `stripe.webhooks.constructEvent` with the raw body and webhook secret.
 
-1. `jobs` (Bundle B) + `shifts.job_id` column.
-2. `daily_insights` (Bundle C): `user_id, date, payload jsonb, generated_at` — unique on `(user_id, date)`.
-3. `weekly_reports` (Bundle D): `user_id, iso_week, payload jsonb, generated_at` — unique on `(user_id, iso_week)`.
-4. `sleep_sessions` (Bundle E): `user_id, source, start, end, total_min, deep_min, rem_min, source_record_id` — unique on `(user_id, source, source_record_id)`.
-5. `user_prefs`: `+voice_preset text default 'calm_female'`, `+voice_speed numeric default 1.0`.
+| Event | Action |
+|---|---|
+| `checkout.session.completed` | If `mode=subscription`: store `stripe_customer_id`, `stripe_subscription_id`, set tier (monthly/annual), status `trialing` or `active`. If `mode=payment` (lifetime): set tier `lifetime`, status `lifetime`, store customer id. |
+| `customer.subscription.created` | Backfill/confirm fields (defensive). |
+| `customer.subscription.updated` | Update status, `cancel_at_period_end`, `subscription_expires_at` = `current_period_end`. |
+| `customer.subscription.deleted` | Set status `canceled`, tier `free`, clear `stripe_subscription_id`. |
+| `invoice.payment_failed` | Set status `past_due`. |
+| `invoice.payment_succeeded` | Refresh `subscription_expires_at` = `current_period_end`, status `active`. |
 
-Every new public table gets the standard `GRANT ... TO authenticated`, `GRANT ALL TO service_role`, RLS enabled, owner-only policies.
+User-to-customer mapping: the Checkout session is created server-side with `client_reference_id = auth.uid()` and `metadata.user_id`. Webhook reads metadata for the first event, then uses `stripe_customer_id` for subsequent events.
 
-### Effort estimate (rough, in agent turns/sessions)
+## 5. Server functions (TanStack `createServerFn`)
 
-- Bundle A: small-medium. ~1 focused session.
-- Bundle B: medium. ~1–2 sessions (migration + UI).
-- Bundle C: large. ~2–3 sessions (insights schema, fn, three UI surfaces, coach memory).
-- Bundle D: small. ~1 session.
-- Bundle E: small. ~0.5 session (no UI).
+New file `src/lib/billing.functions.ts`:
+- `createCheckoutSession({ plan: 'monthly'|'annual'|'lifetime' })` — auth-protected, returns Checkout URL. Adds 7-day trial for recurring plans. Success URL: `/profile?checkout=success`. Cancel URL: `/paywall`.
+- `createPortalSession()` — auth-protected, returns Customer Portal URL for managing/canceling subscription.
 
-### Risks
+## 6. Files requiring changes
 
-- **TTS cost**: gpt-4o-mini-tts streaming is cheap (≈$0.015 per 1k chars). A 1-minute briefing ≈ 900 chars ≈ <$0.02. Daily insights with Gemini-3-flash are also cheap (<$0.001 each, cached). At 1k DAU, ~$50–150/mo combined — fine. Mitigations already in plan: cache insights table, cache voice files keyed by `(text+voice+speed)`.
-- **iOS Safari autoplay**: AudioContext must resume inside the click handler — already accounted for in the player component.
-- **Cache staleness**: shift edits should invalidate the user's `daily_insights` row for affected dates. Add a DB trigger on `shifts` insert/update/delete.
-- **Multi-job migration breaking Playbooks**: tested-but-easy regression — `replaceAllShifts` must scope by `job_id`, otherwise generating a playbook wipes the other job. Plan handles this.
-- **Hallucinated medical specifics in insights**: keep system prompt strict ("no dosages, no diagnosis, lifestyle only"), surface DISCLAIMER on every AI-derived card.
-- **Coach context bloat**: cap injected context to ~2k tokens (last 20 turns + summarized stats), not raw history.
+**New**
+- `src/lib/billing.functions.ts` — Checkout + Portal server fns.
+- `src/routes/api/public/stripe-webhook.ts` — webhook receiver.
+- Migration: profile column changes.
 
-### Cost considerations
+**Modified**
+- `src/routes/paywall.tsx` — wire CTAs to `createCheckoutSession`; default-select Annual; new copy ("No charge today • Cancel anytime before your trial ends"); rename Lifetime CTA to "Become a Founding Member"; rename badge to "Founding Member — Limited Time"; optional Stripe/Visa/Mastercard trust row.
+- `src/lib/subscription.ts` — read new fields; remove mock `startTrial`; replace `restorePurchases` with a server-fn that re-syncs from Stripe.
+- `src/routes/profile.tsx` — replace "Restore purchases" with **Manage Subscription** button → opens Customer Portal. Handle `?checkout=success` toast.
 
-- All AI calls route through Lovable AI Gateway with the existing `LOVABLE_API_KEY` — no new vendor keys.
-- ElevenLabs is *not* recommended for v2 (more natural but adds a connector + ~10× the per-character cost). Revisit only if users report `gpt-4o-mini-tts` still sounds robotic after the rewriter polish.
-- Wearables integrations later will cost: Fitbit/Oura/WHOOP/Garmin = OAuth apps (free dev tiers); Apple Health/Google Fit = native wrapper (Capacitor build, dev account fees) — out of scope here.
+**Untouched**
+- All iOS / native / RevenueCat / App Store references. (Nothing in the codebase actually wires to RevenueCat; the `revenuecat_user_id` column will be dropped because it's dead.)
 
-### Bundling opportunities (where shared work compounds)
+## 7. Security risks & mitigations
 
-- The **insights pipeline** (Bundle C) is the single largest reuse point: dashboard, fatigue badge, recovery planner, plan caffeine/nap times, and coach memory all read from one cached JSON. Build it once.
-- The **TTS infrastructure** (Bundle A) is reused later for: weekly report read-aloud, coach "speak this reply" button, partner-mode shared briefing — build the player as a reusable component from day one.
-- The **voice rewriter** (`expandAbbreviations`) is reused by every spoken surface and the coach when the user asks it to "say this aloud".
-- The **jobs table** (Bundle B) feeds context into insights, coach, plan, swap, and playbooks — landing it before Bundle C avoids reworking C's prompts.
+- **Webhook spoofing** → verify Stripe signature with raw body before any DB write.
+- **Trial abuse** (same card, multiple accounts) → enable Stripe's built-in "block multiple trials per customer" in Checkout settings.
+- **Privilege escalation via client writes** → all subscription columns updated only via service-role webhook; RLS prevents user UPDATE on those fields (tighten the existing update policy with a column allowlist via a trigger that rejects changes to subscription_* from non-service roles).
+- **Replay attacks** → store processed `event.id` in a small `stripe_events` table; ignore duplicates.
+- **Lost webhooks** → on app load, a lightweight `syncSubscription` server fn calls Stripe to refresh state if `subscription_status` is stale.
+- **PII** → never log full Stripe payloads; log event id + type only.
 
-### My recommendation for the first slice
+## 8. Test checklist
 
-Ship Bundle A first (immediate user-perceivable upgrade, zero schema risk), then Bundle B (unlocks AI context), then Bundle C (the big "alive" dashboard). D and E come after when you're ready.
+- [ ] Monthly checkout → trial starts, `status=trialing`, premium unlocked instantly.
+- [ ] Annual checkout → trial starts, premium unlocked.
+- [ ] Lifetime checkout → one-time charge, `tier=lifetime`, permanent premium.
+- [ ] Cancel during trial via Portal → premium remains until trial end, then revoked.
+- [ ] Cancel active sub → premium remains until period end (cancel_at_period_end), then revoked.
+- [ ] Failed payment → `past_due` → premium revoked after Stripe's dunning window.
+- [ ] Webhook signature with bad secret → 401, no DB write.
+- [ ] Duplicate webhook delivery → idempotent.
+- [ ] Annual is pre-selected on paywall.
+- [ ] Lifetime CTA reads "Become a Founding Member" and badge reads "Founding Member — Limited Time".
+- [ ] Trial copy renders under Monthly/Annual CTAs only (not Lifetime).
+- [ ] Signed-out user clicking a plan → routed to `/auth` then back to checkout.
+- [ ] `Manage Subscription` opens Portal for users with `stripe_customer_id`.
 
-Tell me which bundle(s) to start with and I'll write the next, smaller per-bundle PLAN REQUEST with exact migrations and code before touching anything.
+## 9. Effort estimate
+
+~3–4 hours of implementation once approved:
+- 30 min: enable built-in Stripe Payments + create the 3 products/prices.
+- 45 min: DB migration + subscription.ts refactor.
+- 60 min: Checkout + Portal server fns + webhook route.
+- 45 min: paywall + profile UI changes and copy.
+- 30 min: end-to-end test in Stripe test mode.
+
+---
+
+## Decision needed before I build
+
+1. **Confirm I should enable Lovable's built-in Stripe Payments** (recommended — no account or keys needed from you). If you'd rather connect your own Stripe account with your own API key, say so explicitly.
+2. **Confirm I can drop the unused `revenuecat_user_id` column** (nothing in the code references it).
+3. **Trust logos**: OK to add a small "Powered by Stripe • Visa • Mastercard • Amex" row under the CTA? (Stripe's brand guidelines allow this for Checkout-powered apps.)
