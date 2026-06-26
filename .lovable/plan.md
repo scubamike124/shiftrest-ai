@@ -1,67 +1,94 @@
-## 1. Root cause
+## Rebrand to RestPilot AI + copy cleanup
 
-### Issue 1 — Location
+This is a text-only pass. No UI redesign, no functional changes. After approval I will apply edits in one batch and search-verify nothing slipped through.
 
-Three problems compound:
+### 1. Brand rename: ShiftRest / ShiftZen → RestPilot AI
 
-**A. No manual entry.** `profile.tsx` only exposes a "Detect" button (`detectLocation`, lines 135–152) calling `navigator.geolocation.getCurrentPosition`. If the browser denies, returns a coarse/IP-based result, or the user is on a desktop far from where they actually live (VPN, work laptop), there is no way to correct it. The error handler just toasts and bails — the previous (possibly wrong) location stays.
+User-facing strings to rewrite (every occurrence):
 
-**B. Label is just raw coordinates.** On success we save `locationLabel: "40.71, -74.01"`, not a city. Users read that and think "this is wrong" because it doesn't look like a place. There is no reverse geocoding.
+- `public/manifest.webmanifest` — `name`, `short_name`
+- `src/routes/__root.tsx` — title, OG/Twitter title, `apple-mobile-web-app-title`
+- `src/routes/index.tsx` — header label "ShiftRest AI"
+- `src/routes/auth.tsx` — page title + meta description
+- `src/routes/reset-password.tsx` — page title + meta description
+- `src/routes/coach.tsx` — page title
+- `src/routes/plan.tsx` — page title
+- `src/routes/playbooks.tsx` — page title
+- `src/routes/swap.tsx` — page title
+- `src/routes/paywall.tsx` — page title + hero copy ("ShiftRest Premium…")
+- `src/routes/profile.tsx` — title, test-notification body, settings blurb
+- `src/routes/share.tsx` — title, share title, footer ("Powered by ShiftRest AI"), share-card text
+- `src/routes/privacy.tsx` — title, body mentions, support email
+- `src/routes/terms.tsx` — title, body mentions, support email
+- `src/routes/api/coach.ts` — system prompt brand line
+- `src/components/Onboarding.tsx` — slide copy
+- `src/lib/shifts.ts` — `DISCLAIMER` string
 
-**C. Default-NYC silently wins.** `DEFAULT_PREFS` in `src/lib/prefs.ts` hardcodes `lat 40.7128 / lon -74.006 / "New York, NY"`. Any new user — and any logged-out user — gets NYC sunrise/sunset in the Plan screen until they hit Detect. `plan.tsx` and `sleep-engine.ts` consume `prefs.lat/lon` directly with no "location not set" state, so the wrong sun times look authoritative.
+Support emails `support@shiftrest.app` / `privacy@shiftrest.app` → `support@restpilot.ai` / `privacy@restpilot.ai`.
 
-There is no caching bug in Supabase persistence itself — `savePrefs` upserts correctly and `fetchPrefs` reads the row. The bug is UX: the user can't fix a wrong value, the label lies, and the default masquerades as real.
+Internal keys NOT touched (no user impact, breaking them would wipe local data):
+`shiftrest.shifts.v1`, `shiftrest.prefs.v1`, `shiftrest.onboarded.v1`, migration flags, the `shiftrest-winddown` notification tag, the `revenuecat_user_id` column.
 
-### Issue 2 — Paywall copy
+### 2. Strip Apple / App Store / iOS wording (web launch)
 
-`src/routes/paywall.tsx` (the legal blurb under the CTA, ~lines 158–166) names "Apple ID", "Settings → Apple ID → Subscriptions", and free-trial-forfeiture language lifted from Apple's required iOS disclosure. On a web-only launch with no App Store billing wired up, this is inaccurate and could be misread as a deceptive practice.
+- `src/routes/terms.tsx` §3 — rewrite to web-only billing language. New copy:
+  > Pricing: Monthly $7.99 / Annual $49.99 / Lifetime $99 (one-time). Paid subscriptions renew automatically at the listed price until cancelled. You can manage or cancel your plan anytime from your account settings. Lifetime is a one-time purchase and does not renew. Free-trial time is forfeited when a paid plan begins.
+- `src/lib/subscription.ts` — drop the "RevenueCat / native iOS" comments; keep them generic ("Server-side subscription state").
+- Spot-check: no other route mentions Apple ID, App Store, iOS, or RevenueCat after the sweep. (The `apple-mobile-web-app-*` meta tags stay — those are standard PWA hints, not user-visible.)
 
-## 2. Files needing changes
+### 3. Consistency + tone polish
 
-- `src/lib/prefs.ts` — neutralize the default label so we can detect "not set".
-- `src/routes/profile.tsx` — add manual city entry + clear permission-denied fallback; reverse-geocode on Detect so the label is a real place name.
-- `src/routes/plan.tsx` — show a "Set your location" prompt when location is unset, instead of silently using NYC.
-- `src/routes/paywall.tsx` — replace Apple/App Store disclosure with web-safe copy.
+Standardize casing across every button, toast, title, and link label:
 
-No changes to `sleep-engine.ts` (math is correct), no schema changes.
+- "Sign In" (not "Sign in" / "Log in")
+- "Sign Out" (not "Sign out")
+- "Sign Up" / "Create Account" — pick one; plan uses "Create Account" for the signup CTA and "Sign Up" for the mode toggle link
+- "Delete Account" (not "Delete account")
+- "Forgot Password?"
+- "Reset Password"
+- "Restore Purchases"
 
-## 3. Exact fix plan
+Toast/error tone pass — same meaning, friendlier phrasing:
+- "Sign in to start your trial." → "Sign in to start your free trial."
+- "Authentication failed" → use the provider message when present, else "We couldn't sign you in. Please try again."
+- "Could not start trial." → "We couldn't start your trial. Please try again."
+- "Restore failed." → "We couldn't restore your purchases."
+- "Could not send reset email" → "We couldn't send the reset email. Please try again."
+- Onboarding skip → "Skip intro"
+- Profile partner-name placeholder, empty schedule state, and the "Fine-tune how ShiftRest plans…" blurb get RestPilot-branded rewrites.
 
-### Location
+### 4. Verification
 
-1. **Default = unset, not NYC.** Change `DEFAULT_PREFS.locationLabel` to `""` and add a derived `hasLocation = !!prefs.locationLabel` check. Keep lat/lon defaults so existing sun math doesn't divide-by-undefined, but treat empty label as "user hasn't picked one."
-2. **Manual entry in Profile.** Add a text input ("City, region") next to Detect. On blur, geocode via the free Open-Meteo geocoding endpoint (`https://geocoding-api.open-meteo.com/v1/search?name=...`) — no API key, CORS-enabled — and save `{lat, lon, locationLabel: "City, Country"}`. If geocoding returns nothing, toast "City not found — try a nearby larger city."
-3. **Detect with reverse geocoding.** After `getCurrentPosition` succeeds, call Open-Meteo reverse geocoding (`/v1/reverse?latitude=..&longitude=..`) to turn coords into "Brooklyn, NY" instead of "40.71, -74.01". If reverse-geocode fails, fall back to the coord string but still save lat/lon.
-4. **Clear denial fallback.** On `getCurrentPosition` error, focus the manual input and toast "Couldn't detect — enter your city below."
-5. **Plan screen guard.** In `plan.tsx`, if `!prefs.locationLabel`, render a small card: "Set your location to get accurate sunrise/sunset timing" with a link to `/profile`. Don't blank the plan, just badge it as "using default New York timing."
+After edits I run:
 
-### Paywall copy
+```
+rg -ni "shiftrest|shiftzen|apple id|app store|ios subscription|revenuecat" src public
+```
 
-Replace the Apple disclosure block in `paywall.tsx` with:
+and confirm zero user-facing hits (the localStorage keys and `revenuecat_user_id` column are the only allowed matches, and they're internal).
 
-> Subscriptions renew automatically at the listed price unless canceled before the renewal date. You can manage or cancel your plan anytime from your account settings. Lifetime is a one-time purchase and does not renew.
+### 5. Multi-employer / multi-job — investigation only (not built)
 
-Keep Terms / Privacy / Restore links. No other paywall changes.
+Current shape (`public.shifts`): `id, user_id, day (0-6), start_min, end_min`. Repeats weekly, no name, no notes, no employer.
 
-## 4. Migration needed
+Recommended future shape (single migration, additive, backwards-compatible):
 
-None. Schema for `user_prefs` already stores `location_label` as text; we're only changing client behavior and defaults. Existing rows with `"New York, NY"` saved as a real value remain valid (the user explicitly accepted it).
+1. New table `public.jobs`
+   - `id`, `user_id` (FK auth.users, cascade), `name` (e.g. "St. Mary's ER"), `color` (hex for calendar pill), `is_default boolean`, `created_at`, `updated_at`
+   - RLS: owner-only; `GRANT SELECT/INSERT/UPDATE/DELETE TO authenticated`, `GRANT ALL TO service_role`.
+2. Extend `public.shifts` with nullable columns — no data migration needed:
+   - `job_id uuid REFERENCES public.jobs(id) ON DELETE SET NULL`
+   - `label text` (shift name, e.g. "Night float")
+   - `notes text`
+3. Seeding: on first read, if a user has shifts but no jobs row, create a default "My Job" row and leave existing shifts with `job_id = null` (treated as the default in the UI).
+4. UI impact (later phase): shift form gains Job picker + name + notes; week grid color-codes by job; Plan / Coach prompts pass the job name through so AI recommendations can say "before your St. Mary's night".
+5. Risks / open questions:
+   - One shift = one job (no split shifts across employers in v1).
+   - Recurring weekly model stays; a true calendar-date model is a separate, bigger migration.
+   - Playbooks currently call `replaceAllShifts` — must be scoped per-job once jobs ship, otherwise generating a playbook would wipe the other job's schedule.
 
-## 5. Test checklist
+No schema or code changes for this section in the current pass — proposal only.
 
-**Location**
-- Fresh logged-in account: Profile shows "Location not set" and Plan shows the "Set your location" hint.
-- Type "Austin, TX" into manual field → blur → label becomes "Austin, United States" (or similar), lat/lon updates, sun times in Plan shift accordingly, value persists across reload.
-- Type gibberish "asdfgh" → toast "City not found", prior location unchanged.
-- Click Detect, allow → label becomes a real city name (not raw coords), persists.
-- Click Detect, deny → toast points to manual input, prior location unchanged.
-- Sign out, sign back in on a different device → same location loads from Supabase.
-- Plan screen sunrise/sunset visibly matches the chosen city (NY vs LA gives ~3h difference).
+### Deliverable on completion
 
-**Paywall**
-- No occurrences of "Apple ID", "App Store", "iOS", "Settings → Apple ID" anywhere on `/paywall`.
-- Renewal/cancel sentence visible under the CTA.
-- Terms, Privacy, Restore purchases links still work.
-- Lifetime tier still reads "one-time."
-
-Awaiting approval before coding.
+A single message listing: every wording change applied, confirmation that brand + Apple sweep returns zero user-facing hits, any remaining copy I flagged as still confusing, and the multi-employer proposal above for your sign-off.
