@@ -1,12 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { buildCoachSystemPrompt } from "@/lib/coach-personality";
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
-
-const SYSTEM_PROMPT = `You are RestPilot AI's Sleep Coach: an empathetic, professional circadian-rhythm expert helping shift workers (nurses, EMTs, pilots, factory crews, hospitality, security) sleep better despite erratic schedules.
-
-Be concrete and actionable. Cover practical tactics: light exposure timing, blackout setups, caffeine timing, anchor sleep, naps, meal timing, recovery between rotations, commute strategies (amber glasses), and bedroom environment (temperature 65-68°F, sound, darkness).
-
-Keep responses tight (3-6 short paragraphs or a short list). Never give medical advice — for sleep disorders, depression, or medication questions, recommend they consult a healthcare professional. Use plain language, no jargon dumps.`;
 
 export const Route = createFileRoute("/api/coach")({
   server: {

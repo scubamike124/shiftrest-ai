@@ -22,6 +22,8 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiSwapRouteImport } from './routes/api/swap'
+import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 
@@ -90,6 +92,16 @@ const ApiTtsRoute = ApiTtsRouteImport.update({
   path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSwapRoute = ApiSwapRouteImport.update({
+  id: '/api/swap',
+  path: '/api/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInsightsRoute = ApiInsightsRouteImport.update({
+  id: '/api/insights',
+  path: '/api/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCoachRoute = ApiCoachRouteImport.update({
   id: '/api/coach',
   path: '/api/coach',
@@ -116,6 +128,8 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/insights': typeof ApiInsightsRoute
+  '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesByTo {
@@ -133,6 +147,8 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/insights': typeof ApiInsightsRoute
+  '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRoutesById {
@@ -151,6 +167,8 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
+  '/api/insights': typeof ApiInsightsRoute
+  '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
 }
 export interface FileRouteTypes {
@@ -170,6 +188,8 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/brief'
     | '/api/coach'
+    | '/api/insights'
+    | '/api/swap'
     | '/api/tts'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -187,6 +207,8 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/brief'
     | '/api/coach'
+    | '/api/insights'
+    | '/api/swap'
     | '/api/tts'
   id:
     | '__root__'
@@ -204,6 +226,8 @@ export interface FileRouteTypes {
     | '/terms'
     | '/api/brief'
     | '/api/coach'
+    | '/api/insights'
+    | '/api/swap'
     | '/api/tts'
   fileRoutesById: FileRoutesById
 }
@@ -222,6 +246,8 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
+  ApiInsightsRoute: typeof ApiInsightsRoute
+  ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
 }
 
@@ -318,6 +344,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/swap': {
+      id: '/api/swap'
+      path: '/api/swap'
+      fullPath: '/api/swap'
+      preLoaderRoute: typeof ApiSwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/insights': {
+      id: '/api/insights'
+      path: '/api/insights'
+      fullPath: '/api/insights'
+      preLoaderRoute: typeof ApiInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/coach': {
       id: '/api/coach'
       path: '/api/coach'
@@ -350,6 +390,8 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
+  ApiInsightsRoute: ApiInsightsRoute,
+  ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
