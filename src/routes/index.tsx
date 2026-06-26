@@ -7,12 +7,14 @@ import {
   type Shift,
   fetchShifts,
   addShift as addShiftRemote,
+  updateShift as updateShiftRemote,
   deleteShift as deleteShiftRemote,
   fmt,
   parseTime,
   toTimeInput,
   endAbsolute,
 } from "@/lib/shifts";
+import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
@@ -39,6 +41,11 @@ function Dashboard() {
     queryKey: ["shifts"],
     queryFn: fetchShifts,
   });
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+  });
+  const defaultEmployer = employers.find((e) => e.isDefault) ?? employers[0];
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
@@ -47,11 +54,20 @@ function Dashboard() {
     setMounted(true);
   }, []);
 
-  const addMutation = useMutation({
-    mutationFn: async (input: { day: number; start: number; end: number }) => {
-      // Replace any existing shift on this day (mirrors prior single-shift-per-day UX).
+  const saveMutation = useMutation({
+    mutationFn: async (input: {
+      day: number;
+      start: number;
+      end: number;
+      employerId: string | null;
+      title: string;
+      notes: string;
+    }) => {
       const existing = shifts.find((x) => x.day === input.day);
-      if (existing) await deleteShiftRemote(existing.id);
+      if (existing) {
+        await updateShiftRemote(existing.id, input);
+        return existing;
+      }
       return addShiftRemote(input);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
@@ -61,10 +77,6 @@ function Dashboard() {
     mutationFn: (id: string) => deleteShiftRemote(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
   });
-
-  function addShift(day: number, start: number, end: number) {
-    addMutation.mutate({ day, start, end });
-  }
 
   function removeShift(id: string) {
     deleteMutation.mutate(id);
