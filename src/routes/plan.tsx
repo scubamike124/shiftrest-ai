@@ -11,7 +11,8 @@ import {
   BookOpen,
   AlertCircle,
 } from "lucide-react";
-import { DAYS, fmt, loadShifts, type Shift } from "@/lib/shifts";
+import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
+import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { loadPrefs } from "@/lib/prefs";
 import { toast } from "sonner";
@@ -45,18 +46,17 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
   const prefs = useMemo(() => loadPrefs(), []);
   const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);
 
   useEffect(() => {
-    setShifts(loadShifts());
     setMounted(true);
   }, []);
 
-  const shift = shifts.find((s) => s.day === activeDay);
+  const shift = shifts.find((s: Shift) => s.day === activeDay);
   const sun = useMemo(
     () => sunTimes(today, prefs.lat, prefs.lon),
     [prefs.lat, prefs.lon, today],

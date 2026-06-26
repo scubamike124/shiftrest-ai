@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
 import {
   DAYS,
   type Shift,
-  loadShifts,
-  saveShifts,
+  fetchShifts,
+  addShift as addShiftRemote,
+  deleteShift as deleteShiftRemote,
   fmt,
   parseTime,
   toTimeInput,
@@ -30,28 +32,40 @@ export const Route = createFileRoute("/")({
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function Dashboard() {
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const queryClient = useQueryClient();
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: fetchShifts,
+  });
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const prefs = useMemo(() => loadPrefs(), []);
 
   useEffect(() => {
-    setShifts(loadShifts());
     setMounted(true);
   }, []);
 
-  function update(next: Shift[]) {
-    setShifts(next);
-    saveShifts(next);
-  }
+  const addMutation = useMutation({
+    mutationFn: async (input: { day: number; start: number; end: number }) => {
+      // Replace any existing shift on this day (mirrors prior single-shift-per-day UX).
+      const existing = shifts.find((x) => x.day === input.day);
+      if (existing) await deleteShiftRemote(existing.id);
+      return addShiftRemote(input);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteShiftRemote(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
+  });
 
   function addShift(day: number, start: number, end: number) {
-    const s: Shift = { id: crypto.randomUUID(), day, start, end };
-    update([...shifts.filter((x) => x.day !== day), s]);
+    addMutation.mutate({ day, start, end });
   }
 
   function removeShift(id: string) {
-    update(shifts.filter((s) => s.id !== id));
+    deleteMutation.mutate(id);
   }
 
   const [today, setToday] = useState<Date>(() => new Date(0));

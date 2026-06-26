@@ -80,7 +80,7 @@ function Profile() {
     if (res === "granted") {
       update("notifications", true);
       scheduleNextWindDown();
-      const next = nextWindDownAt();
+      const next = await nextWindDownAt();
       toast.success(
         next
           ? `Notifications on. Next ping ${next.at.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.`

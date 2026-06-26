@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronLeft, Sparkles } from "lucide-react";
-import { DAYS, loadShifts, parseTime, fmt } from "@/lib/shifts";
+import { DAYS, fetchShifts, parseTime, fmt, type Shift } from "@/lib/shifts";
 import { loadPrefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
@@ -30,7 +30,7 @@ function SwapPage() {
     setLoading(true);
     setAnalysis("");
     try {
-      const current = loadShifts();
+      const current = await fetchShifts();
       const prefs = loadPrefs();
       const proposed = {
         day: DAYS[day],
@@ -43,7 +43,7 @@ Current week:
 ${
   current.length === 0
     ? "(empty — only this proposed shift)"
-    : current.map((s) => `- ${DAYS[s.day]} ${fmt(s.start)}–${fmt(s.end)}`).join("\n")
+    : current.map((s: Shift) => `- ${DAYS[s.day]} ${fmt(s.start)}–${fmt(s.end)}`).join("\n")
 }
 
 Proposed extra shift: ${proposed.day} ${proposed.start}–${proposed.end}

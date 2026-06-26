@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Copy, Moon, ChevronLeft } from "lucide-react";
-import { DAYS, fmt, loadShifts, endAbsolute, type Shift } from "@/lib/shifts";
+import { DAYS, fmt, fetchShifts, endAbsolute, type Shift } from "@/lib/shifts";
 import { loadPrefs, type Prefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
@@ -37,12 +38,19 @@ function decode(s: string): Payload | null {
 
 function SharePage() {
   const [hashPayload, setHashPayload] = useState<Payload | null>(null);
-  const [mine, setMine] = useState<{ shifts: Shift[]; prefs: Prefs } | null>(null);
+  const [hashChecked, setHashChecked] = useState(false);
+  const { data: shifts } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: fetchShifts,
+    enabled: hashChecked && !hashPayload,
+  });
+  const prefs = useMemo<Prefs>(() => loadPrefs(), []);
+  const mine = !hashPayload && shifts ? { shifts, prefs } : null;
 
   useEffect(() => {
     const h = window.location.hash.replace(/^#p=/, "");
     if (h) setHashPayload(decode(h));
-    else setMine({ shifts: loadShifts(), prefs: loadPrefs() });
+    setHashChecked(true);
   }, []);
 
   const link = useMemo(() => {

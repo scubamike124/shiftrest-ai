@@ -50,6 +50,45 @@ export type Database = {
         }
         Relationships: []
       }
+      shifts: {
+        Row: {
+          created_at: string
+          day: number
+          end_min: number
+          id: string
+          notes: string | null
+          shift_type: string | null
+          start_min: number
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day: number
+          end_min: number
+          id?: string
+          notes?: string | null
+          shift_type?: string | null
+          start_min: number
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day?: number
+          end_min?: number
+          id?: string
+          notes?: string | null
+          shift_type?: string | null
+          start_min?: number
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
