@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ChevronLeft, Sparkles } from "lucide-react";
 import { DAYS, fetchShifts, parseTime, fmt, type Shift } from "@/lib/shifts";
-import { loadPrefs } from "@/lib/prefs";
+import { fetchPrefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/swap")({
