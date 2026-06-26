@@ -325,6 +325,9 @@ function Profile() {
         </div>
       </section>
 
+      <EmployersSection />
+
+
       <section className="rounded-2xl border border-border bg-card">
         <SliderRow
           icon={<Moon className="h-5 w-5" />}
