@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Send, Sparkles } from "lucide-react";
 import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
+import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
@@ -50,9 +51,13 @@ function Coach() {
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
   });
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+  });
   const coachContext = useMemo(
-    () => computeInsights(shifts, prefs, new Date()).contextString,
-    [shifts, prefs],
+    () => computeInsights(shifts, prefs, new Date(), employers).contextString,
+    [shifts, prefs, employers],
   );
   const [messages, setMessages] = useState<Msg[]>(SEED);
   const [hydrated, setHydrated] = useState(false);
