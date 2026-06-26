@@ -17,6 +17,7 @@ import { Toaster } from "../components/ui/sonner";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
+import { ensureDefaultEmployer } from "../lib/employers";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
@@ -130,8 +131,13 @@ function RootComponent() {
     async function bootstrap() {
       await Promise.all([migrateLocalShiftsIfNeeded(), migrateLocalPrefsIfNeeded()]);
       if (cancelled) return;
+      // Ensure every signed-in user has a default employer so existing
+      // single-employer flows keep working without extra prompts.
+      await ensureDefaultEmployer();
+      if (cancelled) return;
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
       queryClient.invalidateQueries({ queryKey: ["prefs"] });
+      queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
     }
