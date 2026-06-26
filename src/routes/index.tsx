@@ -273,12 +273,16 @@ function Dashboard() {
                 >
                   {num}
                 </span>
-                {hasShift && (
-                  <span
-                    className="mt-1 h-1 w-1 rounded-full"
-                    style={{ background: isToday ? "white" : "var(--indigo)" }}
-                  />
-                )}
+                {hasShift && (() => {
+                  const s = shifts.find((x) => x.day === idx)!;
+                  const emp = employers.find((e) => e.id === s.employerId);
+                  return (
+                    <span
+                      className="mt-1 h-1.5 w-1.5 rounded-full"
+                      style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
+                    />
+                  );
+                })()}
               </button>
             );
           })}
@@ -294,43 +298,62 @@ function Dashboard() {
       </section>
 
       {/* Today shift detail (if any) */}
-      {todayShift && (
-        <section className="mt-6 rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
-                Tonight's shift
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {fmt(todayShift.start)} – {fmt(todayShift.end)}
-              </p>
-            </div>
-            <button
-              onClick={() => removeShift(todayShift.id)}
-              aria-label="Remove shift"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-          <Timeline shift={todayShift} />
-          <Link
-            to="/plan"
-            className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-foreground"
+      {todayShift && (() => {
+        const emp = employers.find((e) => e.id === todayShift.employerId);
+        return (
+          <section
+            className="mt-6 rounded-2xl border bg-card p-4"
+            style={{ borderColor: emp ? `${emp.color}55` : "var(--border)" }}
           >
-            <Sparkles className="h-4 w-4 text-indigo-glow" />
-            <span className="text-foreground">See today's light plan</span>
-          </Link>
-        </section>
-      )}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  {emp && (
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: emp.color }}
+                    />
+                  )}
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                    {emp ? emp.name : "Tonight's shift"}
+                  </p>
+                </div>
+                <p className="mt-1 text-lg font-semibold">
+                  {fmt(todayShift.start)} – {fmt(todayShift.end)}
+                </p>
+                {todayShift.title && (
+                  <p className="text-xs text-muted-foreground">{todayShift.title}</p>
+                )}
+              </div>
+              <button
+                onClick={() => removeShift(todayShift.id)}
+                aria-label="Remove shift"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-muted-foreground active:scale-95"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <Timeline shift={todayShift} />
+            <Link
+              to="/plan"
+              className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-primary/15 text-sm font-semibold text-primary-foreground"
+            >
+              <Sparkles className="h-4 w-4 text-indigo-glow" />
+              <span className="text-foreground">See today's light plan</span>
+            </Link>
+          </section>
+        );
+      })()}
 
       {editing && (
         <ShiftEditor
           day={editing.day}
           existing={shifts.find((s) => s.day === editing.day)}
+          employers={employers}
+          defaultEmployerId={defaultEmployer?.id ?? null}
           onClose={() => setEditing(null)}
-          onSave={(start, end) => {
-            addShift(editing.day, start, end);
+          onSave={(payload) => {
+            saveMutation.mutate({ day: editing.day, ...payload });
             setEditing(null);
           }}
         />
