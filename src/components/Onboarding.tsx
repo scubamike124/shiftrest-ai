@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Moon, Sparkles, ShieldCheck, ChevronRight } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DISCLAIMER } from "@/lib/shifts";
-
-const KEY = "shiftrest.onboarded.v1";
+import { DEFAULT_PREFS, fetchPrefs, markOnboarded } from "@/lib/prefs";
 
 const SLIDES = [
   {
@@ -23,22 +23,32 @@ const SLIDES = [
 ];
 
 export function Onboarding() {
-  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: prefs, isSuccess } = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    initialData: DEFAULT_PREFS,
+  });
   const [step, setStep] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
 
+  // Avoid SSR/hydration mismatch — only render after first client effect.
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!localStorage.getItem(KEY)) setOpen(true);
+    setReady(true);
   }, []);
 
+  const open = ready && isSuccess && !prefs.onboarded && !dismissed;
   if (!open) return null;
+
   const slide = SLIDES[step];
   const Icon = slide.icon;
   const isLast = step === SLIDES.length - 1;
 
-  function finish() {
-    localStorage.setItem(KEY, "1");
-    setOpen(false);
+  async function finish() {
+    setDismissed(true);
+    await markOnboarded();
+    queryClient.invalidateQueries({ queryKey: ["prefs"] });
   }
 
   return (
