@@ -16,6 +16,7 @@ import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
+import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
