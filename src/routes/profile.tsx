@@ -287,7 +287,11 @@ function Profile() {
             <div>
               <p className="text-sm font-semibold">Location</p>
               <p className="text-xs text-muted-foreground">
-                {prefs.locationLabel || "Not set"}
+                {(() => {
+                  const l = prefs.locationLabel?.trim() ?? "";
+                  const isCoords = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(l);
+                  return l && !isCoords ? l : "Not set";
+                })()}
               </p>
               <p className="mt-0.5 text-[10px] text-muted-foreground/70">
                 Used for sunrise/sunset in your light plan.
