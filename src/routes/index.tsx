@@ -376,7 +376,7 @@ function CircadianRing({
 
 function Timeline({ shift }: { shift: Shift }) {
   const total = 24 * 60;
-  const prefs = loadPrefs();
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const segs = useMemo(() => {
     const out: { start: number; len: number; kind: "shift" | "wind" | "sleep" }[] = [];
     const push = (start: number, len: number, kind: "shift" | "wind" | "sleep") => {
