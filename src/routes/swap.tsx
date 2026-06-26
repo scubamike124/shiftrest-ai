@@ -10,6 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { DAYS, fetchShifts, parseTime, fmt, type Shift } from "@/lib/shifts";
+import { fetchEmployers } from "@/lib/employers";
 import { fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
@@ -51,7 +52,10 @@ function SwapPage() {
     try {
       const current = await fetchShifts();
       const prefs = await fetchPrefs();
-      const insights = computeInsights(current, prefs, new Date());
+      const employers = await fetchEmployers();
+      const insights = computeInsights(current, prefs, new Date(), employers);
+      const empName = (id?: string | null) =>
+        id ? employers.find((e) => e.id === id)?.name : undefined;
 
       const context = `Proposed extra shift: ${DAYS[day]} ${fmt(parseTime(start))}–${fmt(parseTime(end))}.
 
@@ -59,7 +63,14 @@ Current week:
 ${
   current.length === 0
     ? "(empty — only this proposed shift)"
-    : current.map((s: Shift) => `- ${DAYS[s.day]} ${fmt(s.start)}–${fmt(s.end)}`).join("\n")
+    : current
+        .map(
+          (s: Shift) =>
+            `- ${DAYS[s.day]} ${fmt(s.start)}–${fmt(s.end)}${
+              empName(s.employerId) ? ` @ ${empName(s.employerId)}` : ""
+            }${s.title ? ` (${s.title})` : ""}`,
+        )
+        .join("\n")
 }
 
 User state: ${insights.contextString}`;
