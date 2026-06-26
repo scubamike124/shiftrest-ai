@@ -431,9 +431,12 @@ function Profile() {
           {perm !== "granted" ? (
             <button
               onClick={enableNotifs}
-              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+              disabled={perm === "unsupported"}
+              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {perm === "unsupported" ? "Not supported" : "Enable browser notifications"}
+              {perm === "unsupported"
+                ? "Not available in this browser — try Chrome on desktop"
+                : "Enable browser notifications"}
             </button>
           ) : (
             <>
