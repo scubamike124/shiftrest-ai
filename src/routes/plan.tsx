@@ -147,12 +147,9 @@ function PlanPage() {
       ) : (
         <>
           <div className="flex gap-2">
-            <button
-              onClick={speak}
-              className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
-            >
-              <Volume2 className="h-4 w-4" /> Voice briefing
-            </button>
+            <div className="flex-1">
+              <VoicePlayer buildPlanText={buildPlanText} />
+            </div>
             <Link
               to="/share"
               className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground active:scale-95"
