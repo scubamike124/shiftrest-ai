@@ -26,6 +26,7 @@ import { Route as ApiSwapRouteImport } from './routes/api/swap'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -112,6 +113,12 @@ const ApiBriefRoute = ApiBriefRouteImport.update({
   path: '/api/brief',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPaymentsWebhookRoute =
+  ApiPublicPaymentsWebhookRouteImport.update({
+    id: '/api/public/payments/webhook',
+    path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -150,6 +158,7 @@ export interface FileRoutesByTo {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -170,6 +179,7 @@ export interface FileRoutesById {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/'
@@ -229,6 +241,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -249,6 +262,7 @@ export interface RootRouteChildren {
   ApiInsightsRoute: typeof ApiInsightsRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -372,6 +386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/payments/webhook': {
+      id: '/api/public/payments/webhook'
+      path: '/api/public/payments/webhook'
+      fullPath: '/api/public/payments/webhook'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -393,6 +414,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInsightsRoute: ApiInsightsRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
+  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

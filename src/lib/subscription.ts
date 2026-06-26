@@ -1,57 +1,71 @@
-// Subscription helpers — server-side subscription state for the web product.
-// Reads/writes the profile row.
+// Subscription helpers — reads the Stripe-synced `subscriptions` table.
 import { supabase } from "@/integrations/supabase/client";
+import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 
 export type SubscriptionTier = "free" | "monthly" | "annual" | "lifetime";
 
 export interface SubscriptionState {
   tier: SubscriptionTier;
+  status: string;
   expiresAt: Date | null;
-  trialEndsAt: Date | null;
+  cancelAtPeriodEnd: boolean;
   isPremium: boolean;
+  stripeCustomerId: string | null;
 }
+
+const TIER_BY_PRICE: Record<string, SubscriptionTier> = {
+  restpilot_monthly: "monthly",
+  restpilot_annual: "annual",
+  restpilot_lifetime: "lifetime",
+};
 
 export async function getSubscriptionState(): Promise<SubscriptionState> {
+  const empty: SubscriptionState = {
+    tier: "free",
+    status: "none",
+    expiresAt: null,
+    cancelAtPeriodEnd: false,
+    isPremium: false,
+    stripeCustomerId: null,
+  };
+
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session) {
-    return { tier: "free", expiresAt: null, trialEndsAt: null, isPremium: false };
-  }
+  if (!session.session) return empty;
+  if (!isPaymentsConfigured()) return empty;
+
+  const env = getStripeEnvironment();
   const { data } = await supabase
-    .from("profiles")
-    .select("subscription_tier, subscription_expires_at, trial_ends_at")
-    .eq("id", session.session.user.id)
+    .from("subscriptions")
+    .select(
+      "price_id, status, current_period_end, cancel_at_period_end, stripe_customer_id",
+    )
+    .eq("user_id", session.session.user.id)
+    .eq("environment", env)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  const tier = (data?.subscription_tier ?? "free") as SubscriptionTier;
-  const expiresAt = data?.subscription_expires_at ? new Date(data.subscription_expires_at) : null;
-  const trialEndsAt = data?.trial_ends_at ? new Date(data.trial_ends_at) : null;
+  if (!data) return empty;
+
+  const tier = TIER_BY_PRICE[data.price_id] ?? "free";
+  const expiresAt = data.current_period_end ? new Date(data.current_period_end) : null;
   const now = new Date();
   const isPremium =
-    tier === "lifetime" ||
-    (!!expiresAt && expiresAt > now) ||
-    (!!trialEndsAt && trialEndsAt > now);
+    data.status === "lifetime" ||
+    ((data.status === "active" || data.status === "trialing") &&
+      (!expiresAt || expiresAt > now)) ||
+    (data.status === "canceled" && !!expiresAt && expiresAt > now);
 
-  return { tier, expiresAt, trialEndsAt, isPremium };
+  return {
+    tier,
+    status: data.status,
+    expiresAt,
+    cancelAtPeriodEnd: !!data.cancel_at_period_end,
+    isPremium,
+    stripeCustomerId: data.stripe_customer_id ?? null,
+  };
 }
 
-// Called from the paywall. Starts a 7-day Premium trial for the signed-in user.
-export async function startTrial(tier: SubscriptionTier): Promise<void> {
-  const { data: session } = await supabase.auth.getSession();
-  if (!session.session) throw new Error("Sign in to start your free trial.");
-
-  const trialEnds = new Date();
-  trialEnds.setDate(trialEnds.getDate() + 7);
-
-  await supabase
-    .from("profiles")
-    .update({
-      subscription_tier: tier,
-      trial_ends_at: trialEnds.toISOString(),
-    })
-    .eq("id", session.session.user.id);
-}
-
-// Restore purchases — refetches the latest subscription state from the server.
 export async function restorePurchases(): Promise<SubscriptionState> {
   return getSubscriptionState();
 }
