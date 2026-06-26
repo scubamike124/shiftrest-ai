@@ -8,6 +8,9 @@ export type Shift = {
   start: number;
   /** minutes from 00:00; may be > start when overnight (we wrap) */
   end: number;
+  employerId?: string | null;
+  title?: string | null;
+  notes?: string | null;
 };
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -20,10 +23,23 @@ type Row = {
   day: number;
   start_min: number;
   end_min: number;
+  employer_id: string | null;
+  title: string | null;
+  notes: string | null;
 };
 
+const SELECT = "id, day, start_min, end_min, employer_id, title, notes";
+
 function rowToShift(r: Row): Shift {
-  return { id: r.id, day: r.day, start: r.start_min, end: r.end_min };
+  return {
+    id: r.id,
+    day: r.day,
+    start: r.start_min,
+    end: r.end_min,
+    employerId: r.employer_id,
+    title: r.title,
+    notes: r.notes,
+  };
 }
 
 async function currentUserId(): Promise<string | null> {
@@ -31,23 +47,31 @@ async function currentUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
-/** Fetch the signed-in user's shifts. Returns [] if signed-out. */
 export async function fetchShifts(): Promise<Shift[]> {
   const userId = await currentUserId();
   if (!userId) return [];
   const { data, error } = await supabase
     .from("shifts")
-    .select("id, day, start_min, end_min")
+    .select(SELECT)
     .order("day", { ascending: true })
     .order("start_min", { ascending: true });
   if (error) {
     console.error("fetchShifts", error);
     return [];
   }
-  return (data ?? []).map(rowToShift);
+  return (data ?? []).map((r) => rowToShift(r as Row));
 }
 
-export async function addShift(input: Omit<Shift, "id">): Promise<Shift | null> {
+export type ShiftInput = {
+  day: number;
+  start: number;
+  end: number;
+  employerId?: string | null;
+  title?: string | null;
+  notes?: string | null;
+};
+
+export async function addShift(input: ShiftInput): Promise<Shift | null> {
   const userId = await currentUserId();
   if (!userId) return null;
   const { data, error } = await supabase
@@ -57,14 +81,32 @@ export async function addShift(input: Omit<Shift, "id">): Promise<Shift | null> 
       day: input.day,
       start_min: input.start,
       end_min: input.end,
+      employer_id: input.employerId ?? null,
+      title: input.title?.trim() || null,
+      notes: input.notes?.trim() || null,
     })
-    .select("id, day, start_min, end_min")
+    .select(SELECT)
     .single();
   if (error || !data) {
     console.error("addShift", error);
     return null;
   }
-  return rowToShift(data);
+  return rowToShift(data as Row);
+}
+
+export async function updateShift(
+  id: string,
+  patch: Partial<ShiftInput>,
+): Promise<void> {
+  const row: Record<string, unknown> = {};
+  if (patch.day !== undefined) row.day = patch.day;
+  if (patch.start !== undefined) row.start_min = patch.start;
+  if (patch.end !== undefined) row.end_min = patch.end;
+  if (patch.employerId !== undefined) row.employer_id = patch.employerId;
+  if (patch.title !== undefined) row.title = patch.title?.trim() || null;
+  if (patch.notes !== undefined) row.notes = patch.notes?.trim() || null;
+  const { error } = await supabase.from("shifts").update(row).eq("id", id);
+  if (error) console.error("updateShift", error);
 }
 
 export async function deleteShift(id: string): Promise<void> {
@@ -73,7 +115,7 @@ export async function deleteShift(id: string): Promise<void> {
 }
 
 /** Used by Playbooks: wipe and replace the user's entire schedule. */
-export async function replaceAllShifts(next: Omit<Shift, "id">[]): Promise<void> {
+export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
   const userId = await currentUserId();
   if (!userId) return;
   const { error: delErr } = await supabase.from("shifts").delete().eq("user_id", userId);
@@ -87,6 +129,9 @@ export async function replaceAllShifts(next: Omit<Shift, "id">[]): Promise<void>
     day: s.day,
     start_min: s.start,
     end_min: s.end,
+    employer_id: s.employerId ?? null,
+    title: s.title?.trim() || null,
+    notes: s.notes?.trim() || null,
   }));
   const { error: insErr } = await supabase.from("shifts").insert(rows);
   if (insErr) console.error("replaceAllShifts:insert", insErr);
@@ -99,7 +144,6 @@ export async function migrateLocalShiftsIfNeeded(): Promise<void> {
   if (!userId) return;
   if (localStorage.getItem(MIGRATED_KEY)) return;
 
-  // Skip if DB already has rows for this user.
   const { count } = await supabase
     .from("shifts")
     .select("id", { count: "exact", head: true })
@@ -131,7 +175,7 @@ export async function migrateLocalShiftsIfNeeded(): Promise<void> {
         const { error } = await supabase.from("shifts").insert(rows);
         if (error) {
           console.error("migrateLocalShiftsIfNeeded:insert", error);
-          return; // do not mark migrated so a retry can happen
+          return;
         }
       }
     }
