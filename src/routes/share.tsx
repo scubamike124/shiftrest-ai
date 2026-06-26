@@ -44,7 +44,7 @@ function SharePage() {
     queryFn: fetchShifts,
     enabled: hashChecked && !hashPayload,
   });
-  const prefs = useMemo<Prefs>(() => loadPrefs(), []);
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const mine = !hashPayload && shifts ? { shifts, prefs } : null;
 
   useEffect(() => {
