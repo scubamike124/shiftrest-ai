@@ -17,10 +17,8 @@ const UNIT_MAP: Array<[RegExp, string]> = [
   [/(\d)\s*km\b/gi, "$1 kilometers"],
   [/(\d)\s*mi\b/gi, "$1 miles"],
   [/(\d)\s*ft\b/gi, "$1 feet"],
-  [/(\d)\s*hrs?\b/gi, "$1 hours"],
   [/(\d)\s*mins?\b/gi, "$1 minutes"],
   [/(\d)\s*secs?\b/gi, "$1 seconds"],
-  [/(\d)\s*hr\b/gi, "$1 hour"],
 ];
 
 const WORD_MAP: Array<[RegExp, string]> = [
@@ -32,14 +30,14 @@ const WORD_MAP: Array<[RegExp, string]> = [
   [/\bi\.e\.?/gi, "that is"],
   [/\betc\.?/gi, "et cetera"],
   [/\bapprox\.?/gi, "approximately"],
-  [/\bAM\b/g, "A M"],
-  [/\bPM\b/g, "P M"],
 ];
 
 export function expandForSpeech(input: string): string {
   let out = input;
   // Range: "100-200" -> "100 to 200"
   out = out.replace(/(\d)\s*[–-]\s*(\d)/g, "$1 to $2");
+  // Handle "hr/hrs" with correct pluralization: 1 hr -> 1 hour, 2 hrs -> 2 hours.
+  out = out.replace(/\b(\d+)\s*hrs?\b/gi, (_m, n) => `${n} hour${Number(n) === 1 ? "" : "s"}`);
   for (const [re, rep] of UNIT_MAP) out = out.replace(re, rep);
   for (const [re, rep] of WORD_MAP) out = out.replace(re, rep);
   // Collapse repeated whitespace
