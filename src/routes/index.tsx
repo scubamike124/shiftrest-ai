@@ -112,8 +112,8 @@ function Dashboard() {
 
   const stability = Math.max(0, 100 - debt.score);
   const insights = useMemo(
-    () => (mounted ? computeInsights(shifts, prefs, today) : null),
-    [shifts, prefs, today, mounted],
+    () => (mounted ? computeInsights(shifts, prefs, today, employers) : null),
+    [shifts, prefs, today, mounted, employers],
   );
 
   return (
