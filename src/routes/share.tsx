@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Moon, ChevronLeft } from "lucide-react";
 import { DAYS, fmt, fetchShifts, endAbsolute, type Shift } from "@/lib/shifts";
-import { loadPrefs, type Prefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/share")({
