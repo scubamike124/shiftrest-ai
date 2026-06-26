@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   Moon,
@@ -18,7 +19,13 @@ import {
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 import { supabase } from "@/integrations/supabase/client";
-import { DEFAULT_PREFS, PREFS_KEY, type Prefs } from "@/lib/prefs";
+import {
+  DEFAULT_PREFS,
+  clearPrefsMigrationFlag,
+  fetchPrefs,
+  savePrefs,
+  type Prefs,
+} from "@/lib/prefs";
 import {
   getPermission,
   requestPermission,
@@ -43,15 +50,33 @@ export const Route = createFileRoute("/profile")({
 });
 
 function Profile() {
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const queryClient = useQueryClient();
+  const { data: prefs = DEFAULT_PREFS } = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    initialData: DEFAULT_PREFS,
+  });
   const [perm, setPerm] = useState<NotifyPermission>("default");
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  // Local draft for the partner-name text input so we don't write on every keystroke.
+  const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
+  useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
+
+  const mutation = useMutation({
+    mutationFn: (partial: Partial<Prefs>) => savePrefs(partial),
+    onMutate: async (partial) => {
+      await queryClient.cancelQueries({ queryKey: ["prefs"] });
+      const prev = queryClient.getQueryData<Prefs>(["prefs"]);
+      queryClient.setQueryData<Prefs>(["prefs"], { ...(prev ?? DEFAULT_PREFS), ...partial });
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["prefs"], ctx.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["prefs"] }),
+  });
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PREFS_KEY);
-      if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
-    } catch {}
     setPerm(getPermission());
     supabase.auth.getSession().then(({ data }) => {
       setUserEmail(data.session?.user.email ?? null);
@@ -68,10 +93,11 @@ function Profile() {
   }
 
   function update<K extends keyof Prefs>(k: K, v: Prefs[K]) {
-    const next = { ...prefs, [k]: v };
-    setPrefs(next);
-    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-    if (k === "notifications" || k === "windDownMin") scheduleNextWindDown();
+    mutation.mutate({ [k]: v } as Partial<Prefs>);
+    if (k === "notifications" || k === "windDownMin") {
+      // Re-schedule after the mutation settles — fetchPrefs in the scheduler will see the new value.
+      setTimeout(() => scheduleNextWindDown(), 300);
+    }
   }
 
   async function enableNotifs() {
@@ -109,19 +135,17 @@ function Profile() {
     toast.info("Detecting location…");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const next = {
-          ...prefs,
+        mutation.mutate({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
           locationLabel: `${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)}`,
-        };
-        setPrefs(next);
-        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+        });
         toast.success("Location updated");
       },
       () => toast.error("Location permission denied"),
     );
   }
+
 
   return (
     <main className="flex flex-col gap-6 px-5 pt-12">
@@ -261,10 +285,14 @@ function Profile() {
           <input
             type="text"
             placeholder="Your name (shown on the share page)"
-            value={prefs.partnerName}
-            onChange={(e) => update("partnerName", e.target.value)}
+            value={partnerDraft}
+            onChange={(e) => setPartnerDraft(e.target.value)}
+            onBlur={() => {
+              if (partnerDraft !== prefs.partnerName) update("partnerName", partnerDraft);
+            }}
             className="h-11 rounded-xl border border-border bg-input px-3 text-sm"
           />
+
           <Link
             to="/share"
             className="flex h-11 items-center justify-center rounded-xl bg-primary/15 text-sm font-semibold text-primary"
@@ -380,6 +408,7 @@ function Profile() {
             }
             try {
               localStorage.clear();
+              clearPrefsMigrationFlag();
             } catch {}
             toast.success("Account deletion requested. All data will be removed within 30 days.");
             window.location.href = "/";

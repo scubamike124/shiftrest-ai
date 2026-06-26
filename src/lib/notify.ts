@@ -1,5 +1,5 @@
 import { fetchShifts, endAbsolute, type Shift } from "./shifts";
-import { loadPrefs } from "./prefs";
+import { fetchPrefs } from "./prefs";
 
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
@@ -31,7 +31,7 @@ export async function nextWindDownAt(
 ): Promise<{ at: Date; shift: Shift } | null> {
   const shifts = await fetchShifts();
   if (!shifts.length) return null;
-  const prefs = loadPrefs();
+  const prefs = await fetchPrefs();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const nowDay = (now.getDay() + 6) % 7;
 
@@ -60,7 +60,7 @@ export async function scheduleNextWindDown() {
     window.clearTimeout(timer);
     timer = null;
   }
-  const prefs = loadPrefs();
+  const prefs = await fetchPrefs();
   if (!prefs.notifications) return;
   if (getPermission() !== "granted") return;
   const next = await nextWindDownAt();

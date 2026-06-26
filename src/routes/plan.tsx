@@ -14,7 +14,7 @@ import {
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
-import { loadPrefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/plan")({
@@ -47,7 +47,7 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
   const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
-  const prefs = useMemo(() => loadPrefs(), []);
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);

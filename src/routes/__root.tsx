@@ -16,6 +16,7 @@ import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
+import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
@@ -127,9 +128,10 @@ function RootComponent() {
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
-      await migrateLocalShiftsIfNeeded();
+      await Promise.all([migrateLocalShiftsIfNeeded(), migrateLocalPrefsIfNeeded()]);
       if (cancelled) return;
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      queryClient.invalidateQueries({ queryKey: ["prefs"] });
       await scheduleNextWindDown();
     }
     bootstrap();

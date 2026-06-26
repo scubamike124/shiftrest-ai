@@ -14,7 +14,7 @@ import {
   endAbsolute,
 } from "@/lib/shifts";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
-import { loadPrefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -39,7 +39,7 @@ function Dashboard() {
   });
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const prefs = useMemo(() => loadPrefs(), []);
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
 
   useEffect(() => {
     setMounted(true);
@@ -319,7 +319,7 @@ function CircadianRing({
   mounted,
 }: {
   shift?: Shift;
-  prefs: ReturnType<typeof loadPrefs>;
+  prefs: Prefs;
   mounted: boolean;
 }) {
   const R = 58;
@@ -376,7 +376,7 @@ function CircadianRing({
 
 function Timeline({ shift }: { shift: Shift }) {
   const total = 24 * 60;
-  const prefs = loadPrefs();
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const segs = useMemo(() => {
     const out: { start: number; len: number; kind: "shift" | "wind" | "sleep" }[] = [];
     const push = (start: number, len: number, kind: "shift" | "wind" | "sleep") => {
