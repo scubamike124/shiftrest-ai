@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ChevronLeft, Check } from "lucide-react";
 import { useState } from "react";
 import { PLAYBOOKS } from "@/lib/playbooks";
-import { saveShifts } from "@/lib/shifts";
+import { replaceAllShifts } from "@/lib/shifts";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/playbooks")({
@@ -24,7 +24,7 @@ function Playbooks() {
   const navigate = useNavigate();
   const open = PLAYBOOKS.find((p) => p.id === openId);
 
-  function apply(id: string) {
+  async function apply(id: string) {
     const p = PLAYBOOKS.find((x) => x.id === id);
     if (!p) return;
     const shifts = p.generate();
@@ -32,9 +32,13 @@ function Playbooks() {
       toast.info("This is a guidance-only playbook — no shifts to apply.");
       return;
     }
-    saveShifts(shifts);
-    toast.success(`Applied "${p.name}" to this week`);
-    navigate({ to: "/" });
+    try {
+      await replaceAllShifts(shifts);
+      toast.success(`Applied "${p.name}" to this week`);
+      navigate({ to: "/" });
+    } catch {
+      toast.error("Could not save playbook. Are you signed in?");
+    }
   }
 
   if (open) {

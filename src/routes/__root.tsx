@@ -15,6 +15,8 @@ import { BottomNav } from "../components/BottomNav";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { scheduleNextWindDown } from "../lib/notify";
+import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
+import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
@@ -123,8 +125,24 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useEffect(() => {
-    scheduleNextWindDown();
-  }, []);
+    let cancelled = false;
+    async function bootstrap() {
+      await migrateLocalShiftsIfNeeded();
+      if (cancelled) return;
+      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      await scheduleNextWindDown();
+    }
+    bootstrap();
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        bootstrap();
+      }
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [queryClient]);
   return (
     <QueryClientProvider client={queryClient}>
       <div className="mx-auto flex min-h-screen max-w-md flex-col pb-24">
