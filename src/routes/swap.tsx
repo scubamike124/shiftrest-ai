@@ -1,8 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ChevronLeft, Sparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Bed,
+  Loader2,
+} from "lucide-react";
 import { DAYS, fetchShifts, parseTime, fmt, type Shift } from "@/lib/shifts";
 import { fetchPrefs } from "@/lib/prefs";
+import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/swap")({
@@ -19,25 +28,32 @@ export const Route = createFileRoute("/swap")({
   component: SwapPage,
 });
 
+type SwapResult = {
+  verdict: "take_it" | "take_with_caveats" | "skip_it";
+  verdict_label: string;
+  cost: "low" | "medium" | "high";
+  cost_reason: string;
+  risks: string[];
+  naps: { time: string; duration_min: number; why: string }[];
+  summary: string;
+};
+
 function SwapPage() {
   const [day, setDay] = useState(0);
   const [start, setStart] = useState("19:00");
   const [end, setEnd] = useState("07:00");
-  const [analysis, setAnalysis] = useState("");
+  const [result, setResult] = useState<SwapResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function analyze() {
     setLoading(true);
-    setAnalysis("");
+    setResult(null);
     try {
       const current = await fetchShifts();
       const prefs = await fetchPrefs();
-      const proposed = {
-        day: DAYS[day],
-        start: fmt(parseTime(start)),
-        end: fmt(parseTime(end)),
-      };
-      const prompt = `A shift worker is considering picking up an EXTRA shift.
+      const insights = computeInsights(current, prefs, new Date());
+
+      const context = `Proposed extra shift: ${DAYS[day]} ${fmt(parseTime(start))}–${fmt(parseTime(end))}.
 
 Current week:
 ${
@@ -46,65 +62,21 @@ ${
     : current.map((s: Shift) => `- ${DAYS[s.day]} ${fmt(s.start)}–${fmt(s.end)}`).join("\n")
 }
 
-Proposed extra shift: ${proposed.day} ${proposed.start}–${proposed.end}
+User state: ${insights.contextString}`;
 
-Preferences: ${prefs.sleepHours}h target sleep, ${prefs.windDownMin}min wind-down.
-
-Give a TIGHT analysis with these exact sections:
-1. Recovery cost (Low / Medium / High) + 1-sentence why.
-2. Risk factors (bullets, max 4).
-3. Optimal nap plan around this shift (bullets, max 3, with times).
-4. Verdict: take it / take it with caveats / skip it.
-
-Keep it under 180 words.`;
-
-      const resp = await fetch("/api/coach", {
+      const resp = await fetch("/api/swap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-        }),
+        body: JSON.stringify({ context }),
       });
 
-      if (!resp.ok || !resp.body) {
+      if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
         toast.error(err.error || "Analysis failed");
         return;
       }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let out = "";
-      let done = false;
-      while (!done) {
-        const { done: rDone, value } = await reader.read();
-        if (rDone) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, nl);
-          buffer = buffer.slice(nl + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") {
-            done = true;
-            break;
-          }
-          try {
-            const parsed = JSON.parse(json);
-            const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (chunk) {
-              out += chunk;
-              setAnalysis(out);
-            }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
-          }
-        }
-      }
+      const data = (await resp.json()) as SwapResult;
+      setResult(data);
     } catch (e) {
       console.error(e);
       toast.error("Network error");
@@ -114,15 +86,15 @@ Keep it under 180 words.`;
   }
 
   return (
-    <main className="flex flex-col gap-5 px-5 pt-12">
+    <main className="flex flex-col gap-5 px-5 pt-12 pb-6">
       <Link to="/plan" className="flex items-center gap-1 text-sm text-muted-foreground">
         <ChevronLeft className="h-4 w-4" /> Back to Plan
       </Link>
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-glow">
           Shift Swap Copilot
         </p>
-        <h1 className="mt-2 text-3xl font-bold leading-tight">
+        <h1 className="mt-2 text-3xl leading-tight" style={{ fontFamily: "var(--font-display)" }}>
           Should you take it?
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -172,14 +144,106 @@ Keep it under 180 words.`;
         disabled={loading}
         className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-50 active:scale-[0.99]"
       >
-        <Sparkles className="h-5 w-5" /> {loading ? "Analyzing…" : "Analyze swap"}
+        {loading ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" /> Analyzing your week…
+          </>
+        ) : (
+          <>
+            <Sparkles className="h-5 w-5" /> Analyze swap
+          </>
+        )}
       </button>
 
-      {analysis && (
-        <div className="whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm leading-relaxed">
-          {analysis}
-        </div>
-      )}
+      {result && <SwapResultCard result={result} />}
     </main>
+  );
+}
+
+function SwapResultCard({ result }: { result: SwapResult }) {
+  const verdictMeta =
+    result.verdict === "take_it"
+      ? { icon: CheckCircle2, color: "var(--mint)", bg: "color-mix(in srgb, var(--mint) 14%, var(--card))" }
+      : result.verdict === "skip_it"
+      ? { icon: XCircle, color: "var(--destructive)", bg: "color-mix(in srgb, var(--destructive) 14%, var(--card))" }
+      : { icon: AlertTriangle, color: "var(--amber)", bg: "color-mix(in srgb, var(--amber) 14%, var(--card))" };
+  const VerdictIcon = verdictMeta.icon;
+
+  const costColor =
+    result.cost === "high"
+      ? "var(--destructive)"
+      : result.cost === "medium"
+      ? "var(--amber)"
+      : "var(--mint)";
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section
+        className="rounded-2xl border p-5"
+        style={{ borderColor: verdictMeta.color, background: verdictMeta.bg }}
+      >
+        <div className="flex items-center gap-3">
+          <VerdictIcon className="h-6 w-6" style={{ color: verdictMeta.color }} />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              AI Verdict
+            </p>
+            <p className="text-xl font-bold" style={{ color: verdictMeta.color }}>
+              {result.verdict_label}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed">{result.summary}</p>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-4">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+          Recovery Cost
+        </p>
+        <p className="mt-1 text-2xl capitalize" style={{ fontFamily: "var(--font-display)", color: costColor }}>
+          {result.cost}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{result.cost_reason}</p>
+      </section>
+
+      {result.risks?.length > 0 && (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+            Risk factors
+          </p>
+          <ul className="mt-2 flex flex-col gap-2">
+            {result.risks.map((r, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-snug">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {result.naps?.length > 0 && (
+        <section className="rounded-2xl border border-border bg-card p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+            Strategic naps
+          </p>
+          <ul className="mt-2 flex flex-col gap-3">
+            {result.naps.map((n, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-indigo-glow">
+                  <Bed className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">
+                    {n.time} · {n.duration_min} min
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">{n.why}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
   );
 }
