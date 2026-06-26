@@ -136,6 +136,10 @@ function Coach() {
       if (!assistant) {
         setMessages(baseMessages);
         toast.error("Empty response from coach");
+      } else {
+        // Persist both turns after a successful exchange. No-op for guests.
+        void saveCoachMessage("user", trimmed);
+        void saveCoachMessage("assistant", assistant);
       }
     } catch (e) {
       console.error(e);
@@ -145,6 +149,7 @@ function Coach() {
       setSending(false);
     }
   }
+
 
   return (
     <main className="flex min-h-screen flex-col">
