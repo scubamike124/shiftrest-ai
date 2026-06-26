@@ -14,6 +14,8 @@ import {
   endAbsolute,
 } from "@/lib/shifts";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
+import { computeInsights } from "@/lib/insights";
+import { AIBriefCard } from "@/components/AIBriefCard";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 
 export const Route = createFileRoute("/")({
@@ -97,6 +99,10 @@ function Dashboard() {
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
   const stability = Math.max(0, 100 - debt.score);
+  const insights = useMemo(
+    () => (mounted ? computeInsights(shifts, prefs, today) : null),
+    [shifts, prefs, today, mounted],
+  );
 
   return (
     <main className="flex flex-col px-5 pt-10 pb-6">
@@ -168,8 +174,16 @@ function Dashboard() {
         </div>
       </section>
 
+      {/* AI Coach Brief — proactive guidance every time you open the app */}
+      {insights && (
+        <div className="mt-4">
+          <AIBriefCard insights={insights} />
+        </div>
+      )}
+
       {/* Quick Action + Stability */}
       <div className="mt-4 grid grid-cols-5 gap-3">
+
         <button
           onClick={() => setEditing({ day: weekday })}
           className="col-span-3 flex flex-col justify-between rounded-[24px] border border-primary/40 p-5 text-left active:scale-[0.99]"
