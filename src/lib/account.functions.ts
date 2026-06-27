@@ -135,10 +135,11 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       "subscriptions",
       "legal_acceptances",
     ] as const;
-    const data: Record<string, Array<Record<string, unknown>>> = {};
+    type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+    const data: Record<string, JsonValue[]> = {};
     const client = supabaseAdmin as unknown as {
       from: (t: string) => {
-        select: (c: string) => { eq: (col: string, v: string) => Promise<{ data: Array<Record<string, unknown>> | null; error: { message: string } | null }> };
+        select: (c: string) => { eq: (col: string, v: string) => Promise<{ data: JsonValue[] | null; error: { message: string } | null }> };
       };
     };
     for (const t of tables) {
