@@ -1,9 +1,22 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Sparkles } from "lucide-react";
+import { AlarmClock, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
-import { aiSmartAlarm } from "@/lib/ai-client";
+import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
+
+const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
+  rem_end: "End of REM cycle",
+  light_sleep: "Light sleep phase",
+  deep_avoid: "Avoiding deep sleep",
+  natural: "Natural wake window",
+};
+
+const CONFIDENCE_TONE: Record<NonNullable<SmartAlarmResponse["confidence"]>, string> = {
+  high: "bg-emerald-500/15 text-emerald-300",
+  medium: "bg-amber-500/15 text-amber-300",
+  low: "bg-slate-500/15 text-slate-300",
+};
 
 /**
  * SmartAlarmCard — schedule an AI-optimized wake inside a ±window.
