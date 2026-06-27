@@ -54,6 +54,9 @@ export function OfflineBanner({ userId }: { userId: string | null | undefined })
             : "No saved plan yet — open this page once while connected so RestPilot can cache it."}
           {stale ? " Heads up: this plan is more than a day old." : ""}
         </span>
+        <span className="mt-1 text-[11px] leading-snug text-muted-foreground/80">
+          While offline: device sensors may be inaccurate, wearable syncing is paused, and notifications may be delayed or blocked. RestPilot AI is not an emergency service — call 911 or your local emergency number in an emergency.
+        </span>
       </div>
     </div>
   );

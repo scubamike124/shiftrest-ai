@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
+import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({
@@ -207,6 +208,10 @@ function Paywall() {
         />
       </div>
 
+      <div className="mt-4">
+        <RenewalDisclosure />
+      </div>
+
       <button
         onClick={handleCheckout}
         disabled={loading}
@@ -235,15 +240,21 @@ function Paywall() {
           plan anytime from your account settings. Lifetime is a one-time
           purchase that grants access for the lifetime of the RestPilot AI
           service (not the lifetime of the purchaser). See the{" "}
-          <Link to="/terms" className="text-primary underline">Terms</Link>{" "}
+          <Link to="/legal/terms" className="text-primary underline">Terms</Link>{" "}
           for full details.
         </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-          <Link to="/terms" className="text-primary underline">
-            Terms of Service
+          <Link to="/legal/terms" className="text-primary underline">
+            Terms
           </Link>
-          <Link to="/privacy" className="text-primary underline">
-            Privacy Policy
+          <Link to="/legal/privacy" className="text-primary underline">
+            Privacy
+          </Link>
+          <Link to="/legal/subscription" className="text-primary underline">
+            Subscription Terms
+          </Link>
+          <Link to="/legal/refunds" className="text-primary underline">
+            Refunds
           </Link>
           <button
             type="button"

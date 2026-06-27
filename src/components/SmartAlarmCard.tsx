@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlarmClock, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
@@ -238,6 +239,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           ))}
         </ul>
       )}
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

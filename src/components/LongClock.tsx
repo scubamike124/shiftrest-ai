@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind, Info } from "lucide-react";
 import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
@@ -397,6 +398,7 @@ export function LongClock({
           </span>
         ))}
       </div>
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

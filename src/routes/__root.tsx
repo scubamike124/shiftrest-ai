@@ -19,6 +19,7 @@ import { SiteFooter } from "../components/site/SiteFooter";
 import { AppSidebar } from "../components/site/AppSidebar";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
+import { CookieBanner } from "../components/legal/CookieBanner";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
@@ -216,6 +217,7 @@ function RootComponent() {
       )}
 
       {surface === "app" && <Onboarding />}
+      <CookieBanner />
       <Toaster />
     </QueryClientProvider>
   );

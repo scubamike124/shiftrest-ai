@@ -4,6 +4,10 @@ import { Moon, Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
+
+const SIGNUP_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -48,6 +52,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -57,6 +62,10 @@ function AuthPage() {
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "signup" && !accepted) {
+      toast.error("Please accept the Terms, Privacy, and disclaimers to continue.");
+      return;
+    }
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -66,6 +75,18 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        // Record acceptance once the session exists. If email confirmation is on,
+        // this runs after the user confirms and lands back on /auth.
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            await recordAcceptanceFn({
+              data: { documents: SIGNUP_DOCS, source: "signup" },
+            });
+          }
+        } catch (logErr) {
+          console.error("acceptance log failed", logErr);
+        }
         toast.success("Check your email to confirm your account.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -167,9 +188,26 @@ function AuthPage() {
             className="flex-1 bg-transparent text-sm outline-none"
           />
         </label>
+        {mode === "signup" && (
+          <label className="flex items-start gap-2 rounded-xl border border-border bg-card/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <Checkbox
+              checked={accepted}
+              onCheckedChange={(v) => setAccepted(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              I am 16 or older and agree to the{" "}
+              <Link to="/legal/terms" className="text-primary underline">Terms</Link>,{" "}
+              <Link to="/legal/privacy" className="text-primary underline">Privacy</Link>,{" "}
+              <Link to="/legal/disclaimers" className="text-primary underline">AI &amp; Health Disclaimers</Link>,{" "}
+              <Link to="/safety" className="text-primary underline">Safety Center</Link>, and{" "}
+              <Link to="/legal/electronic-consent" className="text-primary underline">Electronic Consent</Link>. RestPilot AI is not medical advice or an emergency service.
+            </span>
+          </label>
+        )}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (mode === "signup" && !accepted)}
           className="h-12 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
         >
           {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
@@ -214,14 +252,9 @@ function AuthPage() {
 
       <p className="mt-auto pt-8 text-center text-[10px] text-muted-foreground/70">
         By continuing, you agree to our{" "}
-        <Link to="/terms" className="text-primary underline">
-          Terms
-        </Link>{" "}
-        and{" "}
-        <Link to="/privacy" className="text-primary underline">
-          Privacy Policy
-        </Link>
-        .
+        <Link to="/legal/terms" className="text-primary underline">Terms</Link>,{" "}
+        <Link to="/legal/privacy" className="text-primary underline">Privacy</Link>, and{" "}
+        <Link to="/legal/disclaimers" className="text-primary underline">Disclaimers</Link>.
       </p>
     </main>
   );

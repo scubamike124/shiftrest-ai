@@ -366,6 +366,42 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          document_slug: string
+          document_version: string
+          id: string
+          ip: unknown
+          snapshot_json: Json
+          source: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          document_slug: string
+          document_version: string
+          id?: string
+          ip?: unknown
+          snapshot_json?: Json
+          source: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          document_slug?: string
+          document_version?: string
+          id?: string
+          ip?: unknown
+          snapshot_json?: Json
+          source?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_log: {
         Row: {
           body: string | null
@@ -782,6 +818,7 @@ export type Database = {
           assistant_mode: string
           assistant_name: string
           calendar_travel_detect: boolean
+          consent_json: Json
           created_at: string
           current_tz: string | null
           cycle_anchor: string | null
@@ -813,6 +850,7 @@ export type Database = {
           assistant_mode?: string
           assistant_name?: string
           calendar_travel_detect?: boolean
+          consent_json?: Json
           created_at?: string
           current_tz?: string | null
           cycle_anchor?: string | null
@@ -844,6 +882,7 @@ export type Database = {
           assistant_mode?: string
           assistant_name?: string
           calendar_travel_detect?: boolean
+          consent_json?: Json
           created_at?: string
           current_tz?: string | null
           cycle_anchor?: string | null

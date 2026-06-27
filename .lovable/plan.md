@@ -1,108 +1,127 @@
-# Legal & Compliance Phase 2 — Plan
+## Legal & Compliance Final Rollout — Investigation & Plan (Steps 4–11)
 
-Extends the existing `/legal/*` package with the new mandatory categories. Investigation done — every item below maps to either an existing doc that needs a new section, or a new route. No code until approved.
-
----
-
-## Investigation findings
-
-Current shipped surface (Phase 1, rollouts 1–3):
-- 12 docs live under `/legal/*` with shared `LegalLayout`, `LEGAL_DOCS` registry, draft banner, footer, redirects from `/terms` + `/privacy`.
-- AI disclaimers exist at `/legal/disclaimers` but do **not** yet cover: AI may be outdated, AI should be independently evaluated, AI is not guaranteed correct (only general "informational" language).
-- `/legal/terms` covers IP, indemnification, arbitration, force majeure — but **no UGC clause** (RestPilot today doesn't accept photos/videos/voice uploads; user-generated content is shifts, prefs, notes, and AI text). The new requirement future-proofs for uploads.
-- `/legal/third-parties` lists wearable + AI vendors but doesn't state device/sensor accuracy limits or sync-delay risks as a user-facing disclosure.
-- No Safety Center route. Safety-sensitive language is only a section in `/legal/disclaimers`.
-- No Open-Source Notices page; `package.json` has 100+ deps, none surfaced.
-- No Electronic Consent / E-SIGN clause.
-- Age requirement in ToS = 16. New requirement adds parental-consent language for minors below adult age where permitted.
-- Feedback clause exists in ToS §10 but is one sentence — needs a dedicated "Feedback License" section.
-- Service-changes language exists in ToS §18 (Terms changes) but **not** for the Service itself (feature add/remove, AI model swap, provider swap, pricing change, sunset notice).
-- International compliance: Privacy mentions CCPA/GDPR placeholders but no regional disclosure surface.
-- Consistency: marketing copy, onboarding, settings, paywall all reference features ("Smart Alarm", "Long Clock", "Companion", "AI Decision Center", "Memory", "Wearable Sync") — Phase 2 includes a sweep so legal vocabulary matches in-product vocabulary exactly.
+Investigation only. No code shipped until you approve. Typecheck runs after each step. No changes to auto-generated Supabase files, no edits to existing auth/Stripe/wearable/push/deletion flows beyond what each step requires.
 
 ---
 
-## Deliverables
+### Current State Audit (what already exists)
 
-### 1. Expand existing legal documents (no new routes)
-
-| Doc | New section(s) |
-|---|---|
-| `/legal/terms` | **User-Generated Content** (photos / video / voice / docs / AI-generated artifacts — ownership retained by user, limited license to RestPilot to host/process/display, user represents rights, user remains responsible). **Service Availability & Changes** (modify, add, discontinue features; swap AI models / TTS / wearable providers; pricing changes with notice; sunset of legacy functionality). **Account Security** (strong password, device protection, breach reporting via `security@restpilot.ai`, responsibility until reported). **Feedback License** (voluntary, no compensation, irrevocable). **Electronic Consent / E-SIGN** (electronic acceptance binding; electronic records satisfy legal requirements). **Age & Minor Consent** (16+ baseline, parent/guardian consent where local law sets a higher age of digital consent, no use by those unable to enter binding agreements). |
-| `/legal/privacy` | Add UGC paragraph (today: text only — shifts, prefs, voice TTS output is server-rendered, not user voice uploads); future-proof clause for uploads. Add **Account Security** responsibility line. Add **International** subsection pointing to regional addenda. |
-| `/legal/disclaimers` | Rewrite **AI Output Limitations** section: may be inaccurate, may be incomplete, may be outdated, must be independently evaluated, not guaranteed correct. Add **Device & Sensor Limitations** section (wearables may fail, sensors may be inaccurate, third-party integrations may go offline, sync delays, internet outages affect recommendations, no guarantee of accuracy/availability/timeliness). Add deep-linkable IDs: `#ai-output`, `#device-sensor`, `#driving`, `#emergency`, `#companion`. |
-| `/legal/acceptable-use` | Add UGC enforcement clause (no illegal/infringing/harmful uploads, no impersonation, no scraping AI output for competing models). |
-| `/legal/third-parties` | Add a "Service-availability note" header stating third-party providers may change without notice; data accuracy depends on the third party. |
-| `/legal/subscription` | Add "Price & Plan Changes" section: we may modify pricing/plans with notice; renewals at new price after notice period; right to cancel before change takes effect. |
-| `/legal/security` | Add user-side **Account Security Responsibilities** mirror block (password hygiene, device protection, report unauthorized access). |
-| `/legal/license` | Add Open-Source attribution block referencing `/legal/open-source`. |
-
-### 2. New routes
-
-- `/legal/open-source` — Open-Source Software Notices. Auto-generated table sourced from `package.json` (name, version, license, link). Built once at compile time via a small script that reads `node_modules/<pkg>/package.json` for each top-level dep and outputs `src/lib/legal/open-source.generated.ts`. The legal page just renders the array. Includes the "we honor open-source licenses and preserve required notices" statement.
-- `/legal/electronic-consent` — Electronic Consent & E-SIGN Disclosure (standalone for jurisdictions that require it to be presented separately at acceptance time).
-- `/legal/regional` — International / Regional Disclosures hub: EU/EEA + UK (GDPR rights, DPO contact placeholder, EU withdrawal 14-day), California (CCPA/CPRA rights, "Do Not Sell or Share" — we don't sell), Canada (PIPEDA), Australia (Privacy Act + APPs), Brazil (LGPD). Each as a section with anchor IDs.
-- `/safety` — **Risk & Safety Center** (top-level, not under `/legal` because we want it discoverable from the app shell and onboarding). Sections, each with anchor IDs: AI limitations, Health limitations, Driving safety (don't use Smart Alarm while operating a vehicle; don't follow Right Now recommendations while driving), Companion AI limitations (not a clinician, not crisis support, lists 988/911), Emergency procedures, Device limitations, User responsibilities, Safe-use recommendations. Plain language, large type, links into `/legal/disclaimers` for the legal text. Surfaced from:
-  - Footer (new "Safety" link in Resources column)
-  - `AppSidebar` user menu ("Safety Center")
-  - Onboarding final step ("Before you start — read the Safety Center")
-  - `SmartAlarmCard` + `RightNowCard` "Safety" inline link (already planned in Phase 1 step 7 — re-target to `/safety#driving` instead of `/legal/disclaimers#safety-sensitive`).
-  - Companion Whisper footer mini-link to `/safety#companion`.
-
-### 3. Registry + footer + sidebar updates
-
-- Extend `LEGAL_DOCS` in `src/lib/legal/meta.ts` with the 3 new legal routes (`open-source`, `electronic-consent`, `regional`).
-- Add `SAFETY_LINK` constant alongside (Safety Center is not a legal doc, so it stays separate).
-- `SiteFooter`: add Safety Center under Resources; new legal docs listed under Legal.
-- `AppSidebar`: add Safety Center to user menu under "Legal & Privacy".
-- `Onboarding`: add a final consent step that surfaces Terms + Privacy + Disclaimers + Safety Center together with one combined checkbox (acceptance persisted to the `legal_acceptances` table planned in Phase 1 step 4).
-
-### 4. Consistency sweep
-
-A one-time pass across the codebase to make terminology identical to legal docs. Target files:
-- `src/routes/index.tsx` (marketing landing) — feature names, "AI" wording.
-- `src/routes/features.tsx`, `pricing.tsx`, `paywall.tsx` — match Subscription terms (auto-renew, refund, cancellation copy).
-- `src/components/Onboarding.tsx` — make every claim about the product literally true (no "we predict your sleep perfectly", etc.).
-- `src/components/AssistantSettings.tsx`, `NotificationsSection.tsx`, `WearableCard.tsx` — match Privacy + Third-Parties wording.
-- `src/components/CompanionWhisper.tsx`, `SmartAlarmCard.tsx`, `RightNowCard.tsx` — match Safety Center wording and link targets.
-- Add a short `docs/legal-vocabulary.md` (internal-only, not shipped to users) listing the canonical names so future edits stay consistent: **RestPilot AI**, **Smart Alarm**, **Long Clock**, **Right Now**, **Tomorrow Preview**, **Daily Review**, **Companion**, **AI Decision Center**, **AI Memory**, **Wearable Sync**, **Recovery Playbooks**, **Pattern Alerts**.
-
-### 5. Pre-launch verification matrix
-
-Add to `.lovable/plan.md` a checklist verifying every claim resolves to actual product behavior:
-
-| Claim | Verified against |
-|---|---|
-| "We delete X on account deletion" | Phase 1 step 5 deletion endpoint expansion |
-| "We let you export your data" | Phase 1 step 5 `exportAccountFn` |
-| "We use these subprocessors" | `package.json` + `src/lib/wearables/*` + `src/routes/api/*` |
-| "AI may be inaccurate" | Now in `/legal/disclaimers` AI Output Limitations |
-| "Device data may be inaccurate" | Now in `/legal/disclaimers` Device & Sensor Limitations |
-| "We may change features / models / providers" | Now in `/legal/terms` Service Availability |
-| "Auto-renew + cancel anytime" | `/legal/subscription` + Stripe portal link in `/profile` |
-| "Safety Center exists & is reachable" | New `/safety` route + footer + sidebar + card links |
-| "Open-source notices are honored" | Generated `/legal/open-source` table |
-
-### 6. Out of scope (explicit)
-
-- No legal advice. Documents remain "Draft — pending attorney review" until the external counsel gate.
-- No new AI features, no new product features. UGC clauses are forward-looking; we do not enable photo/video/voice uploads as part of this phase.
-- No new payment flows. Subscription doc updates only refine wording.
-- No analytics added. Cookie banner already covers consent toggle.
+- **Legal docs**: 15 routes under `/legal/*` + `/safety` + `LEGAL_DOCS` registry in `src/lib/legal/meta.ts`. Footer wired. `/privacy` + `/terms` redirect to `/legal/*`.
+- **Auth**: `src/routes/auth.tsx` — Google OAuth + email/password. Has a passive Terms/Privacy line, **no consent checkbox, no acceptance log**.
+- **Onboarding**: `src/components/Onboarding.tsx` — 3 slides, final slide shows DISCLAIMER but uses a single "I understand" button (no checkboxes, no granular consent, no persistence beyond `onboarded` flag).
+- **Account deletion**: `src/lib/account.functions.ts` — deletes `shifts`, `employers`, `user_prefs`, `coach_messages` + `auth.admin.deleteUser`. **Missing**: `ai_memory`, `ai_log`, `ai_recommendations`, `ai_feedback`, `user_events`, `trips`, `tz_events`, `push_subscriptions`, `wearable_connections`, `wearable_readings`, `notification_log`, `notification_prefs`, `ai_patterns`, `profiles`, Stripe subscription cancel, retained-records disclosure.
+- **No** export function, no AI memory purge function, no cookie banner, no consent modals for wearables/push, no paywall renewal block, no safety links on Smart Alarm / Right Now / Companion / Wearable cards.
+- **Risky wording found** (sweep targets): `src/routes/index.tsx`, `src/routes/features.tsx`, `src/components/SmartAlarmCard.tsx`, `src/components/RightNowCard.tsx`, `src/components/CompanionWhisper.tsx`, `src/components/WearableCard.tsx`, `src/components/CoachTipCard.tsx`, `src/routes/coach.tsx`, `src/routes/paywall.tsx`, `src/routes/pricing.tsx`, `src/routes/plan.tsx`, `src/routes/playbooks.tsx`. Likely phrases to soften: "optimize", "fix", "guarantees", "protects", "ensures", "tracks your health", anything implying medical/safety outcomes.
 
 ---
 
-## Rollout order (once approved)
+### Step 4 — Legal Acceptance + Consent Tracking
 
-1. `meta.ts` registry extension + footer + sidebar links (scaffold only; pages stub-render so links resolve).
-2. Build `/safety` (Risk & Safety Center) — highest user-visible value.
-3. Expand `/legal/disclaimers` (AI Output Limitations + Device & Sensor Limitations) + retarget existing in-product safety links to `/safety`.
-4. Expand `/legal/terms` (UGC, Service Availability, Account Security, Feedback License, E-SIGN summary, Age & Minor Consent).
-5. New `/legal/electronic-consent` + `/legal/regional`.
-6. Open-source generator script + `/legal/open-source` route.
-7. Smaller expansions: `/legal/privacy`, `/legal/acceptable-use`, `/legal/third-parties`, `/legal/subscription`, `/legal/security`, `/legal/license`.
-8. Consistency sweep across product surfaces + `docs/legal-vocabulary.md`.
-9. Verification matrix run; mark "Ready for legal review".
-10. External attorney review → remove draft banner, set final effective dates.
+**DB migration** (single migration):
+- `public.legal_acceptances` — `id`, `user_id` FK→auth.users, `document_slug` (text), `document_version` (text — uses `LEGAL_EFFECTIVE`), `accepted_at` (timestamptz default now), `ip` (inet, nullable), `user_agent` (text, nullable), `source` (text — e.g. `signup`, `onboarding`, `wearable_connect`, `push_enable`, `paywall`), `snapshot_json` (jsonb — frozen titles+versions list).
+- Indexes: `(user_id, document_slug, document_version)`, `(user_id, accepted_at desc)`.
+- GRANTs: `SELECT, INSERT` to authenticated (no UPDATE/DELETE — append-only audit log), `ALL` to service_role.
+- RLS: users can SELECT/INSERT own rows (`auth.uid() = user_id`).
+- `ALTER TABLE public.user_prefs ADD COLUMN consent_json jsonb DEFAULT '{}'::jsonb` — latest active flags (`tos`, `privacy`, `ai_disclaimer`, `health`, `safety`, `esign`, `cookies`, `wearables`, `push`, `marketing_opt_in`).
 
-Awaiting approval. Want all 10 rollouts in order, or prioritize 1–3 (Safety Center + AI/device disclaimers — the highest-exposure items) as the first slice?
+**Server function**: `src/lib/legal/consent.functions.ts`
+- `recordAcceptanceFn({ documents: string[], source: string, snapshot? })` — inserts one row per doc into `legal_acceptances`, merges into `user_prefs.consent_json`. Reads IP/UA from request headers inside handler.
+- `getConsentStatusFn()` — returns current `consent_json` and last accepted versions.
+
+**UI**:
+- `src/routes/auth.tsx` — required checkbox on signup: "I agree to the Terms, Privacy Policy, AI Disclaimer, Health & Wellness Disclaimer, Safety Center, and Electronic Consent." Sign-in unaffected. On successful signup, call `recordAcceptanceFn({ source: 'signup' })`.
+- `src/components/consent/ConsentModal.tsx` — shared modal (title, bullet disclosures, doc links, "I understand and agree" CTA, cancel). Used for wearable and push first-connect.
+- Wire into `src/components/WearableCard.tsx` connect flow (gate before OAuth start) and `src/lib/push/subscribe.functions.ts` UI caller (likely `src/components/NotificationsSection.tsx`).
+
+---
+
+### Step 5 — Truthful Deletion / Export / AI Memory Purge
+
+**`src/lib/account.functions.ts` — expand `deleteAccountFn`**:
+- Cancel active Stripe subscription before purge (try/catch; non-fatal). Use `createStripeClient(env)` from `@/lib/stripe.server`, read sub via `supabaseAdmin`.
+- Purge in dependency order: `ai_feedback`, `ai_recommendations`, `ai_memory`, `ai_patterns`, `ai_log`, `user_events`, `trips`, `tz_events`, `wearable_readings`, `wearable_connections`, `push_subscriptions`, `notification_log`, `notification_prefs`, `coach_messages`, `shifts`, `employers`, `user_prefs`, `legal_acceptances` (retain? see below), `profiles`, `subscriptions` (retain billing record), then `auth.admin.deleteUser`.
+- **Retained records disclosure**: keep `subscriptions` rows (tax/accounting) and `legal_acceptances` (audit/legal). Return `{ ok, retained: ['subscriptions','legal_acceptances'] }`.
+- Update `/legal/privacy` + UI delete confirmation copy to match: "We retain Stripe billing records and legal acceptance logs as required by tax, accounting, and legal-defense obligations."
+
+**New server fns** in `src/lib/account.functions.ts`:
+- `exportAccountFn` — returns JSON bundle of all user-owned rows (profile, prefs, shifts, employers, ai_memory, ai_recommendations, ai_feedback, ai_log, user_events, trips, tz_events, wearable_connections (token redacted), wearable_readings, notification_prefs, notification_log, push_subscriptions (endpoint redacted), legal_acceptances, subscriptions). Client downloads as `restpilot-export-<date>.json`.
+- `purgeAiMemoryFn` — deletes `ai_memory`, `ai_recommendations`, `ai_feedback`, `ai_patterns` for user; preserves shifts/prefs. Surfaced from `src/routes/memory.tsx`.
+
+**UI**: add Export + Purge AI Memory buttons in `src/routes/profile.tsx` and `src/routes/memory.tsx`.
+
+---
+
+### Step 6 — Cookie / Consent Banner
+
+- `src/components/legal/CookieBanner.tsx` — fixed bottom banner, first visit only. Categories: Necessary (locked on), Preferences, Analytics, AI service logs, Third-party. Buttons: Accept all / Reject non-essential / Manage. "Manage" opens dialog with per-category switches.
+- Persist to `localStorage['restpilot.cookie-consent']` (signed-out) and, when signed in, mirror into `user_prefs.consent_json.cookies`.
+- Mount in `src/routes/__root.tsx` below `<Outlet />`.
+- Link to `/legal/cookies`. Reading helper `src/lib/legal/cookies.ts` exposes `hasConsent(category)` for analytics gating later.
+
+---
+
+### Step 7 — In-Product Safety / Paywall / Offline Disclosures
+
+- Tiny `<SafetyNote to="/safety#driving" />` component in `src/components/legal/SafetyNote.tsx`. Insert into:
+  - `SmartAlarmCard.tsx` → `/safety#driving`
+  - `RightNowCard.tsx` → `/safety#ai`
+  - `CompanionWhisper.tsx` → `/safety#companion`
+  - `WearableCard.tsx` → `/safety#devices`
+  - `CoachTipCard.tsx` + `AIBriefCard.tsx` → `/safety#ai`
+- `src/routes/paywall.tsx` + `src/routes/pricing.tsx` — add `<RenewalDisclosure />`: price, cadence, auto-renew language, cancel anytime via portal, refund policy link to `/legal/subscription`, lifetime caveats.
+- `src/components/OfflineBanner.tsx` — extend tooltip with the listed disclosures (outage, sensor inaccuracy, sync delay, notification delay, not an emergency service).
+
+---
+
+### Step 8 — Remaining Legal Appendages
+
+Tighten copy in these existing routes — append sections, don't rewrite:
+- `legal.privacy.tsx` — AI provider processing, model/provider swaps, analytics/logging, retention windows, deletion vs retained records, uploads & generated content.
+- `legal.acceptable-use.tsx` — prohibited misuse, safety-sensitive misuse.
+- `legal.third-parties.tsx` — list AI gateway (Lovable AI), Stripe, Fitbit, Oura, Open-Meteo, BigDataCloud, OpenAI TTS, Gemini, Web Push providers.
+- `legal.subscription.tsx` — subscription changes, failed payments, refund/credit limits, lifetime scope.
+- `legal.security.tsx` — security limitations, no guarantee of uninterrupted/error-free service.
+- `legal.license.tsx` — scope, restrictions, no reverse-engineering, termination.
+
+Bump `LEGAL_EFFECTIVE` in `src/lib/legal/meta.ts`.
+
+---
+
+### Step 9 — In-Product Consistency Sweep + Onboarding Consent
+
+- Grep+rewrite pass on the files listed under "Risky wording found". Replace outcome-promising verbs ("optimize", "fix", "guarantees", "protects") with informational verbs ("suggests", "estimates", "may help").
+- Rewrite `src/components/Onboarding.tsx`: add a 4th slide "Before we start" with **required checkboxes**:
+  - AI may be inaccurate
+  - Not medical advice
+  - Not an emergency service — call 911/local emergency
+  - Companion mode is optional
+  - I'm responsible for safe use
+  - Review AI-generated content before relying on it
+  
+  Submit calls `recordAcceptanceFn({ source: 'onboarding', documents: ['terms','privacy','disclaimers','safety','electronic-consent'] })` before `markOnboarded()`.
+
+---
+
+### Step 10 — Verification Matrix
+
+`docs/legal/verification-matrix.md` — table per document & disclosure: route, user action, backing table/function, test status, residual risk. Used as the QA checklist.
+
+---
+
+### Step 11 — Attorney Pass Package
+
+`docs/legal/attorney-package.md` — index of all legal routes, consent flow, deletion/export flow, Stripe/subscription flow, safety/health/AI risk register, known limitations, open questions for counsel.
+
+---
+
+### Investigation answers (as requested)
+
+- **Files changed**: `src/routes/auth.tsx`, `src/components/Onboarding.tsx`, `src/routes/__root.tsx`, `src/routes/profile.tsx`, `src/routes/memory.tsx`, `src/routes/paywall.tsx`, `src/routes/pricing.tsx`, `src/lib/account.functions.ts`, `src/components/WearableCard.tsx`, `src/components/NotificationsSection.tsx`, `src/components/SmartAlarmCard.tsx`, `src/components/RightNowCard.tsx`, `src/components/CompanionWhisper.tsx`, `src/components/CoachTipCard.tsx`, `src/components/AIBriefCard.tsx`, `src/components/OfflineBanner.tsx`, `src/lib/legal/meta.ts`, 6 `legal.*.tsx` routes, plus new files: `src/lib/legal/consent.functions.ts`, `src/lib/legal/cookies.ts`, `src/components/legal/ConsentModal.tsx`, `src/components/legal/CookieBanner.tsx`, `src/components/legal/SafetyNote.tsx`, `src/components/legal/RenewalDisclosure.tsx`.
+- **Migrations**: 1 — create `legal_acceptances` (table + grants + RLS), add `user_prefs.consent_json`.
+- **Edge functions**: none. All server-side via `createServerFn`.
+- **Stripe impact**: deletion now attempts subscription cancel via `createStripeClient`; failure is non-fatal and disclosed. No webhook or pricing changes.
+- **Auth impact**: signup gains a required checkbox; sign-in untouched; OAuth flow unchanged.
+- **Deletion/export risk**: deletion becomes broader — must run on test account first. Export bundles redact tokens/endpoints.
+- **Testing**: typecheck after each step; Playwright smoke on `/auth` signup, onboarding consent, cookie banner, profile export+delete, wearable connect modal.
+
+Awaiting approval to begin Step 4.

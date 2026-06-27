@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Eye, X, Wand2 } from "lucide-react";
 import { aiAdjustPlan, type AdjustPlanResponse } from "@/lib/ai-client";
 import type { Insights } from "@/lib/insights";
@@ -160,6 +161,7 @@ export function CompanionWhisper({
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }
