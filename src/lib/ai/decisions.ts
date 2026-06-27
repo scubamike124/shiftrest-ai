@@ -38,6 +38,8 @@ export type ActivityEvent = {
   sublabel?: string | null;
   at: string;
   decisionId?: string | null;
+  /** How many raw events this row collapses (>=1). */
+  count?: number;
 };
 
 const INTENT_LABELS: Record<string, string> = {
@@ -211,7 +213,27 @@ async function loadTodayActivity(): Promise<ActivityEvent[]> {
   }
 
   events.sort((a, b) => b.at.localeCompare(a.at));
-  return events.slice(0, 50);
+
+  // Collapse adjacent system events of the same intent (e.g. repeated `sync`)
+  // into a single row with a count. Decisions are never collapsed.
+  const COLLAPSIBLE = new Set(["sync", "recovery", "coach_tip", "light_plan"]);
+  const collapsed: ActivityEvent[] = [];
+  for (const e of events) {
+    const last = collapsed[collapsed.length - 1];
+    if (
+      last &&
+      e.kind === "system" &&
+      last.kind === "system" &&
+      last.intent === e.intent &&
+      COLLAPSIBLE.has(e.intent)
+    ) {
+      last.count = (last.count ?? 1) + 1;
+      // Keep the earliest timestamp's sublabel; just bump the badge.
+      continue;
+    }
+    collapsed.push({ ...e, count: 1 });
+  }
+  return collapsed.slice(0, 50);
 }
 
 export function useTodayActivity() {

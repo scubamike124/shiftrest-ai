@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
-import { Sparkles, Database, Lightbulb, GitCompare, Target, Loader2 } from "lucide-react";
+import { Sparkles, Database, Lightbulb, GitCompare, Target, Loader2, CalendarRange } from "lucide-react";
 import {
   deriveSources,
   fetchPreviousForIntent,
@@ -93,7 +93,17 @@ export function RecommendationDetailSheet(props: RecommendationDetailSheetProps)
     : [];
   const finalAlternatives = alternatives && alternatives.length > 0 ? alternatives : altFromEvidence;
 
-  const impact = detail?.predictedImpact ?? {};
+  const impact = (detail?.predictedImpact ?? {}) as Record<string, unknown>;
+  const impactStr = (k: string): string | null => {
+    const v = impact[k];
+    return typeof v === "string" && v.trim() ? v : null;
+  };
+  const impactToday = impactStr("today");
+  const impactTomorrow = impactStr("tomorrow");
+  const impactWeek = impactStr("week");
+  const impactIfIgnored = impactStr("ifIgnored");
+  const hasImpactTriple = Boolean(impactToday || impactTomorrow || impactWeek);
+
   const outcomeFromImpact =
     typeof (impact as { expectedOutcome?: unknown }).expectedOutcome === "string"
       ? ((impact as { expectedOutcome: string }).expectedOutcome)
@@ -176,13 +186,44 @@ export function RecommendationDetailSheet(props: RecommendationDetailSheetProps)
             </Section>
           )}
 
-          {finalOutcome && (
+          {hasImpactTriple && (
+            <Section icon={CalendarRange} title="Predicted impact">
+              <ul className="space-y-2">
+                {impactToday && (
+                  <li className="rounded-xl border border-border/60 bg-background/40 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-glow/80">Today</p>
+                    <p className="mt-1 text-sm leading-snug text-foreground/90">{impactToday}</p>
+                  </li>
+                )}
+                {impactTomorrow && (
+                  <li className="rounded-xl border border-border/60 bg-background/40 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-glow/80">Tomorrow</p>
+                    <p className="mt-1 text-sm leading-snug text-foreground/90">{impactTomorrow}</p>
+                  </li>
+                )}
+                {impactWeek && (
+                  <li className="rounded-xl border border-border/60 bg-background/40 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-glow/80">This week</p>
+                    <p className="mt-1 text-sm leading-snug text-foreground/90">{impactWeek}</p>
+                  </li>
+                )}
+              </ul>
+              {impactIfIgnored && (
+                <p className="mt-3 text-xs leading-snug text-muted-foreground">
+                  <span className="font-semibold text-foreground/80">If ignored: </span>
+                  {impactIfIgnored}
+                </p>
+              )}
+            </Section>
+          )}
+
+          {finalOutcome && !hasImpactTriple && (
             <Section icon={Target} title="If you follow this">
               <p>{finalOutcome}</p>
             </Section>
           )}
 
-          {!finalWhy && finalSources.length === 0 && !finalOutcome && !loading && (
+          {!finalWhy && finalSources.length === 0 && !finalOutcome && !hasImpactTriple && !loading && (
             <p className="text-sm text-muted-foreground">
               RestPilot didn't attach extra evidence to this recommendation yet. As your patterns
               and history grow, the "Why" detail here gets richer.

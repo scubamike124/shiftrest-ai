@@ -82,7 +82,14 @@ function Row({ e }: { e: ActivityEvent }) {
         <Icon className="h-3 w-3" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-foreground">{e.label}</span>
+        <span className="flex items-center gap-2">
+          <span className="block text-sm font-medium text-foreground">{e.label}</span>
+          {e.count && e.count > 1 && (
+            <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground tabular-nums">
+              ×{e.count}
+            </span>
+          )}
+        </span>
         {e.sublabel && (
           <span className="mt-0.5 block truncate text-xs text-muted-foreground">{e.sublabel}</span>
         )}

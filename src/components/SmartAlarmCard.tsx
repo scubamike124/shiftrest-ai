@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
+import { RecommendationActions } from "./ai/trust/RecommendationActions";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
@@ -199,6 +200,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
                 -min window for the moment most likely to land at a cycle boundary using your wake-up
                 time and recent wearable data.
               </p>
+            </div>
+          )}
+          {lastResult.res.recommendationId && (
+            <div className="mt-3 border-t border-primary/15 pt-3">
+              <RecommendationActions
+                recommendationId={lastResult.res.recommendationId}
+                signedIn={signedIn}
+              />
             </div>
           )}
         </div>
