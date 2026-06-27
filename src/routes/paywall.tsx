@@ -240,7 +240,7 @@ function Paywall() {
           plan anytime from your account settings. Lifetime is a one-time
           purchase that grants access for the lifetime of the RestPilot AI
           service (not the lifetime of the purchaser). See the{" "}
-          <Link to="/terms" className="text-primary underline">Terms</Link>{" "}
+          <Link to="/legal/terms" className="text-primary underline">Terms</Link>{" "}
           for full details.
         </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
