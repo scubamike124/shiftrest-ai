@@ -47,6 +47,10 @@ export const DEFAULT_PREFS: Prefs = {
   assistantName: "RestPilot",
   assistantMode: "coach",
   memoryEnabled: false,
+  predictiveEnabled: true,
+  tomorrowPreviewEnabled: true,
+  dailyReviewEnabled: true,
+  feedbackLearningEnabled: true,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -72,6 +76,10 @@ type Row = {
   assistant_name: string | null;
   assistant_mode: string | null;
   memory_enabled: boolean | null;
+  predictive_enabled?: boolean | null;
+  tomorrow_preview_enabled?: boolean | null;
+  daily_review_enabled?: boolean | null;
+  feedback_learning_enabled?: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
@@ -92,6 +100,10 @@ function rowToPrefs(r: Row): Prefs {
     assistantName: r.assistant_name?.trim() || "RestPilot",
     assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
     memoryEnabled: Boolean(r.memory_enabled),
+    predictiveEnabled: r.predictive_enabled ?? true,
+    tomorrowPreviewEnabled: r.tomorrow_preview_enabled ?? true,
+    dailyReviewEnabled: r.daily_review_enabled ?? true,
+    feedbackLearningEnabled: r.feedback_learning_enabled ?? true,
   };
 }
 

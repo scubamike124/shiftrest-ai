@@ -45,6 +45,10 @@ function rowToPrefs(r: PrefsRow): Prefs {
     assistantName: "RestPilot",
     assistantMode: "coach",
     memoryEnabled: false,
+    predictiveEnabled: true,
+    tomorrowPreviewEnabled: true,
+    dailyReviewEnabled: true,
+    feedbackLearningEnabled: true,
   };
 }
 
