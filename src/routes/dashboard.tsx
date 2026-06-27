@@ -20,6 +20,7 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { ArrivalHero } from "@/components/ArrivalHero";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
 import { RightNowCard } from "@/components/RightNowCard";
 import { CompanionWhisper } from "@/components/CompanionWhisper";
@@ -189,33 +190,22 @@ function Dashboard() {
 
 
   const hour = mounted ? today.getHours() : 12;
-  const greeting =
-    hour < 5 ? "Burning the late shift" :
-    hour < 12 ? "Good morning" :
-    hour < 17 ? "Good afternoon" :
-    hour < 22 ? "Good evening" : "Late night";
+  void hour; // greeting now lives inside <ArrivalHero />
+  const dateLabel = mounted ? `${DAYS[weekday]}, ${monthDate}` : "";
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col px-5 pt-8 pb-12 lg:px-10 lg:pt-12">
-      {/* Header */}
-      <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 lg:mb-8">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            {greeting}
-          </p>
-          <h1 className="mt-1 truncate text-[34px] leading-none lg:text-[52px]">
-            {mounted ? DAYS[weekday] : "—"},{" "}
-            <span className="italic opacity-60">{mounted ? monthDate : ""}</span>
-          </h1>
-        </div>
+      {/* Personalized arrival — greeting + what the AI already did today */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+        <ArrivalHero dateLabel={dateLabel} />
         <Link
           to="/profile"
           aria-label="Profile"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-gradient-to-br from-secondary to-background lg:h-12 lg:w-12"
+          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-gradient-to-br from-secondary to-background lg:h-12 lg:w-12"
         >
           <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </Link>
-      </header>
+      </div>
 
 
       {/* ★ AI HERO — Right Now */}
