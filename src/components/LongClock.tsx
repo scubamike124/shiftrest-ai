@@ -248,6 +248,21 @@ export function LongClock({
               />
             ));
           })}
+          {/* Coach highlight — the window RightNowCard recommended */}
+          {highlightSegs.map((seg, i) => (
+            <div
+              key={`coach-${i}`}
+              aria-label={`Coach window: ${highlight?.label}`}
+              className="pointer-events-none absolute -top-1 bottom-0 rounded-full ring-2 ring-primary/80 shadow-[0_0_24px_rgba(99,102,241,0.55)]"
+              style={{
+                left: `${(seg.start / 1440) * 100}%`,
+                width: `${Math.max(0.5, (seg.len / 1440) * 100)}%`,
+                height: "calc(100% + 0.5rem)",
+                background:
+                  "linear-gradient(180deg, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.05) 100%)",
+              }}
+            />
+          ))}
           {markers.map((m) => (
             <button
               key={m.id}
