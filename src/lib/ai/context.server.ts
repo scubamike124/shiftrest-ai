@@ -1,8 +1,15 @@
 /**
- * Build the assistant's system prompt with persona, mode, and relevant
- * long-term memories. Server-only — runs inside the /api/ai orchestrator.
+ * Build the assistant's system prompt with persona, mode, relevant long-term
+ * memories, active patterns, and feedback summary. Server-only — runs inside
+ * the /api/ai orchestrator.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchRankedMemories } from "./memory-rank.server";
+import { fetchActivePatterns, type PatternKey } from "./patterns.server";
+import {
+  fetchFeedbackSummary,
+  fetchPreviousRecommendation,
+} from "./recommendations.server";
 
 export type AssistantMode = "coach" | "companion" | "minimal";
 
@@ -20,7 +27,8 @@ Voice rules:
 - Encouraging, never preachy. Acknowledge how hard rotating schedules are.
 - Plain English. Spell out abbreviations ("milligrams", "minutes", "hours", "degrees Fahrenheit").
 - Keep responses tight: 3-6 short paragraphs or a short list.
-- No medical advice — for sleep disorders, depression, or medication, recommend a healthcare professional.`;
+- No medical advice — for sleep disorders, depression, or medication, recommend a healthcare professional.
+- In reviews and reflections, never judgmental. Frame setbacks as data, not failure.`;
 
 const MODE_OVERLAYS: Record<AssistantMode, string> = {
   coach: `\n\nMode: COACH. Lead with clear next actions. Prioritise plans, timings, and wins. Push gently when the user is drifting from their recovery goals.`,
@@ -40,9 +48,6 @@ export type MemoryRow = {
   pinned: boolean;
 };
 
-import { fetchRankedMemories } from "./memory-rank.server";
-
-/** Fetch the most relevant long-term memories for this user. */
 export async function fetchRelevantMemories(
   admin: SupabaseClient,
   userId: string,
@@ -66,11 +71,48 @@ function formatMemoryBlock(memories: MemoryRow[]): string {
   return `\n\nLONG-TERM MEMORY (things the user has told you or you've learned — refer to these naturally, do not list them back):\n${lines.join("\n")}`;
 }
 
-/**
- * Compose the full system prompt. The "context" string is the live plan /
- * fatigue / shift context built by the existing coach.tsx; we keep it as a
- * caller-supplied opaque blob for now.
- */
+const PATTERN_LABEL: Record<PatternKey, string> = {
+  sleep_debt_3d: "sleep debt building over the last week",
+  rotation_change: "schedule just rotated (day↔night flip)",
+  frequent_overtime: "heavier-than-usual hours",
+  timezone_jump: "timezone change in the last few days",
+  missed_recovery: "planned recovery window was missed",
+  caffeine_late: "caffeine repeatedly taken too close to sleep",
+  missed_alarms: "alarms missed recently",
+  commute_fatigue: "long awake time before driving home",
+  hrv_decline: "HRV trending lower vs baseline",
+  sleep_inconsistency: "sleep timing is drifting night to night",
+};
+
+function formatPatternBlock(
+  patterns: Awaited<ReturnType<typeof fetchActivePatterns>>,
+): string {
+  if (patterns.length === 0) return "";
+  const lines = patterns.map((p) => {
+    const label = PATTERN_LABEL[p.pattern_key] ?? p.pattern_key;
+    const sig = JSON.stringify(p.signals_json);
+    return `- [severity ${p.severity}/5] ${label} — signals: ${sig}`;
+  });
+  return `\n\nACTIVE PATTERNS YOU'VE DETECTED (use these to anticipate problems before they happen; reference at least one when severity ≥ 3):\n${lines.join("\n")}`;
+}
+
+function formatFeedbackBlock(
+  summary: Awaited<ReturnType<typeof fetchFeedbackSummary>>,
+): string {
+  if (summary.length === 0) return "";
+  const lines = summary.map((s) =>
+    `- ${s.intent}: helpful ${s.helpful} · not helpful ${s.not_helpful} · ignored ${s.ignored}`,
+  );
+  return `\n\nRECENT FEEDBACK (last 14 days — gently lean away from intents the user marks not helpful, lean toward what they call helpful):\n${lines.join("\n")}`;
+}
+
+function formatPreviousBlock(
+  prev: { headline: string; rationale: string | null } | null,
+): string {
+  if (!prev) return "";
+  return `\n\nYOUR PREVIOUS RECOMMENDATION FOR THIS INTENT (do not repeat verbatim — refresh the angle or move on if still valid):\n- "${prev.headline}"${prev.rationale ? ` — ${prev.rationale}` : ""}`;
+}
+
 export async function buildSystemPrompt(opts: {
   admin: SupabaseClient;
   userId: string | null;
@@ -88,6 +130,23 @@ export async function buildSystemPrompt(opts: {
       opts.intent ?? "coach",
     );
     prompt += formatMemoryBlock(mems);
+  }
+
+  if (opts.userId) {
+    try {
+      const [patterns, feedback, prev] = await Promise.all([
+        fetchActivePatterns(opts.admin, opts.userId, 5),
+        fetchFeedbackSummary(opts.admin, opts.userId),
+        opts.intent
+          ? fetchPreviousRecommendation(opts.admin, opts.userId, opts.intent)
+          : Promise.resolve(null),
+      ]);
+      prompt += formatPatternBlock(patterns);
+      prompt += formatFeedbackBlock(feedback);
+      prompt += formatPreviousBlock(prev);
+    } catch (e) {
+      console.warn("context predictive blocks failed", e);
+    }
   }
 
   if (opts.liveContext) {
