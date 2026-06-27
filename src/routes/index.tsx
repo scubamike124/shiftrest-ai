@@ -17,7 +17,9 @@ import {
 import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
+import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
+
 import { LastNightStrip } from "@/components/LastNightStrip";
 import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
@@ -152,6 +154,17 @@ function Dashboard() {
         : null,
     [shifts, prefs, today, mounted, employers, wearableSummary],
   );
+  const recommendations = useMemo(
+    () =>
+      insights
+        ? buildRecommendations(insights, prefs, today, {
+            lat: prefs.lat ?? null,
+            lon: prefs.lon ?? null,
+          })
+        : [],
+    [insights, prefs, today],
+  );
+
 
   return (
     <main className="flex flex-col px-5 pt-10 pb-6">
@@ -226,7 +239,7 @@ function Dashboard() {
       {/* AI Coach Brief — proactive guidance every time you open the app */}
       {insights && (
         <div className="mt-4">
-          <AIBriefCard insights={insights} />
+          <AIBriefCard insights={insights} recommendations={recommendations} />
         </div>
       )}
 

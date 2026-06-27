@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
+import type { Recommendation } from "@/lib/recommendations";
 
 const ICONS: Record<string, typeof Sun> = {
   sun: Sun,
@@ -23,6 +24,21 @@ const ICONS: Record<string, typeof Sun> = {
   food: Utensils,
   nap: Bed,
 };
+
+const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
+  "anchor-sleep": Moon,
+  "wind-down": Bed,
+  "bright-light": Sun,
+  "amber-light": Lightbulb,
+  "caffeine-on": Coffee,
+  "caffeine-cutoff": Coffee,
+  meal: Utensils,
+  nap: Bed,
+  "split-sleep": Moon,
+  hydrate: Droplet,
+  recovery: Sparkles,
+};
+
 
 type AIBrief = {
   greeting: string;
@@ -45,10 +61,17 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   return resp.json();
 }
 
-export function AIBriefCard({ insights }: { insights: Insights }) {
+export function AIBriefCard({
+  insights,
+  recommendations = [],
+}: {
+  insights: Insights;
+  recommendations?: Recommendation[];
+}) {
   const context = insights.contextString;
   // Cache by context string so the AI cost is paid once per day shape.
   const queryKey = useMemo(() => ["ai-brief", context], [context]);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey,
     queryFn: () => fetchBrief(context),
@@ -158,6 +181,40 @@ export function AIBriefCard({ insights }: { insights: Insights }) {
         })}
       </div>
 
+      {/* 14-day fatigue horizon sparkline */}
+      <div className="relative z-10 mt-3">
+        <div className="flex items-end gap-[3px] h-8">
+          {insights.fatigueHorizon.map((p, i) => {
+            const c =
+              p.band === "extreme"
+                ? "var(--destructive)"
+                : p.band === "high"
+                  ? "var(--amber)"
+                  : p.band === "moderate"
+                    ? "var(--indigo-glow)"
+                    : "var(--mint)";
+            return (
+              <div
+                key={i}
+                title={`${p.label} · ${p.score}/100 · ${p.reason}`}
+                className="flex-1 rounded-sm opacity-90"
+                style={{
+                  height: `${Math.max(10, p.score)}%`,
+                  background: c,
+                }}
+              />
+            );
+          })}
+        </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          14-day fatigue horizon · debt {insights.sleepDebtHours.toFixed(1)}h
+          {insights.hrvTrend != null
+            ? ` · HRV ${insights.hrvTrend > 0 ? "+" : ""}${Math.round(insights.hrvTrend * 100)}%`
+            : ""}
+        </p>
+      </div>
+
+
       {/* AI body */}
       <div className="relative z-10 mt-4 min-h-[120px]">
         {isLoading && (
@@ -216,6 +273,42 @@ export function AIBriefCard({ insights }: { insights: Insights }) {
           </div>
         )}
       </div>
+
+      {/* Personalized ranked recommendations — always rendered, AI-independent */}
+      {recommendations.length > 0 && (
+        <div className="relative z-10 mt-4 border-t border-border/40 pt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            Personalized for you · next 24h
+          </p>
+          <ol className="mt-2 flex flex-col gap-2">
+            {recommendations.map((r, i) => {
+              const Icon = REC_ICONS[r.kind] ?? Sparkles;
+              return (
+                <li
+                  key={i}
+                  className="flex gap-3 rounded-xl border border-border/60 bg-card/60 p-3"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-indigo-glow">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold leading-tight">{r.title}</p>
+                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {r.whenLabel}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {r.detail}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
     </section>
+
   );
 }

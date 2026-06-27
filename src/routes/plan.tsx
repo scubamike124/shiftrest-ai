@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Sun,
   Moon,
@@ -9,13 +10,22 @@ import {
   Sparkles,
   BookOpen,
   AlertCircle,
+  Bed,
+  Droplet,
+  Lightbulb,
+  Utensils,
 } from "lucide-react";
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
+import { computeInsights } from "@/lib/insights";
+import { buildRecommendations, type Recommendation } from "@/lib/recommendations";
+import { getWearableSummary } from "@/lib/wearables/wearables.functions";
+
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
@@ -43,6 +53,21 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
   meal: BookOpen,
   nap: Moon,
 };
+
+const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
+  "anchor-sleep": Moon,
+  "wind-down": Bed,
+  "bright-light": Sun,
+  "amber-light": Lightbulb,
+  "caffeine-on": Coffee,
+  "caffeine-cutoff": Coffee,
+  meal: Utensils,
+  nap: Bed,
+  "split-sleep": Moon,
+  hydrate: Droplet,
+  recovery: Sparkles,
+};
+
 
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
@@ -79,6 +104,34 @@ function PlanPage() {
     () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
     [mounted, shift, prefs, sun],
   );
+
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+    enabled: signedIn === true,
+  });
+  const getWearableSummaryFn = useServerFn(getWearableSummary);
+  const { data: wearableSummary } = useQuery({
+    queryKey: ["wearable-summary"],
+    queryFn: () => getWearableSummaryFn(),
+    staleTime: 60_000,
+    enabled: signedIn === true,
+  });
+  const recommendations: Recommendation[] = useMemo(() => {
+    if (!mounted) return [];
+    const insights = computeInsights(
+      shifts,
+      prefs,
+      today,
+      employers,
+      wearableSummary?.latest ?? null,
+    );
+    return buildRecommendations(insights, prefs, today, {
+      lat: prefs.lat ?? null,
+      lon: prefs.lon ?? null,
+    });
+  }, [mounted, shifts, prefs, today, employers, wearableSummary]);
+
 
   function buildPlanText(): string | null {
     if (!shift || events.length === 0) return null;
@@ -180,7 +233,42 @@ function PlanPage() {
             </Link>
           </div>
 
+          {recommendations.length > 0 && (
+            <section className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+                Personalized for you · next 24h
+              </p>
+              <ol className="mt-3 flex flex-col gap-2">
+                {recommendations.map((r, i) => {
+                  const Icon = REC_ICONS[r.kind] ?? Sparkles;
+                  return (
+                    <li
+                      key={i}
+                      className="flex gap-3 rounded-xl border border-border/60 bg-card/70 p-3"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-indigo-glow">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-sm font-semibold leading-tight">{r.title}</p>
+                          <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {r.whenLabel}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                          {r.detail}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
           <section className="flex flex-col gap-2">
+
             {events.map((e, i) => {
               const Icon = ICONS[e.kind] ?? Sparkles;
               const tone =
