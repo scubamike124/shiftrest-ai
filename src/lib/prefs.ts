@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type AssistantMode = "coach" | "companion" | "minimal";
+
 export type Prefs = {
   windDownMin: number;
   sleepHours: number;
@@ -14,6 +16,12 @@ export type Prefs = {
   cycleWeeks: number;
   /** Anchor (YYYY-MM-DD) for week 0 of the rotation. Null → derives from this week's Monday. */
   cycleAnchor: string | null;
+  /** Display name the AI uses for itself. */
+  assistantName: string;
+  /** Coach (default), Companion (warmer, asks follow-ups), Minimal (terse). */
+  assistantMode: AssistantMode;
+  /** Opt-in for long-term memory. Default OFF — privacy-first. */
+  memoryEnabled: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -28,6 +36,9 @@ export const DEFAULT_PREFS: Prefs = {
   onboarded: false,
   cycleWeeks: 1,
   cycleAnchor: null,
+  assistantName: "RestPilot",
+  assistantMode: "coach",
+  memoryEnabled: false,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
