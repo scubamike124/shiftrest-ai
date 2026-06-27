@@ -35,6 +35,7 @@ import {
   clearPrefsMigrationFlag,
   fetchPrefs,
   savePrefs,
+  AuthRequiredError,
   type Prefs,
 } from "@/lib/prefs";
 import {
