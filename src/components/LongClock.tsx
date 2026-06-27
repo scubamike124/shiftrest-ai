@@ -229,6 +229,13 @@ export function LongClock({
         </span>
       </header>
 
+      {highlight && (
+        <p className="-mt-2 mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-glow">
+          <Sparkles className="h-3 w-3" />
+          Coach window {fmtTime(highlight.startMin)} – {fmtTime(highlight.endMin)} · {highlight.label}
+        </p>
+      )}
+
       {/* Ribbon */}
       <div className="relative">
         <div className="relative h-14 overflow-hidden rounded-full border border-border/70 bg-secondary/50">
