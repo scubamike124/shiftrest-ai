@@ -46,6 +46,7 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const today = useMemo(() => new Date(), []);
@@ -54,6 +55,9 @@ function PlanPage() {
 
   useEffect(() => {
     setMounted(true);
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   const shift = shifts.find((s: Shift) => s.day === activeDay);
