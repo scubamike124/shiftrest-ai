@@ -69,6 +69,22 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 function Dashboard() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  // CRITICAL: hydrate the offline snapshot SYNCHRONOUSLY before the first
+  // `useQuery` below subscribes/fetches. If we wait for
+  // `supabase.auth.getSession().then(...)` (a microtask), the shifts query
+  // has already fired `fetchShifts()` → throws offline → lands in error
+  // state, and the snapshot hydration arrives too late to render.
+  //
+  // `useState` initializer guarantees this runs exactly once per mount,
+  // before any effect, before any child render. The user id comes from a
+  // sync localStorage probe (Supabase persists session synchronously).
+  useState(() => {
+    const uid = getCachedUserIdSync();
+    hydrateQueryCacheFromSnapshot(queryClient, uid);
+    return uid;
+  });
+
   const { data: shifts = [] } = useQuery({
     queryKey: ["shifts"],
     queryFn: fetchShifts,
@@ -81,20 +97,18 @@ function Dashboard() {
   const [editing, setEditing] = useState<{ day: number; weekIndex: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(() => getCachedUserIdSync());
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
 
-  // Hydrate React Query cache from the offline snapshot BEFORE first paint
-  // so a cold airplane-mode load shows the saved plan, not an empty skeleton.
-  // Runs synchronously in a layout-free useState initializer pattern via
-  // useEffect: the queries above use whatever's in cache, and our seeded
-  // values become the initial data when their query hasn't resolved yet.
   useEffect(() => {
     setMounted(true);
     supabase.auth.getSession().then(({ data }) => {
       setSignedIn(!!data.session);
-      setUserId(data.session?.user.id ?? null);
-      hydrateQueryCacheFromSnapshot(queryClient, data.session?.user.id ?? null);
+      const id = data.session?.user.id ?? null;
+      setUserId(id);
+      // Re-hydrate if the live session id differs from the sync probe
+      // (e.g. probe missed the key, or a different user signed in).
+      hydrateQueryCacheFromSnapshot(queryClient, id);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setSignedIn(!!session);
@@ -103,14 +117,25 @@ function Dashboard() {
     return () => sub.subscription.unsubscribe();
   }, [queryClient]);
 
-  // Mirror the latest plan inputs (shifts/prefs/employers) to localStorage
-  // whenever they change while we're online. We deliberately do NOT save
-  // while offline — that would overwrite the last *good* snapshot with a
-  // possibly-empty failed-fetch state.
+  // Mirror plan inputs to localStorage whenever ANY of them change while
+  // online. We subscribe to the React Query cache directly so a new shift
+  // or employer triggers a snapshot — depending on `prefs` alone (the
+  // previous shape) silently dropped shift/employer edits.
   useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    persistSnapshot(queryClient, userId);
-  }, [queryClient, userId, prefs]);
+    const trigger = () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      persistSnapshot(queryClient, userId);
+    };
+    trigger(); // initial
+    const unsub = queryClient.getQueryCache().subscribe((evt) => {
+      // Only react to updates of the keys we actually persist.
+      const key = evt.query.queryKey?.[0];
+      if (key === "shifts" || key === "employers" || key === "prefs") {
+        if (evt.type === "updated" && evt.action?.type === "success") trigger();
+      }
+    });
+    return () => unsub();
+  }, [queryClient, userId]);
 
   // Offline → online edge: reconcile tz, refresh data, and tell the user
   // what changed. The reconcile helper handles tz logging + invalidations;
