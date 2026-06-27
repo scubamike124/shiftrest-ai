@@ -61,10 +61,17 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   return resp.json();
 }
 
-export function AIBriefCard({ insights }: { insights: Insights }) {
+export function AIBriefCard({
+  insights,
+  recommendations = [],
+}: {
+  insights: Insights;
+  recommendations?: Recommendation[];
+}) {
   const context = insights.contextString;
   // Cache by context string so the AI cost is paid once per day shape.
   const queryKey = useMemo(() => ["ai-brief", context], [context]);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey,
     queryFn: () => fetchBrief(context),
