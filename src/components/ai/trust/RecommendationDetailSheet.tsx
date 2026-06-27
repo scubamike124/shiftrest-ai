@@ -93,7 +93,17 @@ export function RecommendationDetailSheet(props: RecommendationDetailSheetProps)
     : [];
   const finalAlternatives = alternatives && alternatives.length > 0 ? alternatives : altFromEvidence;
 
-  const impact = detail?.predictedImpact ?? {};
+  const impact = (detail?.predictedImpact ?? {}) as Record<string, unknown>;
+  const impactStr = (k: string): string | null => {
+    const v = impact[k];
+    return typeof v === "string" && v.trim() ? v : null;
+  };
+  const impactToday = impactStr("today");
+  const impactTomorrow = impactStr("tomorrow");
+  const impactWeek = impactStr("week");
+  const impactIfIgnored = impactStr("ifIgnored");
+  const hasImpactTriple = Boolean(impactToday || impactTomorrow || impactWeek);
+
   const outcomeFromImpact =
     typeof (impact as { expectedOutcome?: unknown }).expectedOutcome === "string"
       ? ((impact as { expectedOutcome: string }).expectedOutcome)
