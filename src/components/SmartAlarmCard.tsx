@@ -29,6 +29,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [windowMin, setWindowMin] = useState(30);
   const [busy, setBusy] = useState(false);
+  const [lastResult, setLastResult] = useState<{ res: SmartAlarmResponse; targetIso: string } | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const { data: events = [] } = useQuery({
     queryKey: ["events", "alarms"],
@@ -69,14 +71,22 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       const wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
       const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const notePayload = [
+        res.cyclePosition ? CYCLE_LABEL[res.cyclePosition] : null,
+        res.confidence ? `${res.confidence} confidence` : null,
+        res.reason,
+      ]
+        .filter(Boolean)
+        .join(" · ");
       await createEvent({
         kind: "personal",
         title: `Alarm: ${labelTime}`,
         startsAt: wake.toISOString(),
         reminderMin: 0,
-        notes: res.reason,
+        notes: notePayload,
       });
       qc.invalidateQueries({ queryKey: ["events"] });
+      setLastResult({ res, targetIso: target.toISOString() });
       toast.success(`Smart alarm set for ${labelTime}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
@@ -84,6 +94,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       setBusy(false);
     }
   }
+
+  const wakeTime = lastResult ? new Date(lastResult.res.wakeAt) : null;
+  const wakeLabel = wakeTime
+    ? wakeTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+  const deltaMin = lastResult && wakeTime
+    ? Math.round((wakeTime.getTime() - new Date(lastResult.targetIso).getTime()) / 60_000)
+    : null;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
