@@ -48,6 +48,7 @@ import {
   persistSnapshot,
   reconcileOnReconnect,
 } from "@/lib/offline/snapshot";
+import { getCachedUserIdSync } from "@/lib/offline/cache";
 
 
 export const Route = createFileRoute("/dashboard")({
