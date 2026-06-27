@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Send, Sparkles } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
 import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
@@ -298,17 +300,58 @@ function Bubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+        className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
           isUser
-            ? "rounded-br-md bg-primary text-primary-foreground"
+            ? "rounded-br-md whitespace-pre-wrap bg-primary text-primary-foreground"
             : "rounded-bl-md border border-border bg-card text-foreground"
         }`}
       >
-        {children}
+        {isUser ? children : <AssistantBody>{children}</AssistantBody>}
       </div>
     </div>
   );
 }
+
+function AssistantBody({ children }: { children: React.ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  if (typeof children !== "string") return <>{children}</>;
+  const raw = children.trim();
+  if (!raw) return null;
+  const LONG = 900;
+  const isLong = raw.length > LONG;
+  const visible = !isLong || expanded ? raw : raw.slice(0, LONG).replace(/\s+\S*$/, "") + "…";
+  return (
+    <div>
+      <MarkdownText text={visible} />
+      {isLong ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-xs font-semibold text-primary hover:underline"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MarkdownText({ text }: { text: string }) {
+  return (
+    <div
+      className="prose prose-sm prose-invert max-w-none
+        prose-headings:mt-3 prose-headings:mb-1 prose-headings:font-semibold prose-headings:text-foreground
+        prose-h2:text-sm prose-h3:text-sm
+        prose-p:my-1.5 prose-p:leading-relaxed
+        prose-ul:my-1.5 prose-ul:pl-5 prose-li:my-0.5
+        prose-strong:text-foreground prose-strong:font-semibold
+        prose-a:text-primary"
+    >
+      <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
+    </div>
+  );
+}
+
 
 function Typing() {
   return (

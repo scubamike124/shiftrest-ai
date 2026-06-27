@@ -214,21 +214,19 @@ async function loadTodayActivity(): Promise<ActivityEvent[]> {
 
   events.sort((a, b) => b.at.localeCompare(a.at));
 
-  // Collapse adjacent system events of the same intent (e.g. repeated `sync`)
-  // into a single row with a count. Decisions are never collapsed.
-  const COLLAPSIBLE = new Set(["sync", "recovery", "coach_tip", "light_plan"]);
+  // Collapse adjacent events with the same (intent + sublabel) into a single
+  // row with a count badge — regardless of `kind` or timestamp gap, as long
+  // as they are consecutive in the timeline. Kills duplicates like five
+  // back-to-back "Coach window updated" entries on the AI Activity feed.
   const collapsed: ActivityEvent[] = [];
   for (const e of events) {
     const last = collapsed[collapsed.length - 1];
-    if (
-      last &&
-      e.kind === "system" &&
-      last.kind === "system" &&
-      last.intent === e.intent &&
-      COLLAPSIBLE.has(e.intent)
-    ) {
+    const sig = `${e.intent}|${e.sublabel ?? ""}`;
+    const lastSig = last ? `${last.intent}|${last.sublabel ?? ""}` : null;
+    if (last && sig === lastSig) {
       last.count = (last.count ?? 1) + 1;
-      // Keep the earliest timestamp's sublabel; just bump the badge.
+      // Keep the most recent timestamp (events are already desc-sorted, so
+      // `last` is the newest — no change needed).
       continue;
     }
     collapsed.push({ ...e, count: 1 });

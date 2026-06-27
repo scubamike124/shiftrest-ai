@@ -55,6 +55,25 @@ export async function persistRecommendation(
   const headline = pickString(input.payload, HEADLINE_FIELDS, input.intent);
   const rationale = pickString(input.payload, RATIONALE_FIELDS);
   const impact = pickImpact(input.payload);
+
+  // Dedupe: if the most recent recommendation for this (user, intent) has the
+  // same headline and was created < 5 minutes ago, return its id instead of
+  // inserting a new row. Prevents the AI Activity feed from filling with
+  // identical "Coach window updated" entries on every refresh / re-eval.
+  const { data: prev } = await admin
+    .from("ai_recommendations")
+    .select("id, headline, created_at")
+    .eq("user_id", input.userId)
+    .eq("intent", input.intent)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const prevRow = prev as { id: string; headline: string; created_at: string } | null;
+  if (prevRow && prevRow.headline === headline) {
+    const ageMs = Date.now() - new Date(prevRow.created_at).getTime();
+    if (ageMs < 5 * 60_000) return prevRow.id;
+  }
+
   const { data, error } = await admin
     .from("ai_recommendations")
     .insert({
