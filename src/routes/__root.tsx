@@ -4,14 +4,18 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomNav } from "../components/BottomNav";
+import { SiteHeader } from "../components/site/SiteHeader";
+import { SiteFooter } from "../components/site/SiteFooter";
+import { AppSidebar } from "../components/site/AppSidebar";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { scheduleNextWindDown } from "../lib/notify";
@@ -19,6 +23,16 @@ import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
 import { supabase } from "@/integrations/supabase/client";
+
+const MARKETING_ROUTES = new Set(["/", "/pricing", "/features", "/privacy", "/terms"]);
+const BARE_ROUTES = ["/auth", "/reset-password", "/share"];
+
+function surfaceFor(pathname: string): "marketing" | "app" | "bare" {
+  if (BARE_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "bare";
+  if (MARKETING_ROUTES.has(pathname)) return "marketing";
+  return "app";
+}
+
 
 function NotFoundComponent() {
   return (
@@ -126,13 +140,15 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const surface = surfaceFor(pathname);
+  const [signedIn, setSignedIn] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
       await Promise.all([migrateLocalShiftsIfNeeded(), migrateLocalPrefsIfNeeded()]);
       if (cancelled) return;
-      // Ensure every signed-in user has a default employer so existing
-      // single-employer flows keep working without extra prompts.
       await ensureDefaultEmployer();
       if (cancelled) return;
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
@@ -140,7 +156,6 @@ function RootComponent() {
       queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
-      // Register the push service worker once on mount (idempotent).
       if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
         try {
           await navigator.serviceWorker.register("/sw.js", { scope: "/" });
@@ -150,24 +165,48 @@ function RootComponent() {
       }
     }
     bootstrap();
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
-        bootstrap();
-      }
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      setSignedIn(!!session);
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") bootstrap();
     });
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
   }, [queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="mx-auto flex min-h-screen max-w-md flex-col pb-24">
-        <Outlet />
-      </div>
-      <BottomNav />
+      {surface === "marketing" && (
+        <div className="flex min-h-screen flex-col">
+          <SiteHeader signedIn={signedIn} />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <SiteFooter />
+        </div>
+      )}
+
+      {surface === "app" && (
+        <div className="flex min-h-screen w-full">
+          <AppSidebar />
+          <div className="flex min-h-screen flex-1 flex-col pb-24 lg:pb-0">
+            <Outlet />
+          </div>
+          <BottomNav />
+        </div>
+      )}
+
+      {surface === "bare" && (
+        <div className="min-h-screen">
+          <Outlet />
+        </div>
+      )}
+
       <Onboarding />
       <Toaster />
     </QueryClientProvider>
   );
 }
+

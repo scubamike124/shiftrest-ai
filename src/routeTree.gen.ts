@@ -15,10 +15,13 @@ import { Route as ShareRouteImport } from './routes/share'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
+import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -64,6 +67,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlaybooksRoute = PlaybooksRouteImport.update({
   id: '/playbooks',
   path: '/playbooks',
@@ -79,9 +87,19 @@ const PaywallRoute = PaywallRouteImport.update({
   path: '/paywall',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoachRoute = CoachRouteImport.update({
@@ -162,10 +180,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/features': typeof FeaturesRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -188,10 +209,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/features': typeof FeaturesRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -215,10 +239,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
+  '/features': typeof FeaturesRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
+  '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -243,10 +270,13 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
+    | '/features'
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/pricing'
     | '/privacy'
     | '/profile'
     | '/reset-password'
@@ -269,10 +299,13 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
+    | '/features'
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/pricing'
     | '/privacy'
     | '/profile'
     | '/reset-password'
@@ -295,10 +328,13 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
+    | '/features'
     | '/paywall'
     | '/plan'
     | '/playbooks'
+    | '/pricing'
     | '/privacy'
     | '/profile'
     | '/reset-password'
@@ -322,10 +358,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   CoachRoute: typeof CoachRoute
+  DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
+  FeaturesRoute: typeof FeaturesRoute
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
+  PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -389,6 +428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/playbooks': {
       id: '/playbooks'
       path: '/playbooks'
@@ -410,11 +456,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaywallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/events': {
       id: '/events'
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coach': {
@@ -522,10 +582,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   CoachRoute: CoachRoute,
+  DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
+  FeaturesRoute: FeaturesRoute,
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,
+  PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
