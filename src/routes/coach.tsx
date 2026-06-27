@@ -264,23 +264,50 @@ function Coach() {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
             <Sparkles className="h-5 w-5" />
           </span>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-semibold">AI Sleep Coach</h1>
             <p className="text-xs text-muted-foreground">
               Circadian-rhythm expert · always on
             </p>
           </div>
+          <button
+            type="button"
+            onClick={toggleVoice}
+            className={`flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-95 ${
+              voiceOn
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+            aria-pressed={voiceOn}
+            aria-label={voiceOn ? "Mute voice replies" : "Enable voice replies"}
+          >
+            {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <span className="hidden sm:inline">{voiceOn ? "Voice on" : "Voice off"}</span>
+          </button>
         </div>
       </header>
 
       <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-4">
         <div className="flex flex-col gap-3">
-          {messages.map((m, i) => (
-            <Bubble key={i} role={m.role}>
-              {m.content || (sending && i === messages.length - 1 ? <Typing /> : "")}
-            </Bubble>
-          ))}
+          {messages.map((m, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <Bubble
+                key={i}
+                role={m.role}
+                onSpeak={
+                  m.role === "assistant" && m.content
+                    ? () => speak(m.content)
+                    : undefined
+                }
+                tts={isLast && m.role === "assistant" ? tts : undefined}
+              >
+                {m.content || (sending && isLast ? <Typing /> : "")}
+              </Bubble>
+            );
+          })}
         </div>
+
 
         {messages.length <= 1 && (
           <div className="mt-5 flex flex-col gap-2">
