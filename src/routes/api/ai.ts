@@ -422,6 +422,30 @@ export const Route = createFileRoute("/api/ai")({
                 }
                 break;
               }
+              case "jetlag_plan": {
+                intentSystem = JETLAG_PLAN_SYSTEM;
+                let trip: Record<string, unknown> | null = null;
+                if (userId) {
+                  // Pick the named trip, else the next planned/active leg.
+                  let q = admin
+                    .from("trips")
+                    .select("id, label, origin_tz, dest_tz, dest_label, depart_utc, arrive_utc, status")
+                    .eq("user_id", userId);
+                  if (body.tripId) {
+                    q = q.eq("id", body.tripId);
+                  } else {
+                    q = q.in("status", ["planned", "active"]).order("arrive_utc", { ascending: true }).limit(1);
+                  }
+                  const { data: t } = await q.maybeSingle();
+                  trip = (t as Record<string, unknown> | null) ?? null;
+                }
+                userPayload = JSON.stringify({
+                  phase: body.phase ?? "pre",
+                  trip,
+                  nowIso: new Date().toISOString(),
+                });
+                break;
+              }
             }
 
             const result = await chatJSON({
