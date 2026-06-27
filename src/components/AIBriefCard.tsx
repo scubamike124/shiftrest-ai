@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
+import type { Recommendation } from "@/lib/recommendations";
 
 const ICONS: Record<string, typeof Sun> = {
   sun: Sun,
@@ -23,6 +24,21 @@ const ICONS: Record<string, typeof Sun> = {
   food: Utensils,
   nap: Bed,
 };
+
+const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
+  "anchor-sleep": Moon,
+  "wind-down": Bed,
+  "bright-light": Sun,
+  "amber-light": Lightbulb,
+  "caffeine-on": Coffee,
+  "caffeine-cutoff": Coffee,
+  meal: Utensils,
+  nap: Bed,
+  "split-sleep": Moon,
+  hydrate: Droplet,
+  recovery: Sparkles,
+};
+
 
 type AIBrief = {
   greeting: string;
