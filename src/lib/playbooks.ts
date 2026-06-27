@@ -13,7 +13,7 @@ export type Playbook = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function shift(day: number, start: number, end: number): Shift {
-  return { id: uid(), day, start, end };
+  return { id: uid(), day, weekIndex: 0, start, end };
 }
 
 export const PLAYBOOKS: Playbook[] = [
