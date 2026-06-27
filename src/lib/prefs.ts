@@ -10,6 +10,10 @@ export type Prefs = {
   locationLabel: string;
   partnerName: string;
   onboarded: boolean;
+  /** Rotation length in weeks (1–6). 1 = legacy weekly schedule. */
+  cycleWeeks: number;
+  /** Anchor (YYYY-MM-DD) for week 0 of the rotation. Null → derives from this week's Monday. */
+  cycleAnchor: string | null;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -22,6 +26,8 @@ export const DEFAULT_PREFS: Prefs = {
   locationLabel: "",
   partnerName: "",
   onboarded: false,
+  cycleWeeks: 1,
+  cycleAnchor: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
