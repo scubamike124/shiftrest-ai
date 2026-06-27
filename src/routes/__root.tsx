@@ -5,6 +5,7 @@ import {
   createRootRouteWithContext,
   useRouter,
   useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -141,6 +142,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
   const surface = surfaceFor(pathname);
   const [signedIn, setSignedIn] = useState(false);
 
@@ -175,6 +177,14 @@ function RootComponent() {
       sub.subscription.unsubscribe();
     };
   }, [queryClient]);
+
+  // Signed-in users belong on the dashboard, not the marketing homepage.
+  // Soft client-side redirect — keeps SSR/marketing intact for logged-out visitors.
+  useEffect(() => {
+    if (signedIn && pathname === "/") {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }, [signedIn, pathname, navigate]);
 
   return (
     <QueryClientProvider client={queryClient}>
