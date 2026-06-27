@@ -25,6 +25,7 @@ const MIGRATED_KEY = "shiftrest.shifts.migrated.v1";
 type Row = {
   id: string;
   day: number;
+  week_index: number | null;
   start_min: number;
   end_min: number;
   employer_id: string | null;
@@ -32,12 +33,13 @@ type Row = {
   notes: string | null;
 };
 
-const SELECT = "id, day, start_min, end_min, employer_id, title, notes";
+const SELECT = "id, day, week_index, start_min, end_min, employer_id, title, notes";
 
 function rowToShift(r: Row): Shift {
   return {
     id: r.id,
     day: r.day,
+    weekIndex: r.week_index ?? 0,
     start: r.start_min,
     end: r.end_min,
     employerId: r.employer_id,
