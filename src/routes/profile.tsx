@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteAccountFn } from "@/lib/account.functions";
 import {
-  Bell,
+  Bell as _UnusedBell,
   Moon,
   Sun,
   ChevronRight,
@@ -38,19 +38,13 @@ import {
   AuthRequiredError,
   type Prefs,
 } from "@/lib/prefs";
-import {
-  getPermission,
-  requestPermission,
-  scheduleNextWindDown,
-  showNotification,
-  nextWindDownAt,
-  type NotifyPermission,
-} from "@/lib/notify";
+import { scheduleNextWindDown } from "@/lib/notify";
 import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
+import { NotificationsSection } from "@/components/NotificationsSection";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -75,7 +69,7 @@ function Profile() {
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
   });
-  const [perm, setPerm] = useState<NotifyPermission>("default");
+  // perm state removed — NotificationsSection owns its own permission UI now.
   const [userEmail, setUserEmail] = useState<string | null>(null);
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
@@ -114,7 +108,6 @@ function Profile() {
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
-    setPerm(getPermission());
     supabase.auth.getSession().then(({ data }) => {
       setUserEmail(data.session?.user.email ?? null);
     });
@@ -188,32 +181,8 @@ function Profile() {
     }
   }
 
-  async function enableNotifs() {
-    const res = await requestPermission();
-    setPerm(res);
-    if (res === "granted") {
-      update("notifications", true);
-      scheduleNextWindDown();
-      const next = await nextWindDownAt();
-      toast.success(
-        next
-          ? `Notifications on. Next ping ${next.at.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.`
-          : "Notifications on. Add a shift to schedule pings.",
-      );
-    } else if (res === "denied") {
-      toast.error("Permission denied — enable in browser settings.");
-    } else if (res === "unsupported") {
-      toast.error("This browser doesn't support notifications.");
-    }
-  }
-
-  function testNotif() {
-    if (getPermission() !== "granted") {
-      toast.error("Enable notifications first.");
-      return;
-    }
-    showNotification("RestPilot test 🌙", "Your wind-down pings will look like this.");
-  }
+  // Notification permission, subscription, and test fire are owned by
+  // NotificationsSection. Legacy enableNotifs/testNotif removed in Upgrade 3.
 
   async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
     // BigDataCloud's free no-auth reverse geocoder. Returns city + region without an API key.
@@ -582,40 +551,9 @@ function Profile() {
 
       <WearableCard />
 
+      <NotificationsSection signedIn={signedIn} />
+
       <section className="rounded-2xl border border-border bg-card">
-        <ToggleRow
-          icon={<Bell className="h-5 w-5" />}
-          label="Wind-down notifications"
-          desc="Gentle reminders before your sleep window starts."
-          checked={prefs.notifications}
-          onChange={(v) => update("notifications", v)}
-        />
-        <div className="flex gap-2 px-4 pb-4">
-          {perm !== "granted" ? (
-            <button
-              onClick={enableNotifs}
-              disabled={perm === "unsupported"}
-              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {perm === "unsupported"
-                ? "Not available in this browser — try Chrome on desktop"
-                : "Enable browser notifications"}
-            </button>
-          ) : (
-            <>
-              <span className="flex h-10 flex-1 items-center justify-center rounded-xl bg-mint/15 text-xs font-semibold text-mint">
-                Permission granted
-              </span>
-              <button
-                onClick={testNotif}
-                className="h-10 rounded-xl bg-secondary px-4 text-sm font-semibold"
-              >
-                Test
-              </button>
-            </>
-          )}
-        </div>
-        <Divider />
         <ToggleRow
           icon={<Activity className="h-5 w-5" />}
           label="Low-light interface"

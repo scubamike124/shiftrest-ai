@@ -101,6 +101,90 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          scheduled_for: string
+          sent_at: string | null
+          suppressed_reason: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          scheduled_for: string
+          sent_at?: string | null
+          suppressed_reason?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          suppressed_reason?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_prefs: {
+        Row: {
+          bright_light: boolean
+          caffeine_cutoff: boolean
+          created_at: string
+          daily_cap: number
+          enabled: boolean
+          quiet_end: string
+          quiet_start: string
+          shift_end_recovery: boolean
+          shift_start: boolean
+          timezone: string
+          updated_at: string
+          user_id: string
+          wind_down: boolean
+        }
+        Insert: {
+          bright_light?: boolean
+          caffeine_cutoff?: boolean
+          created_at?: string
+          daily_cap?: number
+          enabled?: boolean
+          quiet_end?: string
+          quiet_start?: string
+          shift_end_recovery?: boolean
+          shift_start?: boolean
+          timezone?: string
+          updated_at?: string
+          user_id: string
+          wind_down?: boolean
+        }
+        Update: {
+          bright_light?: boolean
+          caffeine_cutoff?: boolean
+          created_at?: string
+          daily_cap?: number
+          enabled?: boolean
+          quiet_end?: string
+          quiet_start?: string
+          shift_end_recovery?: boolean
+          shift_start?: boolean
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+          wind_down?: boolean
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -134,6 +218,42 @@ export type Database = {
           subscription_tier?: string
           trial_ends_at?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }

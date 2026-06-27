@@ -28,6 +28,7 @@ import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
 import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
 import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/api/public/wearables/fitbit/callback'
 
@@ -127,6 +128,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksNotifyRoute = ApiPublicHooksNotifyRouteImport.update({
+  id: '/api/public/hooks/notify',
+  path: '/api/public/hooks/notify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWearablesOuraCallbackRoute =
   ApiPublicWearablesOuraCallbackRouteImport.update({
     id: '/api/public/wearables/oura/callback',
@@ -158,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
@@ -230,6 +239,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/api/public/wearables/fitbit/callback'
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/api/public/wearables/fitbit/callback'
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/api/public/wearables/fitbit/callback'
@@ -300,6 +312,7 @@ export interface RootRouteChildren {
   ApiInsightsRoute: typeof ApiInsightsRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
   ApiPublicWearablesFitbitCallbackRoute: typeof ApiPublicWearablesFitbitCallbackRoute
@@ -441,6 +454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/notify': {
+      id: '/api/public/hooks/notify'
+      path: '/api/public/hooks/notify'
+      fullPath: '/api/public/hooks/notify'
+      preLoaderRoute: typeof ApiPublicHooksNotifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/wearables/oura/callback': {
       id: '/api/public/wearables/oura/callback'
       path: '/api/public/wearables/oura/callback'
@@ -476,6 +496,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiInsightsRoute: ApiInsightsRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
+  ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
   ApiPublicWearablesFitbitCallbackRoute: ApiPublicWearablesFitbitCallbackRoute,

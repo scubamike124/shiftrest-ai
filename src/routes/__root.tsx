@@ -140,6 +140,14 @@ function RootComponent() {
       queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
+      // Register the push service worker once on mount (idempotent).
+      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+        try {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        } catch (err) {
+          console.warn("sw register failed", err);
+        }
+      }
     }
     bootstrap();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
