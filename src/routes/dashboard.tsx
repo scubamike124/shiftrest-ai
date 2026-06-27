@@ -330,7 +330,7 @@ function Dashboard() {
           </span>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
           {weekDates.map(({ label, num, idx, weekIndex: wi }) => {
             const hasShift = !!shifts.find((s) => s.day === idx && (s.weekIndex ?? 0) === wi);
             const isToday = idx === weekday;
