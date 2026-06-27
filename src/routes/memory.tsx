@@ -476,3 +476,49 @@ function MemoryPage() {
     </div>
   );
 }
+
+function PatternsPanel() {
+  const qc = useQueryClient();
+  const { data: patterns = [], isLoading } = useQuery({
+    queryKey: ["ai-patterns"],
+    queryFn: listPatterns,
+    staleTime: 60_000,
+  });
+  if (isLoading || patterns.length === 0) return null;
+  return (
+    <section className="mt-4 rounded-2xl border border-border bg-card/60 p-4 sm:p-5">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-primary" />
+        <h2 className="text-sm font-semibold">Patterns the coach has noticed</h2>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        These are signals detected from your shifts and wearable data. Mute or delete any pattern you don't want the coach to weigh.
+      </p>
+      <ul className="mt-3 space-y-2">
+        {patterns.map((p) => {
+          const meta = PATTERN_LABELS[p.patternKey] ?? { title: p.patternKey, tone: "indigo" };
+          return (
+            <li key={p.id} className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{meta.title}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Severity {p.severity}/5 · seen {p.occurrences}× · last {new Date(p.lastSeenAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={async () => { await mutePattern(p.id, 30); toast.success("Muted 30 days"); qc.invalidateQueries({ queryKey: ["ai-patterns"] }); }}
+                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-secondary"
+                >Mute 30d</button>
+                <button
+                  onClick={async () => { await deletePattern(p.id); toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["ai-patterns"] }); }}
+                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+                >Delete</button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
