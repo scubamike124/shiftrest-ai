@@ -422,15 +422,26 @@ function Dashboard() {
         );
       })()}
 
+      {/* Long Clock / Multi-day plan */}
+      <MultiDayPlan shifts={shifts} prefs={prefs} now={mounted ? today : new Date()} />
+
       {editing && (
         <ShiftEditor
           day={editing.day}
-          existing={shifts.find((s) => s.day === editing.day)}
+          weekIndex={editing.weekIndex}
+          cycleWeeks={prefs.cycleWeeks}
+          existing={shifts.find(
+            (s) => s.day === editing.day && (s.weekIndex ?? 0) === editing.weekIndex,
+          )}
           employers={employers}
           defaultEmployerId={defaultEmployer?.id ?? null}
           onClose={() => setEditing(null)}
           onSave={(payload) => {
-            saveMutation.mutate({ day: editing.day, ...payload });
+            saveMutation.mutate({
+              day: editing.day,
+              weekIndex: payload.weekIndex,
+              ...payload,
+            });
             setEditing(null);
           }}
         />
