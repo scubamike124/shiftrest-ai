@@ -437,11 +437,7 @@ function Dashboard() {
           defaultEmployerId={defaultEmployer?.id ?? null}
           onClose={() => setEditing(null)}
           onSave={(payload) => {
-            saveMutation.mutate({
-              day: editing.day,
-              weekIndex: payload.weekIndex,
-              ...payload,
-            });
+            saveMutation.mutate({ day: editing.day, ...payload });
             setEditing(null);
           }}
         />
