@@ -1,9 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind } from "lucide-react";
+import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind, Info } from "lucide-react";
 import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
 import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
+import { useDecisionsByIntent } from "@/lib/ai/decisions";
+import {
+  RecommendationActions,
+  RecommendationDetailSheet,
+} from "./ai/trust";
+
+const BAND_INTENT_MAP: Record<string, string[]> = {
+  alarm: ["smart_alarm"],
+  light: ["light_plan", "daily_plan"],
+  caffeine: ["caffeine", "daily_plan"],
+  wind: ["daily_plan"],
+  sleep: ["sleep_plan", "daily_plan"],
+  recovery: ["recovery", "daily_plan"],
+  commute: ["commute"],
+};
 
 const RIGHT_NOW_CACHE_KEY = "rp_rightnow_v1";
 
