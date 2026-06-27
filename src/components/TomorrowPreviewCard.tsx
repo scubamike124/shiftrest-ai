@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Sparkles, ShieldCheck, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
+import { CalendarClock, RefreshCw, Sparkles, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
 import { aiTomorrowPreview, type TomorrowPreviewResponse, type TomorrowPreviewBlock } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
+import { ConfidenceBadge, WhyButton } from "./ai/trust";
 
 const KIND_ICON: Record<TomorrowPreviewBlock["kind"], typeof Bed> = {
   sleep: Bed,
@@ -11,12 +12,6 @@ const KIND_ICON: Record<TomorrowPreviewBlock["kind"], typeof Bed> = {
   commute: Car,
   winddown: Moon,
   recovery: Heart,
-};
-
-const CONF: Record<"low" | "medium" | "high", string> = {
-  high: "bg-emerald-500/15 text-emerald-300",
-  medium: "bg-amber-500/15 text-amber-300",
-  low: "bg-slate-500/15 text-slate-300",
 };
 
 const CACHE_KEY = "rp_tomorrow_v1";
@@ -125,11 +120,15 @@ export function TomorrowPreviewCard({
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
               <Sparkles className="h-3 w-3" /> Plan ready
             </span>
-            {data.confidence && (
-              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONF[data.confidence]}`}>
-                <ShieldCheck className="h-3 w-3" /> {data.confidence} confidence
-              </span>
-            )}
+            {data.confidence && <ConfidenceBadge value={data.confidence} />}
+            <WhyButton
+              className="ml-auto"
+              recommendationId={data.recommendationId}
+              intent="tomorrow_preview"
+              headline={data.headline}
+              why={data.summary}
+              confidence={data.confidence}
+            />
           </div>
           <h3 className="text-lg font-semibold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
             {data.headline}
