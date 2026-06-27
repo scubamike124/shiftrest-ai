@@ -285,6 +285,7 @@ export const Route = createFileRoute("/api/ai")({
               userId,
               profile,
               liveContext: ctxString,
+              intent: body.intent,
             });
 
             let intentSystem = "";
