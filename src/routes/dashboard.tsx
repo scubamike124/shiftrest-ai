@@ -28,6 +28,8 @@ import { TomorrowPreviewCard } from "@/components/TomorrowPreviewCard";
 import { DailyReviewCard } from "@/components/DailyReviewCard";
 import { PatternAlerts } from "@/components/PatternAlerts";
 import { LongClock } from "@/components/LongClock";
+import { DecisionCenterCard } from "@/components/DecisionCenterCard";
+import { AIActivityFeed } from "@/components/AIActivityFeed";
 import {
   shiftsForDate,
   weekIndexFor,
