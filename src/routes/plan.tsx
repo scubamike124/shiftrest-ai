@@ -104,13 +104,18 @@ function PlanPage() {
 
       {!hasVerifiedLocation && (
         <Link
-          to="/profile"
+          to={signedIn === false ? "/auth" : "/profile"}
+          search={signedIn === false ? ({ return: "/profile" } as never) : undefined}
           className="flex items-center justify-between rounded-2xl border border-amber/40 bg-amber/10 p-3 text-xs"
         >
           <span className="text-amber">
-            Set your location for accurate sunrise & sunset timing.
+            {signedIn === false
+              ? "Sign in to set your location for accurate sunrise & sunset timing."
+              : "Set your location for accurate sunrise & sunset timing."}
           </span>
-          <span className="font-semibold text-amber">Open profile →</span>
+          <span className="font-semibold text-amber">
+            {signedIn === false ? "Sign in →" : "Open profile →"}
+          </span>
         </Link>
       )}
 
