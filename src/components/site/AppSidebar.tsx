@@ -10,10 +10,12 @@ import {
   Sparkles,
   Moon,
   Brain,
+  Activity,
 } from "lucide-react";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/decisions", label: "AI Decisions", icon: Activity },
   { to: "/plan", label: "Today's Plan", icon: Sun },
   { to: "/coach", label: "AI Coach", icon: MessageCircle },
   { to: "/events", label: "Events & Alarm", icon: Calendar },
