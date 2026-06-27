@@ -18,6 +18,7 @@ import {
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
+import { shiftsForDate } from "@/lib/schedule";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
