@@ -19,6 +19,7 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
+import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -85,6 +86,11 @@ const PlanRoute = PlanRouteImport.update({
 const PaywallRoute = PaywallRouteImport.update({
   id: '/paywall',
   path: '/paywall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MemoryRoute = MemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/features'
+    | '/memory'
     | '/paywall'
     | '/plan'
     | '/playbooks'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/features'
+    | '/memory'
     | '/paywall'
     | '/plan'
     | '/playbooks'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/features'
+    | '/memory'
     | '/paywall'
     | '/plan'
     | '/playbooks'
@@ -361,6 +373,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
+  MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
@@ -454,6 +467,13 @@ declare module '@tanstack/react-router' {
       path: '/paywall'
       fullPath: '/paywall'
       preLoaderRoute: typeof PaywallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memory': {
+      id: '/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof MemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -585,6 +605,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
+  MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,

@@ -105,7 +105,15 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
         </div>
 
         {signedIn ? (
-          <AIMemoryManager enabled={prefs.memoryEnabled} />
+          <>
+            <a
+              href="/memory"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold hover:bg-secondary/40"
+            >
+              Open full Memory page →
+            </a>
+            <AIMemoryManager enabled={prefs.memoryEnabled} />
+          </>
         ) : (
           <p className="text-xs text-muted-foreground">
             Sign in to enable long-term memory.

@@ -40,21 +40,22 @@ export type MemoryRow = {
   pinned: boolean;
 };
 
+import { fetchRankedMemories } from "./memory-rank.server";
+
 /** Fetch the most relevant long-term memories for this user. */
 export async function fetchRelevantMemories(
   admin: SupabaseClient,
   userId: string,
   limit = 25,
+  intent = "coach",
 ): Promise<MemoryRow[]> {
-  const { data, error } = await admin
-    .from("ai_memory")
-    .select("id, content, category, pinned")
-    .eq("user_id", userId)
-    .order("pinned", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(limit);
-  if (error || !data) return [];
-  return data as MemoryRow[];
+  const ranked = await fetchRankedMemories(admin, userId, { intent, limit });
+  return ranked.map((r) => ({
+    id: r.id,
+    content: r.content,
+    category: r.category,
+    pinned: r.pinned,
+  }));
 }
 
 function formatMemoryBlock(memories: MemoryRow[]): string {
@@ -75,11 +76,17 @@ export async function buildSystemPrompt(opts: {
   userId: string | null;
   profile: AssistantProfile;
   liveContext?: string;
+  intent?: string;
 }): Promise<string> {
   let prompt = renderPersonality(opts.profile);
 
   if (opts.userId && opts.profile.memoryEnabled) {
-    const mems = await fetchRelevantMemories(opts.admin, opts.userId);
+    const mems = await fetchRelevantMemories(
+      opts.admin,
+      opts.userId,
+      opts.intent === "coach" ? 25 : 12,
+      opts.intent ?? "coach",
+    );
     prompt += formatMemoryBlock(mems);
   }
 
