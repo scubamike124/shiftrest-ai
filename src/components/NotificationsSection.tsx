@@ -268,6 +268,91 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
   );
 }
 
+function detectInstallContext(): {
+  iosSafariNoStandalone: boolean;
+  browserName: string;
+} {
+  if (typeof window === "undefined") return { iosSafariNoStandalone: false, browserName: "this browser" };
+  const ua = window.navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  let browserName = "this browser";
+  if (/CriOS|Chrome/.test(ua)) browserName = "Chrome";
+  else if (/FxiOS|Firefox/.test(ua)) browserName = "Firefox";
+  else if (/EdgiOS|Edg/.test(ua)) browserName = "Edge";
+  else if (/Safari/.test(ua)) browserName = "Safari";
+  return { iosSafariNoStandalone: isIos && !standalone, browserName };
+}
+
+function UnenabledState({
+  perm,
+  supported,
+  onEnable,
+}: {
+  perm: NotificationPermission | "unsupported";
+  supported: boolean;
+  onEnable: () => void;
+}) {
+  const { iosSafariNoStandalone, browserName } = detectInstallContext();
+
+  if (!supported && iosSafariNoStandalone) {
+    return (
+      <div className="rounded-xl border border-border bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground">
+        <p className="font-semibold text-foreground">Add RestPilot to your Home Screen first</p>
+        <p className="mt-1">
+          iOS only lets web apps send notifications after they're installed as a Home Screen app.
+        </p>
+        <ol className="mt-2 list-decimal space-y-1 pl-5">
+          <li>Tap the Share icon in Safari's toolbar.</li>
+          <li>Choose <span className="font-semibold text-foreground">Add to Home Screen</span>.</li>
+          <li>Open RestPilot from the new icon, then come back here to enable.</li>
+        </ol>
+      </div>
+    );
+  }
+
+  if (!supported) {
+    return (
+      <div className="rounded-xl border border-border bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground">
+        <p className="font-semibold text-foreground">Reminders aren't supported in {browserName}</p>
+        <p className="mt-1">
+          Push notifications require Safari (iOS 16.4+ as a Home Screen app) or a recent
+          Chrome/Edge/Firefox on desktop or Android.
+        </p>
+      </div>
+    );
+  }
+
+  if (perm === "denied") {
+    return (
+      <div className="rounded-xl border border-border bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground">
+        <p className="font-semibold text-foreground">Notifications are blocked for this site</p>
+        <p className="mt-1">
+          Open your browser settings → Notifications → Allow for RestPilot, then return here and
+          tap Enable.
+        </p>
+        <button
+          onClick={onEnable}
+          className="mt-3 h-10 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+        >
+          Try enabling again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={onEnable}
+      className="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+    >
+      Enable smart reminders
+    </button>
+  );
+}
+
 function Divider() {
   return <div className="mx-4 h-px bg-border" />;
 }
