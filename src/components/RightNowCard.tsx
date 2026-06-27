@@ -4,6 +4,7 @@ import { Sparkles, AlertCircle, Clock, ArrowRight, RefreshCw, Info } from "lucid
 import { aiRightNow, type RightNowResponse } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
 import { ConfidenceBadge, RecommendationActions, WhyButton } from "./ai/trust";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 
 function fmtWindow(w?: { startIso: string; endIso: string }): string | null {
   if (!w) return null;
@@ -239,6 +240,7 @@ export function RightNowCard({
         </div>
 
       )}
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

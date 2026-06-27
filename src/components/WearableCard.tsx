@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Heart, Plug, RefreshCw, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import {
+import { SafetyNote } from "@/components/legal/SafetyNote";
   disconnectWearable,
   getWearableSummary,
   startWearableOAuth,
@@ -180,6 +181,7 @@ export function WearableCard() {
           Apple Health and Whoop ship with the upcoming iOS app.
         </p>
       </div>
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

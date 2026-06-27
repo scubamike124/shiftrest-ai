@@ -6,6 +6,7 @@ import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
@@ -238,6 +239,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           ))}
         </ul>
       )}
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

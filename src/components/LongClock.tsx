@@ -6,6 +6,7 @@ import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
 import { useDecisionsByIntent } from "@/lib/ai/decisions";
 import {
+import { SafetyNote } from "@/components/legal/SafetyNote";
   RecommendationActions,
   RecommendationDetailSheet,
 } from "./ai/trust";
@@ -397,6 +398,7 @@ export function LongClock({
           </span>
         ))}
       </div>
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
   );
 }

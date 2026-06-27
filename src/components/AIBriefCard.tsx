@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+import { SafetyNote } from "@/components/legal/SafetyNote";
   Sun,
   Coffee,
   Moon,
@@ -308,6 +309,7 @@ export function AIBriefCard({
           </ol>
         </div>
       )}
+    <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
 
   );
