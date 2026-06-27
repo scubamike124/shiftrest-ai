@@ -1,68 +1,50 @@
-# Investigation: "Daily AI limit reached" on Coach
+# Pilot — Voice-First Companion AI
 
-## Root cause
+Build the missing **Companion** experience: a dedicated `/pilot` route where the user taps once and has a natural spoken conversation with RestPilot. Same brain as Coach (orchestrator + memory + decisions), new interaction model (voice in, voice out, hands-free).
 
-The orchestrator at `src/routes/api/ai.ts` (line 263) calls `checkAIBudget()`, which calls the Postgres function `public.has_ai_budget(uuid)`. That function sums `total_tokens` from `ai_log` over the last 24h and compares against `user_prefs.ai_daily_token_cap` (default **60,000**).
+## Rollout (5 phases, shippable independently)
 
-Verified against the DB for `scubamike124@gmail.com`:
-- Cap: **60,000 tokens / 24h**
-- Used in last 24h: **61,929 tokens** across **43 calls**
-- Status: over cap → orchestrator returns HTTP 429 with `"Daily AI limit reached. It resets in 24 hours."`
+### Phase 1 — Speech-to-Text foundation
+- New server route `src/routes/api/stt.ts` → forwards multipart audio to Lovable AI Gateway `/v1/audio/transcriptions` (`openai/gpt-4o-mini-transcribe`, SSE streaming). Auth-gated, billed through existing `ai_log` (input tokens).
+- New client hook `src/lib/voice/useMicRecorder.ts` — Web Audio PCM capture → WAV encoder (16 kHz mono), VAD silence detection for auto-stop, ~25 MiB guard. iOS-safe (no `MediaRecorder` timeslice).
+- Permission UX: empty state for denied mic, clear retry path.
 
-This is the only gate. It's enforced **server-side in the orchestrator** (not client, not RLS, not subscription, not rate limiter). There is currently **no roles table** (`user_roles` / `app_role` do not exist), so no account is recognized as admin or tester. Subscription tier (`free`/`monthly`/`annual`/`lifetime`) is read elsewhere but is **not** consulted by the AI budget gate. So `scubamike124@gmail.com` is effectively a **Free** user from the budget's perspective — there is no admin/tester/premium bypass at all today.
+### Phase 2 — `/pilot` route + entry points
+- New route `src/routes/pilot.tsx` — full-screen Companion canvas: animated orb (idle → listening → thinking → speaking states), live transcript, single big mic button, mute/end-call controls.
+- Add **"Talk to Pilot"** entry points:
+  - `BottomNav.tsx` → replace "Coach" tab with "Pilot" (mic icon); Coach moves to a sub-link inside Pilot ("Open text chat").
+  - `AppSidebar.tsx` → top item.
+  - `CompanionWhisper.tsx` dashboard card → primary CTA becomes "Talk to Pilot".
+- `pilot.tsx` reuses `useTtsPlayer` (gesture-armed) and the new `useMicRecorder`.
 
-`/api/coach` is a separate route — it has its own gate to inspect (see step 1 below).
+### Phase 3 — Conversational loop wiring
+- Pilot calls the existing `/api/coach` streaming endpoint (same `COACH_PERSONALITY`, same context injection, same memory writes, same `ai_log` rows, same daily-budget tiering). No duplicate brain.
+- Turn loop: tap mic → STT stream → on final transcript, POST to `/api/coach` → stream reply tokens → speak via TTS as soon as a sentence boundary lands (sentence-chunked TTS for low latency). Barge-in: tapping the orb mid-speech stops TTS and reopens the mic.
+- Persist each turn to `coach_history` so Pilot and `/coach` share one transcript.
 
-## Files involved
+### Phase 4 — Context & memory parity
+- Reuse `src/lib/ai/context.server.ts` so Pilot knows today's shift, recovery, events, trips, TZ, and ranked memories — identical to Coach and Voice Briefing.
+- Log every Pilot turn through the existing decision/memory extraction pipeline (`memory-extractor.server.ts`) so insights surface back on the dashboard.
+- Add a "Send to Coach" affordance: opens `/coach` pre-loaded with the Pilot transcript.
 
-- `src/routes/api/ai.ts` — calls `checkAIBudget`, returns the 429.
-- `src/routes/api/coach.ts` — separate streaming endpoint (needs same treatment).
-- `src/routes/api/brief.ts` — Voice Briefing (needs same treatment).
-- `src/lib/ai/log.server.ts` — `checkAIBudget()` wrapper around the RPC.
-- `supabase/migrations/.../has_ai_budget` — the SQL function defining the cap formula.
-- `user_prefs.ai_daily_token_cap` — per-user override column (already exists).
+### Phase 5 — iOS Safari polish + QA
+- Pre-warm `<audio>` and `AudioContext` inside the first tap (reuse `useTtsPlayer.armGesture()` pattern).
+- Visible "Tap to continue" fallback if autoplay is revoked mid-session.
+- Playwright script: arrival → grant mic → speak (synthetic WAV) → verify transcript → verify spoken reply → barge-in → end-call cleanup.
+- Manual QA on iPhone Safari + Desktop Chrome.
 
-## Proposed fix
+## Out of scope (deferred)
+- WebRTC / true full-duplex audio (current arch is half-duplex turn-taking; matches every consumer voice assistant today and ships in days, not weeks).
+- Wake word ("Hey Pilot") — requires native wrapper.
+- Voice selection UI — ships with default `sage` voice.
 
-### 1. Introduce roles (admin / tester) — minimal `user_roles` table
+## Risks
+- iOS Safari mic permission is sticky per-origin but flaky after backgrounding — Phase 5 mitigations cover the known failure modes.
+- STT costs add to daily token cap; admin/tester (you) is unlimited, Premium gets 500k/day, Free hits the cap faster. We may need to bump Free→25k after live data.
 
-Standard Lovable pattern: enum + `user_roles` table + `has_role()` SECURITY DEFINER function. Grant `scubamike124@gmail.com` the `admin` role via migration seed.
+## Files to create / change
+- **New**: `src/routes/api/stt.ts`, `src/routes/pilot.tsx`, `src/lib/voice/useMicRecorder.ts`, `src/lib/voice/wav-encoder.ts`, `src/components/PilotOrb.tsx`.
+- **Edit**: `src/components/BottomNav.tsx`, `src/components/site/AppSidebar.tsx`, `src/components/CompanionWhisper.tsx`, `src/routes/coach.tsx` (add "Open Pilot" link).
+- **No DB migrations needed** — reuses `coach_history`, `ai_log`, `ai_memory`, `ai_decisions`.
 
-### 2. Tiered limits enforced server-side
-
-Rewrite `has_ai_budget(_user_id)` to apply this ladder (token-based, mapped from the requested conversation counts — Coach calls average ~1.5k tokens each, so the per-day token caps below translate to the requested conversation counts):
-
-| Tier | Daily token cap | ~Conversations |
-|---|---|---|
-| Admin / Tester | **unlimited** (bypass) | unlimited |
-| Premium (active subscription) | **500,000** | ~300 |
-| Free | **15,000** | ~5 |
-
-Logic in SQL:
-1. If user has `admin` or `tester` role → return `true` (bypass).
-2. Else if `has_active_subscription(user, 'live')` OR `…('sandbox')` → cap = 500,000.
-3. Else cap = `user_prefs.ai_daily_token_cap` (default lowered to 15,000).
-
-### 3. Better client UX
-
-In `src/routes/coach.tsx` and `VoicePlayer.tsx`, when a 429 with the daily-limit message is returned, surface a friendlier message with a link to `/paywall` for Free users. (Admins won't hit it.)
-
-### 4. No code change needed to Voice Coach pipeline
-
-The TTS endpoint (`/api/tts`) is not budget-gated — only text generation is. Once text generation succeeds, voice will work unchanged. Voice Briefing (`/api/brief`) shares the same gate; the new tiered cap fixes it too.
-
-### 5. Verification after implementation
-
-- Sign in as `scubamike124@gmail.com` → `/coach` → send a message → expect text reply (no 429), then audio plays.
-- `/plan` → Voice Briefing → expect audio.
-- Confirm `ai_log` rows still write.
-- Confirm a freshly-created free user is capped at ~5 conversations.
-
-## Awaiting approval
-
-Confirm:
-1. Grant `scubamike124@gmail.com` the **admin** role (unlimited).
-2. Free cap = **15,000 tokens / day** (~5 conversations).
-3. Premium cap = **500,000 tokens / day** (fair-use unlimited).
-
-Reply "approved" and I'll ship it.
+Reply **"approved"** (or "approved, start with Phase N") and I'll ship Phase 1.

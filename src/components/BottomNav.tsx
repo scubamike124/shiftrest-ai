@@ -1,10 +1,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, MessageCircle, User, Sun, Calendar } from "lucide-react";
+import { LayoutDashboard, Mic, User, Sun, Calendar } from "lucide-react";
 
 const tabs = [
   { to: "/dashboard", label: "Home", icon: LayoutDashboard },
   { to: "/plan", label: "Plan", icon: Sun },
-  { to: "/coach", label: "Coach", icon: MessageCircle },
+  { to: "/pilot", label: "Pilot", icon: Mic },
   { to: "/events", label: "Events", icon: Calendar },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;

@@ -19,6 +19,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
+import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
@@ -47,6 +48,7 @@ import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibi
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
@@ -106,6 +108,11 @@ const PlaybooksRoute = PlaybooksRouteImport.update({
 const PlanRoute = PlanRouteImport.update({
   id: '/plan',
   path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PilotRoute = PilotRouteImport.update({
+  id: '/pilot',
+  path: '/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaywallRoute = PaywallRouteImport.update({
@@ -248,6 +255,11 @@ const ApiSwapRoute = ApiSwapRouteImport.update({
   path: '/api/swap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInsightsRoute = ApiInsightsRouteImport.update({
   id: '/api/insights',
   path: '/api/insights',
@@ -313,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -327,6 +340,7 @@ export interface FileRoutesByFullPath {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -362,6 +376,7 @@ export interface FileRoutesByTo {
   '/features': typeof FeaturesRoute
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -376,6 +391,7 @@ export interface FileRoutesByTo {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -413,6 +429,7 @@ export interface FileRoutesById {
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -427,6 +444,7 @@ export interface FileRoutesById {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -465,6 +483,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -479,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -514,6 +534,7 @@ export interface FileRouteTypes {
     | '/features'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -528,6 +549,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -564,6 +586,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -578,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -615,6 +639,7 @@ export interface RootRouteChildren {
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
+  PilotRoute: typeof PilotRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
   PricingRoute: typeof PricingRoute
@@ -629,6 +654,7 @@ export interface RootRouteChildren {
   ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
   ApiInsightsRoute: typeof ApiInsightsRoute
+  ApiSttRoute: typeof ApiSttRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
@@ -709,6 +735,13 @@ declare module '@tanstack/react-router' {
       path: '/plan'
       fullPath: '/plan'
       preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pilot': {
+      id: '/pilot'
+      path: '/pilot'
+      fullPath: '/pilot'
+      preLoaderRoute: typeof PilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/paywall': {
@@ -907,6 +940,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSwapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/insights': {
       id: '/api/insights'
       path: '/api/insights'
@@ -1031,6 +1071,7 @@ const rootRouteChildren: RootRouteChildren = {
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
+  PilotRoute: PilotRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,
   PricingRoute: PricingRoute,
@@ -1045,6 +1086,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
   ApiInsightsRoute: ApiInsightsRoute,
+  ApiSttRoute: ApiSttRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
@@ -1057,13 +1099,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

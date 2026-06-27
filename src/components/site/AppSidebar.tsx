@@ -11,10 +11,12 @@ import {
   Moon,
   Brain,
   Activity,
+  Mic,
 } from "lucide-react";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/pilot", label: "Talk to Pilot", icon: Mic },
   { to: "/decisions", label: "AI Decisions", icon: Activity },
   { to: "/plan", label: "Today's Plan", icon: Sun },
   { to: "/coach", label: "AI Coach", icon: MessageCircle },
