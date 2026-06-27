@@ -1,96 +1,121 @@
+# Legal & Compliance Phase — Investigation & Plan
 
-# Bundle 2 – AI Experience & Decision Center
-
-Goal: make RestPilot feel like one living assistant that has been working all day, instead of a grid of cards. Built entirely on top of the Trust Layer and existing AI tables — **no new AI logic, no duplicated state**.
-
----
-
-## Investigation Findings
-
-What already exists we can reuse:
-
-- `ai_recommendations` — every AI output (intent, headline, rationale, evidence_json, predicted_impact, confidence, pattern_id, created_at). This is already our decision ledger; nothing new to write.
-- `ai_feedback` — `helpful / not_helpful / already_did / ignored_today / dismissed_forever`. `submitFeedback()` already exists in `src/lib/ai-feedback.ts` and already mutes related patterns.
-- `ai_log` — every model call (intent, tokens, duration). Perfect for the "synchronized / recalculated / adjusted" timeline rows that aren't full recommendations.
-- Trust components: `ConfidenceBadge`, `WhyButton`, `WhatChanged`, `RecommendationDetailSheet` (in `src/components/ai/trust/`), plus `trust.ts` helpers `normalizeConfidence`, `deriveSources`, `confidenceLabel`.
-- `ArrivalHero`, `RightNowCard`, `TomorrowPreviewCard`, `DailyReviewCard`, `LongClock`, `PatternAlerts` are wired into `dashboard.tsx`.
-
-Gaps:
-
-1. No surface lists *today's* recommendations as a feed; only the latest per intent is shown inline.
-2. `ArrivalHero` doesn't reference how many adjustments the AI has made since last visit.
-3. No mixed timeline of recommendations + log events ("synchronized", "recalculated").
-4. `LongClock` bands open a local reason popover only — not the Trust sheet, no Accept/Snooze/Ignore.
-5. Recommendation cards expose `WhyButton` but not Accept/Snooze/Ignore controls. `submitFeedback` exists but isn't wired to those three explicit verbs.
-
-Everything below is a thin UI layer over data that's already being written.
+Goal: ship a complete, consistent, in-product legal package before launch. No attorney-substitute claims — the agent drafts review-ready templates clearly marked **"Draft — pending attorney review"** and wires them into the app. Final sign-off is gated on a qualified attorney's review (outside this scope).
 
 ---
 
-## Implementation Plan
+## Investigation Findings (current state)
 
-### 1. Decision feed data hook (shared)
+Already in the project:
+- `src/routes/privacy.tsx` — short Privacy Policy (effective June 2026). Mentions location, shifts, notifications, account deletion. Does **not** cover: cookies, third-party processors, wearables, AI, retention windows, international transfers, children > 13 (only mentions <13), CCPA/GDPR rights.
+- `src/routes/terms.tsx` — short ToS. Covers subscriptions (monthly/annual/lifetime), auto-renewal, lifetime definition, medical disclaimer, limitation of liability. Missing: arbitration, governing law, IP, indemnification, force majeure, cancellation/refund mechanics, free trial terms, promo pricing, acceptable use detail, DMCA.
+- `src/components/site/SiteFooter.tsx` — links to Privacy + Terms only. No Cookie Policy / AUP / Accessibility / Disclaimers.
+- `src/routes/profile.tsx` — has Delete Account flow (verified earlier).
+- `src/lib/account.functions.ts` — cascades shifts, employers, prefs, coach_messages, then deletes auth user. **Gap:** does not delete `ai_memory`, `ai_log`, `ai_recommendations`, `ai_feedback`, `user_events`, `trips`, `tz_events`, `subscriptions`, push subscriptions, wearable tokens. Must be expanded for "right to deletion" claims to be truthful.
+- Wearables: Fitbit + Oura OAuth live; Apple Health / Health Connect / Garmin / WHOOP listed as "coming soon" → disclosures must say *integrations available* vs *planned*.
+- AI: Lovable AI Gateway (Gemini), OpenAI TTS, AI memory + recommendations + feedback + patterns. No AI disclosure surface exists yet beyond the medical line in ToS.
+- Payments: Stripe web billing (monthly / annual / lifetime). App-store-specific copy is no longer relevant — web billing terms govern.
+- Push: VAPID web push subscriptions table exists.
 
-New `src/lib/ai/decisions.ts` (client) exposing:
-
-- `useTodayDecisions()` → React Query. Reads `ai_recommendations` for `created_at >= start of local day`, ordered desc. Returns normalized `Decision[]` (id, intent, headline, rationale, confidence, evidence, predictedImpact, createdAt, patternId, feedbackReaction?).
-- `useTodayActivity()` → merges today's `ai_recommendations` rows with today's `ai_log` rows (last 50) into a single time-sorted `ActivityEvent[]` with `kind: "decision" | "system"` and a short label derived from `intent` (e.g. `sync` → "Sleep data synchronized", `daily_plan` → "Plan recalculated", `smart_alarm` → "Alarm adjusted"). Pure read; no new tables, no server fn.
-- `useDecisionCount(sinceIso)` → count of today's decisions, plus count since a given timestamp (for the Arrival "while you were away" line). The "since" baseline is `localStorage["rp_last_visit"]`, written on dashboard mount *after* read.
-
-Feedback writes reuse `submitFeedback()`. Add three thin wrappers `acceptRecommendation / snoozeRecommendation / ignoreRecommendation` that map to existing reactions:
-- Accept → `helpful`
-- Snooze → `ignored_today` (already mutes for the day)
-- Ignore → `dismissed_forever` (already mutes the pattern 30 days)
-
-No schema change.
-
-### 2. AI Decision Center route + card
-
-- New route `src/routes/decisions.tsx` (`/decisions`). Mobile-first list, desktop two-column. Each row uses existing `ConfidenceBadge`, opens existing `RecommendationDetailSheet`, and shows Accept / Snooze / Ignore buttons (reused on the inline cards too — see step 5).
-- New `src/components/DecisionCenterCard.tsx` placed near the top of the dashboard: shows `n decisions today`, the three most recent headlines, and a "View all" link to `/decisions`. Tapping the card or any row opens the sheet inline.
-
-### 3. Personalized Arrival Experience
-
-Extend `ArrivalHero.tsx` only (no new component):
-- Pull `useDecisionCount(lastVisit)` and the latest pattern severity.
-- Render a second line below the greeting: *"While you were away, I made N adjustments to today's plan."* When `N === 0`, fall back to current copy.
-- Pull the next upcoming recommendation (soonest `evidence_json.timeWindow.startIso` in the future from today's decisions) and append *"Next nudge in ~42 min."*. Skip if none.
-- Recovery tone derived from existing `insights.ts` recovery score — already imported on the dashboard, passed down as a prop.
-
-### 4. AI Activity Feed
-
-- New `src/components/AIActivityFeed.tsx` rendering `useTodayActivity()` as a vertical timeline (timestamp · icon · short label · optional sub-line). 50-row cap, virtualized only if needed.
-- Mounted on `/decisions` as a side panel (desktop) / second tab (mobile). Also surfaces a collapsed 5-row preview on the dashboard below the Decision Center card.
-
-### 5. Interactive Long Clock
-
-- Refactor `LongClock`'s `setActiveId` popover to optionally open `RecommendationDetailSheet` instead, when a band/marker maps to a real decision. Mapping: look up the most recent decision today whose `intent` matches the band id (`smart_alarm` → alarm marker, `winddown` → wind band, `light_plan` → light band, `caffeine` → caffeine marker, `commute` → commute, `recovery` → recovery band, `sleep_plan` → sleep band). Bands with no matching decision keep today's lightweight reason popover.
-- When the sheet is open, render Accept/Snooze/Ignore inside the sheet footer and an extra "If ignored" + "Impact this week" section pulled from `evidence_json.predictedImpact` and `evidence_json.weeklyImpact` (already present on many payloads; show "—" when missing instead of fabricating).
-
-### 6. Recommendation Controls (shared)
-
-- New `src/components/ai/trust/RecommendationActions.tsx`: three buttons wired to the wrappers from step 1, with optimistic state + toast, and disabling once a reaction is recorded for that recommendation today.
-- Embed it in: `RightNowCard`, `TomorrowPreviewCard`, `DailyReviewCard`, `SmartAlarmCard`, the new Decision Center rows, and the Long Clock sheet. No duplicate handlers — every surface calls the same wrappers.
-
-### 7. Navigation + polish
-
-- Add `/decisions` to `BottomNav.tsx` (mobile) and the desktop side nav.
-- Add a head() block with route-specific title/description on `/decisions`.
-- No homepage marketing changes.
+So the work is part **new content**, part **expanding existing routes**, part **wiring consent + disclosures into product surfaces**, part **making the deletion endpoint match the privacy promise**.
 
 ---
 
-## Out of scope (explicitly)
+## Deliverables
 
-- No new AI intents, no new model calls, no new tables, no new edge functions.
-- No changes to `__root.tsx` shell, marketing pages, billing, or onboarding.
-- No regression to offline snapshot — decisions hook degrades to cached data via the existing offline cache layer.
+### 1. Legal document set (new + rewritten routes)
+
+Each is a standalone route with proper `head()` (title, description, canonical, og), a "Last updated" date, a "Draft — pending attorney review" banner until sign-off, and a shared `<LegalLayout>` wrapper for consistent typography and a sidebar TOC.
+
+| Route | Status |
+|---|---|
+| `/legal` | New index page linking every document with one-line summaries |
+| `/legal/terms` | Rewrite of current `/terms` — full ToS (acceptable use, IP, indemnification, force majeure, governing law, dispute resolution + arbitration + class-action waiver placeholder, warranty disclaimer, no guarantee of outcomes, termination, changes, contact). Old `/terms` redirects. |
+| `/legal/privacy` | Rewrite of current `/privacy` — full Privacy Policy (collection, use, legal bases, retention table, deletion, export, third parties, international transfers, children, CCPA/CPRA, GDPR/UK, contact / DPO). Old `/privacy` redirects. |
+| `/legal/cookies` | Cookie Policy — what we set (auth session, theme, offline cache, `rp_last_visit`, push), categories, no third-party ad cookies, how to clear, link to cookie banner controls |
+| `/legal/acceptable-use` | AUP — prohibited content/conduct, automated abuse, enforcement, reporting |
+| `/legal/accessibility` | Accessibility Statement — WCAG 2.1 AA target, known limitations, feedback channel |
+| `/legal/copyright` | DMCA / copyright complaint policy + designated agent placeholder |
+| `/legal/trademark` | "RestPilot AI", logo marks, permitted/forbidden use, request process |
+| `/legal/license` | EULA — limited personal license, restrictions (reverse-engineer, scrape, resell), open-source notices section |
+| `/legal/subscription` | Full subscription terms: monthly/annual/lifetime, billing cycle, auto-renew, cancellation, refunds (incl. statutory EU 14-day withdrawal language placeholder), free trial terms, promo pricing, price changes notice, taxes |
+| `/legal/disclaimers` | Master disclaimers page (AI, health & wellness, not-a-medical-device, no doctor-patient relationship, informational only, recommendation accuracy, user responsibility, emergency 911, safety-sensitive activities) — each as a labeled section so we can deep-link `/legal/disclaimers#safety-sensitive` from in-product surfaces |
+| `/legal/security` | Security practices summary + Responsible Disclosure + vulnerability reporting (`security@restpilot.ai`) + breach notification commitment |
+| `/legal/third-parties` | Subprocessors & integrations table: Lovable Cloud (hosting/auth/db), Stripe (billing), OpenAI (TTS), Lovable AI Gateway / Google Gemini (text), Fitbit, Oura, Open-Meteo (weather), BigDataCloud (reverse geocode), Web Push (browser vendors). For each: data shared, purpose, jurisdiction placeholder, link to their policy. "Planned" integrations (Apple Health, Health Connect, Garmin, WHOOP, calendar/traffic/maps) listed separately as not yet active. |
+
+All routes share:
+- `<LegalLayout>` component in `src/components/legal/LegalLayout.tsx` (sidebar TOC desktop, accordion on mobile, "Print" button, "Effective" + "Last updated" dates, draft banner).
+- `src/lib/legal/meta.ts` exporting a single `LEGAL_DOCS` array — title, slug, summary, effective date — consumed by `/legal` index, footer, and sitemap. Single source of truth.
+
+### 2. In-product disclosures (surfaces that change)
+
+- **Sign-up / `/auth`**: required checkbox "I agree to the [Terms](/legal/terms), [Privacy Policy](/legal/privacy), and acknowledge the [AI & Health Disclaimers](/legal/disclaimers)." Blocks submit when unchecked. Persist acceptance row in new `legal_acceptances` table (`user_id`, `doc_slug`, `version`, `accepted_at`, `ip` optional).
+- **First wearable connect** in `WearableCard`: modal showing what data Fitbit/Oura returns and a link to `/legal/third-parties`. Acceptance also persisted.
+- **First push opt-in** in `NotificationsSection`: short consent line + link to Cookie Policy / Privacy.
+- **Smart Alarm + Right Now cards**: a small "Safety" note + `<WhyButton>`-style link to `/legal/disclaimers#safety-sensitive` so the safety-sensitive disclaimer is one tap from any actionable recommendation. Plain copy, not a popup wall.
+- **Paywall**: append concise auto-renew + refund summary block under the plan grid linking to `/legal/subscription`. Pre-checkout checkbox already required for sub purchase confirmation.
+- **Offline banner**: tiny "Stored on this device — see [Privacy](/legal/privacy#local-storage)" tooltip.
+- **Cookie/consent banner**: minimal first-visit banner (Accept / Essential only). Essential-only mode skips non-essential storage (none today, but the switch is wired so future analytics respects it). Choice cached in `localStorage` + mirrored to `user_prefs.consent_json` once signed in.
+- **Footer**: expand `SiteFooter` "Company" column → full legal menu (Terms, Privacy, Cookies, AUP, Accessibility, Disclaimers, Subscription, Security, Third Parties, License, Copyright, Trademark) and add "Last updated" stamp.
+
+### 3. Data deletion endpoint — make truthful
+
+Expand `deleteAccountFn` to also remove rows in: `ai_memory`, `ai_log`, `ai_recommendations`, `ai_feedback`, `user_events`, `trips`, `tz_events`, `subscriptions` (cancel active Stripe subs first, then delete), `push_subscriptions`, wearable token rows (`wearable_connections` / equivalent). Add a new `exportAccountFn` returning a JSON archive of all user-owned data so the Privacy Policy's "data export" promise is truthful. Add `purgeAiMemoryFn` separately so users can wipe AI memory without nuking the account (link from `/memory` page).
+
+### 4. Schema additions (one migration)
+
+- `legal_acceptances(user_id, doc_slug, version, accepted_at, ip_hash nullable, ua nullable)` with RLS (`user_id = auth.uid()` for select/insert; service_role full). GRANTs for `authenticated` + `service_role` per project rule.
+- `user_prefs.consent_json jsonb` column (cookie/marketing toggles).
+
+No new AI tables, no new edge functions.
+
+### 5. SEO + discoverability
+
+- Add every legal route to the future sitemap (route metadata exported via `LEGAL_DOCS`).
+- Each legal route gets unique title + description (avoid duplicate-title SEO findings later).
+- Canonical tags on every legal route.
+- `/legal` linked from footer and the user-menu in `AppSidebar` ("Legal & Privacy").
+
+### 6. App Store compliance (kept as a future-ready checklist)
+
+We are web-first. The plan documents — but does not implement — App Store / Play-specific surfaces. The Subscription doc + Disclaimers doc are written so they can be reused inside a future iOS/Android wrapper with no rewrites. Apple-specific clauses (e.g. "billed via Apple ID") are excluded today and noted as TODO for when native ships.
+
+### 7. Review & sign-off gates (process, not code)
+
+Two manual gates before launch:
+1. **Internal pass** — verify every document matches actual product behavior (deletion really deletes, retention numbers match what the DB does, "we use X" matches `package.json` + integrations list).
+2. **Attorney pass** — external counsel reviews the full set, fills in jurisdiction-specific blanks (governing law, arbitration venue, refund windows per region, DPA template if needed). Draft banner is removed only after this.
+
+Both gates are tracked in `.lovable/plan.md` so we don't ship with the draft banner still on.
+
+---
+
+## Out of scope (explicit)
+
+- No legal advice. Documents are review-ready drafts only.
+- No new AI features, no marketing redesign, no payment flow changes beyond appending the legal summary block.
+- No native app code.
+- No analytics / tracking pixels added (cookie banner is wired for future use).
 
 ## Verification
 
-- `tsgo` clean.
-- Playwright at 390×844: dashboard shows the new card, `/decisions` lists today's rows, the sheet opens with Trust evidence + actions, Long Clock band → sheet works, no horizontal overflow.
-- Desktop ≥1280: two-column Decision Center, activity feed visible side-by-side.
-- Confirm `submitFeedback` rows land in `ai_feedback` after Accept / Snooze / Ignore by running a quick `supabase--read_query` after the Playwright pass.
+- `tsgo` clean after route + component additions.
+- Playwright at 390×844 and 1280×800: every `/legal/*` route loads, sidebar TOC scrolls, footer links all resolve, sign-up checkbox blocks submit when unchecked, paywall shows renew block.
+- Manual: run `deleteAccountFn` against a seeded test user, confirm zero rows remain across all listed tables; run `exportAccountFn`, confirm archive contains every category the Privacy Policy lists.
+- Cross-check: every claim in `/legal/privacy` retention table maps to a real table; every entry in `/legal/third-parties` maps to a real dependency or wearable adapter; remove anything we don't actually use.
 
-Awaiting approval before any code is written.
+---
+
+## Suggested rollout order (once approved)
+
+1. Shared `<LegalLayout>` + `LEGAL_DOCS` registry + `/legal` index + footer rewrite.
+2. Rewrite `/legal/terms`, `/legal/privacy`, redirects from old paths.
+3. New documents: cookies, AUP, accessibility, copyright, trademark, license, subscription, disclaimers, security, third-parties.
+4. `legal_acceptances` migration + sign-up checkbox + first-connect modals.
+5. Deletion + export endpoint expansion.
+6. Cookie consent banner.
+7. In-product safety links (Smart Alarm, Right Now, Paywall renew block, Offline tooltip).
+8. Internal QA pass → mark documents "Ready for legal review" (draft banner stays).
+9. Attorney review (external) → remove draft banner, set final effective dates.
+
+Awaiting approval before any code is written. Want me to proceed with all 9 rollouts, or trim to a smaller first slice (e.g. steps 1–3 only)?
