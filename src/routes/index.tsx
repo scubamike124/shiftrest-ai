@@ -54,9 +54,10 @@ function Landing() {
     <div className="overflow-hidden">
       <Hero ctaHref={ctaHref} />
       <LogoTicker />
+      <DayInLifeSection />
       <LiveCoachSection />
-      <LongClockSection />
       <SmartAlarmSection />
+      <LongClockSection />
       <DashboardSection />
       <CalendarConflictSection />
       <CommuteSection />
@@ -1178,6 +1179,132 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
   );
 }
 
+/* ============================================================ DAY IN THE LIFE */
+
+const dayMoments = [
+  {
+    time: "6:00 AM",
+    icon: Bell,
+    headline: "Alarm moved 20 min later",
+    body: "Your Oura HRV dropped overnight. RestPilot delayed the alarm to end your last REM cycle naturally instead of cutting it short.",
+    tag: "Smart alarm · recovery-aware",
+  },
+  {
+    time: "8:15 AM",
+    icon: Coffee,
+    headline: "Hold caffeine 90 minutes",
+    body: "Cortisol is still doing its job. RestPilot recommends water and 10 minutes of east-facing sunlight first — your real energy comes from light, not the cup.",
+    tag: "Caffeine timing · personalized",
+  },
+  {
+    time: "2:30 PM",
+    icon: Sun,
+    headline: "Today's light plan flipped",
+    body: "Calendar shows a night shift Thursday. RestPilot shifted today's bright-light window to 6–8 PM and queued a blackout starting at 7 AM tomorrow.",
+    tag: "Calendar aware · light shift",
+  },
+  {
+    time: "5:45 PM",
+    icon: Car,
+    headline: "Leave at 5:42, not 6:10",
+    body: "Traffic spiked and your alertness curve dips at 6:30. Leave now and you'll arrive rested with a 12-minute buffer before report-in.",
+    tag: "Commute · alertness model",
+  },
+  {
+    time: "9:00 PM",
+    icon: Moon,
+    headline: "Wind-down moved up 30 min",
+    body: "Tomorrow flips you onto a night rotation. RestPilot pulled wind-down to 9:00 PM, dimmed amber prompts, and queued a 4.5h anchor sleep.",
+    tag: "Rotation-aware coach",
+  },
+  {
+    time: "Next morning",
+    icon: Heart,
+    headline: "Recovery up 14 points",
+    body: "You woke in light sleep, hit your caffeine window, and shipped the rotation flip without a deficit. Long Clock predicts a green week.",
+    tag: "Outcome",
+    final: true,
+  },
+];
+
+function DayInLifeSection() {
+  return (
+    <section className="relative py-24 lg:py-32">
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70"
+        style={{ background: "var(--gradient-hero)" }} />
+      <div className="mx-auto w-full max-w-7xl px-5 lg:px-10">
+        <div className="text-center">
+          <Eyebrow>A day with RestPilot</Eyebrow>
+          <h2 className="mx-auto mt-3 max-w-3xl text-4xl leading-tight tracking-tight lg:text-5xl">
+            Six small decisions. One genuinely better day.
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
+            This is Tuesday for an ICU nurse on a 2/2/3 rotation. Every moment
+            is a real decision the AI makes on her behalf.
+          </p>
+        </div>
+
+        <div className="relative mx-auto mt-14 max-w-3xl">
+          {/* vertical spine */}
+          <div className="pointer-events-none absolute left-[22px] top-2 bottom-2 w-px bg-gradient-to-b from-transparent via-primary/40 to-transparent lg:left-1/2 lg:-translate-x-px" />
+
+          <ol className="space-y-5">
+            {dayMoments.map((m, i) => {
+              const Icon = m.icon;
+              const right = i % 2 === 1;
+              return (
+                <li key={i} className="relative lg:grid lg:grid-cols-2 lg:gap-10">
+                  {/* node */}
+                  <span className="absolute left-[14px] top-5 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-primary/50 bg-background lg:left-1/2 lg:-translate-x-1/2">
+                    <span className="pulse-dot h-2 w-2 rounded-full bg-indigo-glow" />
+                  </span>
+
+                  <div className={`pl-12 lg:pl-0 ${right ? "lg:col-start-2 lg:pl-10" : "lg:pr-10 lg:text-right"}`}>
+                    <div
+                      className={`relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl ${
+                        m.final
+                          ? "border-primary/50 bg-card shadow-[var(--shadow-glow)]"
+                          : "border-border/60 bg-card/70"
+                      }`}
+                    >
+                      <div className={`flex items-center gap-3 ${right ? "" : "lg:flex-row-reverse"}`}>
+                        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-secondary/60">
+                          <Icon className="h-4 w-4 text-indigo-glow" />
+                        </span>
+                        <div className={right ? "" : "lg:text-right"}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+                            {m.time}
+                          </p>
+                          <p className="text-lg font-semibold leading-tight text-foreground">
+                            {m.headline}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-relaxed text-foreground/85">
+                        {m.body}
+                      </p>
+                      <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 py-0.5 text-[10px] text-muted-foreground ${right ? "" : "lg:float-right"}`}>
+                        <Sparkles className="h-3 w-3 text-indigo-glow" />
+                        {m.tag}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+
+        <div className="mx-auto mt-14 grid max-w-4xl gap-3 sm:grid-cols-3">
+          <Stat label="Sleep recovered" value="+2h 22m" tone="good" />
+          <Stat label="Readiness score" value="71 → 85" tone="good" />
+          <Stat label="Decisions automated" value="14 today" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ============================================================ shared */
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -1187,3 +1314,4 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
     </p>
   );
 }
+
