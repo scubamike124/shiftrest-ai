@@ -204,10 +204,18 @@ function Coach() {
 
       if (!resp.ok || !resp.body) {
         const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
-        toast.error(errJson.error || "Coach is unavailable");
+        if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
+          toast.error("You've hit today's free AI limit.", {
+            description: "Upgrade for unlimited conversations.",
+            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
+          });
+        } else {
+          toast.error(errJson.error || "Coach is unavailable");
+        }
         setMessages(baseMessages);
         return;
       }
+
 
       // Add placeholder assistant message
       setMessages([...baseMessages, { role: "assistant", content: "" }]);
