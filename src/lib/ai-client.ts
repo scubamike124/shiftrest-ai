@@ -33,8 +33,12 @@ export type DailyPlanResponse = {
   actions: Recommendation[];
 };
 
-export function aiDailyPlan(horizon: "24h" | "72h" = "24h") {
-  return postIntent<DailyPlanResponse>({ intent: "daily_plan", horizon });
+export function aiDailyPlan(input: { horizon?: "24h" | "72h"; context?: string } = {}) {
+  return postIntent<DailyPlanResponse>({
+    intent: "daily_plan",
+    horizon: input.horizon ?? "24h",
+    context: input.context,
+  });
 }
 
 export type SmartAlarmResponse = {
@@ -46,6 +50,7 @@ export type SmartAlarmResponse = {
 export function aiSmartAlarm(input: {
   targetWakeIso: string;
   windowMin: number;
+  context?: string;
 }) {
   return postIntent<SmartAlarmResponse>({ intent: "smart_alarm", ...input });
 }
@@ -60,12 +65,13 @@ export function aiCommute(input: {
   shiftStartIso: string;
   travelMin: number;
   prepMin?: number;
+  context?: string;
 }) {
   return postIntent<CommuteResponse>({ intent: "commute", ...input });
 }
 
 export type CoachTipResponse = { tip: string; generatedAt: string };
 
-export function aiCoachTip() {
-  return postIntent<CoachTipResponse>({ intent: "coach_tip" });
+export function aiCoachTip(input: { context?: string } = {}) {
+  return postIntent<CoachTipResponse>({ intent: "coach_tip", context: input.context });
 }
