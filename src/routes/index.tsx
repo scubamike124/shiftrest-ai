@@ -136,9 +136,18 @@ function Dashboard() {
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
   const stability = Math.max(0, 100 - debt.score);
+  const { data: wearableSummary } = useQuery({
+    queryKey: ["wearable-summary"],
+    queryFn: () => getWearableSummaryFn(),
+    enabled: signedIn === true,
+    staleTime: 60_000,
+  });
   const insights = useMemo(
-    () => (mounted ? computeInsights(shifts, prefs, today, employers) : null),
-    [shifts, prefs, today, mounted, employers],
+    () =>
+      mounted
+        ? computeInsights(shifts, prefs, today, employers, wearableSummary?.latest ?? null)
+        : null,
+    [shifts, prefs, today, mounted, employers, wearableSummary],
   );
 
   return (
