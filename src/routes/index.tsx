@@ -221,7 +221,7 @@ function Dashboard() {
       <div className="mt-4 grid grid-cols-5 gap-3">
 
         <button
-          onClick={() => setEditing({ day: weekday })}
+          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
           className="col-span-3 flex flex-col justify-between rounded-[24px] border border-primary/40 p-5 text-left active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
@@ -273,7 +273,7 @@ function Dashboard() {
             return (
               <button
                 key={label}
-                onClick={() => setEditing({ day: idx })}
+                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx }); }}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
                   isToday
                     ? "border border-white/20 shadow-[var(--shadow-glow)]"
@@ -312,7 +312,7 @@ function Dashboard() {
           })}
           {/* Add tile */}
           <button
-            onClick={() => setEditing({ day: weekday })}
+            onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
             aria-label="Quick add"
             className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border bg-transparent text-muted-foreground active:scale-95"
           >
