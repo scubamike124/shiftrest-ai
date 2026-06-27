@@ -1,0 +1,158 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlarmClock, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
+import { aiSmartAlarm } from "@/lib/ai-client";
+
+/**
+ * SmartAlarmCard — schedule an AI-optimized wake inside a ±window.
+ * Stored as a "personal" user_event with title prefix "Alarm:" so the
+ * notification scheduler treats it as a critical alarm.
+ */
+export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
+  const qc = useQueryClient();
+  const tomorrow = useMemo(() => defaultTomorrowWake(), []);
+  const [targetLocal, setTargetLocal] = useState(tomorrow);
+  const [windowMin, setWindowMin] = useState(30);
+  const [busy, setBusy] = useState(false);
+
+  const { data: events = [] } = useQuery({
+    queryKey: ["events", "alarms"],
+    queryFn: () =>
+      fetchEvents({
+        fromIso: new Date().toISOString(),
+        untilIso: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      }),
+    enabled: signedIn,
+  });
+
+  const alarms = useMemo(
+    () => events.filter((e) => e.kind === "personal" && /^alarm:/i.test(e.title)),
+    [events],
+  );
+
+  const del = useMutation({
+    mutationFn: (id: string) => deleteEvent(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
+  });
+
+  async function schedule() {
+    if (!signedIn) {
+      toast.error("Sign in to schedule a smart alarm.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const target = new Date(targetLocal);
+      if (isNaN(target.getTime()) || target.getTime() < Date.now()) {
+        toast.error("Pick a future wake time.");
+        return;
+      }
+      const res = await aiSmartAlarm({
+        targetWakeIso: target.toISOString(),
+        windowMin,
+      });
+      const wake = new Date(res.wakeAt);
+      if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
+      const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      await createEvent({
+        kind: "personal",
+        title: `Alarm: ${labelTime}`,
+        startsAt: wake.toISOString(),
+        reminderMin: 0,
+        notes: res.reason,
+      });
+      qc.invalidateQueries({ queryKey: ["events"] });
+      toast.success(`Smart alarm set for ${labelTime}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <header className="flex items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+          <AlarmClock className="h-4 w-4" />
+        </span>
+        <div>
+          <h3 className="text-sm font-semibold">Smart alarm</h3>
+          <p className="text-[11px] text-muted-foreground">
+            AI picks the lightest sleep moment inside your window.
+          </p>
+        </div>
+      </header>
+
+      <div className="mt-3 grid gap-3">
+        <label className="block text-xs font-semibold text-muted-foreground">
+          Target wake
+          <input
+            type="datetime-local"
+            value={targetLocal}
+            onChange={(e) => setTargetLocal(e.target.value)}
+            className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
+          />
+        </label>
+        <div>
+          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+            <span>Window</span>
+            <span>± {windowMin} min</span>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={45}
+            step={5}
+            value={windowMin}
+            onChange={(e) => setWindowMin(Number(e.target.value))}
+            className="mt-2 w-full"
+          />
+        </div>
+        <button
+          onClick={schedule}
+          disabled={busy || !signedIn}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          <Sparkles className="h-4 w-4" /> {busy ? "Optimizing…" : "Set smart alarm"}
+        </button>
+      </div>
+
+      {alarms.length > 0 && (
+        <ul className="mt-4 space-y-2 border-t border-border pt-3">
+          {alarms.map((a) => (
+            <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{a.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {new Date(a.startsAt).toLocaleString([], {
+                    weekday: "short",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                  {a.notes ? ` · ${a.notes}` : ""}
+                </p>
+              </div>
+              <button
+                onClick={() => del.mutate(a.id)}
+                className="rounded-lg px-2 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10"
+              >
+                Cancel
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function defaultTomorrowWake(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(7, 0, 0, 0);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
