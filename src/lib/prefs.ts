@@ -100,6 +100,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.cycleWeeks !== undefined)
     out.cycle_weeks = Math.max(1, Math.min(6, Math.round(p.cycleWeeks)));
   if (p.cycleAnchor !== undefined) out.cycle_anchor = p.cycleAnchor;
+  if (p.assistantName !== undefined)
+    out.assistant_name = (p.assistantName.trim() || "RestPilot").slice(0, 40);
+  if (p.assistantMode !== undefined) out.assistant_mode = p.assistantMode;
+  if (p.memoryEnabled !== undefined) out.memory_enabled = p.memoryEnabled;
   return out;
 }
 
