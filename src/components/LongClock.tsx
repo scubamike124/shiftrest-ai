@@ -207,6 +207,8 @@ export function LongClock({
   }, [shift, prefs.windDownMin, prefs.sleepHours, prefs.lat, prefs.lon, sunrise, sunset]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const decisionsByIntent = useDecisionsByIntent();
   const active = useMemo(
     () =>
       [...bands.map((b) => ({ ...b, kind: "band" as const })), ...markers.map((m) => ({ ...m, kind: "marker" as const }))]
