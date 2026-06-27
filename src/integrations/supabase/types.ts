@@ -62,11 +62,17 @@ export type Database = {
           confidence: number
           content: string
           created_at: string
+          embedding_hash: string | null
+          expires_at: string | null
           id: string
+          importance: number
+          last_referenced_at: string | null
           last_used_at: string | null
           pinned: boolean
           source: string
+          superseded_by: string | null
           updated_at: string
+          use_count: number
           user_id: string
         }
         Insert: {
@@ -74,11 +80,17 @@ export type Database = {
           confidence?: number
           content: string
           created_at?: string
+          embedding_hash?: string | null
+          expires_at?: string | null
           id?: string
+          importance?: number
+          last_referenced_at?: string | null
           last_used_at?: string | null
           pinned?: boolean
           source?: string
+          superseded_by?: string | null
           updated_at?: string
+          use_count?: number
           user_id: string
         }
         Update: {
@@ -86,14 +98,28 @@ export type Database = {
           confidence?: number
           content?: string
           created_at?: string
+          embedding_hash?: string | null
+          expires_at?: string | null
           id?: string
+          importance?: number
+          last_referenced_at?: string | null
           last_used_at?: string | null
           pinned?: boolean
           source?: string
+          superseded_by?: string | null
           updated_at?: string
+          use_count?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_memory_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "ai_memory"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coach_messages: {
         Row: {

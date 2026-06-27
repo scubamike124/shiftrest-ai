@@ -1,168 +1,100 @@
-# Investigation — RestPilot "One Trusted Companion" Phase
 
-Read-only investigation. No code changes until approved.
+# Step 2 — Memory Evolution + Intelligent Ranking
 
-## Current Foundation (what we already have)
+Goal: turn `ai_memory` from a flat recency list into a ranked, learning, user-controlled long-term store, and give it a proper home in the UI. No breaking changes — every existing call to `listMemories()` / `fetchRelevantMemories()` keeps working.
 
-- `ai_memory` (user-scoped, RLS, categories, pinned, source, confidence) + `AIMemoryManager.tsx` UI.
-- `ai_log` request ledger (tokens, intent, latency).
-- `/api/ai` orchestrator with persona + mode + memory injection (`src/lib/ai/context.server.ts`).
-- Intents: `right_now`, `adjust_plan`, `smart_alarm`, `daily_plan`, `smart_alarm`, `commute`, `coach_tip`, `chat`.
-- Trust voice contract (`COACH_VOICE`) returning `confidence`, `confidenceReason`, `followBenefit`, `ifIgnored`.
-- After sign-in users currently land back on `/` (marketing) — verified in `src/routes/auth.tsx` (`returnTo` defaults to `/`).
+## 1. Schema additions (single migration)
 
-The plumbing is there. This phase is about **wiring it together into one coherent presence**, not net-new features.
+Extend `public.ai_memory` (additive only, all NULL-safe):
 
----
+| Column | Type | Default | Purpose |
+|---|---|---|---|
+| `importance` | smallint (1–5) | 3 | Long-term usefulness weight (set by extractor + user pin) |
+| `use_count` | integer | 0 | How often the AI actually referenced this memory |
+| `last_referenced_at` | timestamptz | null | Replaces overloaded `last_used_at` semantics; updated when injected into a prompt |
+| `expires_at` | timestamptz | null | Optional soft TTL for transient facts ("this week I'm on nights") |
+| `superseded_by` | uuid | null | Points at a newer memory that replaces this one (soft-delete chain) |
+| `embedding_hash` | text | null | Lightweight dedupe key (normalized content hash; no pgvector needed yet) |
 
-## 1. Personalized Dashboard Arrival
+Index: `(user_id, superseded_by) WHERE superseded_by IS NULL` for the "active" set.
 
-**Finding.** `auth.tsx` redirects to `returnTo` (default `/`). The signed-in homepage at `/` is the public marketing page. Result: users feel "shown the door" instead of greeted.
+Keep existing `confidence`, `pinned`, `source`, `category` — they're inputs to the ranker. Keep `last_used_at` for back-compat; new code writes both.
 
-**Recommendation.** Introduce a single source of truth for "where signed-in users belong" = `/dashboard`.
+## 2. Ranking function (server-only, `src/lib/ai/memory-rank.server.ts`)
 
-- `src/routes/__root.tsx`: when session is present and `pathname === "/"` with no explicit `return`, soft-redirect to `/dashboard` (client-side, no flicker on marketing for logged-out).
-- `src/routes/auth.tsx`: default `returnTo` from `/` to `/dashboard`; keep `SAFE_RETURNS` allowlist.
-- New server fn `getArrivalBrief()` (`src/lib/ai/arrival.functions.ts`) — runs once per session-day, returns `{ greeting, headline, action, why, confidence }` from existing `right_now` intent + tonight's plan + sleep-debt. Cached in `user_prefs.last_arrival_at` so we don't burn tokens on every refresh.
-- New `<ArrivalHero />` component slotted at the top of `/dashboard` — fades in name + adjusted-plan headline + one CTA. Replaces the static greeting already in `dashboard.tsx`.
+Pure TS scorer — no LLM call, runs every time we build the system prompt.
 
-Why this shape: zero new tables, reuses the orchestrator, one component, predictable cost (1 call/day/user).
+```text
+score =
+   1.6 * pinned                         (0 or 1)
+ + 1.0 * importance / 5
+ + 0.8 * confidence
+ + 0.6 * recencyDecay(updated_at, 60d half-life)
+ + 0.4 * usageDecay(last_referenced_at, 30d half-life)
+ + 0.3 * log1p(use_count) / 3
+ + 1.2 * categoryRelevance(category, intent)   // e.g. caffeine matters more for right_now
+ - 2.0 * expired(expires_at)
+ - 5.0 * superseded
+```
 
----
+`fetchRelevantMemories(admin, userId, { intent, limit })` becomes: pull up to ~80 active rows, score in JS, return top N (default 25 for coach, 12 for JSON intents). After selection, fire-and-forget bump: `use_count += 1`, `last_referenced_at = now()` for the chosen IDs (single `UPDATE … WHERE id = ANY(...)`).
 
-## 2. AI Memory Evolution — Long-Term Life Memory
+## 3. Smarter extractor (`memory-extractor.server.ts`)
 
-**Finding.** `ai_memory` already supports the categories needed (general, schedule, health, preferences, employer, recovery, caffeine, family, goals). Missing pieces are **lifecycle, decay, dedupe, and visibility-by-domain**.
+Two upgrades, no new endpoints:
 
-**Recommendation.** Evolve, don't replace.
+1. **Dedupe + supersede.** Before insert, compute a normalized hash (lowercased, punctuation-stripped, trimmed) and lookup existing active memories in the same category. If hash matches → bump `use_count`, `confidence = min(1, +0.1)`, refresh `updated_at`. If semantically close (same category + first 6 tokens overlap) → insert new row and set `superseded_by` on the old one.
+2. **Importance + TTL hint.** Extractor JSON adds `importance: 1-5` and optional `ttl_days`. Schedule-ish facts ("on nights this week") get `ttl_days: 14`; durable facts ("works at Mercy Hospital") get `importance: 5`.
 
-- Migration adds three columns:
-  - `importance smallint default 3` (1–5; pinned ⇒ 5).
-  - `last_referenced_at timestamptz` (bumped when memory is injected into a prompt).
-  - `expires_at timestamptz null` (for transient facts like "traveling to Denver next week").
-- Extend `MemoryCategory` with `travel`, `commute`, `environment`, `timezone`.
-- `memory-extractor.server.ts`: add dedupe — embed-less Jaccard match on existing content per category before inserting, update instead of duplicate.
-- `context.server.ts`: rank by `pinned DESC, importance DESC, last_referenced_at DESC NULLS LAST` and cap at ~25; bump `last_referenced_at` for the ones we actually injected (single batched UPDATE).
-- UI: extend `AIMemoryManager.tsx` with category filter chips + importance slider + expiry hint. Keep one-tap delete and JSON export already shipped.
+Still capped at 4 memories per turn, still only when `memory_enabled=true`.
 
-Privacy: all changes stay under existing RLS (`user_id = auth.uid()`); no shared embeddings, no cross-user signal.
+## 4. Client API (`src/lib/ai-memory.ts`)
 
----
+Additive surface, no breaking changes:
 
-## 3. Predictive AI
+- `AIMemory` type gains `importance`, `useCount`, `lastReferencedAt`, `expiresAt`, `supersededBy`.
+- `listMemories({ query?, category?, includeArchived? })` — server-side `ilike` search on `content` + category filter; hides `superseded_by IS NOT NULL` unless `includeArchived`.
+- `updateMemory` accepts `importance` and `expiresAt`.
+- New `setMemoryEnabled(boolean)` thin wrapper over `user_prefs.memory_enabled` so the Memory page can toggle without duplicating Assistant settings logic.
 
-**Finding.** We compute fatigue/recovery in `src/lib/insights.ts` and surface it via `CompanionWhisper`. It's reactive — recalculated on view, never persisted as an observation.
+## 5. New route — `src/routes/_authenticated/memory.tsx`
 
-**Recommendation.** A small **pattern detector** that runs server-side on schedule changes and wearable syncs (not on every page load).
+Mobile-first, matches dashboard typography. Sections, top to bottom:
 
-- New `ai_observations` table: `{ id, user_id, kind, summary, evidence jsonb, confidence, status('new'|'shown'|'dismissed'|'acted'), created_at, expires_at }`. RLS scoped to user, GRANTs to authenticated + service_role.
-- New server fn `runPatternScan()` triggered from:
-  - `shifts` upsert (rotation change) — in `shifts.ts` after write.
-  - Wearable sync completion — in `src/lib/wearables/...` post-pull.
-  - Daily cron at 04:00 local via `notifications/run.server.ts` extension.
-- Detector is pure TS over the last 21 days: night-rotation impact, caffeine-vs-sleep-onset correlation, weekend recovery debt, commute-day fatigue. Each match writes one row; LLM is only used to *phrase* the observation if `user_prefs.ai_predictive_phrasing = true`.
-- Dashboard surfaces top 1–2 `status='new'` observations through `CompanionWhisper`; "Adjust my plan" marks `acted`, dismiss marks `dismissed`. Avoids notification spam.
+1. **Header strip** — "Long-term memory" + master On/Off switch (writes `user_prefs.memory_enabled`). When off: explain plainly what turning it on does, hide the list.
+2. **Privacy card** — short, plain English: what's stored, what isn't (no emotions / transient state / medical data), where it lives (your account, encrypted at rest), how to export/wipe. Links to Privacy Policy.
+3. **Search + filter bar** — text search, category chip filter, "Pinned only" toggle.
+4. **Memory list** — reuses the existing card layout from `AIMemoryManager`, plus:
+   - Importance dots (1–5, tap to change)
+   - "Last used" relative timestamp + use count chip
+   - Inline edit (textarea), category dropdown, pin, delete
+   - Expiry pill when `expires_at` set (e.g. "expires in 6 days")
+5. **Add memory** — same composer as today, with optional importance + TTL.
+6. **Footer actions** — Export JSON, Clear all (existing confirm flow).
 
-Why pure TS first: deterministic, cheap, testable; LLM is only the voice layer.
+Add to nav: a "Memory" entry in `AppSidebar.tsx` and a link from Profile → "Manage memories" that deep-links here. The existing `AIMemoryManager` stays for now but Profile points users at the dedicated page.
 
----
+## 6. Wiring into the orchestrator
 
-## 4. Learning From Feedback
+`buildSystemPrompt` already takes `userId` + profile. Add an optional `intent` arg and pass it from `/api/ai`. `fetchRelevantMemories` switches to the new ranker. The system-prompt memory block is unchanged in shape — the AI experience is identical, just better-curated rows.
 
-**Finding.** Every AI render today is fire-and-forget. We have no signal whether advice landed.
+No prompt changes to coach voice, no changes to any other intent's JSON schema → zero risk to existing AI surfaces.
 
-**Recommendation.** One table, two buttons, zero friction.
+## 7. Quality bar
 
-- New `ai_feedback` table: `{ id, user_id, log_id (fk ai_log), intent, rating smallint (-1|1), reason text null, context jsonb, created_at }`. RLS user-scoped.
-- Add 👍/👎 affordance to `RightNowCard`, `CompanionWhisper`, `SmartAlarmCard`, `AIBriefCard`. Optional one-tap reason chips on 👎 ("Wrong time", "Already did this", "Not relevant", "Too aggressive").
-- Orchestrator injects a compact "Recent feedback" block into the prompt for the next call (last 10 ratings, summarized as 1 line per intent). No fine-tuning, no embeddings — just in-context priors.
-- A 👎 with reason "Too aggressive" automatically nudges `user_prefs.ai_assertiveness` down by one step (1–5 scale, default 3). Reversible from Profile.
+- All schema changes additive + backfilled (`importance=3`, `use_count=0`).
+- RLS unchanged (still `auth.uid() = user_id` for all four ops).
+- New page is `_authenticated` only.
+- Mobile-first: single column ≤640px, two-column list ≥768px.
+- Manual QA matrix: memory off → list hidden, extractor no-ops; memory on → add/edit/pin/delete/search/export/clear all work; ranker picks pinned > recent > old-but-important in console-logged debug; supersede chain doesn't surface duplicates.
 
-Result: the AI visibly adapts within a session without any heavy ML stack.
+## Build order
 
----
+1. Migration (schema additions + indexes).
+2. `memory-rank.server.ts` + update `fetchRelevantMemories`.
+3. Extractor upgrades (dedupe, importance, ttl).
+4. Client `ai-memory.ts` surface additions.
+5. `/memory` route + sidebar/profile links.
+6. QA pass on mobile viewport, then desktop.
 
-## 5. AI Trust Layer
-
-**Finding.** `confidence`, `confidenceReason`, `followBenefit`, `ifIgnored` exist on three intents. They're not consistently surfaced and don't disclose **missing data**.
-
-**Recommendation.**
-
-- Extend the shared JSON contract in `src/routes/api/ai.ts` with `dataUsed: string[]` and `dataMissing: string[]` (e.g. `["last 3 shifts", "Oura HRV"]`, `["caffeine log"]`). Apply across `right_now`, `adjust_plan`, `smart_alarm`, `daily_plan`, `coach_tip`.
-- New `<TrustReceipt />` shared component: collapsible "Why this?" panel rendering confidence chip + dataUsed/dataMissing + a "Connect [missing source]" CTA when the gap is fixable (e.g. missing wearable → link to `/profile#wearables`).
-- Replace inline "Why this time?" blocks in `SmartAlarmCard.tsx`, `RightNowCard.tsx`, `CompanionWhisper.tsx` with `<TrustReceipt />` — single visual language across the app.
-
-Honesty about gaps is the cheapest trust-builder we can ship and prevents over-promising on cold-start users.
-
----
-
-## 6. Companion Experience
-
-**Finding.** Voice is consistent thanks to `COACH_VOICE`, but each surface still feels like a separate widget.
-
-**Recommendation.** Treat the AI as one named presence.
-
-- `user_prefs.assistant_name` (default "Pilot") + `assistant_avatar_seed`. Used everywhere the AI speaks.
-- Shared `<CoachBubble>` wrapper (avatar + name + voice mode) used by every AI surface, so the dashboard reads as one assistant talking, not 5 cards.
-- Cross-surface continuity: store `last_coach_thread_id` in sessionStorage; `RightNowCard` action, `CompanionWhisper` adjust, and `/coach` chat share the same thread so a chat opened from the dashboard already knows what was just shown.
-- Quiet by default: respect `notification_prefs.quiet_hours` for any proactive surfacing; never more than one "new" observation per 6h window.
-
----
-
-## Cross-Cutting Concerns
-
-### Affected files
-- `src/routes/__root.tsx`, `src/routes/auth.tsx`, `src/routes/dashboard.tsx`
-- `src/routes/api/ai.ts`
-- `src/lib/ai/context.server.ts`, `src/lib/ai/memory-extractor.server.ts`
-- New: `src/lib/ai/arrival.functions.ts`, `src/lib/ai/observations.server.ts`, `src/lib/ai/feedback.ts`
-- `src/lib/ai-memory.ts`, `src/lib/insights.ts`, `src/lib/shifts.ts`, `src/lib/notifications/run.server.ts`
-- Components: `ArrivalHero.tsx`, `TrustReceipt.tsx`, `CoachBubble.tsx`, `FeedbackChips.tsx`; updates to `RightNowCard`, `CompanionWhisper`, `SmartAlarmCard`, `AIBriefCard`, `AIMemoryManager`.
-
-### Database changes (one migration)
-- `ALTER TABLE ai_memory ADD COLUMN importance smallint default 3, last_referenced_at timestamptz, expires_at timestamptz;`
-- `CREATE TABLE ai_observations (...)` + GRANTs + RLS.
-- `CREATE TABLE ai_feedback (...)` + FK to `ai_log` + GRANTs + RLS.
-- `ALTER TABLE user_prefs ADD COLUMN assistant_name text default 'Pilot', assistant_avatar_seed text, ai_assertiveness smallint default 3, ai_predictive_phrasing boolean default true, last_arrival_at timestamptz;`
-
-### Privacy
-- Everything stays user-scoped via RLS; no cross-user features, no shared embeddings.
-- Memory export/delete already exists; extend to also export `ai_observations` and `ai_feedback`.
-- Add a single "Reset my AI" action in Profile → wipes memories, observations, feedback in one call.
-
-### Security
-- All new tables: RLS on, `auth.uid()` policies, explicit GRANTs to `authenticated` + `service_role`, no `anon`.
-- Pattern scan + arrival brief go through `requireSupabaseAuth` server fns — no admin client on user paths.
-- Feedback writes validate `log_id` belongs to the caller before insert.
-
-### Performance impact
-- Arrival brief: 1 LLM call/user/day, cached.
-- Pattern scan: pure TS, runs on write events (cheap) + 1 daily cron pass per active user.
-- Memory injection: same size cap (~25), one extra batched UPDATE per chat turn.
-- Net token cost expected flat-to-down because feedback priors reduce re-asks.
-
-### Risks
-- Auto-redirect to `/dashboard` after sign-in must not trap users who explicitly clicked a marketing link; keep `return` param honored.
-- Pattern detector could over-fire on noisy data → ship with conservative thresholds + per-kind cooldown (one observation per `kind` per 72h).
-- Feedback-driven assertiveness changes must be reversible and visible in Profile so the AI never "drifts" silently.
-
-### Tech-debt reductions along the way
-- Collapse three near-duplicate "Why this?" UIs into `<TrustReceipt />`.
-- Centralize AI surface chrome into `<CoachBubble />` (kills repeated avatar/name/voice props).
-- Move scattered `sessionStorage` cache keys for `right_now`/coach into one `src/lib/ai/session-cache.ts`.
-
-### Alternative considered (rejected)
-- Vector embeddings on `ai_memory` for semantic recall. Rejected for now: current ranking (pinned + importance + recency) is adequate at our memory volume; embeddings add infra cost and a moving privacy surface. Revisit when an average user crosses ~200 memories.
-
----
-
-## Suggested Build Order (post-approval)
-
-1. Dashboard arrival + auth redirect (small, ships trust fast).
-2. Memory evolution migration + ranking update.
-3. `<TrustReceipt />` + `dataUsed`/`dataMissing` contract.
-4. Feedback table + 👍/👎 + prior injection.
-5. Pattern detector + `ai_observations`.
-6. `<CoachBubble />` unification + cross-surface thread continuity.
-
-Each step is independently shippable and reversible.
+Awaiting approval before any code changes.
