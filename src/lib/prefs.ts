@@ -121,7 +121,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled",
     )
     .eq("user_id", uid)
     .maybeSingle();
