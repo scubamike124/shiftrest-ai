@@ -15,6 +15,7 @@
 import { DAYS, type Shift, endAbsolute } from "./shifts";
 import type { Employer } from "./employers";
 import { circadianDebt, detectRotation } from "./sleep-engine";
+import { shiftsForDate } from "./schedule";
 import type { Prefs } from "./prefs";
 
 export type FatiguePoint = {
