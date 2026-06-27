@@ -324,28 +324,61 @@ export function LongClock({
       </div>
 
       {/* Active reason */}
-      <div className="mt-4 min-h-[68px] rounded-2xl border border-border/60 bg-background/40 p-3">
-        {active ? (
-          <div className="flex items-start gap-3">
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{
-                background: "color-mix(in oklab, " + (active as Band | Marker).color + " 20%, transparent)",
-                color: (active as Band | Marker).color,
-              }}
-            >
-              <active.icon className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">{active.label}</p>
-              <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{active.reason}</p>
-            </div>
+      {(() => {
+        const intents = active ? BAND_INTENT_MAP[active.id] ?? [] : [];
+        const decision = intents.map((i) => decisionsByIntent[i]).find((x) => !!x) ?? null;
+        return (
+          <div className="mt-4 min-h-[68px] rounded-2xl border border-border/60 bg-background/40 p-3">
+            {active ? (
+              <div className="flex items-start gap-3">
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    background: "color-mix(in oklab, " + (active as Band | Marker).color + " 20%, transparent)",
+                    color: (active as Band | Marker).color,
+                  }}
+                >
+                  <active.icon className="h-4 w-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{active.label}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{active.reason}</p>
+                  {decision && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSheetOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-full border border-indigo-glow/40 bg-indigo-glow/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-glow hover:bg-indigo-glow/20"
+                      >
+                        <Info className="h-3 w-3" /> AI reason · what changes if ignored
+                      </button>
+                      <RecommendationActions
+                        recommendationId={decision.id}
+                        signedIn
+                        initialReaction={decision.reaction}
+                        size="sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Tap any band or marker to see why it's there.
+              </p>
+            )}
+            <RecommendationDetailSheet
+              open={sheetOpen}
+              onOpenChange={setSheetOpen}
+              recommendationId={decision?.id ?? null}
+              intent={decision?.intent}
+              headline={decision?.headline}
+              why={decision?.rationale ?? null}
+              confidence={decision?.confidence ?? null}
+            />
           </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Tap any band or marker to see why it's there.
-          </p>
-        )}
+        );
+      })()}
       </div>
 
       {/* Legend */}
