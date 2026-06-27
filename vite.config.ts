@@ -34,7 +34,8 @@ export default defineConfig({
           // the compiled worker lands at dist/client/sw.js where the published
           // site actually serves /sw.js from.
           // (swSrc comes from top-level srcDir/filename above)
-          swDest: "dist/client/sw.js",
+          // swDest is derived from globDirectory by vite-plugin-pwa
+          // (→ dist/client/sw.js); don't override or workbox tries to read it as swSrc.
           globDirectory: "dist/client",
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}"],
           // Don't precache the source SW file itself or large media.
