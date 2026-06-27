@@ -198,9 +198,9 @@ function RootComponent() {
       )}
 
       {surface === "app" && (
-        <div className="flex min-h-screen w-full">
+        <div className="flex min-h-screen w-full overflow-x-clip">
           <AppSidebar />
-          <div className="flex min-h-screen flex-1 flex-col pb-24 lg:pb-0">
+          <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
             <Outlet />
           </div>
           <BottomNav />
