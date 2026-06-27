@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Sun,
   Moon,
@@ -9,13 +10,22 @@ import {
   Sparkles,
   BookOpen,
   AlertCircle,
+  Bed,
+  Droplet,
+  Lightbulb,
+  Utensils,
 } from "lucide-react";
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
+import { computeInsights } from "@/lib/insights";
+import { buildRecommendations, type Recommendation } from "@/lib/recommendations";
+import { getWearableSummary } from "@/lib/wearables/wearables.functions";
+
 
 export const Route = createFileRoute("/plan")({
   head: () => ({
