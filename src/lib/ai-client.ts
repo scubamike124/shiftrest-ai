@@ -44,6 +44,8 @@ export function aiDailyPlan(input: { horizon?: "24h" | "72h"; context?: string }
 export type SmartAlarmResponse = {
   wakeAt: string; // ISO
   reason: string;
+  cyclePosition?: "rem_end" | "light_sleep" | "deep_avoid" | "natural";
+  confidence?: "low" | "medium" | "high";
   message: string;
 };
 
@@ -53,6 +55,28 @@ export function aiSmartAlarm(input: {
   context?: string;
 }) {
   return postIntent<SmartAlarmResponse>({ intent: "smart_alarm", ...input });
+}
+
+export type RightNowResponse = {
+  action: string;
+  why: string;
+  ignoreCost: string;
+  urgency: "now" | "soon" | "later";
+  ctaLabel: string;
+  ctaRoute: "/plan" | "/events" | "/coach" | "/dashboard";
+};
+
+export function aiRightNow(input: { context?: string } = {}) {
+  return postIntent<RightNowResponse>({ intent: "right_now", context: input.context });
+}
+
+export type AdjustPlanResponse = {
+  summary: string;
+  changes: { label: string; from: string; to: string; reason: string }[];
+};
+
+export function aiAdjustPlan(input: { observation: string; context?: string }) {
+  return postIntent<AdjustPlanResponse>({ intent: "adjust_plan", ...input });
 }
 
 export type CommuteResponse = {
