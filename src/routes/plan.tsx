@@ -104,12 +104,13 @@ function PlanPage() {
   const isCoordsLabel = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawLabel);
   const hasVerifiedLocation = rawLabel.length > 0 && !isCoordsLabel;
   const displayLabel = hasVerifiedLocation ? rawLabel : "";
+  const planTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
   const sun = useMemo(
     () =>
       hasVerifiedLocation
-        ? sunTimes(today, prefs.lat, prefs.lon)
+        ? sunTimes(today, prefs.lat, prefs.lon, planTz)
         : { sunrise: null, sunset: null },
-    [hasVerifiedLocation, prefs.lat, prefs.lon, today],
+    [hasVerifiedLocation, prefs.lat, prefs.lon, today, planTz],
   );
   const events = useMemo(
     () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
