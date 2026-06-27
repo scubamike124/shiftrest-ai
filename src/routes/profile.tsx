@@ -236,7 +236,22 @@ function Profile() {
     }
   }
 
+  const signedIn = userEmail !== null;
+
+  function promptSignIn() {
+    toast.error("Sign in to save your location", {
+      action: {
+        label: "Sign in",
+        onClick: () => navigate({ to: "/auth", search: { return: "/profile" } as never }),
+      },
+    });
+  }
+
   function detectLocation() {
+    if (!signedIn) {
+      promptSignIn();
+      return;
+    }
     if (!("geolocation" in navigator)) {
       toast.error("Geolocation not supported — enter your city below.");
       return;
@@ -265,6 +280,10 @@ function Profile() {
   async function saveCity() {
     const q = cityDraft.trim();
     if (!q) return;
+    if (!signedIn) {
+      promptSignIn();
+      return;
+    }
     setGeocoding(true);
     try {
       const hit = await geocodeCity(q);
@@ -279,6 +298,31 @@ function Profile() {
       setGeocoding(false);
     }
   }
+
+  // One-shot upgrade: if the stored label is coord-shaped (legacy bug), try to
+  // resolve it to a real city name and persist that.
+  useEffect(() => {
+    if (!signedIn) return;
+    const label = prefs.locationLabel?.trim() ?? "";
+    const isCoords = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(label);
+    const hasCoords = Number.isFinite(prefs.lat) && Number.isFinite(prefs.lon);
+    if (!(label === "" || isCoords) || !hasCoords) return;
+    // Skip if at default NYC coords (no real location was ever set).
+    if (prefs.lat === DEFAULT_PREFS.lat && prefs.lon === DEFAULT_PREFS.lon) return;
+    let cancelled = false;
+    (async () => {
+      const resolved = await reverseGeocode(prefs.lat, prefs.lon);
+      if (!cancelled && resolved) {
+        mutation.mutate({ lat: prefs.lat, lon: prefs.lon, locationLabel: resolved });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, prefs.lat, prefs.lon, prefs.locationLabel]);
+
+
 
 
   return (
