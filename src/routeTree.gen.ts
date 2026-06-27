@@ -47,6 +47,7 @@ import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibi
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
@@ -248,6 +249,11 @@ const ApiSwapRoute = ApiSwapRouteImport.update({
   path: '/api/swap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInsightsRoute = ApiInsightsRouteImport.update({
   id: '/api/insights',
   path: '/api/insights',
@@ -327,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -376,6 +383,7 @@ export interface FileRoutesByTo {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -427,6 +435,7 @@ export interface FileRoutesById {
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
+  '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -479,6 +488,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -578,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
+    | '/api/stt'
     | '/api/swap'
     | '/api/tts'
     | '/legal/acceptable-use'
@@ -629,6 +641,7 @@ export interface RootRouteChildren {
   ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
   ApiInsightsRoute: typeof ApiInsightsRoute
+  ApiSttRoute: typeof ApiSttRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
@@ -907,6 +920,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSwapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/insights': {
       id: '/api/insights'
       path: '/api/insights'
@@ -1045,6 +1065,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
   ApiInsightsRoute: ApiInsightsRoute,
+  ApiSttRoute: ApiSttRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
