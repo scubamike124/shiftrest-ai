@@ -911,6 +911,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       wearable_connections: {
         Row: {
           access_token: string
@@ -1020,6 +1041,13 @@ export type Database = {
         Returns: boolean
       }
       has_ai_budget: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       ai_feedback_reaction:
@@ -1028,6 +1056,7 @@ export type Database = {
         | "already_did"
         | "ignored_today"
         | "dismissed_forever"
+      app_role: "admin" | "tester" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1162,6 +1191,7 @@ export const Constants = {
         "ignored_today",
         "dismissed_forever",
       ],
+      app_role: ["admin", "tester", "user"],
     },
   },
 } as const
