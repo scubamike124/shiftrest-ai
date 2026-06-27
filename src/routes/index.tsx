@@ -19,6 +19,8 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
 import { LastNightStrip } from "@/components/LastNightStrip";
+import { useServerFn } from "@tanstack/react-start";
+import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
