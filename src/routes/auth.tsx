@@ -4,6 +4,10 @@ import { Moon, Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
+
+const SIGNUP_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>) => ({
