@@ -55,7 +55,7 @@ export async function runNotificationTick(now: Date) {
   const { data: notifRows, error: notifErr } = await supabaseAdmin
     .from("notification_prefs")
     .select(
-      "user_id, enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, quiet_start, quiet_end, daily_cap, timezone",
+      "user_id, enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, smart_alarm, commute, calendar, quiet_start, quiet_end, daily_cap, timezone",
     )
     .eq("enabled", true);
 
