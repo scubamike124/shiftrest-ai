@@ -154,7 +154,7 @@ function PlanPage() {
   const recommendations: Recommendation[] = useMemo(() => {
     if (!mounted) return [];
     const insights = computeInsights(
-      shifts,
+      safeShifts,
       prefs,
       today,
       employers,
@@ -164,7 +164,8 @@ function PlanPage() {
       lat: prefs.lat ?? null,
       lon: prefs.lon ?? null,
     });
-  }, [mounted, shifts, prefs, today, employers, wearableSummary]);
+  }, [mounted, safeShifts, prefs, today, employers, wearableSummary]);
+
 
 
   function buildPlanText(): string | null {
