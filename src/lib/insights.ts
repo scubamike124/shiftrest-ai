@@ -274,7 +274,7 @@ export function computeInsights(
 
   // ── 14-day horizon
   const fatigueHorizon: FatiguePoint[] = Array.from({ length: 14 }, (_, offset) =>
-    dayFatigue(shifts, (weekdayToday + offset) % 7, offset, prefs, personalCtx),
+    dayFatigue(shifts, addDays(now, offset), offset, prefs, personalCtx),
   );
   const fatigueToday = fatigueHorizon[0];
   const fatigueForecast = fatigueHorizon.slice(0, 3);
