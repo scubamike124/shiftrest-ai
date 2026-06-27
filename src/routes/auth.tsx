@@ -62,6 +62,10 @@ function AuthPage() {
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "signup" && !accepted) {
+      toast.error("Please accept the Terms, Privacy, and disclaimers to continue.");
+      return;
+    }
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -71,6 +75,18 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        // Record acceptance once the session exists. If email confirmation is on,
+        // this runs after the user confirms and lands back on /auth.
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            await recordAcceptanceFn({
+              data: { documents: SIGNUP_DOCS, source: "signup" },
+            });
+          }
+        } catch (logErr) {
+          console.error("acceptance log failed", logErr);
+        }
         toast.success("Check your email to confirm your account.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
