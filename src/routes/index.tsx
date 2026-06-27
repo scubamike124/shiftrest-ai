@@ -154,6 +154,17 @@ function Dashboard() {
         : null,
     [shifts, prefs, today, mounted, employers, wearableSummary],
   );
+  const recommendations = useMemo(
+    () =>
+      insights
+        ? buildRecommendations(insights, prefs, today, {
+            lat: prefs.lat ?? null,
+            lon: prefs.lon ?? null,
+          })
+        : [],
+    [insights, prefs, today],
+  );
+
 
   return (
     <main className="flex flex-col px-5 pt-10 pb-6">
