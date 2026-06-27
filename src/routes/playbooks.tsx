@@ -37,7 +37,7 @@ function Playbooks() {
     try {
       await replaceAllShifts(shifts);
       toast.success(`Applied "${p.name}" to this week`);
-      navigate({ to: "/" });
+      navigate({ to: "/dashboard" });
     } catch (err) {
       if (err instanceof AuthRequiredError) {
         toast.error("Sign in to save this playbook", {

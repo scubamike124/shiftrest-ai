@@ -257,7 +257,7 @@ function Paywall() {
       </div>
 
       <Link
-        to="/"
+        to="/dashboard"
         className="mt-3 text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
       >
         Maybe later
