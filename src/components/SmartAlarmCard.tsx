@@ -202,6 +202,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
               </p>
             </div>
           )}
+          {lastResult.res.recommendationId && (
+            <div className="mt-3 border-t border-primary/15 pt-3">
+              <RecommendationActions
+                recommendationId={lastResult.res.recommendationId}
+                intent="smart_alarm"
+              />
+            </div>
+          )}
         </div>
       )}
 
