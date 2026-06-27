@@ -19,9 +19,9 @@ const CATEGORIES: MemoryCategory[] = [
 
 export function AIMemoryManager({ enabled }: { enabled: boolean }) {
   const qc = useQueryClient();
-  const { data: memories = [], isLoading } = useQuery({
+  const { data: memories = [] as AIMemory[], isLoading } = useQuery<AIMemory[]>({
     queryKey: ["ai-memory"],
-    queryFn: listMemories,
+    queryFn: () => listMemories(),
     enabled,
     staleTime: 30_000,
   });
