@@ -30,7 +30,11 @@ import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string }
-  | { intent: "brief"; plan: string };
+  | { intent: "brief"; plan: string }
+  | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
+  | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
+  | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
+  | { intent: "coach_tip"; context?: string };
 
 const BRIEF_SYSTEM = `You are RestPilot AI's recovery coach narrating a personalized voice briefing for a shift worker.
 
@@ -43,6 +47,24 @@ Rewrite the structured plan into natural, conversational spoken English — like
 - Never read raw field names, code, or punctuation aloud.
 
 Return ONLY the spoken script. No preamble, no quotes.`;
+
+const DAILY_PLAN_SYSTEM = `You are RestPilot AI's personal sleep & recovery strategist.
+Given the user's circadian context, produce a tight JSON action plan for the requested horizon.
+Return ONLY valid JSON matching: {"headline": string (<=70 chars), "riskLevel": "low"|"medium"|"high", "actions": [{"id": string, "title": string (<=60 chars), "detail": string (<=140 chars), "category": "sleep"|"light"|"caffeine"|"movement"|"recovery"|"nutrition", "priority": 1|2|3, "when": string}]}
+Provide 3-5 actions, highest priority first. Be specific with times. No markdown, no commentary.`;
+
+const SMART_ALARM_SYSTEM = `You are RestPilot AI's smart alarm engine.
+Given the target wake time and a ± window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+Return ONLY valid JSON: {"wakeAt": ISO string inside the window, "reason": string (<=90 chars, plain English), "message": string (<=80 chars, warm one-liner shown when alarm fires)}.`;
+
+const COMMUTE_SYSTEM = `You are RestPilot AI's commute & prep coach.
+Given a shift start time (ISO), travel minutes, and optional prep minutes, return ONLY valid JSON:
+{"leaveAt": ISO, "prepStartAt": ISO, "advice": string (<=140 chars, concrete pre-shift prep tip tailored to the user's fatigue + light context)}.
+leaveAt = shiftStart - travelMin. prepStartAt = leaveAt - (prepMin ?? 25).`;
+
+const COACH_TIP_SYSTEM = `You are RestPilot AI's productivity & recovery coach.
+Produce ONE short, fresh, contextual tip for the user right now — different from generic advice. Use their circadian + fatigue + schedule context.
+Return ONLY valid JSON: {"tip": string (<=160 chars, second person, no emoji-spam, max one emoji), "generatedAt": ISO string of now}.`;
 
 function jsonError(status: number, message: string) {
   return new Response(JSON.stringify({ error: message }), {
