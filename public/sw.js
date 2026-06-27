@@ -16,13 +16,20 @@ self.addEventListener("push", (event) => {
   } catch {
     if (event.data) data.body = event.data.text();
   }
+  const isAlarm = data.kind === "smart-alarm";
   const options = {
     body: data.body,
     icon: "/icon-512.png",
     badge: "/icon-512.png",
     tag: data.tag || data.kind || "restpilot",
     data: { url: data.url || "/plan", kind: data.kind || null },
-    vibrate: [80, 40, 80],
+    // Smart alarms must wake the user — keep the notification on screen until
+    // tapped and use a long buzzing vibration pattern.
+    requireInteraction: isAlarm,
+    silent: false,
+    vibrate: isAlarm
+      ? [400, 200, 400, 200, 400, 200, 400, 200, 400]
+      : [80, 40, 80],
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });

@@ -1,5 +1,6 @@
-// Pure scheduling engine — given today's shifts + prefs + notification prefs,
-// returns the reminders that should fire inside the current cron window.
+// Pure scheduling engine — given today's shifts + prefs + notification prefs
+// (+ optional user_events for Bundle 2), returns the reminders that should
+// fire inside the current cron window.
 //
 // Called from the /api/public/hooks/notify cron handler. No I/O, no Date.now()
 // internal — `now` is injected so we can unit-test deterministically.
@@ -16,15 +17,34 @@ export type NotifPrefs = {
   bright_light: boolean;
   shift_start: boolean;
   shift_end_recovery: boolean;
+  smart_alarm: boolean;
+  commute: boolean;
+  calendar: boolean;
   quiet_start: string; // "HH:MM:SS"
   quiet_end: string;
   daily_cap: number;
   timezone: string;
 };
 
+/** A user_events row (raw DB shape) consumed by the scheduler. */
+export type ScheduledEvent = {
+  id: string;
+  kind: "calendar" | "commute" | "personal";
+  title: string;
+  starts_at: string; // ISO
+  reminder_min: number;
+  travel_buffer_min: number;
+};
+
 export type DueReminder = {
   kind: ReminderKind;
   scheduledFor: Date;
+  /** Optional event id for dedupe + click-through context. */
+  eventId?: string;
+  /** Optional event title for personalised copy. */
+  title?: string;
+  /** Reminders flagged critical bypass the daily cap (smart alarm). */
+  critical?: boolean;
 };
 
 const CRON_WINDOW_MIN = 5; // matches pg_cron `*/5 * * * *`
@@ -88,7 +108,6 @@ export function utcFromLocal(
   minuteOfDay: number,
   tz: string,
 ): Date {
-  // Iteratively correct: start with naive UTC, measure offset of that wall time in tz, subtract.
   const naive = Date.UTC(y, m - 1, d, Math.floor(minuteOfDay / 60), minuteOfDay % 60);
   const offsetMin = tzOffsetMinutes(new Date(naive), tz);
   return new Date(naive - offsetMin * 60_000);
@@ -116,23 +135,25 @@ function tzOffsetMinutes(date: Date, tz: string): number {
 }
 
 /**
- * For today's shift in the user's timezone, compute every reminder whose
- * scheduled-for time falls in the cron window [now, now + CRON_WINDOW_MIN).
- * Caller is responsible for quiet-hours/cap/dedupe filtering.
+ * For today's shift in the user's timezone + the next 24h of user_events,
+ * compute every reminder whose scheduled-for time falls in the cron window
+ * [now, now + CRON_WINDOW_MIN). Caller is responsible for quiet-hours, cap,
+ * and dedupe filtering.
  */
 export function computeDueReminders(args: {
   shifts: Shift[];
   prefs: Prefs;
   notif: NotifPrefs;
+  events?: ScheduledEvent[];
   now: Date;
 }): DueReminder[] {
-  const { shifts, prefs, notif, now } = args;
+  const { shifts, prefs, notif, events = [], now } = args;
   if (!notif.enabled) return [];
 
   const tz = notif.timezone || "UTC";
   const candidates: DueReminder[] = [];
 
-  // Look at today and yesterday (yesterday's overnight shift may end today).
+  // ---------- shift-driven reminders ----------
   for (const dayOffset of [-1, 0]) {
     const probe = new Date(now.getTime() + dayOffset * 86_400_000);
     const ymd = ymdInTz(probe, tz);
@@ -143,7 +164,7 @@ export function computeDueReminders(args: {
     const endMin = endAbsolute(shift);
     const wakeMin = shift.start - 90;
     const shiftStartReminderMin = shift.start - 15;
-    const windDownStartMin = endMin; // wind-down begins at clock-out
+    const windDownStartMin = endMin;
     const sleepStartMin = endMin + prefs.windDownMin;
     const caffeineCutoffPingMin = sleepStartMin - 6 * 60 - 10;
 
@@ -158,6 +179,37 @@ export function computeDueReminders(args: {
     add("caffeine-cutoff", notif.caffeine_cutoff, caffeineCutoffPingMin);
     add("shift-end-recovery", notif.shift_end_recovery, endMin);
     add("wind-down", notif.wind_down, windDownStartMin);
+  }
+
+  // ---------- event-driven reminders ----------
+  for (const ev of events) {
+    const startsAt = new Date(ev.starts_at);
+    if (isNaN(startsAt.getTime())) continue;
+
+    if (ev.kind === "calendar" && notif.calendar) {
+      const at = new Date(startsAt.getTime() - ev.reminder_min * 60_000);
+      candidates.push({ kind: "calendar-prep", scheduledFor: at, eventId: ev.id, title: ev.title });
+    }
+    if (ev.kind === "commute" && notif.commute) {
+      const at = new Date(startsAt.getTime() - ev.travel_buffer_min * 60_000);
+      candidates.push({ kind: "commute-leave", scheduledFor: at, eventId: ev.id, title: ev.title });
+    }
+    if (ev.kind === "personal") {
+      // Personal events with title prefix "Alarm:" are smart alarms.
+      const isAlarm = /^alarm:/i.test(ev.title);
+      if (isAlarm && notif.smart_alarm) {
+        candidates.push({
+          kind: "smart-alarm",
+          scheduledFor: startsAt,
+          eventId: ev.id,
+          title: ev.title.replace(/^alarm:\s*/i, "") || undefined,
+          critical: true,
+        });
+      } else if (notif.calendar) {
+        const at = new Date(startsAt.getTime() - ev.reminder_min * 60_000);
+        candidates.push({ kind: "calendar-prep", scheduledFor: at, eventId: ev.id, title: ev.title });
+      }
+    }
   }
 
   const lo = now.getTime();
