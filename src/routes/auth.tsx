@@ -21,6 +21,7 @@ export const Route = createFileRoute("/auth")({
 // Only allow same-origin, in-app return targets.
 const SAFE_RETURNS = new Set([
   "/",
+  "/dashboard",
   "/paywall",
   "/profile",
   "/plan",
@@ -28,13 +29,15 @@ const SAFE_RETURNS = new Set([
   "/playbooks",
   "/swap",
   "/share",
+  "/events",
 ]);
 
 function resolveReturn(raw: string | undefined): string {
-  if (!raw) return "/";
-  if (!raw.startsWith("/")) return "/";
+  // Signed-in users belong on the dashboard, not the marketing homepage.
+  if (!raw) return "/dashboard";
+  if (!raw.startsWith("/")) return "/dashboard";
   const path = raw.split("?")[0].split("#")[0];
-  return SAFE_RETURNS.has(path) ? raw : "/";
+  return SAFE_RETURNS.has(path) ? raw : "/dashboard";
 }
 
 function AuthPage() {
