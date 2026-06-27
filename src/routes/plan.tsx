@@ -116,8 +116,9 @@ function PlanPage() {
     return d;
   }, [today, activeDay, weekday]);
   const shift =
-    shiftsForDate(shifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
-    shifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
+    shiftsForDate(safeShifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
+    safeShifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
+
   // Only compute sunrise/sunset when the user has VERIFIED a real location.
   // A coords-shaped label like "33.66, -117.88" is a legacy fallback from a
   // broken reverse-geocode path and must NOT count as verified.
