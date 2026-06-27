@@ -143,6 +143,12 @@ export function CompanionWhisper({
                   </li>
                 ))}
               </ul>
+              {adjustment.ifIgnored && (
+                <p className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-2 text-[11px] leading-snug text-foreground/90">
+                  <span className="font-semibold text-rose-300">If you skip these: </span>
+                  {adjustment.ifIgnored}
+                </p>
+              )}
             </div>
           )}
         </div>

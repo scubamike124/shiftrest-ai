@@ -46,6 +46,7 @@ export type SmartAlarmResponse = {
   reason: string;
   cyclePosition?: "rem_end" | "light_sleep" | "deep_avoid" | "natural";
   confidence?: "low" | "medium" | "high";
+  confidenceReason?: string;
   message: string;
 };
 
@@ -60,8 +61,12 @@ export function aiSmartAlarm(input: {
 export type RightNowResponse = {
   action: string;
   why: string;
+  followBenefit?: string;
   ignoreCost: string;
+  confidence?: "low" | "medium" | "high";
+  confidenceReason?: string;
   urgency: "now" | "soon" | "later";
+  timeWindow?: { startIso: string; endIso: string };
   ctaLabel: string;
   ctaRoute: "/plan" | "/events" | "/coach" | "/dashboard";
 };
@@ -72,6 +77,8 @@ export function aiRightNow(input: { context?: string } = {}) {
 
 export type AdjustPlanResponse = {
   summary: string;
+  confidence?: "low" | "medium" | "high";
+  ifIgnored?: string;
   changes: { label: string; from: string; to: string; reason: string }[];
 };
 

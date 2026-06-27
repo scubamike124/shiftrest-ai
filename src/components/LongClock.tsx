@@ -1,9 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind } from "lucide-react";
 import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
 import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
+
+const RIGHT_NOW_CACHE_KEY = "rp_rightnow_v1";
+
+type CoachHighlight = { startMin: number; endMin: number; label: string } | null;
+
+function readCoachHighlight(): CoachHighlight {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(RIGHT_NOW_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { data?: { timeWindow?: { startIso: string; endIso: string }; action?: string } };
+    const w = c.data?.timeWindow;
+    if (!w?.startIso || !w?.endIso) return null;
+    const s = new Date(w.startIso);
+    const e = new Date(w.endIso);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+    return {
+      startMin: s.getHours() * 60 + s.getMinutes(),
+      endMin: e.getHours() * 60 + e.getMinutes(),
+      label: c.data?.action ?? "Coach window",
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * LongClock — the signature 24h ribbon. Shows the user's whole day in one glance:
@@ -173,6 +198,21 @@ export function LongClock({
     [activeId, bands, markers],
   );
 
+  // Live link to RightNowCard: highlight the coach's recommended window.
+  const [highlight, setHighlight] = useState<CoachHighlight>(null);
+  useEffect(() => {
+    setHighlight(readCoachHighlight());
+    const handler = (e: StorageEvent) => {
+      if (e.key === RIGHT_NOW_CACHE_KEY) setHighlight(readCoachHighlight());
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+  const highlightSegs = useMemo(
+    () => (highlight ? splitWrap(highlight.startMin, highlight.endMin) : []),
+    [highlight],
+  );
+
   return (
     <section className="rounded-[24px] border border-border bg-card p-5">
       <header className="mb-4 flex items-center justify-between">
@@ -188,6 +228,13 @@ export function LongClock({
           Now {fmtTime(nowMin)}
         </span>
       </header>
+
+      {highlight && (
+        <p className="-mt-2 mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-glow">
+          <Sparkles className="h-3 w-3" />
+          Coach window {fmtTime(highlight.startMin)} – {fmtTime(highlight.endMin)} · {highlight.label}
+        </p>
+      )}
 
       {/* Ribbon */}
       <div className="relative">
@@ -208,6 +255,21 @@ export function LongClock({
               />
             ));
           })}
+          {/* Coach highlight — the window RightNowCard recommended */}
+          {highlightSegs.map((seg, i) => (
+            <div
+              key={`coach-${i}`}
+              aria-label={`Coach window: ${highlight?.label}`}
+              className="pointer-events-none absolute -top-1 bottom-0 rounded-full ring-2 ring-primary/80 shadow-[0_0_24px_rgba(99,102,241,0.55)]"
+              style={{
+                left: `${(seg.start / 1440) * 100}%`,
+                width: `${Math.max(0.5, (seg.len / 1440) * 100)}%`,
+                height: "calc(100% + 0.5rem)",
+                background:
+                  "linear-gradient(180deg, rgba(99,102,241,0.18) 0%, rgba(99,102,241,0.05) 100%)",
+              }}
+            />
+          ))}
           {markers.map((m) => (
             <button
               key={m.id}
