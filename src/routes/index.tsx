@@ -54,9 +54,10 @@ function Landing() {
     <div className="overflow-hidden">
       <Hero ctaHref={ctaHref} />
       <LogoTicker />
+      <DayInLifeSection />
       <LiveCoachSection />
-      <LongClockSection />
       <SmartAlarmSection />
+      <LongClockSection />
       <DashboardSection />
       <CalendarConflictSection />
       <CommuteSection />
