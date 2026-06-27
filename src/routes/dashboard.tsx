@@ -289,6 +289,10 @@ function Dashboard() {
         </Link>
       </div>
 
+      <OfflineBanner userId={userId} />
+
+
+
 
       {/* ★ AI HERO — Right Now */}
       <RightNowCard
