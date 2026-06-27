@@ -4,18 +4,13 @@ import { AlarmClock, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
+import { ConfidenceBadge, WhyButton } from "./ai/trust";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
   light_sleep: "Light sleep phase",
   deep_avoid: "Avoiding deep sleep",
   natural: "Natural wake window",
-};
-
-const CONFIDENCE_TONE: Record<NonNullable<SmartAlarmResponse["confidence"]>, string> = {
-  high: "bg-emerald-500/15 text-emerald-300",
-  medium: "bg-amber-500/15 text-amber-300",
-  low: "bg-slate-500/15 text-slate-300",
 };
 
 /**
