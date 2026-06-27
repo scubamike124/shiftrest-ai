@@ -95,10 +95,17 @@ function Dashboard() {
       const patch: Partial<typeof prefs> = {};
       if (!prefs.homeTz) patch.homeTz = device;
       if (prefs.currentTz !== device) patch.currentTz = device;
+      const tzChanged = patch.currentTz !== undefined;
       if (cancelled || Object.keys(patch).length === 0) return;
       try {
         const { savePrefs } = await import("@/lib/prefs");
         await savePrefs(patch);
+        // Log the jump to tz_events so the pattern detector & jet-lag intent
+        // can reason about how long ago the user crossed zones. RLS scopes it.
+        if (tzChanged) {
+          const { recordTzEvent } = await import("@/lib/trips.functions");
+          await recordTzEvent({ data: { toTz: device, source: "device_tz" } }).catch(() => {});
+        }
       } catch {
         /* non-fatal: tz will retry next mount */
       }
