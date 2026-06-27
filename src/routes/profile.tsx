@@ -64,7 +64,11 @@ function Profile() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const deleteAccount = useServerFn(deleteAccountFn);
+  const exportAccount = useServerFn(exportAccountFn);
+  const purgeAiMemory = useServerFn(purgeAiMemoryFn);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [purging, setPurging] = useState(false);
   const { data: prefs = DEFAULT_PREFS } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
