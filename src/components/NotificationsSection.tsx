@@ -33,10 +33,19 @@ const KINDS: Array<{ key: keyof NotifPrefsRow; rk: ReminderKind }> = [
 
 export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
   const qc = useQueryClient();
-  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() =>
-    typeof window === "undefined" || !pushSupported() ? "unsupported" : Notification.permission,
-  );
-  const supported = perm !== "unsupported";
+  // Always render "unsupported" on the first paint so SSR markup and the
+  // initial client render match. Real permission is resolved post-mount.
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+    if (typeof window === "undefined" || !pushSupported()) {
+      setPerm("unsupported");
+    } else {
+      setPerm(Notification.permission);
+    }
+  }, []);
+  const supported = hydrated && perm !== "unsupported";
 
   const subscribeFn = useServerFn(subscribePush);
   const unsubscribeFn = useServerFn(unsubscribePush);
