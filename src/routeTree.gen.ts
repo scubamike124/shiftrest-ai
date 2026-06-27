@@ -20,6 +20,7 @@ import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
+import { Route as LegalRouteImport } from './routes/legal'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
@@ -27,6 +28,19 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LegalIndexRouteImport } from './routes/legal.index'
+import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
+import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
+import { Route as LegalTermsRouteImport } from './routes/legal.terms'
+import { Route as LegalSubscriptionRouteImport } from './routes/legal.subscription'
+import { Route as LegalSecurityRouteImport } from './routes/legal.security'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalLicenseRouteImport } from './routes/legal.license'
+import { Route as LegalDisclaimersRouteImport } from './routes/legal.disclaimers'
+import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
+import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
+import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
+import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
@@ -95,6 +109,11 @@ const MemoryRoute = MemoryRouteImport.update({
   path: '/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalRoute = LegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeaturesRoute = FeaturesRouteImport.update({
   id: '/features',
   path: '/features',
@@ -129,6 +148,71 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LegalIndexRoute = LegalIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
+  id: '/trademark',
+  path: '/trademark',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalThirdPartiesRoute = LegalThirdPartiesRouteImport.update({
+  id: '/third-parties',
+  path: '/third-parties',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalSubscriptionRoute = LegalSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalSecurityRoute = LegalSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalLicenseRoute = LegalLicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalDisclaimersRoute = LegalDisclaimersRouteImport.update({
+  id: '/disclaimers',
+  path: '/disclaimers',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAccessibilityRoute = LegalAccessibilityRouteImport.update({
+  id: '/accessibility',
+  path: '/accessibility',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
+  id: '/acceptable-use',
+  path: '/acceptable-use',
+  getParentRoute: () => LegalRoute,
 } as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
@@ -202,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
@@ -219,6 +304,19 @@ export interface FileRoutesByFullPath {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/accessibility': typeof LegalAccessibilityRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/license': typeof LegalLicenseRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/security': typeof LegalSecurityRoute
+  '/legal/subscription': typeof LegalSubscriptionRoute
+  '/legal/terms': typeof LegalTermsRoute
+  '/legal/third-parties': typeof LegalThirdPartiesRoute
+  '/legal/trademark': typeof LegalTrademarkRoute
+  '/legal/': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -251,6 +349,19 @@ export interface FileRoutesByTo {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/accessibility': typeof LegalAccessibilityRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/license': typeof LegalLicenseRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/security': typeof LegalSecurityRoute
+  '/legal/subscription': typeof LegalSubscriptionRoute
+  '/legal/terms': typeof LegalTermsRoute
+  '/legal/third-parties': typeof LegalThirdPartiesRoute
+  '/legal/trademark': typeof LegalTrademarkRoute
+  '/legal': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -267,6 +378,7 @@ export interface FileRoutesById {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
@@ -284,6 +396,19 @@ export interface FileRoutesById {
   '/api/insights': typeof ApiInsightsRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/legal/acceptable-use': typeof LegalAcceptableUseRoute
+  '/legal/accessibility': typeof LegalAccessibilityRoute
+  '/legal/cookies': typeof LegalCookiesRoute
+  '/legal/copyright': typeof LegalCopyrightRoute
+  '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/license': typeof LegalLicenseRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/security': typeof LegalSecurityRoute
+  '/legal/subscription': typeof LegalSubscriptionRoute
+  '/legal/terms': typeof LegalTermsRoute
+  '/legal/third-parties': typeof LegalThirdPartiesRoute
+  '/legal/trademark': typeof LegalTrademarkRoute
+  '/legal/': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -301,6 +426,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/legal'
     | '/memory'
     | '/paywall'
     | '/plan'
@@ -318,6 +444,19 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/legal/acceptable-use'
+    | '/legal/accessibility'
+    | '/legal/cookies'
+    | '/legal/copyright'
+    | '/legal/disclaimers'
+    | '/legal/license'
+    | '/legal/privacy'
+    | '/legal/security'
+    | '/legal/subscription'
+    | '/legal/terms'
+    | '/legal/third-parties'
+    | '/legal/trademark'
+    | '/legal/'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -350,6 +489,19 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/legal/acceptable-use'
+    | '/legal/accessibility'
+    | '/legal/cookies'
+    | '/legal/copyright'
+    | '/legal/disclaimers'
+    | '/legal/license'
+    | '/legal/privacy'
+    | '/legal/security'
+    | '/legal/subscription'
+    | '/legal/terms'
+    | '/legal/third-parties'
+    | '/legal/trademark'
+    | '/legal'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -365,6 +517,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/legal'
     | '/memory'
     | '/paywall'
     | '/plan'
@@ -382,6 +535,19 @@ export interface FileRouteTypes {
     | '/api/insights'
     | '/api/swap'
     | '/api/tts'
+    | '/legal/acceptable-use'
+    | '/legal/accessibility'
+    | '/legal/cookies'
+    | '/legal/copyright'
+    | '/legal/disclaimers'
+    | '/legal/license'
+    | '/legal/privacy'
+    | '/legal/security'
+    | '/legal/subscription'
+    | '/legal/terms'
+    | '/legal/third-parties'
+    | '/legal/trademark'
+    | '/legal/'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -398,6 +564,7 @@ export interface RootRouteChildren {
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
+  LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
@@ -502,6 +669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal': {
+      id: '/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof LegalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/features': {
       id: '/features'
       path: '/features'
@@ -550,6 +724,97 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/legal/': {
+      id: '/legal/'
+      path: '/'
+      fullPath: '/legal/'
+      preLoaderRoute: typeof LegalIndexRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/trademark': {
+      id: '/legal/trademark'
+      path: '/trademark'
+      fullPath: '/legal/trademark'
+      preLoaderRoute: typeof LegalTrademarkRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/third-parties': {
+      id: '/legal/third-parties'
+      path: '/third-parties'
+      fullPath: '/legal/third-parties'
+      preLoaderRoute: typeof LegalThirdPartiesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/subscription': {
+      id: '/legal/subscription'
+      path: '/subscription'
+      fullPath: '/legal/subscription'
+      preLoaderRoute: typeof LegalSubscriptionRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/security': {
+      id: '/legal/security'
+      path: '/security'
+      fullPath: '/legal/security'
+      preLoaderRoute: typeof LegalSecurityRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/license': {
+      id: '/legal/license'
+      path: '/license'
+      fullPath: '/legal/license'
+      preLoaderRoute: typeof LegalLicenseRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/disclaimers': {
+      id: '/legal/disclaimers'
+      path: '/disclaimers'
+      fullPath: '/legal/disclaimers'
+      preLoaderRoute: typeof LegalDisclaimersRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/copyright': {
+      id: '/legal/copyright'
+      path: '/copyright'
+      fullPath: '/legal/copyright'
+      preLoaderRoute: typeof LegalCopyrightRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/accessibility': {
+      id: '/legal/accessibility'
+      path: '/accessibility'
+      fullPath: '/legal/accessibility'
+      preLoaderRoute: typeof LegalAccessibilityRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/acceptable-use': {
+      id: '/legal/acceptable-use'
+      path: '/acceptable-use'
+      fullPath: '/legal/acceptable-use'
+      preLoaderRoute: typeof LegalAcceptableUseRouteImport
+      parentRoute: typeof LegalRoute
     }
     '/api/tts': {
       id: '/api/tts'
@@ -638,6 +903,40 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LegalRouteChildren {
+  LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
+  LegalAccessibilityRoute: typeof LegalAccessibilityRoute
+  LegalCookiesRoute: typeof LegalCookiesRoute
+  LegalCopyrightRoute: typeof LegalCopyrightRoute
+  LegalDisclaimersRoute: typeof LegalDisclaimersRoute
+  LegalLicenseRoute: typeof LegalLicenseRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalSecurityRoute: typeof LegalSecurityRoute
+  LegalSubscriptionRoute: typeof LegalSubscriptionRoute
+  LegalTermsRoute: typeof LegalTermsRoute
+  LegalThirdPartiesRoute: typeof LegalThirdPartiesRoute
+  LegalTrademarkRoute: typeof LegalTrademarkRoute
+  LegalIndexRoute: typeof LegalIndexRoute
+}
+
+const LegalRouteChildren: LegalRouteChildren = {
+  LegalAcceptableUseRoute: LegalAcceptableUseRoute,
+  LegalAccessibilityRoute: LegalAccessibilityRoute,
+  LegalCookiesRoute: LegalCookiesRoute,
+  LegalCopyrightRoute: LegalCopyrightRoute,
+  LegalDisclaimersRoute: LegalDisclaimersRoute,
+  LegalLicenseRoute: LegalLicenseRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalSecurityRoute: LegalSecurityRoute,
+  LegalSubscriptionRoute: LegalSubscriptionRoute,
+  LegalTermsRoute: LegalTermsRoute,
+  LegalThirdPartiesRoute: LegalThirdPartiesRoute,
+  LegalTrademarkRoute: LegalTrademarkRoute,
+  LegalIndexRoute: LegalIndexRoute,
+}
+
+const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
@@ -646,6 +945,7 @@ const rootRouteChildren: RootRouteChildren = {
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
+  LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,
