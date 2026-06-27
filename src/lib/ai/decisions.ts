@@ -38,6 +38,8 @@ export type ActivityEvent = {
   sublabel?: string | null;
   at: string;
   decisionId?: string | null;
+  /** How many raw events this row collapses (>=1). */
+  count?: number;
 };
 
 const INTENT_LABELS: Record<string, string> = {
