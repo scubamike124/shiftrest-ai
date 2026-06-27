@@ -1,106 +1,114 @@
+# QA Blocker Investigation — Findings & Fix Plan
 
-# QA Round 2 — Bug Fix Plan
+## BLOCKER 1 — Raw permission error "The request is not allowed by the user agent…"
 
-No new features. Each priority is investigated, fixed, then verified on iPhone Safari (375px) and desktop (1440px). After every fix I run a targeted Playwright pass + console/network check before moving on.
+### Root cause
+This is the standard Safari/WebKit `NotAllowedError` string. It is thrown from **two places** that can fire during a Coach session, and in both we currently surface the raw error text via `toast.error(err.message)`.
 
-## Priority 1 — AI Activity Log (duplicate spam)
+1. **`VoicePlayer.tsx` → `audio.play()`** (the most likely trigger on /coach and /plan).
+   The play button click is a user gesture, but the code performs `await fetch("/api/brief")` **and** `await fetch("/api/tts")` **and** `await blob()` before finally calling `audio.play()`. iOS Safari treats the original gesture as expired after multiple awaits and rejects the play with the exact "not allowed by user agent or platform" message. The catch then runs `toast.error(e.message)` — the raw browser string the user is seeing.
 
-**Investigate**
-- Read `src/lib/ai/decisions.ts`, the writer call sites (orchestrator `/api/ai`, dashboard cards, `LongClock`, recommendation accept/snooze, coach-window adjustments).
-- Confirm whether duplicates originate from repeated server writes or from the feed's groupBy render.
+2. **`NotificationsSection.tsx` → `Notification.requestPermission()`**.
+   iOS Safari throws the same error when the site is not installed as a Home-Screen PWA, when called from a non-secure context, or when called without a fresh user gesture. The catch surfaces `err.message` verbatim.
 
-**Fix**
-- Add a dedupe guard in `logDecision()`: skip insert when the previous row for `(user_id, kind, summary)` is < 60s old (server-side check via `ai_log`/`user_events`).
-- Debounce "Coach window updated" style system events on the client writer (60s window, in-memory map keyed by event signature).
-- Strengthen the feed collapser in `DecisionCenterCard` / Activity feed to merge consecutive identical `summary` rows into one entry with a count badge regardless of timestamp gap within the same hour.
-- Backfill clean-up: a one-shot migration that collapses existing consecutive duplicates is **not** required — UI collapser hides them.
+Supporting evidence:
+- `src/components/VoicePlayer.tsx` line ~167–170: `await audio.play(); … toast.error(e instanceof Error ? e.message : …)`
+- `src/components/NotificationsSection.tsx` line ~92–108: `await Notification.requestPermission(); … toast.error(err.message)`
+- `src/lib/notify.ts` `requestPermission()` and `showNotification()` do not pre-check capability beyond `"Notification" in window`.
 
-## Priority 2 — Voice Briefing verification
+### Fix
+Frontend-only. No business-logic change.
 
-- Drive `/plan` via Playwright: trigger briefing, capture loading shimmer, cancel mid-stream, replay, simulate offline (`context.set_offline(true)`), force TTS failure (mock 500 from `/api/tts`), force gateway timeout (8s).
-- Confirm `VoicePlayer.tsx` re-entry guard releases on every terminal state (success, error, cancel, timeout). Add a `finally { setBusy(false) }` if any branch leaks.
-- Add an 20s `AbortController` timeout to `/api/brief` + `/api/tts` fetches; surface friendly toast on abort.
+1. **VoicePlayer — pre-warm the audio element under the gesture, friendly error**
+   - Create/seed `audioRef.current = new Audio()` and call `audio.load()` synchronously at the top of the click handler, before any await. This preserves the gesture token on iOS.
+   - After receiving the blob, set `audio.src` and try `audio.play()`; if it rejects, fall back to a visible **"Tap to play"** state instead of toasting raw text.
+   - Replace `toast.error(e.message)` with a mapped friendly copy:
+     - `NotAllowedError` → "Tap play again to start the briefing — Safari needs a direct tap."
+     - `NotSupportedError` → "Your browser can't play this audio format."
+     - any other → "Voice briefing is temporarily unavailable."
+   - Always `console.error(e)` for diagnostics.
 
-## Priority 3 — Coach chat readability
+2. **NotificationsSection / notify.ts — detect-before-request + friendly catch**
+   - Add a single helper `canRequestNotificationPermission()` that returns `{ ok: false, reason }` for: SSR, no `Notification`, iOS Safari without `standalone`, insecure context, `Notification.permission === "denied"`.
+   - In `enableEverything()`, call the helper first and short-circuit to the existing inline iOS / unsupported / denied UI instead of attempting `requestPermission()` at all.
+   - Wrap the actual `Notification.requestPermission()` call in try/catch and on any throw show the friendly iOS / unsupported / denied panel + `console.error`, never `err.message` in a toast.
+   - Same friendly-mapper used by `lib/notify.ts requestPermission()` so any future caller is safe.
 
-- Update coach system prompt (`COACH_VOICE` in `src/routes/api/ai.ts`) to require short sections, `##` headings, bullets, no bold-asterisk emphasis.
-- In `src/routes/coach.tsx` message renderer:
-  - Strip stray `**` artifacts post-stream (`text.replace(/\*\*/g, '')` only when markdown parser left them).
-  - Already using `react-markdown`; ensure `prose` classes + spacing.
-  - Wrap any message > 1200 chars in a `<CollapsibleSection>` with "Show more" toggle (default collapsed after first 600 chars).
-  - Add `<details>` style collapsibles for any `### Details` heading the model emits.
+3. **Coach route** — already uses friendly toasts; no change required. Confirms the raw string only originates from the two surfaces above.
 
-## Priority 4 — Events (Calendar / Commute / Personal)
+### Verification
+- Manual on iOS Safari (375×667), iOS Safari standalone (Add to Home Screen), Android Chrome, desktop Chrome, desktop Safari, Firefox.
+- Force `Notification.requestPermission` rejection by toggling site permission to Block; confirm friendly panel appears, no raw string.
+- Force `audio.play()` rejection by adding an artificial 3s `setTimeout` before play in dev; confirm "Tap to play" fallback appears, no raw string.
 
-- Audit `src/routes/events.tsx` + `user_events` server fns.
-- Add Zod validation (title required, start < end, travel buffer 0–180 min).
-- Verify save/edit/delete round-trip via Playwright; assert row in `user_events` after each.
-- Reminders: ensure the notification scheduler subscribes on save and unsubscribes on delete.
-- Imports (.ics): catch parse errors, toast on failure, never silently drop.
+---
 
-## Priority 5 — Profile persistence
+## BLOCKER 2 — Plan page shows "No shift scheduled today" for a configured account
 
-- For every control listed, confirm: (a) load reads from `user_prefs` / `profiles` / `employers` / `wearable_connections`, (b) change handler calls server fn, (c) success toast, (d) value survives `router.invalidate()` + reload.
-- Fix any optimistic-only updates by awaiting the mutation and invalidating the query.
-- Export, Erase AI Memory, Delete Account already wired in `src/lib/account.functions.ts` — re-verify end-to-end.
+### Root cause
+A **hydration race between Supabase auth and React Query** on `/plan`.
 
-## Priority 6 — Smart Reminders button
+- `fetchShifts()` (`src/lib/shifts.ts`) calls `supabase.auth.getUser()`. If the session has not finished restoring at the moment the query first runs, `userId` is `null` and the function returns `[]`.
+- In `src/routes/plan.tsx` the shifts and prefs queries are **not gated** by `signedIn`:
+  ```tsx
+  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
+  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
+  ```
+  (Employers and wearables ARE gated with `enabled: signedIn === true`.)
+- The empty result is cached. When auth eventually resolves and `signedIn` flips to `true`, nothing invalidates `["shifts"]` from this route, so the UI stays on the "No shift" empty state.
+- `__root.tsx` does invalidate `["shifts"]` after migrations during the bootstrap, but only when `SIGNED_IN`/`SIGNED_OUT` events fire **after** session restore; on a warm reload where the session is already in storage and no auth event fires, the invalidation path runs once but can still race the first query fetch on `/plan` because `bootstrap()` awaits migrations first.
 
-- Replace the dead "Not supported" state in the notifications panel with branching logic:
-  - **Push API + ServiceWorker + Notification supported & permission default** → "Enable reminders" button → `Notification.requestPermission()` → subscribe via VAPID.
-  - **iOS Safari without standalone PWA** → show "Add RestPilot to your Home Screen to enable reminders" with a 3-step instruction list (Share → Add to Home Screen → Open from icon).
-  - **Permission denied** → explain how to re-enable in browser settings.
-  - **Unsupported browser** → name the browser and recommend Safari/Chrome.
+Database confirms the user is correctly configured:
+- profile `scubamike124@gmail.com` exists, `cycle_weeks = 1`, `location_label = "Los Angeles, California"`.
+- 2 shifts stored, including `day = 5, week_index = 0` (Saturday). Today (Sat 2026-06-27) maps to weekday 5 → shift SHOULD render.
 
-## Priority 7 — Upgrade card
+So data, schedule math (`shiftsForDate`), and timezone handling are all correct. The only failure is the empty `[]` cache from the race.
 
-- Stripe billing is live → wire the "Upgrade to Premium" CTA on the dashboard to `/paywall`.
-- If `has_active_subscription(user)` is true, hide the card entirely.
+### Fix
+Frontend-only.
 
-## Priority 8 — Playbooks
+1. **Gate the queries on auth in `plan.tsx`** (mirror the pattern already used by employers/wearable):
+   ```tsx
+   const { data: shifts = [] } = useQuery({
+     queryKey: ["shifts"], queryFn: fetchShifts,
+     enabled: signedIn === true,
+   });
+   const { data: prefs = DEFAULT_PREFS } = useQuery({
+     queryKey: ["prefs"], queryFn: fetchPrefs,
+     initialData: DEFAULT_PREFS,
+     enabled: signedIn === true,
+   });
+   ```
+2. **Tighten the empty-state copy** so it only appears once we actually know the user has no shift today (`signedIn === true && shifts.length > 0 && !shift`). For `signedIn === null` or `shifts` still loading, render a small skeleton instead of the "No shift" panel.
+3. **Belt-and-suspenders cache invalidation**: in the same `useEffect` that subscribes to `onAuthStateChange`, on `SIGNED_IN` call `queryClient.invalidateQueries({ queryKey: ["shifts"] })` and `["prefs"]` so any stale empty cache from a prior unauthenticated read is dropped. (Root already does this on event firing; we add it to the page for warm-tab navigation correctness.)
 
-- For each preset in `src/routes/playbooks.tsx`: open detail sheet, show explanation + preview (before/after circadian), Apply writes to `user_prefs.active_playbook` + adjusts wind-down/target sleep, Save persists.
-- Add empty-state and error-state for any preset missing data.
+No schema changes. No planner-logic changes. No timezone changes.
 
-## Priority 9 — Plan page polish
+### Verification
+- Hard reload `/plan` while signed in → shift card renders (no flash of "No shift").
+- Sign out → friendly "Sign in" panel (existing behavior preserved).
+- Sign in from `/plan` → shift card hydrates immediately after auth.
+- Toggle days; Saturday shows the existing 09:00–17:00 shift; rest days show "No shift" correctly.
+- Add a shift on `/dashboard`, navigate to `/plan` → appears.
 
-- iPhone Safari 375px audit: tighten card padding (`p-4` not `p-6`), reduce hero type scale, ensure horizontal scroll = 0, use `overflow-x-clip` on the page root, verify button min-height 44px, fix any clipped circadian ring.
-- Desktop 1440px: confirm bento grid spacing stays consistent.
+---
 
-## Priority 10 — Final regression
+## Files to change
+- `src/components/VoicePlayer.tsx` — gesture-preserving play, friendly catch.
+- `src/components/NotificationsSection.tsx` — detect-before-request, friendly catch.
+- `src/lib/notify.ts` — `requestPermission()` returns `"unsupported"` on iOS-Safari-no-standalone / denied; never throws.
+- `src/routes/plan.tsx` — `enabled: signedIn === true` on shifts/prefs; safer empty-state gating; SIGNED_IN invalidation.
 
-Playwright sweep with authenticated session across: Home, Plan, Coach, Events, Profile, Voice Briefing, AI Activity, Memory, Partner Mode, Wearables, Legal, Export, Delete (against disposable user).
+No backend, RLS, schema, or AI-orchestrator changes.
 
-Capture:
-- Console errors (must be 0)
-- React warnings (must be 0)
-- Failed network requests (must be 0)
-- Duplicate AI events (must be 0)
-- Broken nav / placeholders / unfinished screens (must be 0)
+## Regression scope
+- Voice playback: still one-tap on Chrome/desktop Safari; iOS gets a clean "Tap to play" fallback instead of a raw error.
+- Notifications: enable flow unchanged on supported platforms; iOS Safari users get the existing install-to-home-screen panel instead of a thrown error.
+- `/plan`: identical UI when signed in with shifts; eliminates the false-empty state on cold loads.
 
-## Deliverable
+## Cross-browser test matrix
+- Desktop Chrome, Desktop Safari, Desktop Firefox
+- iOS Safari (in-browser) and iOS Safari standalone (Add to Home Screen)
+- Android Chrome
 
-A checklist returned in chat:
-
-```text
-P1 Activity dedupe        ✅ Fixed  ✅ Verified  ✅ Tested
-P2 Voice Briefing states  ✅ Fixed  ✅ Verified  ✅ Tested
-P3 Coach formatting       ✅ Fixed  ✅ Verified  ✅ Tested
-P4 Events CRUD            ✅ Fixed  ✅ Verified  ✅ Tested
-P5 Profile persistence    ✅ Fixed  ✅ Verified  ✅ Tested
-P6 Smart Reminders        ✅ Fixed  ✅ Verified  ✅ Tested
-P7 Upgrade card           ✅ Fixed  ✅ Verified  ✅ Tested
-P8 Playbooks              ✅ Fixed  ✅ Verified  ✅ Tested
-P9 Plan layout            ✅ Fixed  ✅ Verified  ✅ Tested
-P10 Final regression      ✅ Clean
-```
-
-Plus any non-blocking advisories logged to `docs/launch/remaining-issues.md`.
-
-## Order of execution
-
-P1 → P3 → P6 → P7 → P9 (highest user-visible impact, smallest blast radius)
-then P2 verification → P4 → P5 → P8
-then P10 full regression.
-
-Approve and I'll start with P1.
+Ready to implement on approval.
