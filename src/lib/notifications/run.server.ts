@@ -152,9 +152,11 @@ export async function runNotificationTick(now: Date) {
   for (const notif of users) {
     const prefs = prefsByUser.get(notif.user_id);
     const shifts = shiftsByUser.get(notif.user_id) ?? [];
-    if (!prefs || shifts.length === 0) continue;
+    const events = eventsByUser.get(notif.user_id) ?? [];
+    if (!prefs) continue;
+    if (shifts.length === 0 && events.length === 0) continue;
 
-    const due = computeDueReminders({ shifts, prefs, notif, now });
+    const due = computeDueReminders({ shifts, prefs, notif, events, now });
     if (due.length === 0) continue;
 
     // Today-window log for cap + dedupe.
@@ -177,8 +179,11 @@ export async function runNotificationTick(now: Date) {
       const localMin = minuteOfDayInTz(item.scheduledFor, notif.timezone || "UTC");
       let suppressed: string | null = null;
 
-      // Quiet hours
-      if (isQuiet(localMin, notif.quiet_start, notif.quiet_end)) suppressed = "quiet-hours";
+      // Critical reminders (smart alarm) bypass quiet hours + daily cap by design.
+      const critical = item.critical === true;
+
+      if (!critical && isQuiet(localMin, notif.quiet_start, notif.quiet_end))
+        suppressed = "quiet-hours";
 
       // 30-min dedupe — identical kind already logged within window
       if (!suppressed) {
@@ -191,8 +196,7 @@ export async function runNotificationTick(now: Date) {
         if (dup) suppressed = "dedupe";
       }
 
-      // Daily cap
-      if (!suppressed && sentSoFar >= notif.daily_cap) suppressed = "cap";
+      if (!critical && !suppressed && sentSoFar >= notif.daily_cap) suppressed = "cap";
 
       const baseLog = {
         user_id: notif.user_id,
@@ -209,13 +213,17 @@ export async function runNotificationTick(now: Date) {
         continue;
       }
 
-      const c = copyFor(item.kind as ReminderKind);
+      const c = copyFor(item.kind as ReminderKind, { title: item.title });
+      const url =
+        item.kind === "calendar-prep" || item.kind === "commute-leave"
+          ? "/events"
+          : "/plan";
       const result = await sendPushToUser(notif.user_id, {
         title: c.title,
         body: c.body,
-        tag: item.kind,
+        tag: item.eventId ? `${item.kind}:${item.eventId}` : item.kind,
         kind: item.kind,
-        url: "/plan",
+        url,
       });
 
       if (result.sent > 0) {
