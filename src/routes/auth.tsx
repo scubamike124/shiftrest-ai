@@ -6,6 +6,9 @@ import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    return: typeof search.return === "string" ? search.return : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Sign In — RestPilot AI" },
@@ -15,8 +18,29 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+// Only allow same-origin, in-app return targets.
+const SAFE_RETURNS = new Set([
+  "/",
+  "/paywall",
+  "/profile",
+  "/plan",
+  "/coach",
+  "/playbooks",
+  "/swap",
+  "/share",
+]);
+
+function resolveReturn(raw: string | undefined): string {
+  if (!raw) return "/";
+  if (!raw.startsWith("/")) return "/";
+  const path = raw.split("?")[0].split("#")[0];
+  return SAFE_RETURNS.has(path) ? raw : "/";
+}
+
 function AuthPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
+  const returnTo = resolveReturn(search.return);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,9 +48,9 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/" });
+      if (data.session) navigate({ to: returnTo as never });
     });
-  }, [navigate]);
+  }, [navigate, returnTo]);
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +68,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back.");
-        navigate({ to: "/" });
+        navigate({ to: returnTo as never });
       }
     } catch (err) {
       toast.error(
@@ -58,21 +82,28 @@ function AuthPage() {
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(true);
     try {
+      // Bring the OAuth user back to the auth page with the same `return` param;
+      // the useEffect above will forward them to the intended destination once
+      // the Supabase session has hydrated.
+      const callback = `${window.location.origin}/auth${
+        returnTo !== "/" ? `?return=${encodeURIComponent(returnTo)}` : ""
+      }`;
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin,
+        redirect_uri: callback,
       });
       if (result.error) {
         toast.error(result.error.message ?? "We couldn't sign you in. Please try again.");
         return;
       }
       if (result.redirected) return;
-      navigate({ to: "/" });
+      navigate({ to: returnTo as never });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "We couldn't sign you in. Please try again.");
     } finally {
       setLoading(false);
     }
   }
+
 
   return (
     <main className="flex min-h-[100dvh] flex-col px-5 pt-16 pb-10">

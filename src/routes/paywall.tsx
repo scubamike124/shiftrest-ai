@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Sparkles, ShieldCheck } from "lucide-react";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { DISCLAIMER } from "@/lib/shifts";
@@ -43,8 +43,9 @@ function Paywall() {
   const [selectedTier, setSelectedTier] = useState<Exclude<SubscriptionTier, "free">>("annual");
   const [loading, setLoading] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const autoResumedRef = useRef(false);
 
-  async function handleCheckout() {
+  async function startCheckout(tier: Exclude<SubscriptionTier, "free">) {
     if (!isPaymentsConfigured()) {
       toast.error("Payments aren't configured for this build yet.");
       return;
@@ -53,13 +54,15 @@ function Paywall() {
     try {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
+        // Persist the intent so we can resume checkout after the user signs in.
+        sessionStorage.setItem("restpilot_pending_checkout", tier);
         toast.info("Sign in to continue to checkout.");
-        navigate({ to: "/auth" });
+        navigate({ to: "/auth", search: { return: "/paywall" } as never });
         return;
       }
       const result = await createCheckoutSession({
         data: {
-          priceId: PRICE_IDS[selectedTier],
+          priceId: PRICE_IDS[tier],
           environment: getStripeEnvironment(),
           returnUrl: `${window.location.origin}/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         },
@@ -73,6 +76,29 @@ function Paywall() {
       setLoading(false);
     }
   }
+
+  async function handleCheckout() {
+    return startCheckout(selectedTier);
+  }
+
+  // Resume checkout automatically when the user returns to /paywall signed in
+  // with a pending intent (e.g. after a sign-in detour).
+  useEffect(() => {
+    if (autoResumedRef.current) return;
+    const pending = sessionStorage.getItem("restpilot_pending_checkout") as
+      | Exclude<SubscriptionTier, "free">
+      | null;
+    if (!pending) return;
+    autoResumedRef.current = true;
+    sessionStorage.removeItem("restpilot_pending_checkout");
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) return;
+      setSelectedTier(pending);
+      void startCheckout(pending);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   async function handleRestore() {
     setLoading(true);
