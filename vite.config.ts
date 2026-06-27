@@ -6,6 +6,40 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
+import { renameSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import type { Plugin } from "vite";
+
+/**
+ * vite-plugin-pwa writes the compiled service worker to the top-level
+ * Vite outDir (`dist/sw-src.js`). Cloudflare/Nitro actually serves the
+ * client bundle from `dist/client`, so the worker must live there to
+ * be reachable as `/sw.js`. We let PWA generate the manifest against
+ * `dist/client` (so precache URLs are `/assets/...`), then move the
+ * emitted worker into `dist/client/sw.js` in a closeBundle hook.
+ */
+function relocatePwaWorker(): Plugin {
+  return {
+    name: "rpai-relocate-sw",
+    apply: "build",
+    enforce: "post",
+    closeBundle: {
+      sequential: true,
+      order: "post",
+      handler() {
+        const root = process.cwd();
+        const src = resolve(root, "dist/sw-src.js");
+        const dest = resolve(root, "dist/client/sw.js");
+        if (!existsSync(src)) return;
+        mkdirSync(dirname(dest), { recursive: true });
+        renameSync(src, dest);
+        // Also clean up the stray source-file copy Nitro put under client/.
+        const stray = resolve(root, "dist/client/sw-src.ts");
+        if (existsSync(stray)) unlinkSync(stray);
+      },
+    },
+  };
+}
 
 export default defineConfig({
   tanstackStart: {
@@ -29,23 +63,22 @@ export default defineConfig({
         registerType: "autoUpdate",
         devOptions: { enabled: false },
         injectManifest: {
-          // Nitro emits the client bundle to dist/client; precache from there
-          // so manifest URLs become /assets/... (not /client/assets/...) and
-          // the compiled worker lands at dist/client/sw.js where the published
-          // site actually serves /sw.js from.
-          // (swSrc comes from top-level srcDir/filename above)
-          // swDest is derived from globDirectory by vite-plugin-pwa
-          // (→ dist/client/sw.js); don't override or workbox tries to read it as swSrc.
+          // Precache from the Nitro client bundle so URLs are `/assets/...`
+          // (NOT `/client/assets/...`).
           globDirectory: "dist/client",
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}"],
-          // Don't precache the source SW file itself or large media.
-          globIgnores: ["**/sw-src.*", "**/*.map", "sw.js"],
+          // Don't precache the source SW file itself, sourcemaps, or
+          // anything that would shadow the runtime worker.
+          globIgnores: ["**/sw-src.*", "**/sw.js", "**/*.map"],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-          // Ensure offline navigation fallback ("/") has a precache entry.
+          // Offline navigation fallback — guarantees `/` is in the
+          // precache so cold offline opens hit the cached app shell
+          // instead of the browser's offline page.
           additionalManifestEntries: [{ url: "/", revision: `${Date.now()}` }],
         },
         manifest: false, // existing public/manifest.webmanifest is the source of truth
       }),
+      relocatePwaWorker(),
     ],
   },
 });
