@@ -240,19 +240,26 @@ function PlanPage() {
       )}
 
       {!shift ? (
-        <div className="rounded-2xl border border-border bg-card p-6 text-center">
-          <p className="text-sm font-semibold">No shift scheduled today</p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Add today's shift and RestPilot AI will generate your personalized
-            light, caffeine, blackout, and recovery plan.
-          </p>
-          <Link
-            to="/dashboard"
-            className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
-          >
-            Open Schedule
-          </Link>
-        </div>
+        signedIn === null || (signedIn === true && shifts === undefined) || shiftsFetching ? (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center">
+            <p className="text-sm text-muted-foreground">Loading your plan…</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center">
+            <p className="text-sm font-semibold">No shift scheduled for this day</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Add a shift and RestPilot AI will generate your personalized
+              light, caffeine, blackout, and recovery plan.
+            </p>
+            <Link
+              to="/dashboard"
+              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              Open Schedule
+            </Link>
+          </div>
+        )
+
       ) : (
         <>
           <div className="flex gap-2">
