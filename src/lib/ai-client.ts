@@ -104,6 +104,7 @@ export type SmartAlarmResponse = {
   confidence?: "low" | "medium" | "high";
   confidenceReason?: string;
   message: string;
+  recommendationId?: string | null;
 };
 
 export function aiSmartAlarm(input: {
