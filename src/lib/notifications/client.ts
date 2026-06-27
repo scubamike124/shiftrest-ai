@@ -11,6 +11,9 @@ export type NotifPrefsRow = {
   bright_light: boolean;
   shift_start: boolean;
   shift_end_recovery: boolean;
+  smart_alarm: boolean;
+  commute: boolean;
+  calendar: boolean;
   quiet_start: string;
   quiet_end: string;
   daily_cap: number;
@@ -24,6 +27,9 @@ export const DEFAULT_NOTIF_PREFS: NotifPrefsRow = {
   bright_light: true,
   shift_start: true,
   shift_end_recovery: true,
+  smart_alarm: true,
+  commute: true,
+  calendar: true,
   quiet_start: "22:00:00",
   quiet_end: "07:00:00",
   daily_cap: 4,
@@ -85,7 +91,7 @@ export async function fetchNotifPrefs(): Promise<NotifPrefsRow> {
   const { data } = await supabase
     .from("notification_prefs")
     .select(
-      "enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, quiet_start, quiet_end, daily_cap, timezone",
+      "enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, smart_alarm, commute, calendar, quiet_start, quiet_end, daily_cap, timezone",
     )
     .eq("user_id", uid)
     .maybeSingle();

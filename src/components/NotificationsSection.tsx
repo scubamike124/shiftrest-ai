@@ -26,6 +26,9 @@ const KINDS: Array<{ key: keyof NotifPrefsRow; rk: ReminderKind }> = [
   { key: "bright_light", rk: "bright-light" },
   { key: "shift_start", rk: "shift-start" },
   { key: "shift_end_recovery", rk: "shift-end-recovery" },
+  { key: "smart_alarm", rk: "smart-alarm" },
+  { key: "calendar", rk: "calendar-prep" },
+  { key: "commute", rk: "commute-leave" },
 ];
 
 export function NotificationsSection({ signedIn }: { signedIn: boolean }) {

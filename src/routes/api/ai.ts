@@ -30,7 +30,11 @@ import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string }
-  | { intent: "brief"; plan: string };
+  | { intent: "brief"; plan: string }
+  | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
+  | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
+  | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
+  | { intent: "coach_tip"; context?: string };
 
 const BRIEF_SYSTEM = `You are RestPilot AI's recovery coach narrating a personalized voice briefing for a shift worker.
 
@@ -43,6 +47,24 @@ Rewrite the structured plan into natural, conversational spoken English — like
 - Never read raw field names, code, or punctuation aloud.
 
 Return ONLY the spoken script. No preamble, no quotes.`;
+
+const DAILY_PLAN_SYSTEM = `You are RestPilot AI's personal sleep & recovery strategist.
+Given the user's circadian context, produce a tight JSON action plan for the requested horizon.
+Return ONLY valid JSON matching: {"headline": string (<=70 chars), "riskLevel": "low"|"medium"|"high", "actions": [{"id": string, "title": string (<=60 chars), "detail": string (<=140 chars), "category": "sleep"|"light"|"caffeine"|"movement"|"recovery"|"nutrition", "priority": 1|2|3, "when": string}]}
+Provide 3-5 actions, highest priority first. Be specific with times. No markdown, no commentary.`;
+
+const SMART_ALARM_SYSTEM = `You are RestPilot AI's smart alarm engine.
+Given the target wake time and a ± window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+Return ONLY valid JSON: {"wakeAt": ISO string inside the window, "reason": string (<=90 chars, plain English), "message": string (<=80 chars, warm one-liner shown when alarm fires)}.`;
+
+const COMMUTE_SYSTEM = `You are RestPilot AI's commute & prep coach.
+Given a shift start time (ISO), travel minutes, and optional prep minutes, return ONLY valid JSON:
+{"leaveAt": ISO, "prepStartAt": ISO, "advice": string (<=140 chars, concrete pre-shift prep tip tailored to the user's fatigue + light context)}.
+leaveAt = shiftStart - travelMin. prepStartAt = leaveAt - (prepMin ?? 25).`;
+
+const COACH_TIP_SYSTEM = `You are RestPilot AI's productivity & recovery coach.
+Produce ONE short, fresh, contextual tip for the user right now — different from generic advice. Use their circadian + fatigue + schedule context.
+Return ONLY valid JSON: {"tip": string (<=160 chars, second person, no emoji-spam, max one emoji), "generatedAt": ISO string of now}.`;
 
 function jsonError(status: number, message: string) {
   return new Response(JSON.stringify({ error: message }), {
@@ -183,6 +205,78 @@ export const Route = createFileRoute("/api/ai")({
               });
             }
             return Response.json({ script: result.text });
+          }
+
+          // ---------- JSON intents (Bundle 2) ----------
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip"] as const;
+          type JsonIntent = (typeof jsonIntents)[number];
+          if (jsonIntents.includes(body.intent as JsonIntent)) {
+            const profile = userId
+              ? await loadAssistantProfile(admin, userId)
+              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+            const ctxString = "context" in body ? body.context : undefined;
+            const system = await buildSystemPrompt({
+              admin,
+              userId,
+              profile,
+              liveContext: ctxString,
+            });
+
+            let intentSystem = "";
+            let userPayload = "";
+            switch (body.intent) {
+              case "daily_plan":
+                intentSystem = DAILY_PLAN_SYSTEM;
+                userPayload = JSON.stringify({ horizon: body.horizon ?? "24h" });
+                break;
+              case "smart_alarm":
+                intentSystem = SMART_ALARM_SYSTEM;
+                userPayload = JSON.stringify({
+                  targetWakeIso: body.targetWakeIso,
+                  windowMin: body.windowMin,
+                  nowIso: new Date().toISOString(),
+                });
+                break;
+              case "commute":
+                intentSystem = COMMUTE_SYSTEM;
+                userPayload = JSON.stringify({
+                  shiftStartIso: body.shiftStartIso,
+                  travelMin: body.travelMin,
+                  prepMin: body.prepMin ?? 25,
+                });
+                break;
+              case "coach_tip":
+                intentSystem = COACH_TIP_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+            }
+
+            const result = await chatJSON({
+              messages: [
+                { role: "system", content: `${system}\n\n${intentSystem}` },
+                { role: "user", content: userPayload },
+              ],
+            });
+            if (userId) {
+              await logAIRequest(admin, {
+                user_id: userId,
+                intent: body.intent,
+                model: DEFAULT_CHAT_MODEL,
+                prompt_tokens: result.promptTokens,
+                completion_tokens: result.completionTokens,
+                latency_ms: Date.now() - started,
+                status: "ok",
+              });
+            }
+            // Parse defensively — strip code fences if the model wrapped them.
+            const raw = result.text.trim().replace(/^```(?:json)?\n?|\n?```$/g, "");
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(raw);
+            } catch {
+              return jsonError(502, "AI returned malformed JSON");
+            }
+            return Response.json(parsed);
           }
 
           return jsonError(400, "Unknown intent");

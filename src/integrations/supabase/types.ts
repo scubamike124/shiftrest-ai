@@ -222,13 +222,17 @@ export type Database = {
         Row: {
           bright_light: boolean
           caffeine_cutoff: boolean
+          calendar: boolean
+          commute: boolean
           created_at: string
           daily_cap: number
           enabled: boolean
+          last_routine_summary_at: string | null
           quiet_end: string
           quiet_start: string
           shift_end_recovery: boolean
           shift_start: boolean
+          smart_alarm: boolean
           timezone: string
           updated_at: string
           user_id: string
@@ -237,13 +241,17 @@ export type Database = {
         Insert: {
           bright_light?: boolean
           caffeine_cutoff?: boolean
+          calendar?: boolean
+          commute?: boolean
           created_at?: string
           daily_cap?: number
           enabled?: boolean
+          last_routine_summary_at?: string | null
           quiet_end?: string
           quiet_start?: string
           shift_end_recovery?: boolean
           shift_start?: boolean
+          smart_alarm?: boolean
           timezone?: string
           updated_at?: string
           user_id: string
@@ -252,13 +260,17 @@ export type Database = {
         Update: {
           bright_light?: boolean
           caffeine_cutoff?: boolean
+          calendar?: boolean
+          commute?: boolean
           created_at?: string
           daily_cap?: number
           enabled?: boolean
+          last_routine_summary_at?: string | null
           quiet_end?: string
           quiet_start?: string
           shift_end_recovery?: boolean
           shift_start?: boolean
+          smart_alarm?: boolean
           timezone?: string
           updated_at?: string
           user_id?: string
@@ -438,6 +450,54 @@ export type Database = {
           stripe_customer_id?: string
           stripe_subscription_id?: string
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_events: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          id: string
+          kind: string
+          location: string | null
+          notes: string | null
+          reminder_min: number
+          source: string
+          starts_at: string
+          title: string
+          travel_buffer_min: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          kind: string
+          location?: string | null
+          notes?: string | null
+          reminder_min?: number
+          source?: string
+          starts_at: string
+          title: string
+          travel_buffer_min?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          kind?: string
+          location?: string | null
+          notes?: string | null
+          reminder_min?: number
+          source?: string
+          starts_at?: string
+          title?: string
+          travel_buffer_min?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

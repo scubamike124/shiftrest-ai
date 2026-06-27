@@ -19,6 +19,7 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { CoachTipCard } from "@/components/CoachTipCard";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
 import {
   shiftsForDate,
@@ -261,6 +262,13 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Contextual coach tip — refreshable, uses budgeted AI */}
+      {insights && (
+        <div className="mt-4">
+          <CoachTipCard signedIn={signedIn === true} context={insights.contextString} />
+        </div>
+      )}
+
       <div className="mt-4">
         <LastNightStrip />
       </div>
@@ -424,6 +432,20 @@ function Dashboard() {
 
       {/* Long Clock / Multi-day plan */}
       {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
+
+      {/* Events & Smart Alarm entry point (Bundle 2) */}
+      <Link
+        to="/events"
+        className="mt-4 flex items-center justify-between rounded-2xl border border-border bg-card p-4 active:scale-[0.99]"
+      >
+        <div>
+          <p className="text-sm font-semibold">Events & Smart Alarm</p>
+          <p className="text-xs text-muted-foreground">
+            Calendar prep · commute leave-by · AI-optimized wake
+          </p>
+        </div>
+        <Sparkles className="h-5 w-5 text-primary" />
+      </Link>
 
       {editing && (
         <ShiftEditor
