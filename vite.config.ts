@@ -29,10 +29,19 @@ export default defineConfig({
         registerType: "autoUpdate",
         devOptions: { enabled: false },
         injectManifest: {
+          // Nitro emits the client bundle to dist/client; precache from there
+          // so manifest URLs become /assets/... (not /client/assets/...) and
+          // the compiled worker lands at dist/client/sw.js where the published
+          // site actually serves /sw.js from.
+          swSrc: "public/sw-src.ts",
+          swDest: "dist/client/sw.js",
+          globDirectory: "dist/client",
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}"],
           // Don't precache the source SW file itself or large media.
-          globIgnores: ["**/sw-src.*", "**/*.map"],
+          globIgnores: ["**/sw-src.*", "**/*.map", "sw.js"],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          // Ensure offline navigation fallback ("/") has a precache entry.
+          additionalManifestEntries: [{ url: "/", revision: `${Date.now()}` }],
         },
         manifest: false, // existing public/manifest.webmanifest is the source of truth
       }),
