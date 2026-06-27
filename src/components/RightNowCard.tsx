@@ -229,6 +229,12 @@ export function RightNowCard({
             {data.ctaLabel} <ArrowRight className="h-4 w-4" />
           </Link>
 
+          <RecommendationActions
+            recommendationId={data.recommendationId}
+            signedIn={signedIn}
+            size="sm"
+            className="mt-3"
+          />
           <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
         </div>
 
