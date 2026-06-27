@@ -63,8 +63,9 @@ export function buildRecommendations(
   const recs: Recommendation[] = [];
   const target = insights.todayShift ?? insights.nextShift?.shift;
 
+  const recsTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
   const sun = location
-    ? sunTimes(now, location.lat ?? null, location.lon ?? null)
+    ? sunTimes(now, location.lat ?? null, location.lon ?? null, recsTz)
     : { sunrise: null, sunset: null };
 
   if (target) {
