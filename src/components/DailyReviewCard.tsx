@@ -166,6 +166,12 @@ export function DailyReviewCard({
               <p className="mt-1 text-sm">{data.tomorrowFocus}</p>
             </div>
 
+            <RecommendationActions
+              recommendationId={data.recommendationId}
+              signedIn={signedIn}
+              size="sm"
+              className="mt-3"
+            />
             <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
           </div>
         );
