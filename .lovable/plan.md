@@ -1,143 +1,142 @@
-# Step 4 — Travel, Time Zones, and Offline Mode
+## Phase 1 — PWA App-Shell Rollout (Investigation)
 
-Builds on the AI orchestrator, predictive layer, and existing shift/wearable telemetry. All travel logic flows through the same `/api/ai` gateway and the same `COACH_VOICE`. All offline behavior reuses already-generated `ai_recommendations` so there is one source of truth between online and offline.
+Goal: cold-start offline launch. Warm-offline snapshot system stays the source of truth for user data; the service worker only serves the app shell when the network is dead.
 
-## 1. Architecture overview
+---
 
-Three coordinated layers:
+### Critical finding from investigation
 
-- **Time-zone layer** — every plan, shift, alarm, and recommendation carries an explicit IANA tz + UTC instant. Body-clock vs local-clock are derived from a *home_tz* anchored to the user, and a *current_tz* derived from device, last GPS, or an active trip.
-- **Trip layer** — a new `trips` table models planned/active legs (origin tz → destination tz, depart/arrive UTC). Patterns and predictive intents read it to pre-stage jet-lag plans.
-- **Offline layer** — a small, versioned IndexedDB cache (Dexie) holds the last hydrated bundle: shifts, prefs, last 7 days of recommendations, sun tables for ±14 days, cached TTS audio for the next alarm/wind-down. A service worker handles asset + JSON cache; the existing push SW stays untouched.
+`/sw.js` is already in use as the **push-notification service worker** (`public/sw.js`, registered from `src/routes/__root.tsx:163` and `src/lib/notifications/client.ts:54`). The PWA skill's default path also uses `/sw.js`. We cannot ship two workers at the same scope — the second registration replaces the first, and Smart Alarm push notifications would break.
 
-Travel and offline never branch the AI prompt logic — they extend the context block (`buildSystemPrompt`) with `tz_state` and an `is_stale` flag, and the model adjusts wording accordingly.
+**Decision:** Use `vite-plugin-pwa` in **`injectManifest` mode**, not `generateSW`. We author one combined `public/sw-src.ts` that keeps every existing `push` / `notificationclick` handler verbatim and adds Workbox precache + runtime routes on top. The plugin compiles it to `/sw.js` at the same path, same scope. No migration, no path collision, push keeps working.
 
-## 2. Database changes
+This is a documented variation of the skill's offline path (skill says "use `vite-plugin-pwa`" — `injectManifest` is supported by the same plugin); the merge is forced by the pre-existing push worker.
 
-One migration. All RLS-scoped to `auth.uid()`, service_role full access, with grants in the same migration.
+---
 
-- **`trips`** — `id, user_id, label, origin_tz, dest_tz, depart_utc, arrive_utc, dest_lat, dest_lon, dest_label, status (planned|active|completed|cancelled), source (manual|calendar|wearable|detected), created_at, updated_at`. Indexes on `(user_id, arrive_utc)` and `(user_id, status)`.
-- **`tz_events`** — append-only ledger of detected tz changes: `id, user_id, detected_at, from_tz, to_tz, source (device|gps|trip|manual), confidence`. Feeds the `timezone_jump` pattern detector.
-- **`shifts`** add: `tz` text (nullable; falls back to user home_tz), `start_utc timestamptz`, `end_utc timestamptz` (computed on write from `day+start_min+tz`). Existing `day/start_min/end_min` stay for the editor.
-- **`ai_recommendations`** add: `tz` text, `valid_in_tz` text, `body_clock_basis` text. So an offline client can render a recommendation with correct "your body still thinks it's 3am" framing.
-- **`user_prefs`** add: `home_tz text`, `current_tz text`, `tz_auto boolean default true`, `offline_enabled boolean default true`, `travel_mode_enabled boolean default true`, `calendar_travel_detect boolean default false` (off by default, opt-in).
+### Files that will change
 
-No breaking change: existing shifts get `tz := user_prefs.home_tz` and `start_utc/end_utc` backfilled by a one-shot SQL update in the migration.
+**New**
+- `public/sw-src.ts` — combined service worker source: existing push handlers (copied verbatim from `public/sw.js`) + Workbox precache + runtime caching rules.
+- `src/lib/pwa/register.ts` — guarded registration wrapper. Single registrar; refuses in dev, iframe, Lovable preview hosts, and `?sw=off`.
 
-## 3. Backend changes
+**Modified**
+- `vite.config.ts` — add `VitePWA({ strategies: "injectManifest", srcDir: "public", filename: "sw-src.ts", injectRegister: null, devOptions: { enabled: false }, registerType: "autoUpdate", ... })`. Build output: `/sw.js` (unchanged path).
+- `src/routes/__root.tsx` — replace the inline `navigator.serviceWorker.register("/sw.js")` call (line ~163) with `import { registerAppShell } from "@/lib/pwa/register"` and a single guarded call. Push registration in `src/lib/notifications/client.ts` continues to work because it just calls `getRegistration("/sw.js")` — same file, now serves both purposes.
+- `package.json` — add `vite-plugin-pwa` + `workbox-window` + `workbox-precaching` + `workbox-routing` + `workbox-strategies`.
 
-### Server functions (`src/lib/travel/trips.functions.ts`, `src/lib/travel/tz.functions.ts`)
-- `listTrips`, `upsertTrip`, `cancelTrip`, `activateTrip(now)`.
-- `setHomeTz`, `setCurrentTz` (auto/manual), `reportDeviceTz(ianaTz)` — called on app load and on resume.
-- `getTzState()` — returns `{ home_tz, current_tz, active_trip, body_clock_offset_min, dst_changes_within_14d }`.
+**Deleted**
+- `public/sw.js` — replaced by the compiled output of `sw-src.ts`. The build emits the same `/sw.js` URL; returning users get a same-path update, no orphaned registration.
 
-### Patterns (`src/lib/ai/patterns.server.ts`)
-- New detectors: `tz_shift_pending` (trip departing <48h), `tz_shift_active` (trip arrived <72h, severity = hours of delta / 3), `dst_transition` (clock change in next 7d), `body_clock_drift` (current_tz ≠ home_tz for >24h with no trip — likely undetected travel).
-- All write to `ai_patterns` like Step 3; ranker already promotes high-severity ones.
+**Untouched**
+- Every file in `src/lib/offline/*`, `src/lib/ai/*`, `src/lib/wearables/*`, `src/lib/time/*`, dashboard, Long Clock, Smart Alarm components, snapshot logic, AI client cache, sign-out cache clearing.
 
-### Orchestrator (`src/routes/api/ai.ts`)
-- Extend `buildSystemPrompt` to inject a `TZ STATE` block: home tz, current tz, body-clock offset, active trip (origin/dest/arrive_utc), and DST transitions in window.
-- New intent `jetlag_plan` — given a trip, returns a 3-day adaptation plan (sleep anchor, light windows by local clock, caffeine cutoff, nap rules, melatonin-timing note as informational only). Schema mirrors `tomorrow_preview` (blocks) so the UI reuses `TomorrowPreviewCard`.
-- Existing intents (`right_now`, `daily_plan`, `tomorrow_preview`, `daily_review`, `smart_alarm`, `commute`) now receive tz_state and must state the basis in their `why` field when home_tz ≠ current_tz.
-- `COACH_VOICE` gets two clauses: (1) when body clock and local clock disagree, label which one a recommendation is anchored to; (2) when responding from cached/offline data, prefix or flag "based on data from <relative time>".
+---
 
-### Cron (`src/routes/api/public/hooks/ai-learn.ts` already exists)
-- Add a second cron entry that runs trip activation + jetlag plan pre-generation 6h before `arrive_utc`, so the user lands with the plan already cached.
+### Caching strategy
 
-### Sun/clock engine (`src/lib/sleep-engine.ts`)
-- Replace the `lon/15` offset hack with proper IANA-resolved offsets via `Intl.DateTimeFormat` (no extra deps; tz-aware). Add `sunTimesForTz(date, lat, lon, tz)` and `bodyClockTime(localIso, currentTz, homeTz)` helpers.
-- All callers (`plan.tsx`, `LongClock.tsx`, `SmartAlarmCard.tsx`, patterns engine) pass tz explicitly.
+| Surface | Strategy | Why |
+|---|---|---|
+| Built JS/CSS chunks (hashed, same-origin) | Workbox `precacheAndRoute(self.__WB_MANIFEST)` (precache) | Hashed filenames → safe to cache forever. Enables true cold-start offline. |
+| HTML navigations (`/`, `/dashboard`, etc.) | `NetworkFirst`, 3s timeout, falls back to precached `/index.html` shell | Skill requirement: never serve stale HTML. Offline → shell loads, React hydrates, snapshot system fills data. |
+| Font files, icons in `public/` | `CacheFirst`, max 30 entries | Static, versioned via filename. |
+| `/__l5e/assets-v1/**` (Lovable CDN) | `StaleWhileRevalidate`, max 60 entries, 30d expiry | Immutable per-UUID URLs; safe and fast. |
+| Everything matching `/api/**` | **Bypass — never intercept** | AI responses, auth tokens, server-fn payloads must never touch the SW cache. |
+| Anything matching `supabase.co`, `/auth/**`, `/api/public/**` | **Bypass — never intercept** | Auth, webhooks, wearable callbacks, Stripe portal. |
+| `/~oauth*` | Excluded from navigation fallback | Skill requirement. |
 
-## 4. Frontend changes
+The SW's `fetch` handler has an explicit early-return for any URL whose pathname starts with `/api/` or whose host is not the current origin. Nothing privileged ever lands in `caches`.
 
-### New
-- `src/routes/_authenticated/trips.tsx` — list, create, edit trips. Manual origin/dest tz pickers with autocompleted IANA list, calendar imports later behind the opt-in flag.
-- `src/components/JetlagPlanCard.tsx` — renders `jetlag_plan` blocks per day (Day 0/+1/+2). Reuses `FeedbackChips` and `TrustReceipt`.
-- `src/components/TzBadge.tsx` — small chip "Home NYC · Now LON (+5h)" visible on dashboard hero and on every time-bearing card; tap opens a popover explaining body vs local clock.
-- `src/components/OfflineBanner.tsx` — top-of-app strip when offline, showing last sync time and what is still available.
-- `src/routes/_authenticated/settings/travel.tsx` (or new section in Assistant settings): home tz, auto-detect toggle, travel mode toggle, calendar detect toggle, offline cache toggle + size + clear button.
+---
 
-### Modified
-- `LongClock.tsx` — render two rings when body_clock_offset_min ≠ 0: outer = local clock, inner = body clock with a faded second sun arc.
-- `SmartAlarmCard.tsx` — show both times when in travel; alarm rings on local-clock time, label notes body-clock time.
-- `RightNowCard.tsx`, `TomorrowPreviewCard.tsx`, `DailyReviewCard.tsx`, `CompanionWhisper.tsx` — accept `tzBasis` from the recommendation, render the TzBadge, and surface `isStale` from offline cache.
-- `ArrivalHero.tsx` — when arriving from a tz_shift_active pattern, swap headline to "Welcome to {city} — recovery plan ready."
+### Service-worker scope
 
-## 5. Local / offline storage strategy
+- Filename: `/sw.js` (unchanged).
+- Scope: `/` (unchanged — required for push notifications to reach all routes).
+- `clientsClaim()` on activate (unchanged — already in the push worker).
+- `skipWaiting()` on install (unchanged).
 
-- **DB**: Dexie (IndexedDB) at `src/lib/offline/db.ts`. Tables: `prefs`, `shifts`, `trips`, `recommendations`, `patterns`, `sun_cache (date,lat,lon,tz → {sunrise,sunset})`, `tts_cache (key → blob,createdAt)`, `meta (lastSyncUtc, schemaVersion)`. Versioned migrations.
-- **What lives offline**: last 14 days + next 7 days of shifts, active+upcoming trips, last 7 days of recommendations across all intents, current `tomorrow_preview` + `daily_review` + active patterns + pre-generated `jetlag_plan`, sun tables ±14 days for home + active trip dest, TTS blobs for the next wind-down and next smart alarm only.
-- **Caps**: hard 25 MB; LRU evict TTS first, then old recommendations.
-- **Service worker** (`public/sw.js` is push-only today): split into `public/sw-push.js` (existing, unchanged) and a new `public/sw-app.js` registered separately. App SW does NetworkFirst for HTML, CacheFirst for `/assets/*`, StaleWhileRevalidate for `/api/ai` GETs (we treat persisted recommendations as GET-cacheable). Respect the existing Lovable preview guards — do not register the app SW in preview/dev.
-- **Hydration**: a `useOfflineBundle()` hook reads Dexie on cold start so the dashboard paints before network resolves; React Query keys are shared so the network response replaces cache.
+---
 
-## 6. Sync strategy
+### Registration guards (in `src/lib/pwa/register.ts`)
 
-- **Online → cache**: every successful server response writes through to Dexie (recommendations, patterns, prefs, shifts, trips, sun) under one `lastSyncUtc`.
-- **Offline → queue**: user feedback (`submitFeedback`), shift edits, trip edits, manual tz overrides, alarm dismissals are appended to an `outbox` table with idempotency keys. On reconnect, a `flushOutbox()` posts them in order. Server side: `submitFeedback` and shift/trip mutations accept an `idempotency_key` to dedupe.
-- **Reconnect handler** (`src/lib/offline/reconnect.ts`): on `online` event,
-  1. `flushOutbox`,
-  2. fetch fresh `getTzState`,
-  3. compare against last cached tz; if changed, fire `reportDeviceTz`, run pattern detection, request a fresh `right_now` + `tomorrow_preview`,
-  4. surface a single toast: "Welcome to {city}. I detected a {Δh}h change and rebuilt your plan."
-- **Calendar travel detect** (opt-in only): no calendar OAuth in this step — placeholder hook reading `user_events` if a future Google Calendar connector lands. Documented but gated off.
+Refuse to register when ANY is true (skill spec, verbatim):
+- `!import.meta.env.PROD`
+- `window.self !== window.top` (iframe)
+- hostname starts with `id-preview--` or `preview--`
+- hostname is/ends with `.lovableproject.com`, `.lovableproject-dev.com`, `.beta.lovable.dev`
+- `URLSearchParams(location.search).get("sw") === "off"`
 
-## 7. Privacy & permissions
+In any refused context, call `getRegistration("/sw.js").then(r => r?.unregister())` first so stale dev/preview registrations are cleared. Then return without registering.
 
-- Location: already used for sun times. Travel mode does NOT add background location. We only read tz from `Intl.DateTimeFormat().resolvedOptions().timeZone` (no permission needed) and one-shot GPS *only* when the user taps "use my location" on the trip editor.
-- Calendar: not wired this step; toggle disabled with "coming soon" copy. No data leaves device until user enables.
-- Offline cache: disable toggle wipes Dexie immediately. Memory page export bundle gains `trips`, `tz_events`, and a redacted cache snapshot.
-- The trust-receipt on each card lists exactly which signals (tz, trip, last GPS time, last sync) produced it. Nothing is inferred silently.
+This means: in the Lovable editor preview (where you're testing now) the SW does **not** register — warm-offline behavior is unchanged. The SW only activates on the published `*.lovable.app` (and custom domains).
 
-## 8. Security risks & mitigations
+---
 
-- **Service worker hijacking stale content** — strict NetworkFirst for HTML + cache versioning by build hash; kill-switch route `?sw=off` honored.
-- **Outbox replay after token rotation** — every queued mutation re-attaches current bearer at flush time; rejected ones move to a dead-letter view in settings.
-- **Cached PII at rest** — IndexedDB is origin-scoped; we never persist auth tokens to Dexie; TTS blobs are short audio with no transcripts.
-- **Spoofed tz** — device tz is treated as a *hint*, not truth. Patterns compare against last shift location and known trip; large unexplained jumps prompt a confirmation instead of silently rebuilding the plan.
+### Install-prompt behavior
 
-## 9. Performance impact
+**No install prompt UI in Phase 1.** Out of scope. Manifest already has `display: "standalone"` so the browser's native "Add to Home Screen" continues to work as-is. We can add a custom `beforeinstallprompt` UI in a later phase if you want it.
 
-- Dexie cold read on dashboard < 30ms typical; first paint no longer waits on network.
-- One extra `getTzState` per cold start (cached 5 min).
-- Sun-table cache eliminates repeated `Intl` calls on `LongClock` re-renders.
-- Service worker adds one extra request per navigation in worst case; offset by cached assets.
+---
 
-## 10. Edge cases
+### Update strategy
 
-- DST forward jump during a sleep block → smart alarm uses UTC instant, not wall-clock; UI shows "(clocks moved forward 1h)".
-- Two trips overlap (layover) → active trip = the leg whose `arrive_utc ≤ now < next.depart_utc`; otherwise show layover banner.
-- Wearable readings arrive in device-local tz while user is mid-flight → server normalizes everything to UTC, displays in current_tz.
-- Returning home before `arrive_utc` of return trip → reconnect handler cancels the stale trip on user confirmation.
-- User wipes app data → Dexie gone, outbox lost; we warn in the offline settings screen.
-- Antimeridian / negative offsets / half-hour zones (IST, NPT) — handled by `Intl`; no manual math.
+- `registerType: "autoUpdate"` — Workbox checks for a new SW on every navigation. New version installs in the background, then on next nav the page reloads transparently to pick up new chunks.
+- No update toast / "refresh now" banner in Phase 1 (additive UX, defer).
+- Hashed chunk filenames + `NetworkFirst` HTML means returning users never see the white-screen-after-deploy problem.
+- **Kill switch:** any user can append `?sw=off` to unregister immediately. Documented for support.
+- **Reversibility:** if we need to nuke the rollout, replace `public/sw-src.ts` with the skill's kill-switch worker template (compiles to same `/sw.js`), ship one release, every browser evicts the registration on next visit. Push handlers stay intact in that kill-switch via the same merge pattern.
 
-## 11. UX recommendations
+---
 
-- Single global `TzBadge` in the dashboard header is the visible "trust anchor" — one tap reveals the basis.
-- Jet-lag plan is presented as Day 0/+1/+2 cards, not a single wall of text.
-- Offline banner is informational, not alarming; copy: "Offline — your plan is from 2h ago. I'll refresh when you reconnect."
-- After reconnect, exactly one toast, never a flood.
-- New-user defaults: home_tz auto-set from device on first run, travel_mode ON, offline ON, calendar OFF.
+### Risks and mitigations
 
-## 12. Testing plan
+| Risk | Mitigation |
+|---|---|
+| **Push notifications break** (Smart Alarm) — most critical risk | `injectManifest` keeps the existing push handlers byte-for-byte; we'll diff `sw-src.ts` push code against current `public/sw.js` before merge. Add a manual QA step: trigger a test push after deploy. |
+| Stale HTML shipped after a deploy | `NetworkFirst` on navigations + `autoUpdate` + hashed chunks. |
+| SW registers in Lovable preview and caches stale chunks | Hard guard list in `register.ts`; unregister-on-refuse path covers any historic registration. |
+| `/api/ai` response gets cached → user sees yesterday's plan | Explicit bypass at top of `fetch` handler; runtime caching rules are origin+path scoped and exclude `/api/`. AI snapshot cache stays in `localStorage` per `ai-client.ts`, unchanged. |
+| Auth token leaks into Cache Storage | We never cache Supabase origin, `/api/**`, or `/auth/**`. Verified in code review checklist. |
+| Snapshot system collides with SW caching | They live in different layers: SW caches the **app shell** (HTML/JS/CSS/assets), snapshot caches **user data** in `localStorage`. The dashboard's existing `getCachedUserIdSync` → `hydrateQueryCacheFromSnapshot` path runs after React boots, exactly as today. |
+| Service-worker bug bricks the app | `?sw=off` kill switch + same-path replacement worker pattern. |
 
-- Unit: `sunTimesForTz` against known IANA offsets incl. DST edges, half-hour zones, southern hemisphere.
-- Unit: pattern detectors for tz_shift_pending/active, dst_transition, body_clock_drift with fixture data.
-- Integration: outbox flush with simulated 401 → token refresh → retry; dedup on idempotency key.
-- E2E (Playwright): toggle airplane mode via CDP, navigate dashboard, confirm offline banner + cached recs render; re-enable network, confirm reconnect toast + fresh data.
-- Manual: cross-tz scenario — set device tz forward, refresh, confirm Trips→active trip detection prompt; accept and verify jetlag_plan renders.
-- Typecheck (`tsgo`) and `bun run build` clean before merge.
+---
 
-## 13. Rollout order
+### How existing offline snapshot logic integrates
 
-1. Migration (trips, tz_events, shifts cols, ai_recommendations cols, user_prefs cols) + grants + RLS + shift backfill.
-2. Sun engine tz rewrite + helpers + unit smoke.
-3. Server fns (trips, tz_state) + pattern detectors + new orchestrator intent `jetlag_plan` + system-prompt tz block.
-4. Dexie cache layer + outbox + reconnect handler + offline hook (no SW yet, behind `offline_enabled`).
-5. App service worker (guarded, NetworkFirst HTML) + settings toggle.
-6. UI: TzBadge → Trips route → JetlagPlanCard → OfflineBanner → LongClock dual ring → travel settings page.
-7. Cron addition for pre-arrival plan generation.
-8. Typecheck, Playwright offline scenario, manual cross-tz smoke.
+Boot order on a cold offline launch (after Phase 1):
 
-Approve and I'll start with the migration.
+```text
+1. Browser requests / → SW NetworkFirst fails fast → serves precached index.html
+2. SW serves precached JS/CSS chunks → React hydrates
+3. Dashboard mounts → useState initializer calls getCachedUserIdSync()
+   → hydrateQueryCacheFromSnapshot() (sync, from localStorage)
+4. useQuery for shifts/employers/prefs sees cached data → renders Long Clock,
+   Smart Alarm, recommendations
+5. AI cards call postIntent() → offline branch in ai-client.ts replays last
+   cached JSON from localStorage (per-intent key)
+6. OfflineBanner shows "Offline mode active. Using your last saved plan."
+```
+
+The SW is purely additive to the existing snapshot system. It solves step 1–2 (which today require network). Steps 3–6 already work and are not touched.
+
+---
+
+### Production-readiness gates (must pass before declaring done)
+
+1. Typecheck clean.
+2. Build produces `dist/sw.js` containing both the push handlers and Workbox precache manifest. Manual diff of push section vs current `public/sw.js`.
+3. Manual QA on published URL:
+   - First load online → reload offline → app shell loads, dashboard renders snapshot, Long Clock + Smart Alarm visible, banner showing.
+   - Reconnect → snapshot reconcile + tz-aware toast still fires.
+   - Trigger Smart Alarm test push → notification fires.
+   - Sign out → cache cleared, sign in as another user → no leak.
+4. Lovable editor preview: confirm SW does NOT register (DevTools → Application → Service Workers shows empty).
+5. `?sw=off` on published site unregisters and reloads cleanly.
+
+If any gate fails, the rollout is reversed by reverting the three changed files; the kill-switch worker pattern is on standby if registrations are already in the wild.
+
+---
+
+Awaiting approval before writing code.
