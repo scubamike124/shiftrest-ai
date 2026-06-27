@@ -204,7 +204,7 @@ function RootComponent() {
         </div>
       )}
 
-      <Onboarding />
+      {surface === "app" && <Onboarding />}
       <Toaster />
     </QueryClientProvider>
   );
