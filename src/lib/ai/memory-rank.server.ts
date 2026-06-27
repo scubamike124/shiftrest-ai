@@ -101,32 +101,23 @@ export async function fetchRankedMemories(
   // Fire-and-forget usage bump for the chosen rows.
   if (ranked.length > 0) {
     const ids = ranked.map((r) => r.id);
-    admin
-      .rpc("noop_placeholder_does_not_exist") // avoid; use direct update below
-      .then(() => {})
-      .catch(() => {});
-    void admin
-      .from("ai_memory")
-      .update({
-        last_referenced_at: new Date().toISOString(),
-      })
-      .in("id", ids)
-      .then(() => {});
-    // increment use_count via separate sql call (best-effort)
-    void admin
-      .from("ai_memory")
-      .select("id, use_count")
-      .in("id", ids)
-      .then(({ data: rows }) => {
-        if (!rows) return;
-        for (const r of rows as { id: string; use_count: number }[]) {
-          void admin
+    const nowIso = new Date().toISOString();
+    void (async () => {
+      try {
+        await admin
+          .from("ai_memory")
+          .update({ last_referenced_at: nowIso })
+          .in("id", ids);
+        for (const r of ranked) {
+          await admin
             .from("ai_memory")
             .update({ use_count: (r.use_count ?? 0) + 1 })
-            .eq("id", r.id)
-            .then(() => {});
+            .eq("id", r.id);
         }
-      });
+      } catch {
+        // best-effort; never fail the prompt build over a usage bump
+      }
+    })();
   }
 
   return ranked;
