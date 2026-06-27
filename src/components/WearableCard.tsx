@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Heart, Plug, RefreshCw, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import {
-import { SafetyNote } from "@/components/legal/SafetyNote";
   disconnectWearable,
   getWearableSummary,
   startWearableOAuth,

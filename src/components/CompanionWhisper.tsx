@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Eye, X, Wand2 } from "lucide-react";
 import { aiAdjustPlan, type AdjustPlanResponse } from "@/lib/ai-client";
 import type { Insights } from "@/lib/insights";
-import { SafetyNote } from "@/components/legal/SafetyNote";
 
 /**
  * CompanionWhisper — surfaces ONE proactive observation the AI noticed about the

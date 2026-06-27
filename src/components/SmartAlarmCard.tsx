@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlarmClock, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
@@ -6,7 +7,6 @@ import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
-import { SafetyNote } from "@/components/legal/SafetyNote";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",

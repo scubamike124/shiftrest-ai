@@ -1,7 +1,7 @@
 import { useMemo } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useQuery } from "@tanstack/react-query";
 import {
-import { SafetyNote } from "@/components/legal/SafetyNote";
   Sun,
   Coffee,
   Moon,

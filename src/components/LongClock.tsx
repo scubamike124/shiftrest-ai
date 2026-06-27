@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind, Info } from "lucide-react";
 import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
@@ -6,7 +7,6 @@ import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
 import { useDecisionsByIntent } from "@/lib/ai/decisions";
 import {
-import { SafetyNote } from "@/components/legal/SafetyNote";
   RecommendationActions,
   RecommendationDetailSheet,
 } from "./ai/trust";
