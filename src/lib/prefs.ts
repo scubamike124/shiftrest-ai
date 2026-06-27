@@ -22,6 +22,14 @@ export type Prefs = {
   assistantMode: AssistantMode;
   /** Opt-in for long-term memory. Default OFF — privacy-first. */
   memoryEnabled: boolean;
+  /** Predictive insights: patterns, tomorrow preview, daily review. Default ON. */
+  predictiveEnabled: boolean;
+  /** Tomorrow preview card on the dashboard. Default ON. */
+  tomorrowPreviewEnabled: boolean;
+  /** Daily review card after wake. Default ON. */
+  dailyReviewEnabled: boolean;
+  /** Feed feedback back into ranked learned preferences. Default ON. */
+  feedbackLearningEnabled: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
