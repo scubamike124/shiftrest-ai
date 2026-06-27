@@ -184,12 +184,20 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             </button>
           </div>
           {expanded && (
-            <p className="mt-2 rounded-lg bg-background/60 p-2 text-[11px] leading-snug text-muted-foreground">
-              Sleep happens in roughly 90-minute cycles. Waking near the end of a cycle — when REM
-              naturally tapers — leaves you alert instead of groggy. RestPilot scans your ±{windowMin}
-              -min window for the moment most likely to land at a cycle boundary using your wake-up
-              time and recent wearable data.
-            </p>
+            <div className="mt-2 space-y-2">
+              {lastResult.res.confidenceReason && (
+                <p className="rounded-lg border border-primary/20 bg-background/60 p-2 text-[11px] leading-snug text-foreground/90">
+                  <span className="font-semibold text-indigo-glow">Confidence: </span>
+                  {lastResult.res.confidenceReason}
+                </p>
+              )}
+              <p className="rounded-lg bg-background/60 p-2 text-[11px] leading-snug text-muted-foreground">
+                Sleep happens in roughly 90-minute cycles. Waking near the end of a cycle — when REM
+                naturally tapers — leaves you alert instead of groggy. RestPilot scans your ±{windowMin}
+                -min window for the moment most likely to land at a cycle boundary using your wake-up
+                time and recent wearable data.
+              </p>
+            </div>
           )}
         </div>
       )}
