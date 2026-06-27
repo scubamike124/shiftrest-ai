@@ -1,9 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind } from "lucide-react";
 import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
 import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
+
+const RIGHT_NOW_CACHE_KEY = "rp_rightnow_v1";
+
+type CoachHighlight = { startMin: number; endMin: number; label: string } | null;
+
+function readCoachHighlight(): CoachHighlight {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(RIGHT_NOW_CACHE_KEY);
+    if (!raw) return null;
+    const c = JSON.parse(raw) as { data?: { timeWindow?: { startIso: string; endIso: string }; action?: string } };
+    const w = c.data?.timeWindow;
+    if (!w?.startIso || !w?.endIso) return null;
+    const s = new Date(w.startIso);
+    const e = new Date(w.endIso);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+    return {
+      startMin: s.getHours() * 60 + s.getMinutes(),
+      endMin: e.getHours() * 60 + e.getMinutes(),
+      label: c.data?.action ?? "Coach window",
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * LongClock — the signature 24h ribbon. Shows the user's whole day in one glance:
