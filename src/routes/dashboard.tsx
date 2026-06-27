@@ -290,16 +290,15 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Contextual coach tip — refreshable, uses budgeted AI */}
-      {insights && (
-        <div className="mt-4">
-          <CoachTipCard signedIn={signedIn === true} context={insights.contextString} />
-        </div>
-      )}
-
       <div className="mt-4">
         <LastNightStrip />
       </div>
+
+      {/* ★ Long Clock — signature whole-day visualization */}
+      <div className="mt-4">
+        <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
+      </div>
+
 
       {/* Quick Action + Stability */}
       <div className="mt-4 grid grid-cols-5 gap-3">
