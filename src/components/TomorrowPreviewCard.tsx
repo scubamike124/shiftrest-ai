@@ -155,6 +155,12 @@ export function TomorrowPreviewCard({
             })}
           </ul>
 
+          <RecommendationActions
+            recommendationId={data.recommendationId}
+            signedIn={signedIn}
+            size="sm"
+            className="mt-3"
+          />
           <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
         </div>
       )}
