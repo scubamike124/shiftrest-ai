@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuthRequiredError } from "@/lib/prefs";
+
 
 export type Shift = {
   id: string;
@@ -73,7 +75,8 @@ export type ShiftInput = {
 
 export async function addShift(input: ShiftInput): Promise<Shift | null> {
   const userId = await currentUserId();
-  if (!userId) return null;
+  if (!userId) throw new AuthRequiredError("Sign in to save your shifts.");
+
   const { data, error } = await supabase
     .from("shifts")
     .insert({
@@ -98,6 +101,8 @@ export async function updateShift(
   id: string,
   patch: Partial<ShiftInput>,
 ): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new AuthRequiredError("Sign in to save your shifts.");
   const row: {
     day?: number;
     start_min?: number;
@@ -113,22 +118,31 @@ export async function updateShift(
   if (patch.title !== undefined) row.title = patch.title?.trim() || null;
   if (patch.notes !== undefined) row.notes = patch.notes?.trim() || null;
   const { error } = await supabase.from("shifts").update(row).eq("id", id);
-  if (error) console.error("updateShift", error);
+  if (error) {
+    console.error("updateShift", error);
+    throw error;
+  }
 }
 
 export async function deleteShift(id: string): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new AuthRequiredError("Sign in to manage your shifts.");
   const { error } = await supabase.from("shifts").delete().eq("id", id);
-  if (error) console.error("deleteShift", error);
+  if (error) {
+    console.error("deleteShift", error);
+    throw error;
+  }
 }
+
 
 /** Used by Playbooks: wipe and replace the user's entire schedule. */
 export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
   const userId = await currentUserId();
-  if (!userId) return;
+  if (!userId) throw new AuthRequiredError("Sign in to save your schedule.");
   const { error: delErr } = await supabase.from("shifts").delete().eq("user_id", userId);
   if (delErr) {
     console.error("replaceAllShifts:delete", delErr);
-    return;
+    throw delErr;
   }
   if (next.length === 0) return;
   const rows = next.map((s) => ({
@@ -141,7 +155,10 @@ export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
     notes: s.notes?.trim() || null,
   }));
   const { error: insErr } = await supabase.from("shifts").insert(rows);
-  if (insErr) console.error("replaceAllShifts:insert", insErr);
+  if (insErr) {
+    console.error("replaceAllShifts:insert", insErr);
+    throw insErr;
+  }
 }
 
 /** One-time migration of legacy localStorage shifts into Supabase. Idempotent. */

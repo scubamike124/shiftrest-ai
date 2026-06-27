@@ -3,7 +3,9 @@ import { ChevronLeft, Check } from "lucide-react";
 import { useState } from "react";
 import { PLAYBOOKS } from "@/lib/playbooks";
 import { replaceAllShifts } from "@/lib/shifts";
+import { AuthRequiredError } from "@/lib/prefs";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/playbooks")({
   head: () => ({
@@ -36,8 +38,17 @@ function Playbooks() {
       await replaceAllShifts(shifts);
       toast.success(`Applied "${p.name}" to this week`);
       navigate({ to: "/" });
-    } catch {
-      toast.error("Could not save playbook. Are you signed in?");
+    } catch (err) {
+      if (err instanceof AuthRequiredError) {
+        toast.error("Sign in to save this playbook", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate({ to: "/auth", search: { return: "/playbooks" } as never }),
+          },
+        });
+      } else {
+        toast.error("Could not save playbook. Please try again.");
+      }
     }
   }
 
