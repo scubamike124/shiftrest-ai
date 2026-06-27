@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteAccountFn } from "@/lib/account.functions";
 import {
-  Bell,
+  Bell as _UnusedBell,
   Moon,
   Sun,
   ChevronRight,
@@ -38,14 +38,7 @@ import {
   AuthRequiredError,
   type Prefs,
 } from "@/lib/prefs";
-import {
-  getPermission,
-  requestPermission,
-  scheduleNextWindDown,
-  showNotification,
-  nextWindDownAt,
-  type NotifyPermission,
-} from "@/lib/notify";
+import { scheduleNextWindDown } from "@/lib/notify";
 import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
@@ -76,7 +69,7 @@ function Profile() {
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
   });
-  const [perm, setPerm] = useState<NotifyPermission>("default");
+  // perm state removed — NotificationsSection owns its own permission UI now.
   const [userEmail, setUserEmail] = useState<string | null>(null);
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
