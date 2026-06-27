@@ -239,7 +239,7 @@ function Dashboard() {
       {/* AI Coach Brief — proactive guidance every time you open the app */}
       {insights && (
         <div className="mt-4">
-          <AIBriefCard insights={insights} />
+          <AIBriefCard insights={insights} recommendations={recommendations} />
         </div>
       )}
 
