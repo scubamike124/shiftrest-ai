@@ -172,19 +172,22 @@ export function RightNowCard({
                 {tone.label}
               </span>
               {data.confidence && (
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONFIDENCE_TONE[data.confidence]}`}
-                  title={data.confidenceReason ?? ""}
-                >
-                  <ShieldCheck className="h-3 w-3" />
-                  {data.confidence} confidence
-                </span>
+                <ConfidenceBadge value={data.confidence} />
               )}
               {fmtWindow(data.timeWindow) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary/70 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                   <Clock className="h-3 w-3" /> {fmtWindow(data.timeWindow)}
                 </span>
               )}
+              <WhyButton
+                className="ml-auto"
+                recommendationId={data.recommendationId}
+                intent="right_now"
+                headline={data.action}
+                why={data.why}
+                confidence={data.confidence}
+                expectedOutcome={data.followBenefit}
+              />
             </div>
             <h2
               className="mt-2 text-2xl leading-tight lg:text-3xl"
