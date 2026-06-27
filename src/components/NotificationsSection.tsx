@@ -88,8 +88,25 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
       toast.error("This browser doesn't support push. On iPhone: Share → Add to Home Screen, then re-open.");
       return;
     }
+    // Detect-before-request: iOS Safari (non-standalone) and a few other
+    // contexts throw NotAllowedError ("not allowed by user agent…") if we
+    // call requestPermission() directly. Route those to the friendly panel.
+    const { canRequestNotificationPermission } = await import("@/lib/notify");
+    const gate = canRequestNotificationPermission();
+    if (!gate.ok) {
+      if (gate.reason === "denied") setPerm("denied");
+      else setPerm("unsupported");
+      return;
+    }
     try {
-      const permission = await Notification.requestPermission();
+      let permission: NotificationPermission;
+      try {
+        permission = await Notification.requestPermission();
+      } catch (permErr) {
+        console.error("Notification.requestPermission threw", permErr);
+        setPerm("unsupported");
+        return;
+      }
       setPerm(permission);
       if (permission !== "granted") {
         toast.error("Permission was not granted. You can re-enable in browser settings.");
@@ -104,9 +121,11 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
       await save.mutateAsync({ enabled: true, timezone: DEFAULT_NOTIF_PREFS.timezone });
       toast.success("Smart reminders are on.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't enable reminders.");
+      console.error("enableEverything failed", err);
+      toast.error("Couldn't enable reminders on this device.");
     }
   }
+
 
   async function disableEverything() {
     try {
