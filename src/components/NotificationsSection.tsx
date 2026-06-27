@@ -156,15 +156,11 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
 
       <div className="px-4 pb-4">
         {!enabled ? (
-          <button
-            onClick={enableEverything}
-            disabled={!supported}
-            className="h-11 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
-          >
-            {!supported
-              ? "Not supported — install RestPilot to home screen"
-              : "Enable smart reminders"}
-          </button>
+          <UnenabledState
+            perm={perm}
+            supported={supported}
+            onEnable={enableEverything}
+          />
         ) : (
           <div className="flex gap-2">
             <button
