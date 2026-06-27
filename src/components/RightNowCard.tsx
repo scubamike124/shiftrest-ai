@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Sparkles, AlertCircle, Clock, ArrowRight, RefreshCw, ShieldCheck, Info } from "lucide-react";
+import { Sparkles, AlertCircle, Clock, ArrowRight, RefreshCw, Info } from "lucide-react";
 import { aiRightNow, type RightNowResponse } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
-
-const CONFIDENCE_TONE: Record<NonNullable<RightNowResponse["confidence"]>, string> = {
-  high: "bg-emerald-500/15 text-emerald-300",
-  medium: "bg-amber-500/15 text-amber-300",
-  low: "bg-slate-500/15 text-slate-300",
-};
+import { ConfidenceBadge, WhyButton } from "./ai/trust";
 
 function fmtWindow(w?: { startIso: string; endIso: string }): string | null {
   if (!w) return null;
