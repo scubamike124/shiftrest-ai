@@ -26,7 +26,10 @@ import { Route as ApiSwapRouteImport } from './routes/api/swap'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura.callback'
+import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/api/public/wearables/fitbit.callback'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -113,10 +116,27 @@ const ApiBriefRoute = ApiBriefRouteImport.update({
   path: '/api/brief',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
+  id: '/api/public/wearables/cron',
+  path: '/api/public/wearables/cron',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
     path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesOuraCallbackRoute =
+  ApiPublicWearablesOuraCallbackRouteImport.update({
+    id: '/api/public/wearables/oura/callback',
+    path: '/api/public/wearables/oura/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesFitbitCallbackRoute =
+  ApiPublicWearablesFitbitCallbackRouteImport.update({
+    id: '/api/public/wearables/fitbit/callback',
+    path: '/api/public/wearables/fitbit/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -139,6 +159,9 @@ export interface FileRoutesByFullPath {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -159,6 +182,9 @@ export interface FileRoutesByTo {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -180,6 +206,9 @@ export interface FileRoutesById {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
+  '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -202,6 +231,9 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/public/payments/webhook'
+    | '/api/public/wearables/cron'
+    | '/api/public/wearables/fitbit/callback'
+    | '/api/public/wearables/oura/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -222,6 +254,9 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/public/payments/webhook'
+    | '/api/public/wearables/cron'
+    | '/api/public/wearables/fitbit/callback'
+    | '/api/public/wearables/oura/callback'
   id:
     | '__root__'
     | '/'
@@ -242,6 +277,9 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/public/payments/webhook'
+    | '/api/public/wearables/cron'
+    | '/api/public/wearables/fitbit/callback'
+    | '/api/public/wearables/oura/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -263,6 +301,9 @@ export interface RootRouteChildren {
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
+  ApiPublicWearablesFitbitCallbackRoute: typeof ApiPublicWearablesFitbitCallbackRoute
+  ApiPublicWearablesOuraCallbackRoute: typeof ApiPublicWearablesOuraCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -386,11 +427,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/wearables/cron': {
+      id: '/api/public/wearables/cron'
+      path: '/api/public/wearables/cron'
+      fullPath: '/api/public/wearables/cron'
+      preLoaderRoute: typeof ApiPublicWearablesCronRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
       fullPath: '/api/public/payments/webhook'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/oura/callback': {
+      id: '/api/public/wearables/oura/callback'
+      path: '/api/public/wearables/oura/callback'
+      fullPath: '/api/public/wearables/oura/callback'
+      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/fitbit/callback': {
+      id: '/api/public/wearables/fitbit/callback'
+      path: '/api/public/wearables/fitbit/callback'
+      fullPath: '/api/public/wearables/fitbit/callback'
+      preLoaderRoute: typeof ApiPublicWearablesFitbitCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -415,6 +477,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
+  ApiPublicWearablesFitbitCallbackRoute: ApiPublicWearablesFitbitCallbackRoute,
+  ApiPublicWearablesOuraCallbackRoute: ApiPublicWearablesOuraCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
