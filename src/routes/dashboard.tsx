@@ -35,12 +35,19 @@ import {
 } from "@/lib/schedule";
 
 import { LastNightStrip } from "@/components/LastNightStrip";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { useOnlineTransition } from "@/hooks/use-online";
+import {
+  hydrateQueryCacheFromSnapshot,
+  persistSnapshot,
+  reconcileOnReconnect,
+} from "@/lib/offline/snapshot";
 
 
 export const Route = createFileRoute("/dashboard")({
