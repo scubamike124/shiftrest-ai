@@ -51,6 +51,7 @@ import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
+import { NotificationsSection } from "@/components/NotificationsSection";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -582,40 +583,9 @@ function Profile() {
 
       <WearableCard />
 
+      <NotificationsSection signedIn={signedIn} />
+
       <section className="rounded-2xl border border-border bg-card">
-        <ToggleRow
-          icon={<Bell className="h-5 w-5" />}
-          label="Wind-down notifications"
-          desc="Gentle reminders before your sleep window starts."
-          checked={prefs.notifications}
-          onChange={(v) => update("notifications", v)}
-        />
-        <div className="flex gap-2 px-4 pb-4">
-          {perm !== "granted" ? (
-            <button
-              onClick={enableNotifs}
-              disabled={perm === "unsupported"}
-              className="h-10 flex-1 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
-            >
-              {perm === "unsupported"
-                ? "Not available in this browser — try Chrome on desktop"
-                : "Enable browser notifications"}
-            </button>
-          ) : (
-            <>
-              <span className="flex h-10 flex-1 items-center justify-center rounded-xl bg-mint/15 text-xs font-semibold text-mint">
-                Permission granted
-              </span>
-              <button
-                onClick={testNotif}
-                className="h-10 rounded-xl bg-secondary px-4 text-sm font-semibold"
-              >
-                Test
-              </button>
-            </>
-          )}
-        </div>
-        <Divider />
         <ToggleRow
           icon={<Activity className="h-5 w-5" />}
           label="Low-light interface"
