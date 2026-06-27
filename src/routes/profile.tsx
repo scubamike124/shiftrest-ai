@@ -168,7 +168,10 @@ function Profile() {
         },
       });
       if ("error" in result) throw new Error(result.error);
-      window.open(result.url, "_blank", "noopener,noreferrer");
+      // Use same-tab navigation: mobile browsers block window.open() called
+      // after an await (no user-gesture context), causing the button to spin
+      // and silently do nothing. The portal returns the user to /profile.
+      window.location.href = result.url;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't open the billing portal.");
     } finally {
