@@ -18,6 +18,7 @@ import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { LastNightStrip } from "@/components/LastNightStrip";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -216,6 +217,10 @@ function Dashboard() {
           <AIBriefCard insights={insights} />
         </div>
       )}
+
+      <div className="mt-4">
+        <LastNightStrip />
+      </div>
 
       {/* Quick Action + Stability */}
       <div className="mt-4 grid grid-cols-5 gap-3">
