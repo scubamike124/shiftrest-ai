@@ -3,7 +3,9 @@ import { ChevronLeft, Check } from "lucide-react";
 import { useState } from "react";
 import { PLAYBOOKS } from "@/lib/playbooks";
 import { replaceAllShifts } from "@/lib/shifts";
+import { AuthRequiredError } from "@/lib/prefs";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/playbooks")({
   head: () => ({
