@@ -27,6 +27,7 @@ import {
 } from "@/lib/ai/context.server";
 import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
+import { persistRecommendation } from "@/lib/ai/recommendations.server";
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string }
@@ -36,7 +37,10 @@ type Body =
   | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
   | { intent: "coach_tip"; context?: string }
   | { intent: "right_now"; context?: string }
-  | { intent: "adjust_plan"; observation: string; context?: string };
+  | { intent: "adjust_plan"; observation: string; context?: string }
+  | { intent: "tomorrow_preview"; context?: string }
+  | { intent: "daily_review"; context?: string }
+  | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string };
 
 // Shared voice contract — every JSON intent inherits this tone so the AI
 // sounds like the same trusted coach, not a stack of disconnected widgets.
