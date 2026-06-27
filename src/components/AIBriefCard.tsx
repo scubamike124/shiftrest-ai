@@ -181,6 +181,40 @@ export function AIBriefCard({
         })}
       </div>
 
+      {/* 14-day fatigue horizon sparkline */}
+      <div className="relative z-10 mt-3">
+        <div className="flex items-end gap-[3px] h-8">
+          {insights.fatigueHorizon.map((p, i) => {
+            const c =
+              p.band === "extreme"
+                ? "var(--destructive)"
+                : p.band === "high"
+                  ? "var(--amber)"
+                  : p.band === "moderate"
+                    ? "var(--indigo-glow)"
+                    : "var(--mint)";
+            return (
+              <div
+                key={i}
+                title={`${p.label} · ${p.score}/100 · ${p.reason}`}
+                className="flex-1 rounded-sm opacity-90"
+                style={{
+                  height: `${Math.max(10, p.score)}%`,
+                  background: c,
+                }}
+              />
+            );
+          })}
+        </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          14-day fatigue horizon · debt {insights.sleepDebtHours.toFixed(1)}h
+          {insights.hrvTrend != null
+            ? ` · HRV ${insights.hrvTrend > 0 ? "+" : ""}${Math.round(insights.hrvTrend * 100)}%`
+            : ""}
+        </p>
+      </div>
+
+
       {/* AI body */}
       <div className="relative z-10 mt-4 min-h-[120px]">
         {isLoading && (
