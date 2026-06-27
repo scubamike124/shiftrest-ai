@@ -1,134 +1,46 @@
-# Pre-Launch Validation Plan (Blocking)
+## Root cause
 
-Goal: prove RestPilot AI is production-ready by running real audits against the published build, fixing every issue surfaced, and producing the seven deliverables below. No new features until this phase closes.
+`POST /api/brief` is a thin legacy wrapper that re-fetches its own origin (`/api/ai`) as a Worker self-subrequest. That subrequest is fragile on Cloudflare workerd: the forwarded URL/headers can mis-resolve, the response is opaque on failure, and any upstream error (missing `LOVABLE_API_KEY`, 402 credits, 429 rate-limit, gateway 5xx) is rethrown as a generic 500 with no captured stack — exactly what QA hit. `VoicePlayer` then treats the 500 as a hard crash and surfaces the dev error screen.
 
-Target URL for all live tests: `https://shift-rest-ai.lovable.app` (production). Local Playwright runs hit `http://localhost:8080` for authenticated flows where the managed Supabase session is injected.
+## Fix scope (no new features, no redesign)
 
----
+### 1. Rewrite `src/routes/api/brief.ts` so it calls the AI gateway directly
 
-## Step 1 — Lighthouse Audit
+- Drop the self-subrequest to `/api/ai`. Import `chatJSON` from `@/lib/ai/gateway.server` and the same `BRIEF_SYSTEM` prompt (extract it to `src/lib/ai/prompts.server.ts` so `/api/ai` and `/api/brief` share one source — no behavior change in `/api/ai`).
+- Validate body, run the call inside `try/catch`, log the real error server-side with `console.error("brief failed", { status, message })`.
+- On success: return `{ script }` (200, JSON) — same shape `VoicePlayer` already expects.
+- On failure, always return **200** with a structured fallback the client can render cleanly:
+  - `{ fallback: true, reason: "credits" | "rate_limit" | "unavailable", message: <user-friendly string> }`
+  - Map gateway 402 → `credits`, 429 → `rate_limit`, everything else → `unavailable`.
+- Best-effort `logAIRequest` (already swallows its own errors); skip if no auth header.
 
-Tooling: `lighthouse` CLI (installed on demand via `nix run nixpkgs#lighthouse`) against production URL, mobile + desktop presets, on the four key routes: `/`, `/dashboard`, `/paywall`, `/legal`.
+### 2. Harden `src/routes/api/tts.ts` the same way
 
-Capture JSON + HTML reports into `docs/launch/audits/lighthouse/`. Record per-category scores and the top opportunities/diagnostics.
+- Keep the audio response on success.
+- On upstream failure, return **200 JSON** `{ fallback: true, reason, message }` instead of forwarding the raw status. This prevents the voice step from crashing after a successful brief.
 
-Fix bar before moving on:
-- Performance ≥ 90 mobile on `/` and `/dashboard`
-- Accessibility ≥ 95 on every audited route
-- Best Practices ≥ 95
-- SEO ≥ 95
+### 3. `src/components/VoicePlayer.tsx` — graceful UX, no double-tap
 
-Likely fix areas (apply only if flagged): image dimensions/`loading="lazy"`, preconnect for fonts, render-blocking CSS, missing `lang`, MIME warnings, console errors in prod.
+- After parsing the `/api/brief` response, check `Content-Type` / `fallback` flag. If `fallback: true`, show the friendly `message` via `toast.info` and reset state — no audio call, no crash.
+- Same check after `/api/tts`: if JSON `fallback`, show toast and reset.
+- Disable the "Voice briefing" button while `loading` is true (currently it swaps to a spinner row so the button is gone, but the disabled state on the action button itself is added defensively in case of fast re-clicks during state transition). Guard `generateAndPlay` with an early `if (loading) return;`.
+- Keep existing `resetAudio()` + `finally { setLoading(false) }` behavior.
 
-Deliverable: `docs/launch/audits/lighthouse-report.md` summarizing scores, fixes applied, and links to raw reports.
+### 4. Verification
 
----
+- Mobile preview at 375×599: open `/plan`, tap Voice briefing.
+  - Happy path: audio plays.
+  - Forced failure (temporarily set bad key in a local probe): toast shows "Voice briefing is temporarily unavailable. Try again shortly." and the UI returns to the idle button — no 500 screen.
+- Confirm `/dashboard`, `/plan`, `/coach`, `/events`, `/profile` still load.
+- Confirm AI Activity Feed still renders (we only touched `/api/brief` body; `ai_log` writes are preserved).
 
-## Step 2 — Accessibility Audit (axe)
+## Files changed
 
-Tooling: `@axe-core/cli` via `bunx` (or Playwright + `axe-core` injected) against `/`, `/dashboard`, `/auth`, `/paywall`, `/legal`, `/memory`, `/decisions`, `/profile`.
+- `src/routes/api/brief.ts` — direct gateway call + fallback envelope.
+- `src/routes/api/tts.ts` — fallback envelope on upstream failure.
+- `src/lib/ai/prompts.server.ts` *(new, tiny)* — exports `BRIEF_SYSTEM` so `/api/ai` and `/api/brief` share it. `/api/ai` updated to import from it (no logic change).
+- `src/components/VoicePlayer.tsx` — handle `fallback` JSON, guard re-entry while loading.
 
-Manual checks: tab through each route headlessly via Playwright, verify focus rings, skip-link behavior, dialog focus trap, heading order (`h1` once), form label associations, color contrast on muted text, ARIA on custom widgets.
+## Out of scope
 
-Fix every Critical + Serious finding; document Moderate/Minor with rationale if deferred.
-
-Deliverable: `docs/launch/audits/accessibility-report.md` (supersedes the placeholder) with raw axe JSON in `docs/launch/audits/axe/`.
-
----
-
-## Step 3 — Playwright E2E Regression
-
-Test account: rely on `LOVABLE_BROWSER_AUTH_STATUS=injected` Supabase session. For unauthenticated flows (signup, password reset, email verify, consent banner), drive fresh contexts.
-
-Suite organized under `tests/e2e/` (Playwright Python scripts in `/tmp/browser/` per sandbox conventions, then committed where reusable):
-- Auth: signup → consent acceptance → email verify path → login → logout → password reset request
-- Billing: open `/paywall`, start checkout in **sandbox** env first, verify embedded session loads; live charge handled in Step 4
-- Subscription mgmt: upgrade, downgrade, cancel, portal redirect
-- Account: export data, purge AI memory, delete account (uses disposable test user)
-- AI surfaces: Smart Alarm card render + accept/snooze, Right Now card, Companion Whisper, Long Clock interactivity, Tomorrow Preview feedback chips
-- Wearables: connect flow stubs (verify "coming soon" copy where applicable, OAuth start URL builds)
-- Offline: toggle `context.set_offline(True)`, verify `OfflineBanner` + cached plan render, reconnect sync
-- Consent + legal: first-visit cookie banner, granular toggles persist, every `/legal/*` route 200s with required sections
-- Error handling: 404 route, forced server error returns friendly boundary
-
-Capture screenshots per step; failing assertions block the phase until fixed.
-
-Deliverable: `docs/launch/audits/playwright-report.md` with pass/fail matrix + screenshot links.
-
----
-
-## Step 4 — Live Stripe Verification
-
-Single $1 real charge on a temporary live price (created via `payments--create_price` if needed, deleted after). Use a disposable test card on a real consumer card the user owns — confirm with the user before charging.
-
-Verify in order:
-1. Embedded checkout completes
-2. `customer.subscription.created` webhook lands at `/api/public/payments/webhook?env=live` (check `subscriptions` row inserted via `supabase--read_query`)
-3. Receipt email arrives
-4. Portal cancellation → `customer.subscription.updated` with `cancel_at_period_end=true` → row updated
-5. Refund the test charge in Stripe to clean up
-
-Deliverable: `docs/launch/audits/stripe-live-verification.md` with timestamps, event IDs (redacted), and DB row snapshots.
-
-> Requires user go-ahead before running — flagged in closing message.
-
----
-
-## Step 5 — Cross-Device Testing
-
-Playwright device emulation covers: iPhone 14 Safari, Pixel 7 Chrome, iPad Pro, desktop Chrome/Firefox/Edge/Safari (WebKit). Real-device pass left to user; we provide a structured checklist and screenshots from emulated runs.
-
-Routes exercised on each device: `/`, `/auth`, `/dashboard`, `/paywall`, `/legal`, `/memory`. Assertions: no horizontal scroll, nav reachable, primary CTAs tappable (≥44px), forms submit, AI cards render.
-
-Deliverable: `docs/launch/audits/cross-device-report.md` with screenshot grid + outstanding real-device asks for the user.
-
----
-
-## Step 6 — Final Security Verification
-
-Run `supabase--linter` and `security--run_security_scan`. Confirm only the two intentional advisories (`pg_cron` in `public`, `authenticated` EXECUTE on `has_ai_budget`/`has_active_subscription`) remain. Spot-check:
-- RLS on every public table (`SELECT relname FROM pg_class WHERE relrowsecurity=false AND relnamespace='public'::regnamespace`)
-- Webhook signature verification (`verifyWebhook` HMAC + 5-min window) unchanged
-- `supabaseAdmin` only imported inside `.server.ts` or lazy `await import` in route handlers
-- No new secrets logged; `fetch_secrets` matches expected set
-- CSP / security headers (audit `__root.tsx` head + edge defaults) — add `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` via meta if missing
-
-Add minimal rate limiting on `/api/coach`, `/api/ai`, `/api/tts` if absent (in-memory token bucket keyed by `userId` from middleware).
-
-Deliverable: `docs/launch/audits/security-final-report.md`.
-
----
-
-## Step 7 — Launch Checklist Sign-Off
-
-Walk every item the user listed against the live build; produce a single signed checklist at `docs/launch/launch-checklist.md`:
-- Legal: Privacy, Terms, Cookie, AI disclaimer, Health disclaimer (link audit via script)
-- User controls: Delete account, Export data, Erase AI memory (Playwright-verified in Step 3)
-- Consent: Cookie banner shows on fresh session, choices persist
-- Observability: `reportLovableError` paths fire, `ai_log`/`notification_log`/`legal_acceptances` writing
-- Backups: confirm Lovable Cloud daily backups noted; user-initiated export verified
-- Support: footer links resolve; mailto / help URL present
-- Env vars: cross-check `fetch_secrets` against `production-checklist.md`
-
----
-
-## Technical Notes (for the dev)
-
-- Playwright launches: `headless=True`, viewport `1280x1800`, screenshots only when needed, never `full_page=True`.
-- Lighthouse runs headless Chrome with `--preset=desktop` and default mobile; throttle defaults left as-is for comparability.
-- All audit artifacts land under `docs/launch/audits/` (new). Existing `docs/launch/*.md` reports get updated in place to reflect measured (not assumed) results.
-- Fixes that affect runtime go through normal file edits; no schema changes expected. Any new migration must follow the public-schema grants rule.
-- This phase is execution-only — no new features, no UX redesigns. If a finding requires a feature change, log it in `docs/launch/remaining-issues.md` and surface to the user instead of silently scoping in.
-
----
-
-## Order of Execution
-
-1. Step 6 first (cheap, blocks everything if RLS regression found)
-2. Step 1 + Step 2 in parallel (read-only against prod)
-3. Step 3 (longest; fix loop)
-4. Step 5 (reuses Playwright infra)
-5. Step 7 checklist sweep
-6. Step 4 last — requires explicit user approval to charge a real card
-
-I'll pause for your approval, then begin with Step 6 and proceed through the list, stopping only at Step 4 to get your go-ahead for the live charge.
+No changes to legal, pricing, onboarding, layout, AI coach prompts, recommendation persistence, or Supabase schemas.

@@ -1,5 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+type Fallback = {
+  fallback: true;
+  reason: "credits" | "rate_limit" | "unavailable" | "config";
+  message: string;
+};
+
+function fallback(reason: Fallback["reason"], message: string): Response {
+  return Response.json({ fallback: true, reason, message } satisfies Fallback);
+}
+
+function messageFromReason(reason: Fallback["reason"]): string {
+  switch (reason) {
+    case "credits":
+      return "Voice playback is paused — AI credits are exhausted.";
+    case "rate_limit":
+      return "Voice playback is busy. Try again in a moment.";
+    case "config":
+      return "Voice playback isn't configured on the server yet.";
+    default:
+      return "Voice playback is temporarily unavailable.";
+  }
+}
+
 export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
@@ -17,10 +40,8 @@ export const Route = createFileRoute("/api/tts")({
           }
           const apiKey = process.env.LOVABLE_API_KEY;
           if (!apiKey) {
-            return new Response(JSON.stringify({ error: "AI not configured" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            });
+            console.error("[tts] LOVABLE_API_KEY missing");
+            return fallback("config", messageFromReason("config"));
           }
 
           const upstream = await fetch(
@@ -44,18 +65,14 @@ export const Route = createFileRoute("/api/tts")({
 
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
-            const status = upstream.status;
-            const msg =
-              status === 429
-                ? "Rate limit reached. Try again shortly."
-                : status === 402
-                ? "AI credits exhausted."
-                : `Voice generation failed (${status}).`;
-            console.error("tts error", status, t);
-            return new Response(JSON.stringify({ error: msg }), {
-              status,
-              headers: { "Content-Type": "application/json" },
-            });
+            console.error("[tts] upstream failed", upstream.status, t);
+            const reason: Fallback["reason"] =
+              upstream.status === 402
+                ? "credits"
+                : upstream.status === 429
+                ? "rate_limit"
+                : "unavailable";
+            return fallback(reason, messageFromReason(reason));
           }
 
           return new Response(upstream.body, {
@@ -65,11 +82,8 @@ export const Route = createFileRoute("/api/tts")({
             },
           });
         } catch (e) {
-          console.error("tts route error:", e);
-          return new Response(
-            JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
-          );
+          console.error("[tts] route error", e);
+          return fallback("unavailable", messageFromReason("unavailable"));
         }
       },
     },

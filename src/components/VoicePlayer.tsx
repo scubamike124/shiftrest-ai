@@ -79,6 +79,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   }
 
   async function generateAndPlay() {
+    if (loading) return; // guard against double-taps
     const plan = buildPlanText();
     if (!plan) {
       toast.info("Nothing to brief yet");
@@ -93,11 +94,26 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      if (!briefRes.ok) {
-        const e = await briefRes.json().catch(() => ({}));
-        throw new Error(e.error || "Briefing failed");
+      // Always parse — /api/brief returns 200 even on graceful failures.
+      let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
+      try {
+        briefData = await briefRes.json();
+      } catch {
+        // non-JSON response — treat as unavailable
       }
-      const { script } = (await briefRes.json()) as { script: string };
+      if (!briefRes.ok || briefData.error) {
+        toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
+        return;
+      }
+      if (briefData.fallback) {
+        toast.info(briefData.message || "Voice briefing is temporarily unavailable.");
+        return;
+      }
+      const script = briefData.script;
+      if (!script) {
+        toast.info("Voice briefing is temporarily unavailable.");
+        return;
+      }
       const spoken = expandForSpeech(script);
 
       // 2. Synthesize speech
@@ -106,9 +122,18 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: spoken, voice }),
       });
-      if (!ttsRes.ok) {
-        const e = await ttsRes.json().catch(() => ({}));
-        throw new Error(e.error || "Voice generation failed");
+      const ttsType = ttsRes.headers.get("content-type") || "";
+      if (!ttsRes.ok || ttsType.includes("application/json")) {
+        let msg = "Voice playback is temporarily unavailable.";
+        try {
+          const j = await ttsRes.json();
+          if (j?.message) msg = j.message;
+          else if (j?.error) msg = j.error;
+        } catch {
+          /* keep default */
+        }
+        toast.info(msg);
+        return;
       }
       const blob = await ttsRes.blob();
       const url = URL.createObjectURL(blob);
