@@ -101,12 +101,53 @@ function Coach() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Voice settings — match the Voice Briefing voice pref, plus a Coach-level
+  // toggle so the user can mute auto-spoken replies without losing per-bubble
+  // replay buttons.
+  const [voice, setVoice] = useState<VoiceId>("sage");
+  const [voiceOn, setVoiceOn] = useState(true);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("rp.voice.voiceId") as VoiceId | null;
+      if (v && VOICES.some((x) => x.id === v)) setVoice(v);
+      const on = localStorage.getItem("rp.coach.voice");
+      if (on !== null) setVoiceOn(on === "1");
+    } catch {
+      /* no-op */
+    }
+  }, []);
+  const tts = useTtsPlayer({ voice });
+  const lastSpokenRef = useRef<string>("");
+
+  function toggleVoice() {
+    setVoiceOn((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem("rp.coach.voice", next ? "1" : "0");
+      } catch {
+        /* no-op */
+      }
+      if (!next) tts.stop();
+      return next;
+    });
+  }
+
+  const speak = useCallback(
+    (raw: string) => {
+      const text = plainForSpeech(raw);
+      if (!text || text.length < 3) return;
+      void tts.play(expandForSpeech(text));
+    },
+    [tts],
+  );
+
   // Hydrate once when history first arrives. Past that, local state owns the thread.
   useEffect(() => {
     if (hydrated || history === undefined) return;
     if (history.length > 0) setMessages(history as Msg[]);
     setHydrated(true);
   }, [history, hydrated]);
+
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
