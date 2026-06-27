@@ -128,6 +128,12 @@ function rowToPrefs(r: Row): Prefs {
     tomorrowPreviewEnabled: r.tomorrow_preview_enabled ?? true,
     dailyReviewEnabled: r.daily_review_enabled ?? true,
     feedbackLearningEnabled: r.feedback_learning_enabled ?? true,
+    homeTz: r.home_tz ?? null,
+    currentTz: r.current_tz ?? null,
+    tzAuto: r.tz_auto ?? true,
+    offlineEnabled: r.offline_enabled ?? true,
+    travelModeEnabled: r.travel_mode_enabled ?? true,
+    calendarTravelDetect: r.calendar_travel_detect ?? false,
   };
 }
 
