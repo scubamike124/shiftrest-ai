@@ -18,7 +18,11 @@ import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
-import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
