@@ -229,7 +229,7 @@ async function detectTimezoneJump(
   };
 }
 
-
+/**
  * Run all detectors and upsert active patterns. Patterns missing this run
  * are NOT auto-deactivated here — they stay active until the user mutes or
  * deletes them, or until a future sweep marks them stale.
