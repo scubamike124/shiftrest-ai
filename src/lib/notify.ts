@@ -3,16 +3,58 @@ import { fetchPrefs } from "./prefs";
 
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
+/** Reason a permission request should be skipped on this platform. */
+export type NotifyBlockReason =
+  | "ssr"
+  | "no-notification-api"
+  | "insecure-context"
+  | "ios-needs-standalone"
+  | "denied";
+
+/**
+ * Detect whether `Notification.requestPermission()` is safe to invoke here.
+ * iOS Safari throws `NotAllowedError` ("not allowed by the user agent…")
+ * when called from a non-standalone tab or an insecure context — we must
+ * detect those cases BEFORE asking, and route the user to friendly UI.
+ */
+export function canRequestNotificationPermission():
+  | { ok: true }
+  | { ok: false; reason: NotifyBlockReason } {
+  if (typeof window === "undefined") return { ok: false, reason: "ssr" };
+  if (!("Notification" in window)) return { ok: false, reason: "no-notification-api" };
+  if (!window.isSecureContext) return { ok: false, reason: "insecure-context" };
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  const ua = nav.userAgent ?? "";
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches || nav.standalone === true;
+  if (isIos && !standalone) return { ok: false, reason: "ios-needs-standalone" };
+  if (Notification.permission === "denied") return { ok: false, reason: "denied" };
+  return { ok: true };
+}
+
 export function getPermission(): NotifyPermission {
   if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
   return Notification.permission as NotifyPermission;
 }
 
 export async function requestPermission(): Promise<NotifyPermission> {
-  if (getPermission() === "unsupported") return "unsupported";
-  const res = await Notification.requestPermission();
-  return res as NotifyPermission;
+  const gate = canRequestNotificationPermission();
+  if (!gate.ok) {
+    // Never throw — callers expect a value they can branch on.
+    if (gate.reason === "no-notification-api" || gate.reason === "ssr") return "unsupported";
+    if (gate.reason === "denied") return "denied";
+    return "unsupported"; // ios-needs-standalone, insecure-context
+  }
+  try {
+    const res = await Notification.requestPermission();
+    return res as NotifyPermission;
+  } catch (err) {
+    console.error("Notification.requestPermission failed", err);
+    return "unsupported";
+  }
 }
+
 
 export function showNotification(title: string, body: string) {
   if (getPermission() !== "granted") return;

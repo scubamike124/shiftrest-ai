@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+
 import {
   Sun,
   Moon,
@@ -71,10 +73,21 @@ const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
 
 
 function PlanPage() {
+  const qc = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
-  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
+  const { data: shifts, isFetching: shiftsFetching } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: fetchShifts,
+    enabled: signedIn === true,
+  });
+  const { data: prefs = DEFAULT_PREFS } = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    initialData: DEFAULT_PREFS,
+    enabled: signedIn === true,
+  });
+  const safeShifts = shifts ?? [];
   const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);
@@ -82,9 +95,17 @@ function PlanPage() {
   useEffect(() => {
     setMounted(true);
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      setSignedIn(!!session);
+      if (event === "SIGNED_IN") {
+        // Drop any stale empty cache from a pre-auth read.
+        qc.invalidateQueries({ queryKey: ["shifts"] });
+        qc.invalidateQueries({ queryKey: ["prefs"] });
+      }
+    });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [qc]);
+
 
   // Cycle-aware: when activeDay is in the current week, resolve against the
   // user's rotation (cycleWeeks/cycleAnchor). Falls back to weekday match
@@ -95,8 +116,9 @@ function PlanPage() {
     return d;
   }, [today, activeDay, weekday]);
   const shift =
-    shiftsForDate(shifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
-    shifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
+    shiftsForDate(safeShifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
+    safeShifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
+
   // Only compute sunrise/sunset when the user has VERIFIED a real location.
   // A coords-shaped label like "33.66, -117.88" is a legacy fallback from a
   // broken reverse-geocode path and must NOT count as verified.
@@ -132,7 +154,7 @@ function PlanPage() {
   const recommendations: Recommendation[] = useMemo(() => {
     if (!mounted) return [];
     const insights = computeInsights(
-      shifts,
+      safeShifts,
       prefs,
       today,
       employers,
@@ -142,7 +164,8 @@ function PlanPage() {
       lat: prefs.lat ?? null,
       lon: prefs.lon ?? null,
     });
-  }, [mounted, shifts, prefs, today, employers, wearableSummary]);
+  }, [mounted, safeShifts, prefs, today, employers, wearableSummary]);
+
 
 
   function buildPlanText(): string | null {
@@ -186,7 +209,7 @@ function PlanPage() {
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {DAYS.map((d, i) => {
-          const has = shifts.some((s) => s.day === i);
+          const has = safeShifts.some((s) => s.day === i);
           const active = i === activeDay;
           return (
             <button
@@ -217,19 +240,26 @@ function PlanPage() {
       )}
 
       {!shift ? (
-        <div className="rounded-2xl border border-border bg-card p-6 text-center">
-          <p className="text-sm font-semibold">No shift scheduled today</p>
-          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-            Add today's shift and RestPilot AI will generate your personalized
-            light, caffeine, blackout, and recovery plan.
-          </p>
-          <Link
-            to="/dashboard"
-            className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
-          >
-            Open Schedule
-          </Link>
-        </div>
+        signedIn === null || (signedIn === true && shifts === undefined) || shiftsFetching ? (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center">
+            <p className="text-sm text-muted-foreground">Loading your plan…</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card p-6 text-center">
+            <p className="text-sm font-semibold">No shift scheduled for this day</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Add a shift and RestPilot AI will generate your personalized
+              light, caffeine, blackout, and recovery plan.
+            </p>
+            <Link
+              to="/dashboard"
+              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              Open Schedule
+            </Link>
+          </div>
+        )
+
       ) : (
         <>
           <div className="flex gap-2">
