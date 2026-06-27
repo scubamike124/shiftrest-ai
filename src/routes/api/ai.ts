@@ -28,6 +28,7 @@ import {
 import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
+import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM } from "@/lib/ai/prompts.server";
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string }
