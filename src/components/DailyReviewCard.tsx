@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sun, RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, AlertCircle, Target } from "lucide-react";
 import { aiDailyReview, type DailyReviewResponse } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
+import { WhyButton } from "./ai/trust";
 
 const CACHE_KEY = "rp_daily_review_v1";
 
