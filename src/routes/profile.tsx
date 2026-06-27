@@ -973,3 +973,71 @@ function ToggleRow({
     </label>
   );
 }
+
+function RotationSection({
+  prefs,
+  update,
+}: {
+  prefs: Prefs;
+  update: <K extends keyof Prefs>(k: K, v: Prefs[K]) => void;
+}) {
+  const cw = prefs.cycleWeeks ?? 1;
+  const anchorLabel = prefs.cycleAnchor
+    ? new Date(prefs.cycleAnchor).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "this week";
+  function setThisWeekAsA() {
+    const now = new Date();
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const y = mon.getFullYear();
+    const m = String(mon.getMonth() + 1).padStart(2, "0");
+    const d = String(mon.getDate()).padStart(2, "0");
+    update("cycleAnchor", `${y}-${m}-${d}`);
+  }
+  return (
+    <section className="rounded-2xl border border-border bg-card">
+      <div className="flex flex-col gap-3 p-4">
+        <div>
+          <p className="text-sm font-semibold">Rotation length</p>
+          <p className="text-xs text-muted-foreground">
+            Most jobs repeat every 1 week. Bump this up if your schedule cycles every 2–6 weeks
+            (e.g. A/B/C week rotations, 28-day shift patterns).
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <button
+              key={n}
+              onClick={() => update("cycleWeeks", n)}
+              className={`min-w-[44px] rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                cw === n
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "border-border bg-secondary text-foreground"
+              }`}
+            >
+              {n} {n === 1 ? "wk" : "wks"}
+            </button>
+          ))}
+        </div>
+        {cw > 1 && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary/40 p-3">
+            <div>
+              <p className="text-xs font-semibold">Week A starts</p>
+              <p className="text-[11px] text-muted-foreground">{anchorLabel}</p>
+            </div>
+            <button
+              onClick={setThisWeekAsA}
+              className="rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold"
+            >
+              Reset to this week
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
