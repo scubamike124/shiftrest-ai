@@ -90,6 +90,34 @@ function PlanPage() {
     [mounted, shift, prefs, sun],
   );
 
+  const { data: employers = [] } = useQuery({
+    queryKey: ["employers"],
+    queryFn: fetchEmployers,
+    enabled: signedIn === true,
+  });
+  const getWearableSummaryFn = useServerFn(getWearableSummary);
+  const { data: wearableSummary } = useQuery({
+    queryKey: ["wearable-summary"],
+    queryFn: () => getWearableSummaryFn(),
+    staleTime: 60_000,
+    enabled: signedIn === true,
+  });
+  const recommendations: Recommendation[] = useMemo(() => {
+    if (!mounted) return [];
+    const insights = computeInsights(
+      shifts,
+      prefs,
+      today,
+      employers,
+      wearableSummary?.latest ?? null,
+    );
+    return buildRecommendations(insights, prefs, today, {
+      lat: prefs.lat ?? null,
+      lon: prefs.lon ?? null,
+    });
+  }, [mounted, shifts, prefs, today, employers, wearableSummary]);
+
+
   function buildPlanText(): string | null {
     if (!shift || events.length === 0) return null;
     const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
