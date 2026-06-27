@@ -153,6 +153,83 @@ function detectSleepInconsistency(wear: WearableRow[]): PatternCandidate | null 
 }
 
 /**
+ * Travel detector — fires when the user crossed ≥ 2h of tz offset within the
+ * last 7 days, OR when an active trip with arrive_utc ≥ now − 5d is on file.
+ * Severity scales with absolute offset (jet lag empirically takes ~1 day per
+ * tz hour to resolve).
+ *
+ * Privacy: this only reads `tz_events` and `trips` — both opt-in tables the
+ * user already controls. If both are empty, the detector returns null.
+ */
+async function detectTimezoneJump(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<PatternCandidate | null> {
+  const { tzOffsetMinutes } = await import("@/lib/time/tz");
+  const now = new Date();
+  const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+
+  // 1) Look for a recent tz_event jump.
+  const { data: events } = await admin
+    .from("tz_events")
+    .select("from_tz, to_tz, detected_at")
+    .eq("user_id", userId)
+    .gte("detected_at", since)
+    .order("detected_at", { ascending: false })
+    .limit(1);
+  const ev = (events?.[0] as { from_tz: string | null; to_tz: string; detected_at: string } | undefined);
+
+  // 2) Or fall back to an in-flight trip (arrived ≤ 5 days ago, not complete).
+  const arrivalSince = new Date(now.getTime() - 5 * 86_400_000).toISOString();
+  const { data: trips } = await admin
+    .from("trips")
+    .select("origin_tz, dest_tz, arrive_utc, status")
+    .eq("user_id", userId)
+    .in("status", ["planned", "active"])
+    .lte("arrive_utc", now.toISOString())
+    .gte("arrive_utc", arrivalSince)
+    .order("arrive_utc", { ascending: false })
+    .limit(1);
+  const trip = (trips?.[0] as { origin_tz: string; dest_tz: string; arrive_utc: string } | undefined);
+
+  let fromTz: string | null = null;
+  let toTz: string | null = null;
+  let anchorUtc = now;
+  let source: "tz_event" | "trip" = "tz_event";
+  if (ev && ev.from_tz && ev.to_tz) {
+    fromTz = ev.from_tz; toTz = ev.to_tz; anchorUtc = new Date(ev.detected_at);
+  } else if (trip) {
+    fromTz = trip.origin_tz; toTz = trip.dest_tz; anchorUtc = new Date(trip.arrive_utc);
+    source = "trip";
+  } else {
+    return null;
+  }
+
+  const offsetMin = tzOffsetMinutes(anchorUtc, toTz) - tzOffsetMinutes(anchorUtc, fromTz);
+  const absHours = Math.abs(offsetMin) / 60;
+  if (absHours < 2) return null;
+
+  const direction = offsetMin > 0 ? "east" : "west";
+  const severity = absHours >= 9 ? 5 : absHours >= 6 ? 4 : absHours >= 4 ? 3 : 2;
+  const daysSince = Math.max(0, Math.floor((now.getTime() - anchorUtc.getTime()) / 86_400_000));
+  const expectedRecoveryDays = Math.ceil(absHours);
+
+  return {
+    pattern_key: "timezone_jump",
+    severity,
+    signals: {
+      from_tz: fromTz,
+      to_tz: toTz,
+      offset_hours: Number(absHours.toFixed(1)),
+      direction,
+      days_since_jump: daysSince,
+      expected_recovery_days: expectedRecoveryDays,
+      source,
+    },
+  };
+}
+
+
  * Run all detectors and upsert active patterns. Patterns missing this run
  * are NOT auto-deactivated here — they stay active until the user mutes or
  * deletes them, or until a future sweep marks them stale.
