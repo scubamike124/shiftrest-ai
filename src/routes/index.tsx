@@ -62,7 +62,7 @@ function Dashboard() {
     queryFn: fetchEmployers,
   });
   const defaultEmployer = employers.find((e) => e.isDefault) ?? employers[0];
-  const [editing, setEditing] = useState<{ day: number } | null>(null);
+  const [editing, setEditing] = useState<{ day: number; weekIndex: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
@@ -90,13 +90,16 @@ function Dashboard() {
   const saveMutation = useMutation({
     mutationFn: async (input: {
       day: number;
+      weekIndex: number;
       start: number;
       end: number;
       employerId: string | null;
       title: string;
       notes: string;
     }) => {
-      const existing = shifts.find((x) => x.day === input.day);
+      const existing = shifts.find(
+        (x) => x.day === input.day && (x.weekIndex ?? 0) === input.weekIndex,
+      );
       if (existing) {
         await updateShiftRemote(existing.id, input);
         return existing;
@@ -123,7 +126,10 @@ function Dashboard() {
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
   const debt = useMemo(() => circadianDebt(shifts), [shifts]);
-  const todayShift = shifts.find((s) => s.day === weekday);
+  const todayShift = useMemo(
+    () => shiftsForDate(shifts, today, prefs.cycleAnchor, prefs.cycleWeeks)[0],
+    [shifts, today, prefs.cycleAnchor, prefs.cycleWeeks],
+  );
 
   // Build week dates starting Monday
   const weekDates = useMemo(() => {
