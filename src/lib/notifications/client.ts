@@ -91,7 +91,7 @@ export async function fetchNotifPrefs(): Promise<NotifPrefsRow> {
   const { data } = await supabase
     .from("notification_prefs")
     .select(
-      "enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, quiet_start, quiet_end, daily_cap, timezone",
+      "enabled, wind_down, caffeine_cutoff, bright_light, shift_start, shift_end_recovery, smart_alarm, commute, calendar, quiet_start, quiet_end, daily_cap, timezone",
     )
     .eq("user_id", uid)
     .maybeSingle();
