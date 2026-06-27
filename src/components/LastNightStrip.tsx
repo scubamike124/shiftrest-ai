@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Activity, Heart, Moon } from "lucide-react";
@@ -13,10 +14,23 @@ function fmtDur(min: number | null): string {
 
 export function LastNightStrip() {
   const fn = useServerFn(getWearableSummary);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    import("@/integrations/supabase/client").then(({ supabase }) =>
+      supabase.auth.getSession().then(({ data }) => {
+        if (active) setSignedIn(!!data.session);
+      }),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
   const { data } = useQuery({
     queryKey: ["wearable-summary"],
     queryFn: () => fn(),
     staleTime: 60_000,
+    enabled: signedIn === true,
   });
   const r = data?.latest;
   if (!r) return null;
