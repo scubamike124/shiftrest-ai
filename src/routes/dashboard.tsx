@@ -82,6 +82,30 @@ function Dashboard() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Travel/tz auto-detect: when prefs.tzAuto is on, keep currentTz in sync
+  // with the device's IANA zone. Seeds homeTz on first run so body-clock
+  // math has an anchor. Silent — never overwrites a manual override.
+  useEffect(() => {
+    if (!signedIn) return;
+    if (!prefs.tzAuto) return;
+    let cancelled = false;
+    void (async () => {
+      const { detectDeviceTz, normalizeTz } = await import("@/lib/time/tz");
+      const device = normalizeTz(detectDeviceTz());
+      const patch: Partial<typeof prefs> = {};
+      if (!prefs.homeTz) patch.homeTz = device;
+      if (prefs.currentTz !== device) patch.currentTz = device;
+      if (cancelled || Object.keys(patch).length === 0) return;
+      try {
+        const { savePrefs } = await import("@/lib/prefs");
+        await savePrefs(patch);
+      } catch {
+        /* non-fatal: tz will retry next mount */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [signedIn, prefs.tzAuto, prefs.homeTz, prefs.currentTz]);
+
   function handleAuthError(err: unknown, fallback: string) {
     if (err instanceof AuthRequiredError) {
       toast.error(err.message, {
