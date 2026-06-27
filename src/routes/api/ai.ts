@@ -315,7 +315,7 @@ export const Route = createFileRoute("/api/ai")({
           }
 
           // ---------- JSON intents (Bundle 2 + AI Coach hero) ----------
-          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan"] as const;
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan", "tomorrow_preview", "daily_review", "pattern_alert"] as const;
           type JsonIntent = (typeof jsonIntents)[number];
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
@@ -332,6 +332,7 @@ export const Route = createFileRoute("/api/ai")({
 
             let intentSystem = "";
             let userPayload = "";
+            let patternId: string | null = null;
             switch (body.intent) {
               case "daily_plan":
                 intentSystem = DAILY_PLAN_SYSTEM;
@@ -368,6 +369,32 @@ export const Route = createFileRoute("/api/ai")({
                   nowIso: new Date().toISOString(),
                 });
                 break;
+              case "tomorrow_preview":
+                intentSystem = TOMORROW_PREVIEW_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "daily_review":
+                intentSystem = DAILY_REVIEW_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "pattern_alert": {
+                intentSystem = PATTERN_ALERT_SYSTEM;
+                userPayload = JSON.stringify({
+                  pattern_key: body.patternKey,
+                  severity: body.severity,
+                  signals: body.signals,
+                });
+                if (userId) {
+                  const { data: pat } = await admin
+                    .from("ai_patterns")
+                    .select("id")
+                    .eq("user_id", userId)
+                    .eq("pattern_key", body.patternKey)
+                    .maybeSingle();
+                  patternId = (pat as { id: string } | null)?.id ?? null;
+                }
+                break;
+              }
             }
 
             const result = await chatJSON({
@@ -389,14 +416,26 @@ export const Route = createFileRoute("/api/ai")({
             }
             // Parse defensively — strip code fences if the model wrapped them.
             const raw = result.text.trim().replace(/^```(?:json)?\n?|\n?```$/g, "");
-            let parsed: unknown;
+            let parsed: Record<string, unknown>;
             try {
-              parsed = JSON.parse(raw);
+              parsed = JSON.parse(raw) as Record<string, unknown>;
             } catch {
               return jsonError(502, "AI returned malformed JSON");
             }
-            return Response.json(parsed);
+
+            // Persist as ai_recommendations so feedback can target it.
+            let recommendationId: string | null = null;
+            if (userId) {
+              recommendationId = await persistRecommendation(admin, {
+                userId,
+                intent: body.intent,
+                payload: parsed,
+                patternId,
+              });
+            }
+            return Response.json({ ...parsed, recommendationId });
           }
+
 
           return jsonError(400, "Unknown intent");
         } catch (e) {
