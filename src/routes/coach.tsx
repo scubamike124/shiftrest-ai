@@ -124,10 +124,15 @@ function Coach() {
     scrollToBottom();
 
     try {
-      const resp = await fetch("/api/coach", {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const resp = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: baseMessages, context: coachContext }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ intent: "coach", messages: baseMessages, context: coachContext }),
       });
 
       if (!resp.ok || !resp.body) {
