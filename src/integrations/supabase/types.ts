@@ -151,6 +151,7 @@ export type Database = {
           title: string | null
           updated_at: string
           user_id: string
+          week_index: number
         }
         Insert: {
           created_at?: string
@@ -165,6 +166,7 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_id: string
+          week_index?: number
         }
         Update: {
           created_at?: string
@@ -179,6 +181,7 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_id?: string
+          week_index?: number
         }
         Relationships: [
           {
@@ -241,6 +244,8 @@ export type Database = {
       user_prefs: {
         Row: {
           created_at: string
+          cycle_anchor: string | null
+          cycle_weeks: number
           lat: number
           location_label: string
           lon: number
@@ -255,6 +260,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cycle_anchor?: string | null
+          cycle_weeks?: number
           lat?: number
           location_label?: string
           lon?: number
@@ -269,6 +276,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cycle_anchor?: string | null
+          cycle_weeks?: number
           lat?: number
           location_label?: string
           lon?: number

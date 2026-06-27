@@ -10,6 +10,10 @@ export type Prefs = {
   locationLabel: string;
   partnerName: string;
   onboarded: boolean;
+  /** Rotation length in weeks (1–6). 1 = legacy weekly schedule. */
+  cycleWeeks: number;
+  /** Anchor (YYYY-MM-DD) for week 0 of the rotation. Null → derives from this week's Monday. */
+  cycleAnchor: string | null;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -22,6 +26,8 @@ export const DEFAULT_PREFS: Prefs = {
   locationLabel: "",
   partnerName: "",
   onboarded: false,
+  cycleWeeks: 1,
+  cycleAnchor: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -42,9 +48,12 @@ type Row = {
   location_label: string;
   partner_name: string;
   onboarded_at: string | null;
+  cycle_weeks: number | null;
+  cycle_anchor: string | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
+  const cw = r.cycle_weeks ?? 1;
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -55,6 +64,8 @@ function rowToPrefs(r: Row): Prefs {
     locationLabel: r.location_label,
     partnerName: r.partner_name,
     onboarded: r.onboarded_at !== null,
+    cycleWeeks: Math.max(1, Math.min(6, cw)),
+    cycleAnchor: r.cycle_anchor ?? null,
   };
 }
 
@@ -68,6 +79,9 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.lon !== undefined) out.lon = p.lon;
   if (p.locationLabel !== undefined) out.location_label = p.locationLabel;
   if (p.partnerName !== undefined) out.partner_name = p.partnerName;
+  if (p.cycleWeeks !== undefined)
+    out.cycle_weeks = Math.max(1, Math.min(6, Math.round(p.cycleWeeks)));
+  if (p.cycleAnchor !== undefined) out.cycle_anchor = p.cycleAnchor;
   return out;
 }
 
@@ -89,7 +103,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor",
     )
     .eq("user_id", uid)
     .maybeSingle();

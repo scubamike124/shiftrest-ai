@@ -18,6 +18,7 @@ import {
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
+import { shiftsForDate } from "@/lib/schedule";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,7 +86,17 @@ function PlanPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const shift = shifts.find((s: Shift) => s.day === activeDay);
+  // Cycle-aware: when activeDay is in the current week, resolve against the
+  // user's rotation (cycleWeeks/cycleAnchor). Falls back to weekday match
+  // for legacy 1-week schedules.
+  const activeDate = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + (activeDay - weekday));
+    return d;
+  }, [today, activeDay, weekday]);
+  const shift =
+    shiftsForDate(shifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
+    shifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
   // Only compute sunrise/sunset when the user has VERIFIED a real location.
   // A coords-shaped label like "33.66, -117.88" is a legacy fallback from a
   // broken reverse-geocode path and must NOT count as verified.

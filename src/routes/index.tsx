@@ -19,6 +19,12 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { MultiDayPlan } from "@/components/MultiDayPlan";
+import {
+  shiftsForDate,
+  weekIndexFor,
+  weekLabel,
+} from "@/lib/schedule";
 
 import { LastNightStrip } from "@/components/LastNightStrip";
 import { useServerFn } from "@tanstack/react-start";
@@ -56,7 +62,7 @@ function Dashboard() {
     queryFn: fetchEmployers,
   });
   const defaultEmployer = employers.find((e) => e.isDefault) ?? employers[0];
-  const [editing, setEditing] = useState<{ day: number } | null>(null);
+  const [editing, setEditing] = useState<{ day: number; weekIndex: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
@@ -84,13 +90,16 @@ function Dashboard() {
   const saveMutation = useMutation({
     mutationFn: async (input: {
       day: number;
+      weekIndex: number;
       start: number;
       end: number;
       employerId: string | null;
       title: string;
       notes: string;
     }) => {
-      const existing = shifts.find((x) => x.day === input.day);
+      const existing = shifts.find(
+        (x) => x.day === input.day && (x.weekIndex ?? 0) === input.weekIndex,
+      );
       if (existing) {
         await updateShiftRemote(existing.id, input);
         return existing;
@@ -117,7 +126,10 @@ function Dashboard() {
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
   const debt = useMemo(() => circadianDebt(shifts), [shifts]);
-  const todayShift = shifts.find((s) => s.day === weekday);
+  const todayShift = useMemo(
+    () => shiftsForDate(shifts, today, prefs.cycleAnchor, prefs.cycleWeeks)[0],
+    [shifts, today, prefs.cycleAnchor, prefs.cycleWeeks],
+  );
 
   // Build week dates starting Monday
   const weekDates = useMemo(() => {
@@ -126,9 +138,15 @@ function Dashboard() {
     return DAYS.map((d, i) => {
       const dt = new Date(monday);
       dt.setDate(monday.getDate() + i);
-      return { label: d, num: dt.getDate(), idx: i };
+      const wi = weekIndexFor(dt, prefs.cycleAnchor, prefs.cycleWeeks);
+      return { label: d, num: dt.getDate(), idx: i, date: dt, weekIndex: wi };
     });
-  }, [today, weekday]);
+  }, [today, weekday, prefs.cycleAnchor, prefs.cycleWeeks]);
+
+  const currentWeekIdx = useMemo(
+    () => weekIndexFor(today, prefs.cycleAnchor, prefs.cycleWeeks),
+    [today, prefs.cycleAnchor, prefs.cycleWeeks],
+  );
 
   // Next sleep window
   const nextSleep = useMemo(() => {
@@ -251,7 +269,7 @@ function Dashboard() {
       <div className="mt-4 grid grid-cols-5 gap-3">
 
         <button
-          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
+          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
           className="col-span-3 flex flex-col justify-between rounded-[24px] border border-primary/40 p-5 text-left active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
@@ -296,14 +314,14 @@ function Dashboard() {
         </div>
 
         <div className="grid grid-cols-4 gap-3">
-          {weekDates.map(({ label, num, idx }) => {
-            const hasShift = !!shifts.find((s) => s.day === idx);
+          {weekDates.map(({ label, num, idx, weekIndex: wi }) => {
+            const hasShift = !!shifts.find((s) => s.day === idx && (s.weekIndex ?? 0) === wi);
             const isToday = idx === weekday;
             const isPast = idx < weekday;
             return (
               <button
                 key={label}
-                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx }); }}
+                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx, weekIndex: wi }); }}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
                   isToday
                     ? "border border-white/20 shadow-[var(--shadow-glow)]"
@@ -327,8 +345,13 @@ function Dashboard() {
                 >
                   {num}
                 </span>
+                {prefs.cycleWeeks > 1 && (
+                  <span className="mt-0.5 text-[8px] uppercase tracking-widest text-muted-foreground">
+                    Wk {weekLabel(wi)}
+                  </span>
+                )}
                 {hasShift && (() => {
-                  const s = shifts.find((x) => x.day === idx)!;
+                  const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
                   const emp = employers.find((e) => e.id === s.employerId);
                   return (
                     <span
@@ -342,7 +365,7 @@ function Dashboard() {
           })}
           {/* Add tile */}
           <button
-            onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
+            onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
             aria-label="Quick add"
             className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border bg-transparent text-muted-foreground active:scale-95"
           >
@@ -399,10 +422,17 @@ function Dashboard() {
         );
       })()}
 
+      {/* Long Clock / Multi-day plan */}
+      <MultiDayPlan shifts={shifts} prefs={prefs} now={mounted ? today : new Date()} />
+
       {editing && (
         <ShiftEditor
           day={editing.day}
-          existing={shifts.find((s) => s.day === editing.day)}
+          weekIndex={editing.weekIndex}
+          cycleWeeks={prefs.cycleWeeks}
+          existing={shifts.find(
+            (s) => s.day === editing.day && (s.weekIndex ?? 0) === editing.weekIndex,
+          )}
           employers={employers}
           defaultEmployerId={defaultEmployer?.id ?? null}
           onClose={() => setEditing(null)}
@@ -534,6 +564,8 @@ function Timeline({ shift }: { shift: Shift }) {
 
 function ShiftEditor({
   day,
+  weekIndex,
+  cycleWeeks,
   existing,
   employers,
   defaultEmployerId,
@@ -541,11 +573,14 @@ function ShiftEditor({
   onSave,
 }: {
   day: number;
+  weekIndex: number;
+  cycleWeeks: number;
   existing?: Shift;
   employers: Employer[];
   defaultEmployerId: string | null;
   onClose: () => void;
   onSave: (payload: {
+    weekIndex: number;
     start: number;
     end: number;
     employerId: string | null;
@@ -555,12 +590,14 @@ function ShiftEditor({
 }) {
   const [start, setStart] = useState(toTimeInput(existing?.start ?? 23 * 60));
   const [end, setEnd] = useState(toTimeInput(existing?.end ?? 7 * 60));
+  const [wi, setWi] = useState<number>(existing?.weekIndex ?? weekIndex);
   const [employerId, setEmployerId] = useState<string | null>(
     existing?.employerId ?? defaultEmployerId,
   );
   const [title, setTitle] = useState(existing?.title ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const showPicker = employers.length > 1;
+  const showWeekPicker = cycleWeeks > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
@@ -569,6 +606,7 @@ function ShiftEditor({
           <div>
             <p className="text-[10px] uppercase tracking-widest text-indigo-glow">
               {DAYS[day]}
+              {showWeekPicker ? ` · Week ${weekLabel(wi)}` : ""}
             </p>
             <h3 className="text-2xl" style={{ fontFamily: "var(--font-display)" }}>
               {existing ? "Edit shift" : "Log your shift"}
@@ -582,6 +620,27 @@ function ShiftEditor({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {showWeekPicker && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Rotation week</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: cycleWeeks }, (_, i) => i).map((i) => (
+                <button
+                  key={i}
+                  onClick={() => setWi(i)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    wi === i
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : "border-border bg-secondary text-foreground"
+                  }`}
+                >
+                  Week {weekLabel(i)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showPicker && (
           <div className="mb-3">
@@ -648,6 +707,7 @@ function ShiftEditor({
         <button
           onClick={() =>
             onSave({
+              weekIndex: wi,
               start: parseTime(start),
               end: parseTime(end),
               employerId,

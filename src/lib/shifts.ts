@@ -6,6 +6,8 @@ export type Shift = {
   id: string;
   /** 0 = Mon ... 6 = Sun */
   day: number;
+  /** Rotation position: 0 = week A, 1 = week B, ... matches user_prefs.cycle_weeks. */
+  weekIndex: number;
   /** minutes from 00:00 */
   start: number;
   /** minutes from 00:00; may be > start when overnight (we wrap) */
@@ -23,6 +25,7 @@ const MIGRATED_KEY = "shiftrest.shifts.migrated.v1";
 type Row = {
   id: string;
   day: number;
+  week_index: number | null;
   start_min: number;
   end_min: number;
   employer_id: string | null;
@@ -30,12 +33,13 @@ type Row = {
   notes: string | null;
 };
 
-const SELECT = "id, day, start_min, end_min, employer_id, title, notes";
+const SELECT = "id, day, week_index, start_min, end_min, employer_id, title, notes";
 
 function rowToShift(r: Row): Shift {
   return {
     id: r.id,
     day: r.day,
+    weekIndex: r.week_index ?? 0,
     start: r.start_min,
     end: r.end_min,
     employerId: r.employer_id,
@@ -66,6 +70,7 @@ export async function fetchShifts(): Promise<Shift[]> {
 
 export type ShiftInput = {
   day: number;
+  weekIndex?: number;
   start: number;
   end: number;
   employerId?: string | null;
@@ -82,6 +87,7 @@ export async function addShift(input: ShiftInput): Promise<Shift | null> {
     .insert({
       user_id: userId,
       day: input.day,
+      week_index: input.weekIndex ?? 0,
       start_min: input.start,
       end_min: input.end,
       employer_id: input.employerId ?? null,
@@ -105,6 +111,7 @@ export async function updateShift(
   if (!userId) throw new AuthRequiredError("Sign in to save your shifts.");
   const row: {
     day?: number;
+    week_index?: number;
     start_min?: number;
     end_min?: number;
     employer_id?: string | null;
@@ -112,6 +119,7 @@ export async function updateShift(
     notes?: string | null;
   } = {};
   if (patch.day !== undefined) row.day = patch.day;
+  if (patch.weekIndex !== undefined) row.week_index = patch.weekIndex;
   if (patch.start !== undefined) row.start_min = patch.start;
   if (patch.end !== undefined) row.end_min = patch.end;
   if (patch.employerId !== undefined) row.employer_id = patch.employerId;
@@ -148,6 +156,7 @@ export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
   const rows = next.map((s) => ({
     user_id: userId,
     day: s.day,
+    week_index: s.weekIndex ?? 0,
     start_min: s.start,
     end_min: s.end,
     employer_id: s.employerId ?? null,
