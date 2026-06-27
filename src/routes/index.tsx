@@ -314,14 +314,14 @@ function Dashboard() {
         </div>
 
         <div className="grid grid-cols-4 gap-3">
-          {weekDates.map(({ label, num, idx }) => {
-            const hasShift = !!shifts.find((s) => s.day === idx);
+          {weekDates.map(({ label, num, idx, weekIndex: wi }) => {
+            const hasShift = !!shifts.find((s) => s.day === idx && (s.weekIndex ?? 0) === wi);
             const isToday = idx === weekday;
             const isPast = idx < weekday;
             return (
               <button
                 key={label}
-                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx }); }}
+                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx, weekIndex: wi }); }}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
                   isToday
                     ? "border border-white/20 shadow-[var(--shadow-glow)]"
@@ -345,8 +345,13 @@ function Dashboard() {
                 >
                   {num}
                 </span>
+                {prefs.cycleWeeks > 1 && (
+                  <span className="mt-0.5 text-[8px] uppercase tracking-widest text-muted-foreground">
+                    Wk {weekLabel(wi)}
+                  </span>
+                )}
                 {hasShift && (() => {
-                  const s = shifts.find((x) => x.day === idx)!;
+                  const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
                   const emp = employers.find((e) => e.id === s.employerId);
                   return (
                     <span
@@ -360,7 +365,7 @@ function Dashboard() {
           })}
           {/* Add tile */}
           <button
-            onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
+            onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
             aria-label="Quick add"
             className="flex aspect-square items-center justify-center rounded-2xl border border-dashed border-border bg-transparent text-muted-foreground active:scale-95"
           >
