@@ -10,7 +10,7 @@ type Props = {
 
 export function LegalLayout({ doc, children }: Props) {
   return (
-    <main className="mx-auto w-full max-w-7xl px-5 pb-24 pt-10 lg:px-10">
+    <section className="mx-auto w-full max-w-7xl px-5 pb-24 pt-10 lg:px-10" aria-labelledby="legal-doc-title">
       <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Link to="/legal" className="hover:text-foreground">
           Legal
