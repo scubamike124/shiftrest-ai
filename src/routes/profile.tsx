@@ -607,10 +607,74 @@ function Profile() {
         </Link>
         <Divider />
         <button
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              const out = await exportAccount({ data: undefined });
+              const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `restpilot-export-${new Date().toISOString().slice(0, 10)}.json`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+              toast.success("Your data export was downloaded.");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Export failed.");
+            } finally {
+              setExporting(false);
+            }
+          }}
+          className="flex w-full items-center justify-between p-4 text-left disabled:opacity-60"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <FileText className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">{exporting ? "Preparing export…" : "Export my data"}</p>
+              <p className="text-xs text-muted-foreground">Download a JSON copy of your account data.</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </button>
+        <Divider />
+        <button
+          disabled={purging}
+          onClick={async () => {
+            if (!window.confirm("Erase all long-term AI memory? RestPilot will start fresh and lose personalized context.")) return;
+            setPurging(true);
+            try {
+              await purgeAiMemory({ data: undefined });
+              toast.success("AI memory cleared.");
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Purge failed.");
+            } finally {
+              setPurging(false);
+            }
+          }}
+          className="flex w-full items-center justify-between p-4 text-left disabled:opacity-60"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">{purging ? "Clearing…" : "Erase AI memory"}</p>
+              <p className="text-xs text-muted-foreground">Delete remembered preferences, patterns, and recommendations.</p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </button>
+        <Divider />
+        <button
           disabled={deleting}
           onClick={async () => {
             const ok = window.confirm(
-              "Delete your account?\n\nThis permanently and immediately removes your account, shifts, preferences, and coach history. This cannot be undone.",
+              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.",
             );
             if (!ok) return;
             const sure = window.confirm("Are you absolutely sure? This is final.");
