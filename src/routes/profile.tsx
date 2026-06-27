@@ -108,7 +108,6 @@ function Profile() {
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
-    setPerm(getPermission());
     supabase.auth.getSession().then(({ data }) => {
       setUserEmail(data.session?.user.email ?? null);
     });
@@ -182,32 +181,8 @@ function Profile() {
     }
   }
 
-  async function enableNotifs() {
-    const res = await requestPermission();
-    setPerm(res);
-    if (res === "granted") {
-      update("notifications", true);
-      scheduleNextWindDown();
-      const next = await nextWindDownAt();
-      toast.success(
-        next
-          ? `Notifications on. Next ping ${next.at.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}.`
-          : "Notifications on. Add a shift to schedule pings.",
-      );
-    } else if (res === "denied") {
-      toast.error("Permission denied — enable in browser settings.");
-    } else if (res === "unsupported") {
-      toast.error("This browser doesn't support notifications.");
-    }
-  }
-
-  function testNotif() {
-    if (getPermission() !== "granted") {
-      toast.error("Enable notifications first.");
-      return;
-    }
-    showNotification("RestPilot test 🌙", "Your wind-down pings will look like this.");
-  }
+  // Notification permission, subscription, and test fire are owned by
+  // NotificationsSection. Legacy enableNotifs/testNotif removed in Upgrade 3.
 
   async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
     // BigDataCloud's free no-auth reverse geocoder. Returns city + region without an API key.
