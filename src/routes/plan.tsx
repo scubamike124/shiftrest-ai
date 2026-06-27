@@ -218,7 +218,42 @@ function PlanPage() {
             </Link>
           </div>
 
+          {recommendations.length > 0 && (
+            <section className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+                Personalized for you · next 24h
+              </p>
+              <ol className="mt-3 flex flex-col gap-2">
+                {recommendations.map((r, i) => {
+                  const Icon = REC_ICONS[r.kind] ?? Sparkles;
+                  return (
+                    <li
+                      key={i}
+                      className="flex gap-3 rounded-xl border border-border/60 bg-card/70 p-3"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-indigo-glow">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-sm font-semibold leading-tight">{r.title}</p>
+                          <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                            {r.whenLabel}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                          {r.detail}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          )}
+
           <section className="flex flex-col gap-2">
+
             {events.map((e, i) => {
               const Icon = ICONS[e.kind] ?? Sparkles;
               const tone =
