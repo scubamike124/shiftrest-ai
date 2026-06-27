@@ -545,6 +545,8 @@ function Profile() {
         />
       </section>
 
+      <RotationSection prefs={prefs} update={update} />
+
       <section className="rounded-2xl border border-border bg-card">
         <div className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-3">
