@@ -151,6 +151,49 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         </button>
       </div>
 
+      {lastResult && wakeLabel && (
+        <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            AI chose
+          </p>
+          <p className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
+            {wakeLabel}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-foreground/90">
+            {deltaMin && deltaMin !== 0
+              ? `Moved ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} — `
+              : ""}
+            {lastResult.res.reason}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {lastResult.res.cyclePosition && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">
+                {CYCLE_LABEL[lastResult.res.cyclePosition]}
+              </span>
+            )}
+            {lastResult.res.confidence && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONFIDENCE_TONE[lastResult.res.confidence]}`}>
+                {lastResult.res.confidence}
+              </span>
+            )}
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-glow hover:underline"
+            >
+              Why this time? <ChevronDown className={`h-3 w-3 transition ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {expanded && (
+            <p className="mt-2 rounded-lg bg-background/60 p-2 text-[11px] leading-snug text-muted-foreground">
+              Sleep happens in roughly 90-minute cycles. Waking near the end of a cycle — when REM
+              naturally tapers — leaves you alert instead of groggy. RestPilot scans your ±{windowMin}
+              -min window for the moment most likely to land at a cycle boundary using your wake-up
+              time and recent wearable data.
+            </p>
+          )}
+        </div>
+      )}
+
       {alarms.length > 0 && (
         <ul className="mt-4 space-y-2 border-t border-border pt-3">
           {alarms.map((a) => (
