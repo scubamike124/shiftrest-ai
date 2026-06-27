@@ -138,6 +138,7 @@ function Dashboard() {
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
   const stability = Math.max(0, 100 - debt.score);
+  const getWearableSummaryFn = useServerFn(getWearableSummary);
   const { data: wearableSummary } = useQuery({
     queryKey: ["wearable-summary"],
     queryFn: () => getWearableSummaryFn(),
