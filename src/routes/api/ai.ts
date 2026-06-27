@@ -221,8 +221,8 @@ export const Route = createFileRoute("/api/ai")({
             return Response.json({ script: result.text });
           }
 
-          // ---------- JSON intents (Bundle 2) ----------
-          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip"] as const;
+          // ---------- JSON intents (Bundle 2 + AI Coach hero) ----------
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan"] as const;
           type JsonIntent = (typeof jsonIntents)[number];
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
@@ -262,6 +262,17 @@ export const Route = createFileRoute("/api/ai")({
               case "coach_tip":
                 intentSystem = COACH_TIP_SYSTEM;
                 userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "right_now":
+                intentSystem = RIGHT_NOW_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "adjust_plan":
+                intentSystem = ADJUST_PLAN_SYSTEM;
+                userPayload = JSON.stringify({
+                  observation: body.observation,
+                  nowIso: new Date().toISOString(),
+                });
                 break;
             }
 
