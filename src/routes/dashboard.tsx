@@ -218,9 +218,26 @@ function Dashboard() {
       </header>
 
 
-      {/* HERO BENTO */}
+      {/* ★ AI HERO — Right Now */}
+      <RightNowCard
+        signedIn={signedIn === true}
+        context={insights?.contextString ?? ""}
+      />
+
+      {/* Companion whisper — proactive observation */}
+      {insights && (
+        <div className="mt-3">
+          <CompanionWhisper
+            insights={insights}
+            signedIn={signedIn === true}
+            context={insights.contextString}
+          />
+        </div>
+      )}
+
+      {/* HERO BENTO — circadian debt + next sleep + ring */}
       <section
-        className="relative overflow-hidden rounded-[32px] border border-primary/20 p-6"
+        className="mt-4 relative overflow-hidden rounded-[32px] border border-primary/20 p-6"
         style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-card)" }}
       >
         <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-primary/30 blur-[60px] breathe" />
