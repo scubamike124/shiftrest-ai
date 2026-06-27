@@ -54,6 +54,21 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
   nap: Moon,
 };
 
+const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
+  "anchor-sleep": Moon,
+  "wind-down": Bed,
+  "bright-light": Sun,
+  "amber-light": Lightbulb,
+  "caffeine-on": Coffee,
+  "caffeine-cutoff": Coffee,
+  meal: Utensils,
+  nap: Bed,
+  "split-sleep": Moon,
+  hydrate: Droplet,
+  recovery: Sparkles,
+};
+
+
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
