@@ -97,7 +97,7 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
           <Sparkles className="h-3 w-3" />
           Pilot
         </p>
-        <h1 className="mt-1 truncate text-[34px] leading-none lg:text-[52px]">
+        <h1 className="mt-1 truncate text-[28px] leading-none sm:text-[34px] lg:text-[52px]">
           {headline}
         </h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground lg:text-base">
