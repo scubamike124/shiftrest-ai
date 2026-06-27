@@ -198,6 +198,21 @@ export function LongClock({
     [activeId, bands, markers],
   );
 
+  // Live link to RightNowCard: highlight the coach's recommended window.
+  const [highlight, setHighlight] = useState<CoachHighlight>(null);
+  useEffect(() => {
+    setHighlight(readCoachHighlight());
+    const handler = (e: StorageEvent) => {
+      if (e.key === RIGHT_NOW_CACHE_KEY) setHighlight(readCoachHighlight());
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+  const highlightSegs = useMemo(
+    () => (highlight ? splitWrap(highlight.startMin, highlight.endMin) : []),
+    [highlight],
+  );
+
   return (
     <section className="rounded-[24px] border border-border bg-card p-5">
       <header className="mb-4 flex items-center justify-between">
