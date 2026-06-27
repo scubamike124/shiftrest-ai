@@ -45,8 +45,13 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [showBelowFold, setShowBelowFold] = useState(false);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    // Defer below-fold work until the browser is idle so hero LCP stays fast.
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const schedule = w.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
+    schedule(() => setShowBelowFold(true));
   }, []);
   const ctaHref = signedIn ? "/dashboard" : "/auth";
 
@@ -54,21 +59,20 @@ function Landing() {
     <div className="overflow-hidden">
       <Hero ctaHref={ctaHref} />
       <LogoTicker />
-      <DayInLifeSection />
-      <LiveCoachSection />
-      <SmartAlarmSection />
-      <LongClockSection />
-      <DashboardSection />
-      <CalendarConflictSection />
-      <CommuteSection />
-      <BeforeAfterSection />
-      <RecoveryPlaybookSection />
-      <Testimonials />
-      <PricingPreview ctaHref={ctaHref} />
-      <CtaBand ctaHref={ctaHref} />
+      {showBelowFold && (
+        <>
+          <DayInLifeSection />
+          <SmartAlarmSection />
+          <DashboardSection />
+          <Testimonials />
+          <PricingPreview ctaHref={ctaHref} />
+          <CtaBand ctaHref={ctaHref} />
+        </>
+      )}
     </div>
   );
 }
+
 
 /* ============================================================ HERO */
 
