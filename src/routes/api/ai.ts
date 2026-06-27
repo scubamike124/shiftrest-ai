@@ -212,6 +212,7 @@ export const Route = createFileRoute("/api/ai")({
               userId,
               profile,
               liveContext: body.context,
+              intent: "coach",
             });
 
             const trimmed = body.messages.slice(-20);
