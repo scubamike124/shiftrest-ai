@@ -242,6 +242,10 @@ function MemoryPage() {
         </ul>
       </div>
 
+      {/* Detected patterns — predictive layer transparency */}
+      <PatternsPanel />
+
+
       {enabled === false ? (
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/30 p-6 text-center text-sm text-muted-foreground">
           Memory is off. Turn it on above and the coach will quietly remember
