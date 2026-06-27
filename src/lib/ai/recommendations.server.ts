@@ -31,12 +31,30 @@ function pickConfidence(payload: Record<string, unknown>): number {
   return 0.5;
 }
 
+function pickImpact(payload: Record<string, unknown>): Record<string, unknown> | null {
+  const raw = (payload["impact"] ?? payload["predictedImpact"]) as unknown;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  // Fallback so the detail sheet always has something to render.
+  const outcome = typeof payload["expectedOutcome"] === "string" ? payload["expectedOutcome"] : null;
+  const ifIgnored = typeof payload["ifIgnored"] === "string" ? payload["ifIgnored"] : null;
+  if (!outcome && !ifIgnored) return null;
+  return {
+    today: outcome ?? null,
+    tomorrow: null,
+    week: null,
+    ifIgnored,
+  };
+}
+
 export async function persistRecommendation(
   admin: SupabaseClient,
   input: StoreInput,
 ): Promise<string | null> {
   const headline = pickString(input.payload, HEADLINE_FIELDS, input.intent);
   const rationale = pickString(input.payload, RATIONALE_FIELDS);
+  const impact = pickImpact(input.payload);
   const { data, error } = await admin
     .from("ai_recommendations")
     .insert({
@@ -45,6 +63,7 @@ export async function persistRecommendation(
       headline,
       rationale: rationale || null,
       evidence_json: input.payload,
+      predicted_impact_json: impact ?? {},
       confidence: pickConfidence(input.payload),
       pattern_id: input.patternId ?? null,
     } as never)
