@@ -49,6 +49,12 @@ function rowToPrefs(r: PrefsRow): Prefs {
     tomorrowPreviewEnabled: true,
     dailyReviewEnabled: true,
     feedbackLearningEnabled: true,
+    homeTz: null,
+    currentTz: null,
+    tzAuto: true,
+    offlineEnabled: true,
+    travelModeEnabled: true,
+    calendarTravelDetect: false,
   };
 }
 
