@@ -242,6 +242,10 @@ function Coach() {
         // Persist both turns after a successful exchange. No-op for guests.
         void saveCoachMessage("user", trimmed);
         void saveCoachMessage("assistant", assistant);
+        if (voiceOn && assistant !== lastSpokenRef.current) {
+          lastSpokenRef.current = assistant;
+          speak(assistant);
+        }
       }
     } catch (e) {
       console.error(e);
