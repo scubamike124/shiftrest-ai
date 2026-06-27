@@ -98,9 +98,18 @@ export function DailyReviewCard({
         const trendTone = TREND_TONE[data.metrics.recoveryTrend];
         return (
           <div className="mt-3 space-y-3">
-            <h3 className="text-lg font-semibold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
-              {data.headline}
-            </h3>
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="text-lg font-semibold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
+                {data.headline}
+              </h3>
+              <WhyButton
+                recommendationId={data.recommendationId}
+                intent="daily_review"
+                headline={data.headline}
+                why={`Recovery trend: ${data.metrics.recoveryTrend}.`}
+                expectedOutcome={data.tomorrowFocus}
+              />
+            </div>
 
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
