@@ -167,6 +167,9 @@ function Coach() {
     setMessages(baseMessages);
     setInput("");
     setSending(true);
+    // Arm the audio element synchronously inside the user gesture so iOS
+    // Safari will let .play() run after the streamed response completes.
+    if (voiceOn) tts.armGesture();
     scrollToBottom();
 
     try {
