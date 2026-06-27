@@ -120,11 +120,15 @@ export function TomorrowPreviewCard({
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary">
               <Sparkles className="h-3 w-3" /> Plan ready
             </span>
-            {data.confidence && (
-              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONF[data.confidence]}`}>
-                <ShieldCheck className="h-3 w-3" /> {data.confidence} confidence
-              </span>
-            )}
+            {data.confidence && <ConfidenceBadge value={data.confidence} />}
+            <WhyButton
+              className="ml-auto"
+              recommendationId={data.recommendationId}
+              intent="tomorrow_preview"
+              headline={data.headline}
+              why={data.summary}
+              confidence={data.confidence}
+            />
           </div>
           <h3 className="text-lg font-semibold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
             {data.headline}
