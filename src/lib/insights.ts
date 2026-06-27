@@ -1,6 +1,16 @@
-// Deterministic AI-adjacent analytics: fatigue (today + 3 days), recovery score,
-// and contextual signals. No network calls — feeds both the dashboard cards
-// and the AI coach as grounding context.
+// Advanced circadian planning engine — Upgrade 1 of pre-launch roadmap.
+//
+// Forecast horizon: 14 days. Backward-compatible: `fatigueForecast` still
+// exposes the first 3 days so existing dashboard widgets keep rendering.
+// New `fatigueHorizon` is the full 14-day curve.
+//
+// Personalization signals folded in:
+//   - 7-day rolling sleep debt vs `prefs.sleepHours`
+//   - Recovery half-life between consecutive shifts (8h half-life)
+//   - Backward-rotation penalty that scales with streak length
+//   - Wearable grounding when present (sleep duration, efficiency, HRV trend)
+//
+// Pure functions only — no network. Feeds dashboard, /plan, AI brief, coach.
 
 import { DAYS, type Shift, endAbsolute } from "./shifts";
 import type { Employer } from "./employers";
@@ -8,7 +18,9 @@ import { circadianDebt, detectRotation } from "./sleep-engine";
 import type { Prefs } from "./prefs";
 
 export type FatiguePoint = {
-  dayIndex: number; // 0=Mon
+  dayIndex: number; // 0=Mon (legacy: weekday of forecast point)
+  /** Absolute offset from "today" in days (0=today, 1=tomorrow…). */
+  dayOffset: number;
   label: string;
   /** 0-100, higher = more fatigued */
   score: number;
@@ -18,16 +30,34 @@ export type FatiguePoint = {
 
 export type Insights = {
   fatigueToday: FatiguePoint;
-  fatigueForecast: FatiguePoint[]; // next 3 days (incl today at index 0)
+  /** Legacy 3-day window (today + next 2). Kept for older widgets. */
+  fatigueForecast: FatiguePoint[];
+  /** New 14-day fatigue horizon (today + next 13). */
+  fatigueHorizon: FatiguePoint[];
   recoveryScore: number; // 0-100, higher = better recovered
   recoveryBand: "depleted" | "rebuilding" | "steady" | "peak";
-  signals: string[]; // bullet strings ("Short turnaround Tue→Wed", "3 nights this week", …)
+  /** Rolling 7-day sleep debt in hours (positive = under target). */
+  sleepDebtHours: number;
+  /** HRV trend vs 7-day baseline as a fraction, e.g. -0.08 = 8% below. Null when no wearable data. */
+  hrvTrend: number | null;
+  signals: string[];
   rotation: string;
   todayShift?: Shift;
   nextShift?: { shift: Shift; hoursAway: number };
-  // Compact text the AI coach uses as grounding ("today is Wed; on shift 23:00-07:00; …")
   contextString: string;
 };
+
+export type LastNightSummary = {
+  provider: "fitbit" | "oura";
+  date: string;
+  sleepDurationMin: number | null;
+  sleepEfficiency: number | null;
+  hrvMs: number | null;
+  restingHr: number | null;
+};
+
+/** Up to 14 nights of wearable data, newest first or any order — engine sorts. */
+export type WearableHistory = LastNightSummary[];
 
 function bandFor(score: number): FatiguePoint["band"] {
   if (score >= 75) return "extreme";
@@ -42,42 +72,74 @@ function shiftType(s: Shift): "day" | "evening" | "night" {
   return "evening";
 }
 
-/** Compute a per-day fatigue score using cumulative recent load + shift kind. */
-function dayFatigue(shifts: Shift[], dayIdx: number, prefs: Prefs): FatiguePoint {
-  const todayShift = shifts.find((s) => s.day === dayIdx);
+function shiftLengthHours(s: Shift): number {
+  return (endAbsolute(s) - s.start) / 60;
+}
+
+/** Detect a run of consecutive backward-rotating transitions ending at dayIdx. */
+function backwardStreakEndingAt(shifts: Shift[], dayIdx: number): number {
+  const order = ["day", "evening", "night"];
+  let streak = 0;
+  for (let back = 0; back < 6; back++) {
+    const a = shifts.find((s) => s.day === (dayIdx - back - 1 + 7) % 7);
+    const b = shifts.find((s) => s.day === (dayIdx - back + 7) % 7);
+    if (!a || !b) break;
+    if (order.indexOf(shiftType(b)) < order.indexOf(shiftType(a))) streak++;
+    else break;
+  }
+  return streak;
+}
+
+/**
+ * Per-day fatigue score. Uses the calendar weekday for shift lookup
+ * (the 7-day pattern repeats), plus history-aware modifiers driven by
+ * `dayOffset` so the 14-day curve isn't just a flat repeat.
+ */
+function dayFatigue(
+  shifts: Shift[],
+  weekdayIdx: number,
+  dayOffset: number,
+  prefs: Prefs,
+  ctx: {
+    sleepDebtHours: number;
+    hrvTrend: number | null;
+    lastNightDeficit: number | null; // hours under target last night
+    lastEfficiency: number | null; // 0..1
+  },
+): FatiguePoint {
+  const todayShift = shifts.find((s) => s.day === weekdayIdx);
   let score = 0;
   let reason = "Recovery day";
 
-  // Carry-over from previous 2 days
+  // ── Carry-over from previous 2 days with exponential decay (8h half-life
+  //    per day approximated as 0.6, 0.3 weights).
   for (let back = 1; back <= 2; back++) {
-    const idx = (dayIdx - back + 7) % 7;
+    const idx = (weekdayIdx - back + 7) % 7;
     const prev = shifts.find((s) => s.day === idx);
     if (!prev) continue;
     const decay = back === 1 ? 0.6 : 0.3;
     const base =
       shiftType(prev) === "night" ? 35 : shiftType(prev) === "evening" ? 18 : 10;
     score += base * decay;
-    const len = endAbsolute(prev) - prev.start;
-    if (len > 10 * 60) score += 6 * decay;
+    if (shiftLengthHours(prev) > 10) score += 6 * decay;
   }
 
   if (todayShift) {
     const kind = shiftType(todayShift);
-    const len = endAbsolute(todayShift) - todayShift.start;
+    const len = shiftLengthHours(todayShift);
     if (kind === "night") {
       score += 45;
-      reason = `Working overnight (${Math.round(len / 60)}h)`;
+      reason = `Working overnight (${Math.round(len)}h)`;
     } else if (kind === "evening") {
       score += 22;
-      reason = `Evening shift (${Math.round(len / 60)}h)`;
+      reason = `Evening shift (${Math.round(len)}h)`;
     } else {
       score += 12;
-      reason = `Day shift (${Math.round(len / 60)}h)`;
+      reason = `Day shift (${Math.round(len)}h)`;
     }
-    if (len > 10 * 60) score += 8;
+    if (len > 10) score += 8;
 
-    // Short turnaround from previous shift
-    const prev = shifts.find((s) => s.day === (dayIdx - 1 + 7) % 7);
+    const prev = shifts.find((s) => s.day === (weekdayIdx - 1 + 7) % 7);
     if (prev) {
       const gap = todayShift.start + 1440 - endAbsolute(prev);
       if (gap < 11 * 60) {
@@ -85,10 +147,18 @@ function dayFatigue(shifts: Shift[], dayIdx: number, prefs: Prefs): FatiguePoint
         reason += " · short turnaround";
       }
     }
+
+    // Backward-rotation streak penalty: 6 per consecutive backward jump,
+    // capped at 18 so it doesn't drown out other signals.
+    const streak = backwardStreakEndingAt(shifts, weekdayIdx);
+    if (streak > 0) {
+      const penalty = Math.min(18, 6 * streak);
+      score += penalty;
+      reason += ` · backward rotation x${streak}`;
+    }
   } else {
-    // Day off — bonus recovery if sandwiched between off days
-    const prev = shifts.find((s) => s.day === (dayIdx - 1 + 7) % 7);
-    const next = shifts.find((s) => s.day === (dayIdx + 1) % 7);
+    const prev = shifts.find((s) => s.day === (weekdayIdx - 1 + 7) % 7);
+    const next = shifts.find((s) => s.day === (weekdayIdx + 1) % 7);
     if (!prev && !next) {
       score = Math.max(0, score - 12);
       reason = "Full rest day";
@@ -97,27 +167,81 @@ function dayFatigue(shifts: Shift[], dayIdx: number, prefs: Prefs): FatiguePoint
     }
   }
 
-  // Light personalisation: under-target sleep amplifies
+  // ── Personalization layer
+  // 1) Sleep target shortfall
   if (prefs.sleepHours < 7) score += 4;
+
+  // 2) Rolling sleep debt amplifies (cap at +14)
+  if (ctx.sleepDebtHours > 1) {
+    const add = Math.min(14, Math.round(ctx.sleepDebtHours * 2));
+    score += add;
+    if (add >= 6) reason += ` · sleep debt ${ctx.sleepDebtHours.toFixed(1)}h`;
+  }
+
+  // 3) Today-only: yesterday's measured deficit and low efficiency
+  if (dayOffset === 0) {
+    if (ctx.lastNightDeficit != null && ctx.lastNightDeficit > 1) {
+      score += Math.min(10, Math.round(ctx.lastNightDeficit * 3));
+      reason += ` · short night (${ctx.lastNightDeficit.toFixed(1)}h under)`;
+    }
+    if (ctx.lastEfficiency != null && ctx.lastEfficiency < 0.8) {
+      score += 6;
+      reason += " · low sleep efficiency";
+    }
+    if (ctx.hrvTrend != null && ctx.hrvTrend < -0.07) {
+      score += 6;
+      reason += ` · HRV ${Math.round(ctx.hrvTrend * 100)}% vs baseline`;
+    } else if (ctx.hrvTrend != null && ctx.hrvTrend > 0.07) {
+      score = Math.max(0, score - 4);
+    }
+  }
+
+  // 4) Future-day decay: signal strength fades with distance (less certainty)
+  if (dayOffset >= 3) {
+    const fade = Math.min(0.25, (dayOffset - 2) * 0.04);
+    score = Math.round(score * (1 - fade));
+  }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   return {
-    dayIndex: dayIdx,
-    label: DAYS[dayIdx],
+    dayIndex: weekdayIdx,
+    dayOffset,
+    label: DAYS[weekdayIdx],
     score,
     band: bandFor(score),
     reason,
   };
 }
 
-export type LastNightSummary = {
-  provider: "fitbit" | "oura";
-  date: string;
-  sleepDurationMin: number | null;
-  sleepEfficiency: number | null;
-  hrvMs: number | null;
-  restingHr: number | null;
-};
+/** Compute 7-day rolling sleep debt in hours vs prefs.sleepHours. */
+function computeSleepDebt(history: WearableHistory, target: number): number {
+  if (!history.length) return 0;
+  const sorted = [...history]
+    .filter((r) => r.sleepDurationMin != null)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7);
+  if (!sorted.length) return 0;
+  const debt = sorted.reduce(
+    (acc, r) => acc + Math.max(0, target - (r.sleepDurationMin ?? 0) / 60),
+    0,
+  );
+  return Math.round(debt * 10) / 10;
+}
+
+/** HRV trend = (last 3 nights mean − prior 4 nights mean) / baseline. */
+function computeHrvTrend(history: WearableHistory): number | null {
+  const sorted = [...history]
+    .filter((r) => r.hrvMs != null)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  if (sorted.length < 4) return null;
+  const recent = sorted.slice(0, 3).map((r) => r.hrvMs as number);
+  const prior = sorted.slice(3, 7).map((r) => r.hrvMs as number);
+  if (!prior.length) return null;
+  const mean = (a: number[]) => a.reduce((s, v) => s + v, 0) / a.length;
+  const baseline = mean(prior);
+  if (baseline <= 0) return null;
+  return Math.round(((mean(recent) - baseline) / baseline) * 100) / 100;
+}
 
 export function computeInsights(
   shifts: Shift[],
@@ -125,42 +249,87 @@ export function computeInsights(
   now: Date,
   employers: Employer[] = [],
   lastNight: LastNightSummary | null = null,
+  wearableHistory: WearableHistory = [],
 ): Insights {
-  const weekday = (now.getDay() + 6) % 7;
-  const fatigueToday = dayFatigue(shifts, weekday, prefs);
-  const fatigueForecast: FatiguePoint[] = [0, 1, 2].map((offset) =>
-    dayFatigue(shifts, (weekday + offset) % 7, prefs),
+  const weekdayToday = (now.getDay() + 6) % 7;
+
+  // Aggregate personalization signals once
+  const history: WearableHistory =
+    wearableHistory.length || !lastNight ? wearableHistory : [lastNight];
+  const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
+  const hrvTrend = computeHrvTrend(history);
+  const lastNightDeficit =
+    lastNight?.sleepDurationMin != null
+      ? Math.max(0, prefs.sleepHours - lastNight.sleepDurationMin / 60)
+      : null;
+  const lastEfficiency = lastNight?.sleepEfficiency ?? null;
+  const personalCtx = { sleepDebtHours, hrvTrend, lastNightDeficit, lastEfficiency };
+
+  // ── 14-day horizon
+  const fatigueHorizon: FatiguePoint[] = Array.from({ length: 14 }, (_, offset) =>
+    dayFatigue(shifts, (weekdayToday + offset) % 7, offset, prefs, personalCtx),
   );
+  const fatigueToday = fatigueHorizon[0];
+  const fatigueForecast = fatigueHorizon.slice(0, 3);
 
   const employerById = new Map(employers.map((e) => [e.id, e]));
   const employerLabel = (s: Shift) =>
     s.employerId ? employerById.get(s.employerId)?.name : undefined;
 
-  // Recovery = inverse of circadian debt, weighted by today's fatigue.
+  // ── Recovery score (weighted blend, 0-100)
   const debt = circadianDebt(shifts);
-  const recoveryScore = Math.max(
-    0,
-    Math.min(100, Math.round(100 - debt.score * 0.6 - fatigueToday.score * 0.4)),
-  );
+  let recovery = 100 - debt.score * 0.45 - fatigueToday.score * 0.35;
+  recovery -= Math.min(15, sleepDebtHours * 2.5); // 1.5h debt ≈ -3.75 pts
+  if (lastEfficiency != null) recovery += (lastEfficiency - 0.85) * 30;
+  if (hrvTrend != null) recovery += hrvTrend * 40; // +/- 4 pts per 10% trend
+  const recoveryScore = Math.max(0, Math.min(100, Math.round(recovery)));
   const recoveryBand: Insights["recoveryBand"] =
     recoveryScore >= 80
       ? "peak"
       : recoveryScore >= 60
-      ? "steady"
-      : recoveryScore >= 35
-      ? "rebuilding"
-      : "depleted";
+        ? "steady"
+        : recoveryScore >= 35
+          ? "rebuilding"
+          : "depleted";
 
   const rotation = detectRotation(shifts).label;
 
+  // ── Signals (dashboard bullets + coach grounding)
   const signals: string[] = [];
   const nightCount = shifts.filter((s) => shiftType(s) === "night").length;
   if (nightCount >= 3) signals.push(`${nightCount} night shifts this week`);
   if (debt.reasons.length) signals.push(...debt.reasons.slice(0, 3));
-  if (!shifts.find((s) => s.day === weekday)) signals.push("No shift today");
+  if (!shifts.find((s) => s.day === weekdayToday)) signals.push("No shift today");
+  if (sleepDebtHours >= 3)
+    signals.push(`Sleep debt ${sleepDebtHours.toFixed(1)}h over last 7 nights`);
+  if (hrvTrend != null && Math.abs(hrvTrend) >= 0.07)
+    signals.push(
+      `HRV trend ${hrvTrend > 0 ? "+" : ""}${Math.round(hrvTrend * 100)}% vs baseline`,
+    );
 
-  // Multi-employer signals: e.g. "Working 2 employers this week" or
-  // "Stacking St. Mary's overnight → Urgent Care evening on Wed".
+  // Heavy stretch detection in the 14-day curve
+  const heavyStretch = fatigueHorizon.reduce<{ start: number; len: number } | null>(
+    (acc, p, i, arr) => {
+      if (p.score < 55) return acc;
+      const len = (() => {
+        let k = 0;
+        while (i + k < arr.length && arr[i + k].score >= 55) k++;
+        return k;
+      })();
+      if (!acc || len > acc.len) return { start: i, len };
+      return acc;
+    },
+    null,
+  );
+  if (heavyStretch && heavyStretch.len >= 3) {
+    signals.push(
+      `Heavy stretch: ${heavyStretch.len} hard days starting ${
+        heavyStretch.start === 0 ? "today" : `in ${heavyStretch.start}d`
+      }`,
+    );
+  }
+
+  // Multi-employer signals
   const employersThisWeek = new Set(
     shifts.map((s) => s.employerId).filter(Boolean) as string[],
   );
@@ -169,7 +338,6 @@ export function computeInsights(
       .map((id) => employerById.get(id)?.name)
       .filter(Boolean);
     signals.push(`Working ${employersThisWeek.size} employers: ${names.join(", ")}`);
-    // Same-day double-up (different employer back-to-back across 24h)
     for (let d = 0; d < 7; d++) {
       const a = shifts.find((s) => s.day === d);
       const b = shifts.find((s) => s.day === (d + 1) % 7);
@@ -177,7 +345,9 @@ export function computeInsights(
         const gap = b.start + 1440 - endAbsolute(a);
         if (gap < 14 * 60) {
           signals.push(
-            `${employerById.get(a.employerId)?.name ?? "Job A"} → ${employerById.get(b.employerId)?.name ?? "Job B"} on ${DAYS[(d + 1) % 7]} (short gap)`,
+            `${employerById.get(a.employerId)?.name ?? "Job A"} → ${
+              employerById.get(b.employerId)?.name ?? "Job B"
+            } on ${DAYS[(d + 1) % 7]} (short gap)`,
           );
           break;
         }
@@ -185,10 +355,10 @@ export function computeInsights(
     }
   }
 
-  // Find next upcoming shift in next 72h
+  // Next upcoming shift within 7 days
   let nextShift: Insights["nextShift"];
   for (let offset = 0; offset < 7; offset++) {
-    const idx = (weekday + offset) % 7;
+    const idx = (weekdayToday + offset) % 7;
     const s = shifts.find((x) => x.day === idx);
     if (!s) continue;
     if (offset === 0 && now.getHours() * 60 + now.getMinutes() > s.start) continue;
@@ -198,32 +368,50 @@ export function computeInsights(
     break;
   }
 
-  const todayShift = shifts.find((s) => s.day === weekday);
+  const todayShift = shifts.find((s) => s.day === weekdayToday);
   const fmtHM = (m: number) =>
     `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
+  // ── Compact coach grounding (now quotes real personalization numbers)
+  const horizonDigest = fatigueHorizon
+    .slice(0, 7)
+    .map((p) => p.score)
+    .join("/");
   const contextString = [
-    `Today is ${DAYS[weekday]}.`,
+    `Today is ${DAYS[weekdayToday]}.`,
     todayShift
-      ? `On shift ${fmtHM(todayShift.start)}–${fmtHM(todayShift.end)} (${shiftType(todayShift)})${
-          employerLabel(todayShift) ? ` at ${employerLabel(todayShift)}` : ""
-        }${todayShift.title ? ` — ${todayShift.title}` : ""}.`
+      ? `On shift ${fmtHM(todayShift.start)}–${fmtHM(todayShift.end)} (${shiftType(
+          todayShift,
+        )})${employerLabel(todayShift) ? ` at ${employerLabel(todayShift)}` : ""}${
+          todayShift.title ? ` — ${todayShift.title}` : ""
+        }.`
       : "No shift today.",
     nextShift
-      ? `Next shift in ~${nextShift.hoursAway}h: ${DAYS[nextShift.shift.day]} ${fmtHM(nextShift.shift.start)}–${fmtHM(nextShift.shift.end)}${
+      ? `Next shift in ~${nextShift.hoursAway}h: ${DAYS[nextShift.shift.day]} ${fmtHM(
+          nextShift.shift.start,
+        )}–${fmtHM(nextShift.shift.end)}${
           employerLabel(nextShift.shift) ? ` at ${employerLabel(nextShift.shift)}` : ""
         }.`
       : "",
     `Rotation pattern: ${rotation}.`,
-    `Fatigue today ${fatigueToday.score}/100 (${fatigueToday.band}); next 2 days ${fatigueForecast[1].score}, ${fatigueForecast[2].score}.`,
+    `Fatigue today ${fatigueToday.score}/100 (${fatigueToday.band}).`,
+    `14-day fatigue curve (next 7): ${horizonDigest}.`,
     `Recovery score ${recoveryScore}/100 (${recoveryBand}).`,
+    sleepDebtHours >= 1
+      ? `Rolling 7-day sleep debt: ${sleepDebtHours.toFixed(1)}h.`
+      : "",
+    hrvTrend != null
+      ? `HRV trend vs baseline: ${hrvTrend > 0 ? "+" : ""}${Math.round(hrvTrend * 100)}%.`
+      : "",
     employers.length > 1
       ? `Employers (${employers.length}): ${employers.map((e) => e.name).join(", ")}.`
       : "",
     signals.length ? `Signals: ${signals.join("; ")}.` : "",
     `Sleep target ${prefs.sleepHours}h, wind-down ${prefs.windDownMin}min.`,
     lastNight && lastNight.sleepDurationMin
-      ? `Last night (${lastNight.provider}, ${lastNight.date}): slept ${(lastNight.sleepDurationMin / 60).toFixed(1)}h${
+      ? `Last night (${lastNight.provider}, ${lastNight.date}): slept ${(
+          lastNight.sleepDurationMin / 60
+        ).toFixed(1)}h${
           lastNight.sleepEfficiency != null
             ? ` at ${Math.round(lastNight.sleepEfficiency * 100)}% efficiency`
             : ""
@@ -238,8 +426,11 @@ export function computeInsights(
   return {
     fatigueToday,
     fatigueForecast,
+    fatigueHorizon,
     recoveryScore,
     recoveryBand,
+    sleepDebtHours,
+    hrvTrend,
     signals,
     rotation,
     todayShift,

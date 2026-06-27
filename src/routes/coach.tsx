@@ -42,26 +42,47 @@ const STARTERS = [
 ];
 
 function Coach() {
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let active = true;
+    import("@/integrations/supabase/client").then(({ supabase }) =>
+      supabase.auth.getSession().then(({ data }) => {
+        if (active) setSignedIn(!!data.session);
+      }),
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const { data: history } = useQuery({
     queryKey: ["coach-history"],
     queryFn: fetchCoachHistory,
     staleTime: 60_000,
+    enabled: signedIn === true,
   });
-  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: fetchShifts,
+    enabled: signedIn === true,
+  });
   const { data: prefs = DEFAULT_PREFS } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
+    enabled: signedIn === true,
   });
   const { data: employers = [] } = useQuery({
     queryKey: ["employers"],
     queryFn: fetchEmployers,
+    enabled: signedIn === true,
   });
   const getWearableSummaryFn = useServerFn(getWearableSummary);
   const { data: wearableSummary } = useQuery({
     queryKey: ["wearable-summary"],
     queryFn: () => getWearableSummaryFn(),
     staleTime: 60_000,
+    enabled: signedIn === true,
   });
   const coachContext = useMemo(
     () =>
