@@ -348,10 +348,7 @@ function PilotPage() {
         </p>
       </div>
 
-      {/* Hidden audio element managed by useTtsPlayer */}
-      <audio ref={tts.audioRef} hidden aria-hidden />
-      {/* Mute reference (avoid unused warning) */}
-      <span hidden>{MicOff.displayName}</span>
+      {/* Audio element is created internally by useTtsPlayer */}
     </div>
   );
 }
