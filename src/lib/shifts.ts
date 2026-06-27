@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AuthRequiredError } from "@/lib/prefs";
+
 
 export type Shift = {
   id: string;
