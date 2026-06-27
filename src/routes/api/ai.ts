@@ -53,6 +53,18 @@ const COACH_VOICE = `VOICE & TRUST CONTRACT (applies to every field you write):
 - Every recommendation must implicitly answer: what changed, why, what happens if they follow it, what happens if they don't.
 - TIME-ZONE BASIS: When TZ STATE shows the user's home and current time zones differ, every time you cite a clock time name which clock it's on — say "local time" or use body-clock phrasing ("your body still thinks it's roughly 3 in the morning"). When they match, no qualifier is needed. Never silently mix the two.`;
 
+// Shared impact contract — appended to every JSON intent so each recommendation
+// emits the same predicted-impact triple. Stored as predicted_impact_json and
+// rendered in the Trust Layer detail sheet.
+const IMPACT_CONTRACT = `IMPACT CONTRACT (REQUIRED — every JSON response):
+In addition to the schema below, ALWAYS include a top-level field:
+"impact": {
+  "today":    string (<=110 chars, concrete effect on the rest of today if they follow this),
+  "tomorrow": string (<=110 chars, concrete effect on tomorrow's energy/sleep/readiness),
+  "week":     string (<=110 chars, concrete effect over the next 5-7 days if they keep doing it)
+}
+Be specific and grounded — name a number, a window, or a body-clock outcome where possible. No hype, no emoji.`;
+
 const BRIEF_SYSTEM = `You are RestPilot AI's recovery coach narrating a personalized voice briefing for a shift worker.
 
 Rewrite the structured plan into natural, conversational spoken English — like a calm friend who happens to be a sleep expert. Rules:
