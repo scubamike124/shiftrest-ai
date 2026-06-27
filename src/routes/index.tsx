@@ -261,6 +261,13 @@ function Dashboard() {
         </div>
       )}
 
+      {/* Contextual coach tip — refreshable, uses budgeted AI */}
+      {insights && (
+        <div className="mt-4">
+          <CoachTipCard signedIn={signedIn === true} context={insights.contextString} />
+        </div>
+      )}
+
       <div className="mt-4">
         <LastNightStrip />
       </div>
