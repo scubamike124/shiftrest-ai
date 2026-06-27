@@ -30,6 +30,18 @@ export type Prefs = {
   dailyReviewEnabled: boolean;
   /** Feed feedback back into ranked learned preferences. Default ON. */
   feedbackLearningEnabled: boolean;
+  /** IANA time zone the user calls "home" — anchors body-clock math. */
+  homeTz: string | null;
+  /** Latest detected/manual IANA time zone the user is in. */
+  currentTz: string | null;
+  /** Auto-detect tz from the device on app load. Default ON. */
+  tzAuto: boolean;
+  /** Offline cache enabled. Default ON. */
+  offlineEnabled: boolean;
+  /** Travel mode (trips, jet-lag plan) enabled. Default ON. */
+  travelModeEnabled: boolean;
+  /** Opt-in calendar travel detection (future). Default OFF. */
+  calendarTravelDetect: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
