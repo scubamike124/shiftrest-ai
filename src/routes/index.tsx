@@ -41,6 +41,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 function Dashboard() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: shifts = [] } = useQuery({
     queryKey: ["shifts"],
     queryFn: fetchShifts,
@@ -52,11 +53,28 @@ function Dashboard() {
   const defaultEmployer = employers.find((e) => e.isDefault) ?? employers[0];
   const [editing, setEditing] = useState<{ day: number } | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
 
   useEffect(() => {
     setMounted(true);
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => sub.subscription.unsubscribe();
   }, []);
+
+  function handleAuthError(err: unknown, fallback: string) {
+    if (err instanceof AuthRequiredError) {
+      toast.error(err.message, {
+        action: {
+          label: "Sign in",
+          onClick: () => navigate({ to: "/auth", search: { return: "/" } as never }),
+        },
+      });
+    } else {
+      toast.error(fallback);
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: async (input: {
@@ -75,11 +93,13 @@ function Dashboard() {
       return addShiftRemote(input);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
+    onError: (err) => handleAuthError(err, "Could not save shift. Please try again."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteShiftRemote(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shifts"] }),
+    onError: (err) => handleAuthError(err, "Could not delete shift. Please try again."),
   });
 
   function removeShift(id: string) {
