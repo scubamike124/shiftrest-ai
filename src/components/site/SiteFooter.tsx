@@ -29,6 +29,7 @@ export function SiteFooter() {
             { to: "/features", label: "Features" },
             { to: "/pricing", label: "Pricing" },
             { to: "/dashboard", label: "Dashboard" },
+            { to: "/safety", label: "Safety Center" },
           ]}
         />
         <FooterCol
@@ -40,6 +41,7 @@ export function SiteFooter() {
           ]}
         />
         <FooterCol title="Legal" links={legalLinks} />
+
       </div>
       <div className="border-t border-border/60">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-start justify-between gap-3 px-5 py-6 text-xs text-muted-foreground lg:flex-row lg:items-center lg:px-10">

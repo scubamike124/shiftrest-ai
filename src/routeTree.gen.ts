@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -34,8 +35,11 @@ import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-part
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
 import { Route as LegalSubscriptionRouteImport } from './routes/legal.subscription'
 import { Route as LegalSecurityRouteImport } from './routes/legal.security'
+import { Route as LegalRegionalRouteImport } from './routes/legal.regional'
 import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalOpenSourceRouteImport } from './routes/legal.open-source'
 import { Route as LegalLicenseRouteImport } from './routes/legal.license'
+import { Route as LegalElectronicConsentRouteImport } from './routes/legal.electronic-consent'
 import { Route as LegalDisclaimersRouteImport } from './routes/legal.disclaimers'
 import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
@@ -67,6 +71,11 @@ const SwapRoute = SwapRouteImport.update({
 const ShareRoute = ShareRouteImport.update({
   id: '/share',
   path: '/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SafetyRoute = SafetyRouteImport.update({
+  id: '/safety',
+  path: '/safety',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -179,14 +188,29 @@ const LegalSecurityRoute = LegalSecurityRouteImport.update({
   path: '/security',
   getParentRoute: () => LegalRoute,
 } as any)
+const LegalRegionalRoute = LegalRegionalRouteImport.update({
+  id: '/regional',
+  path: '/regional',
+  getParentRoute: () => LegalRoute,
+} as any)
 const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
   getParentRoute: () => LegalRoute,
 } as any)
+const LegalOpenSourceRoute = LegalOpenSourceRouteImport.update({
+  id: '/open-source',
+  path: '/open-source',
+  getParentRoute: () => LegalRoute,
+} as any)
 const LegalLicenseRoute = LegalLicenseRouteImport.update({
   id: '/license',
   path: '/license',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalElectronicConsentRoute = LegalElectronicConsentRouteImport.update({
+  id: '/electronic-consent',
+  path: '/electronic-consent',
   getParentRoute: () => LegalRoute,
 } as any)
 const LegalDisclaimersRoute = LegalDisclaimersRouteImport.update({
@@ -295,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -309,8 +334,11 @@ export interface FileRoutesByFullPath {
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/copyright': typeof LegalCopyrightRoute
   '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/electronic-consent': typeof LegalElectronicConsentRoute
   '/legal/license': typeof LegalLicenseRoute
+  '/legal/open-source': typeof LegalOpenSourceRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/regional': typeof LegalRegionalRoute
   '/legal/security': typeof LegalSecurityRoute
   '/legal/subscription': typeof LegalSubscriptionRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -340,6 +368,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -354,8 +383,11 @@ export interface FileRoutesByTo {
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/copyright': typeof LegalCopyrightRoute
   '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/electronic-consent': typeof LegalElectronicConsentRoute
   '/legal/license': typeof LegalLicenseRoute
+  '/legal/open-source': typeof LegalOpenSourceRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/regional': typeof LegalRegionalRoute
   '/legal/security': typeof LegalSecurityRoute
   '/legal/subscription': typeof LegalSubscriptionRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -387,6 +419,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
@@ -401,8 +434,11 @@ export interface FileRoutesById {
   '/legal/cookies': typeof LegalCookiesRoute
   '/legal/copyright': typeof LegalCopyrightRoute
   '/legal/disclaimers': typeof LegalDisclaimersRoute
+  '/legal/electronic-consent': typeof LegalElectronicConsentRoute
   '/legal/license': typeof LegalLicenseRoute
+  '/legal/open-source': typeof LegalOpenSourceRoute
   '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/regional': typeof LegalRegionalRoute
   '/legal/security': typeof LegalSecurityRoute
   '/legal/subscription': typeof LegalSubscriptionRoute
   '/legal/terms': typeof LegalTermsRoute
@@ -435,6 +471,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/safety'
     | '/share'
     | '/swap'
     | '/terms'
@@ -449,8 +486,11 @@ export interface FileRouteTypes {
     | '/legal/cookies'
     | '/legal/copyright'
     | '/legal/disclaimers'
+    | '/legal/electronic-consent'
     | '/legal/license'
+    | '/legal/open-source'
     | '/legal/privacy'
+    | '/legal/regional'
     | '/legal/security'
     | '/legal/subscription'
     | '/legal/terms'
@@ -480,6 +520,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/safety'
     | '/share'
     | '/swap'
     | '/terms'
@@ -494,8 +535,11 @@ export interface FileRouteTypes {
     | '/legal/cookies'
     | '/legal/copyright'
     | '/legal/disclaimers'
+    | '/legal/electronic-consent'
     | '/legal/license'
+    | '/legal/open-source'
     | '/legal/privacy'
+    | '/legal/regional'
     | '/legal/security'
     | '/legal/subscription'
     | '/legal/terms'
@@ -526,6 +570,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/safety'
     | '/share'
     | '/swap'
     | '/terms'
@@ -540,8 +585,11 @@ export interface FileRouteTypes {
     | '/legal/cookies'
     | '/legal/copyright'
     | '/legal/disclaimers'
+    | '/legal/electronic-consent'
     | '/legal/license'
+    | '/legal/open-source'
     | '/legal/privacy'
+    | '/legal/regional'
     | '/legal/security'
     | '/legal/subscription'
     | '/legal/terms'
@@ -573,6 +621,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SafetyRoute: typeof SafetyRoute
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
@@ -611,6 +660,13 @@ declare module '@tanstack/react-router' {
       path: '/share'
       fullPath: '/share'
       preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/safety': {
+      id: '/safety'
+      path: '/safety'
+      fullPath: '/safety'
+      preLoaderRoute: typeof SafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -767,6 +823,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalSecurityRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/legal/regional': {
+      id: '/legal/regional'
+      path: '/regional'
+      fullPath: '/legal/regional'
+      preLoaderRoute: typeof LegalRegionalRouteImport
+      parentRoute: typeof LegalRoute
+    }
     '/legal/privacy': {
       id: '/legal/privacy'
       path: '/privacy'
@@ -774,11 +837,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalPrivacyRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/legal/open-source': {
+      id: '/legal/open-source'
+      path: '/open-source'
+      fullPath: '/legal/open-source'
+      preLoaderRoute: typeof LegalOpenSourceRouteImport
+      parentRoute: typeof LegalRoute
+    }
     '/legal/license': {
       id: '/legal/license'
       path: '/license'
       fullPath: '/legal/license'
       preLoaderRoute: typeof LegalLicenseRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/electronic-consent': {
+      id: '/legal/electronic-consent'
+      path: '/electronic-consent'
+      fullPath: '/legal/electronic-consent'
+      preLoaderRoute: typeof LegalElectronicConsentRouteImport
       parentRoute: typeof LegalRoute
     }
     '/legal/disclaimers': {
@@ -909,8 +986,11 @@ interface LegalRouteChildren {
   LegalCookiesRoute: typeof LegalCookiesRoute
   LegalCopyrightRoute: typeof LegalCopyrightRoute
   LegalDisclaimersRoute: typeof LegalDisclaimersRoute
+  LegalElectronicConsentRoute: typeof LegalElectronicConsentRoute
   LegalLicenseRoute: typeof LegalLicenseRoute
+  LegalOpenSourceRoute: typeof LegalOpenSourceRoute
   LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalRegionalRoute: typeof LegalRegionalRoute
   LegalSecurityRoute: typeof LegalSecurityRoute
   LegalSubscriptionRoute: typeof LegalSubscriptionRoute
   LegalTermsRoute: typeof LegalTermsRoute
@@ -925,8 +1005,11 @@ const LegalRouteChildren: LegalRouteChildren = {
   LegalCookiesRoute: LegalCookiesRoute,
   LegalCopyrightRoute: LegalCopyrightRoute,
   LegalDisclaimersRoute: LegalDisclaimersRoute,
+  LegalElectronicConsentRoute: LegalElectronicConsentRoute,
   LegalLicenseRoute: LegalLicenseRoute,
+  LegalOpenSourceRoute: LegalOpenSourceRoute,
   LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalRegionalRoute: LegalRegionalRoute,
   LegalSecurityRoute: LegalSecurityRoute,
   LegalSubscriptionRoute: LegalSubscriptionRoute,
   LegalTermsRoute: LegalTermsRoute,
@@ -954,6 +1037,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SafetyRoute: SafetyRoute,
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
