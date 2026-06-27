@@ -207,6 +207,78 @@ export const Route = createFileRoute("/api/ai")({
             return Response.json({ script: result.text });
           }
 
+          // ---------- JSON intents (Bundle 2) ----------
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip"] as const;
+          type JsonIntent = (typeof jsonIntents)[number];
+          if (jsonIntents.includes(body.intent as JsonIntent)) {
+            const profile = userId
+              ? await loadAssistantProfile(admin, userId)
+              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+            const ctxString = "context" in body ? body.context : undefined;
+            const system = await buildSystemPrompt({
+              admin,
+              userId,
+              profile,
+              liveContext: ctxString,
+            });
+
+            let intentSystem = "";
+            let userPayload = "";
+            switch (body.intent) {
+              case "daily_plan":
+                intentSystem = DAILY_PLAN_SYSTEM;
+                userPayload = JSON.stringify({ horizon: body.horizon ?? "24h" });
+                break;
+              case "smart_alarm":
+                intentSystem = SMART_ALARM_SYSTEM;
+                userPayload = JSON.stringify({
+                  targetWakeIso: body.targetWakeIso,
+                  windowMin: body.windowMin,
+                  nowIso: new Date().toISOString(),
+                });
+                break;
+              case "commute":
+                intentSystem = COMMUTE_SYSTEM;
+                userPayload = JSON.stringify({
+                  shiftStartIso: body.shiftStartIso,
+                  travelMin: body.travelMin,
+                  prepMin: body.prepMin ?? 25,
+                });
+                break;
+              case "coach_tip":
+                intentSystem = COACH_TIP_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+            }
+
+            const result = await chatJSON({
+              messages: [
+                { role: "system", content: `${system}\n\n${intentSystem}` },
+                { role: "user", content: userPayload },
+              ],
+            });
+            if (userId) {
+              await logAIRequest(admin, {
+                user_id: userId,
+                intent: body.intent,
+                model: DEFAULT_CHAT_MODEL,
+                prompt_tokens: result.promptTokens,
+                completion_tokens: result.completionTokens,
+                latency_ms: Date.now() - started,
+                status: "ok",
+              });
+            }
+            // Parse defensively — strip code fences if the model wrapped them.
+            const raw = result.text.trim().replace(/^```(?:json)?\n?|\n?```$/g, "");
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(raw);
+            } catch {
+              return jsonError(502, "AI returned malformed JSON");
+            }
+            return Response.json(parsed);
+          }
+
           return jsonError(400, "Unknown intent");
         } catch (e) {
           const status = e instanceof AIError ? e.status : 500;
