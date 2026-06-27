@@ -423,7 +423,7 @@ function Dashboard() {
       })()}
 
       {/* Long Clock / Multi-day plan */}
-      <MultiDayPlan shifts={shifts} prefs={prefs} now={mounted ? today : new Date()} />
+      {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
 
       {editing && (
         <ShiftEditor
