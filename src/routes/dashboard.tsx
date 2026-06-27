@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, Moon, MessageSquare, CalendarClock, Sun } from "lucide-react";
+
 import {
   DAYS,
   type Shift,
@@ -185,15 +186,22 @@ function Dashboard() {
   );
 
 
+  const hour = mounted ? today.getHours() : 12;
+  const greeting =
+    hour < 5 ? "Burning the late shift" :
+    hour < 12 ? "Good morning" :
+    hour < 17 ? "Good afternoon" :
+    hour < 22 ? "Good evening" : "Late night";
+
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col px-5 pt-10 pb-12 lg:px-10">
+    <main className="mx-auto flex w-full max-w-6xl flex-col px-5 pt-8 pb-12 lg:px-10 lg:pt-12">
       {/* Header */}
-      <header className="mb-5 flex items-end justify-between">
-        <div>
+      <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 lg:mb-8">
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            RestPilot AI
+            {greeting}
           </p>
-          <h1 className="mt-1 text-[34px] leading-none">
+          <h1 className="mt-1 truncate text-[34px] leading-none lg:text-[52px]">
             {mounted ? DAYS[weekday] : "—"},{" "}
             <span className="italic opacity-60">{mounted ? monthDate : ""}</span>
           </h1>
@@ -201,11 +209,12 @@ function Dashboard() {
         <Link
           to="/profile"
           aria-label="Profile"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-gradient-to-br from-secondary to-background"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-gradient-to-br from-secondary to-background lg:h-12 lg:w-12"
         >
           <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </Link>
       </header>
+
 
       {/* HERO BENTO */}
       <section
@@ -321,7 +330,7 @@ function Dashboard() {
           </span>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
           {weekDates.map(({ label, num, idx, weekIndex: wi }) => {
             const hasShift = !!shifts.find((s) => s.day === idx && (s.weekIndex ?? 0) === wi);
             const isToday = idx === weekday;
@@ -433,19 +442,28 @@ function Dashboard() {
       {/* Long Clock / Multi-day plan */}
       {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
 
-      {/* Events & Smart Alarm entry point (Bundle 2) */}
-      <Link
-        to="/events"
-        className="mt-4 flex items-center justify-between rounded-2xl border border-border bg-card p-4 active:scale-[0.99]"
-      >
-        <div>
-          <p className="text-sm font-semibold">Events & Smart Alarm</p>
-          <p className="text-xs text-muted-foreground">
-            Calendar prep · commute leave-by · AI-optimized wake
-          </p>
-        </div>
-        <Sparkles className="h-5 w-5 text-primary" />
-      </Link>
+      {/* Secondary surfaces — equally discoverable */}
+      <nav aria-label="Quick links" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <QuickLink
+          to="/plan"
+          icon={Sun}
+          title="Today's light plan"
+          desc="Light · caffeine · wind-down windows"
+        />
+        <QuickLink
+          to="/events"
+          icon={CalendarClock}
+          title="Events & Smart Alarm"
+          desc="Calendar prep · leave-by · wake window"
+        />
+        <QuickLink
+          to="/coach"
+          icon={MessageSquare}
+          title="AI Coach"
+          desc="Ask anything about your week"
+        />
+      </nav>
+
 
       {editing && (
         <ShiftEditor
@@ -467,6 +485,36 @@ function Dashboard() {
     </main>
   );
 }
+
+function QuickLink({
+  to,
+  icon: Icon,
+  title,
+  desc,
+}: {
+  to: string;
+  icon: typeof Sun;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition hover:border-primary/40 hover:bg-secondary active:scale-[0.99]"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-secondary text-primary transition group-hover:border-primary/40">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold">{title}</p>
+        <p className="truncate text-xs text-muted-foreground">{desc}</p>
+      </div>
+    </Link>
+  );
+}
+
+
+
 
 function CircadianRing({
   shift,
