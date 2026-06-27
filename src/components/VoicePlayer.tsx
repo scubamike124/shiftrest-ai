@@ -87,6 +87,19 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     }
     setLoading(true);
     resetAudio();
+
+    // Pre-create the audio element under the user gesture so iOS Safari
+    // keeps the gesture token alive across the async fetches below. Without
+    // this, audio.play() rejects with NotAllowedError ("not allowed by the
+    // user agent or the platform").
+    const audio = audioRef.current ?? new Audio();
+    audioRef.current = audio;
+    try {
+      audio.load();
+    } catch {
+      /* no-op */
+    }
+
     try {
       // 1. Rewrite into conversational script
       const briefRes = await fetch("/api/brief", {
@@ -94,12 +107,11 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      // Always parse — /api/brief returns 200 even on graceful failures.
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
       try {
         briefData = await briefRes.json();
       } catch {
-        // non-JSON response — treat as unavailable
+        /* non-JSON */
       }
       if (!briefRes.ok || briefData.error) {
         toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
@@ -139,12 +151,9 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       const url = URL.createObjectURL(blob);
       urlRef.current = url;
 
-      const audio = audioRef.current ?? new Audio();
-      audioRef.current = audio;
       audio.src = url;
       audio.playbackRate = speed;
       audio.onloadedmetadata = () => {
-        // Some browsers report Infinity for streamed mp3; force a seek to compute duration.
         if (!isFinite(audio.duration)) {
           audio.currentTime = 1e6;
           audio.ontimeupdate = () => {
@@ -164,14 +173,36 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         setPlaying(false);
         setCurrent(audio.duration || 0);
       };
-      await audio.play();
+
+      try {
+        await audio.play();
+      } catch (playErr) {
+        // iOS Safari rejects play() if the original tap gesture has expired.
+        // Surface a "ready to play" state — user taps play once to start.
+        console.error("audio.play() rejected", playErr);
+        setReady(true);
+        setPlaying(false);
+        const name = playErr instanceof DOMException ? playErr.name : "";
+        if (name === "NotSupportedError") {
+          toast.error("Your browser can't play this audio format.");
+        } else {
+          toast.info("Briefing ready — tap play to start.");
+        }
+      }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Voice briefing failed");
+      console.error("VoicePlayer error", e);
+      const name = e instanceof DOMException ? e.name : "";
+      if (name === "NotAllowedError") {
+        toast.info("Briefing ready — tap play to start.");
+      } else {
+        toast.error("Voice briefing is temporarily unavailable.");
+      }
       resetAudio();
     } finally {
       setLoading(false);
     }
   }
+
 
   function togglePlay() {
     const a = audioRef.current;
