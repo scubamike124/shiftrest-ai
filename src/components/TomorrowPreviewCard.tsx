@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, RefreshCw, Sparkles, ShieldCheck, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
+import { CalendarClock, RefreshCw, Sparkles, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
 import { aiTomorrowPreview, type TomorrowPreviewResponse, type TomorrowPreviewBlock } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
+import { ConfidenceBadge, WhyButton } from "./ai/trust";
 
 const KIND_ICON: Record<TomorrowPreviewBlock["kind"], typeof Bed> = {
   sleep: Bed,
@@ -11,12 +12,6 @@ const KIND_ICON: Record<TomorrowPreviewBlock["kind"], typeof Bed> = {
   commute: Car,
   winddown: Moon,
   recovery: Heart,
-};
-
-const CONF: Record<"low" | "medium" | "high", string> = {
-  high: "bg-emerald-500/15 text-emerald-300",
-  medium: "bg-amber-500/15 text-amber-300",
-  low: "bg-slate-500/15 text-slate-300",
 };
 
 const CACHE_KEY = "rp_tomorrow_v1";
