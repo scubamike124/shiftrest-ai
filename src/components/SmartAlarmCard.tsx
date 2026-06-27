@@ -161,16 +161,23 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             {lastResult.res.reason}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {lastResult.res.cyclePosition && (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">
-                {CYCLE_LABEL[lastResult.res.cyclePosition]}
-              </span>
-            )}
             {lastResult.res.confidence && (
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONFIDENCE_TONE[lastResult.res.confidence]}`}>
-                {lastResult.res.confidence}
-              </span>
+              <ConfidenceBadge value={lastResult.res.confidence} />
             )}
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-glow hover:underline"
+            >
+              Why this time? <ChevronDown className={`h-3 w-3 transition ${expanded ? "rotate-180" : ""}`} />
+            </button>
+            <WhyButton
+              variant="inline"
+              headline={`Wake at ${wakeLabel}`}
+              why={lastResult.res.reason}
+              confidence={lastResult.res.confidence}
+              sources={["Your wake window", "Sleep cycle model", "Connected wearable"]}
+              expectedOutcome="You'll wake closer to a cycle boundary, lowering grogginess."
+            />
             <button
               onClick={() => setExpanded((v) => !v)}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-glow hover:underline"
