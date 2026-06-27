@@ -172,14 +172,102 @@ export const Route = createFileRoute("/legal/terms")({
         such waivers are excluded.
       </p>
 
-      <h2>18. Changes</h2>
+      <h2 id="ugc">18. User-generated content</h2>
       <p>
-        We may update these Terms from time to time. We will post the updated
-        version and update the "Effective" date. Continued use after a change
-        constitutes acceptance.
+        "User Content" means anything you submit to the Service, including
+        shifts, preferences, notes, trip details, voluntary feedback, and any
+        photos, video, voice recordings, documents, or AI-generated artifacts
+        you may upload through current or future features. You represent and
+        warrant that you own, or have all necessary rights and permissions
+        to submit, your User Content, and that submitting it does not
+        violate any third party's rights or any law. You remain legally
+        responsible for your User Content. You retain ownership of your
+        User Content. You grant RestPilot AI a worldwide, non-exclusive,
+        royalty-free license — for the limited purpose of operating,
+        securing, improving, and providing the Service to you — to host,
+        store, reproduce, process, transmit, display, and create derivative
+        works of your User Content (for example, generating an AI summary
+        of your shifts). We do not claim ownership of your User Content and
+        we do not sell it.
       </p>
 
-      <h2>19. Contact</h2>
+      <h2 id="service-availability">19. Service availability &amp; changes</h2>
+      <p>
+        We work to keep the Service available, but we do not guarantee
+        uninterrupted, error-free, or always-current operation. Temporary
+        outages may occur for maintenance, security, or technical reasons.
+        We may, with or without notice where permitted by law: modify,
+        add, or discontinue features; change, upgrade, or replace AI
+        models, text-to-speech providers, hosting providers, wearable
+        integrations, or other subprocessors; update pricing or subscription
+        offerings (subject to our{" "}
+        <Link to="/legal/subscription">Subscription Terms</Link>); and
+        retire legacy functionality. For material changes that
+        disadvantage paying users we will provide reasonable advance notice
+        and an opportunity to cancel before the change takes effect.
+      </p>
+
+      <h2 id="account-security">20. Account security</h2>
+      <p>
+        You are responsible for: (a) creating and maintaining a strong,
+        unique password; (b) protecting the devices, browsers, and email
+        accounts used to access the Service; (c) keeping recovery
+        information current; and (d) notifying us immediately at{" "}
+        <a href="mailto:security@restpilot.ai">security@restpilot.ai</a> if
+        you believe your account has been accessed without authorization.
+        You are responsible for all activity that occurs under your account
+        until you have reported the unauthorized access and we have had a
+        reasonable opportunity to act.
+      </p>
+
+      <h2 id="feedback">21. Feedback license</h2>
+      <p>
+        Feature requests, suggestions, ideas, and other feedback you send
+        us are voluntary. By submitting feedback you grant RestPilot AI a
+        perpetual, irrevocable, worldwide, royalty-free, sublicensable
+        license to use, reproduce, modify, and incorporate that feedback
+        into the Service and our other products without restriction or
+        attribution. You are not entitled to compensation, attribution, or
+        any other consideration solely because we implement, are inspired
+        by, or independently develop something similar to your feedback.
+      </p>
+
+      <h2 id="esign">22. Electronic consent &amp; records</h2>
+      <p>
+        By creating an account, clicking a checkbox or button to accept
+        these Terms, or otherwise using the Service, you consent to
+        transact with RestPilot AI electronically. You agree that
+        electronic acceptance is legally binding where permitted by law
+        and that electronic records (including emails, in-product
+        notifications, and timestamped acceptance logs) satisfy any legal
+        requirement that such communications be in writing. Full details
+        appear in our{" "}
+        <Link to="/legal/electronic-consent">
+          Electronic Consent &amp; E-SIGN Disclosure
+        </Link>
+        .
+      </p>
+
+      <h2 id="age">23. Age &amp; minor consent</h2>
+      <p>
+        The Service is intended for adults. You must be at least 16 years
+        old to use the Service, and at least 18 (or the applicable age of
+        majority in your jurisdiction) to enter a paid subscription. If
+        local law sets a higher age of digital consent, that age applies.
+        Where permitted, a parent or legal guardian may consent on behalf
+        of a minor who meets the minimum age and may bind that minor to
+        these Terms. People who are not legally able to enter binding
+        agreements in their jurisdiction may not use the Service.
+      </p>
+
+      <h2 id="changes">24. Changes to these Terms</h2>
+      <p>
+        We may update these Terms from time to time. We will post the
+        updated version and update the "Effective" date. Continued use
+        after a change constitutes acceptance.
+      </p>
+
+      <h2 id="contact">25. Contact</h2>
       <p>
         Email <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a> for
         any questions about these Terms.
@@ -187,3 +275,4 @@ export const Route = createFileRoute("/legal/terms")({
     </LegalLayout>
   ),
 });
+

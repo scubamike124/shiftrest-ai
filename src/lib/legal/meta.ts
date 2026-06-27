@@ -112,7 +112,42 @@ export const LEGAL_DOCS: LegalDoc[] = [
     effective: LEGAL_EFFECTIVE,
     category: "ip",
   },
+  {
+    slug: "open-source",
+    path: "/legal/open-source",
+    title: "Open-Source Notices",
+    summary:
+      "Third-party open-source software used in RestPilot AI and their licenses.",
+    effective: LEGAL_EFFECTIVE,
+    category: "ip",
+  },
+  {
+    slug: "electronic-consent",
+    path: "/legal/electronic-consent",
+    title: "Electronic Consent & E-SIGN Disclosure",
+    summary:
+      "How electronic signatures, acceptance, and records work in RestPilot AI.",
+    effective: LEGAL_EFFECTIVE,
+    category: "policy",
+  },
+  {
+    slug: "regional",
+    path: "/legal/regional",
+    title: "Regional Disclosures",
+    summary:
+      "Additional rights and disclosures for the EU, UK, California, Canada, Australia, and Brazil.",
+    effective: LEGAL_EFFECTIVE,
+    category: "disclosure",
+  },
 ];
+
+export const SAFETY_LINK = {
+  path: "/safety",
+  title: "Safety Center",
+  summary:
+    "Plain-language guide to AI limits, device limits, driving safety, emergencies, and safe use.",
+};
+
 
 export function findLegalDoc(slug: string): LegalDoc | undefined {
   return LEGAL_DOCS.find((d) => d.slug === slug);
