@@ -100,7 +100,7 @@ export function LegalLayout({ doc, children }: Props) {
           </footer>
         </article>
       </div>
-    </main>
+    </section>
   );
 }
 
