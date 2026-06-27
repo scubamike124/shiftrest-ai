@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { getWebRequest } from "@tanstack/react-start/server";
+import { getRequest } from "@tanstack/react-start/server";
 import { LEGAL_DOCS, LEGAL_EFFECTIVE } from "./meta";
 
 export type ConsentSource =
@@ -13,11 +13,12 @@ export type ConsentSource =
   | "settings";
 
 export type RecordAcceptanceInput = {
-  documents: string[]; // legal doc slugs (or symbolic keys like "cookies", "wearables", "push")
+  documents: string[];
   source: ConsentSource;
-  /** Optional explicit flag merge (e.g. cookie categories). */
-  flags?: Record<string, unknown>;
+  flags?: Record<string, string | number | boolean | null>;
 };
+
+export type ConsentFlags = Record<string, string | number | boolean | null>;
 
 function clientIp(req: Request): string | null {
   const h = req.headers;
@@ -26,12 +27,11 @@ function clientIp(req: Request): string | null {
   return h.get("cf-connecting-ip") || h.get("x-real-ip") || null;
 }
 
-/** Append-only acceptance log + latest flags merged into user_prefs.consent_json. */
 export const recordAcceptanceFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: RecordAcceptanceInput) => d)
   .handler(async ({ data, context }) => {
-    const req = getWebRequest();
+    const req = getRequest();
     const ip = req ? clientIp(req) : null;
     const ua = req?.headers.get("user-agent") ?? null;
 
@@ -58,8 +58,7 @@ export const recordAcceptanceFn = createServerFn({ method: "POST" })
       }
     }
 
-    // Merge consent flags into user_prefs.consent_json
-    const flagPatch: Record<string, unknown> = { ...(data.flags ?? {}) };
+    const flagPatch: ConsentFlags = { ...(data.flags ?? {}) };
     for (const slug of data.documents) flagPatch[slug] = LEGAL_EFFECTIVE;
     flagPatch.last_source = data.source;
     flagPatch.last_at = new Date().toISOString();
@@ -70,7 +69,8 @@ export const recordAcceptanceFn = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .maybeSingle();
 
-    const merged = { ...((existing?.consent_json as Record<string, unknown>) ?? {}), ...flagPatch };
+    const existingFlags = (existing?.consent_json ?? {}) as ConsentFlags;
+    const merged: ConsentFlags = { ...existingFlags, ...flagPatch };
 
     const { error: upErr } = await context.supabase
       .from("user_prefs")
@@ -82,11 +82,11 @@ export const recordAcceptanceFn = createServerFn({ method: "POST" })
 
 export const getConsentStatusFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async ({ context }): Promise<{ consent: ConsentFlags }> => {
     const { data } = await context.supabase
       .from("user_prefs")
       .select("consent_json")
       .eq("user_id", context.userId)
       .maybeSingle();
-    return { consent: (data?.consent_json as Record<string, unknown>) ?? {} };
+    return { consent: (data?.consent_json ?? {}) as ConsentFlags };
   });
