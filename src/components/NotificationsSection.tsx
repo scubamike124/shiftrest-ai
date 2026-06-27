@@ -164,7 +164,11 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
       </header>
 
       <div className="px-4 pb-4">
-        {!enabled ? (
+        {!hydrated ? (
+          <div className="rounded-xl border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+            Loading reminder settings…
+          </div>
+        ) : !enabled ? (
           <UnenabledState
             perm={perm}
             supported={supported}
