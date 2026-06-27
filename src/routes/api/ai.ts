@@ -342,7 +342,7 @@ export const Route = createFileRoute("/api/ai")({
           }
 
           // ---------- JSON intents (Bundle 2 + AI Coach hero) ----------
-          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan", "tomorrow_preview", "daily_review", "pattern_alert"] as const;
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan", "tomorrow_preview", "daily_review", "pattern_alert", "jetlag_plan"] as const;
           type JsonIntent = (typeof jsonIntents)[number];
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
