@@ -115,7 +115,16 @@ export async function updateEvent(
   patch: Partial<EventInput>,
 ): Promise<void> {
   await uid();
-  const row: Record<string, unknown> = {};
+  const row: {
+    kind?: EventKind;
+    title?: string;
+    starts_at?: string;
+    ends_at?: string | null;
+    location?: string | null;
+    reminder_min?: number;
+    travel_buffer_min?: number;
+    notes?: string | null;
+  } = {};
   if (patch.kind !== undefined) row.kind = patch.kind;
   if (patch.title !== undefined) row.title = patch.title.trim().slice(0, 120);
   if (patch.startsAt !== undefined) row.starts_at = patch.startsAt;
