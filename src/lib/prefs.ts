@@ -63,6 +63,12 @@ export const DEFAULT_PREFS: Prefs = {
   tomorrowPreviewEnabled: true,
   dailyReviewEnabled: true,
   feedbackLearningEnabled: true,
+  homeTz: null,
+  currentTz: null,
+  tzAuto: true,
+  offlineEnabled: true,
+  travelModeEnabled: true,
+  calendarTravelDetect: false,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
