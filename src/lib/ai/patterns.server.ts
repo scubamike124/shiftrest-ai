@@ -190,6 +190,7 @@ export async function runPatternDetection(
   push(detectHrvDecline(wear));
   push(detectSleepInconsistency(wear));
   push(detectRotationChange(shifts));
+  push(await detectTimezoneJump(admin, userId));
 
   if (candidates.length === 0) return [];
 
