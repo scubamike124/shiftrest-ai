@@ -11,35 +11,68 @@ import { dirname, resolve } from "node:path";
 import type { Plugin } from "vite";
 
 /**
- * vite-plugin-pwa writes the compiled service worker to the top-level
- * Vite outDir (`dist/sw-src.js`). Cloudflare/Nitro actually serves the
- * client bundle from `dist/client`, so the worker must live there to
- * be reachable as `/sw.js`. We let PWA generate the manifest against
- * `dist/client` (so precache URLs are `/assets/...`), then move the
- * emitted worker into `dist/client/sw.js` in a closeBundle hook.
+ * vite-plugin-pwa runs as a separate Vite build that fires AFTER the
+ * main client build's closeBundle. Cloudflare/Nitro serves the client
+ * bundle from `dist/client`, so the worker must live there to be
+ * reachable as `/sw.js`. A regular `closeBundle` hook in the main
+ * config would run BEFORE PWA's worker file exists, so we register a
+ * `process.on("exit")` handler that fires once the whole build
+ * pipeline (main → PWA → Nitro) has finished and the worker is on
+ * disk. The handler is idempotent and safe to run multiple times.
  */
 function relocatePwaWorker(): Plugin {
+  let registered = false;
+  const doMove = () => {
+    const root = process.cwd();
+    const candidates = [
+      resolve(root, "dist/sw-src.js"),
+      resolve(root, "dist/client/sw-src.js"),
+    ];
+    const src = candidates.find((p) => existsSync(p));
+    const dest = resolve(root, "dist/client/sw.js");
+    if (src) {
+      mkdirSync(dirname(dest), { recursive: true });
+      renameSync(src, dest);
+    }
+    // Strip the raw TS source if Nitro copied it across.
+    for (const stray of [
+      resolve(root, "dist/client/sw-src.ts"),
+      resolve(root, "dist/sw-src.ts"),
+    ]) {
+      if (existsSync(stray)) unlinkSync(stray);
+    }
+  };
   return {
     name: "rpai-relocate-sw",
     apply: "build",
     enforce: "post",
+    buildStart() {
+      if (registered) return;
+      registered = true;
+      process.on("exit", () => {
+        try {
+          doMove();
+        } catch {
+          /* best-effort */
+        }
+      });
+    },
+    // Also run at closeBundle as a belt-and-suspenders for builds that
+    // happen to have the file ready (e.g. Nitro-pass build).
     closeBundle: {
       sequential: true,
       order: "post",
       handler() {
-        const root = process.cwd();
-        const src = resolve(root, "dist/sw-src.js");
-        const dest = resolve(root, "dist/client/sw.js");
-        if (!existsSync(src)) return;
-        mkdirSync(dirname(dest), { recursive: true });
-        renameSync(src, dest);
-        // Also clean up the stray source-file copy Nitro put under client/.
-        const stray = resolve(root, "dist/client/sw-src.ts");
-        if (existsSync(stray)) unlinkSync(stray);
+        try {
+          doMove();
+        } catch {
+          /* best-effort */
+        }
       },
     },
   };
 }
+
 
 export default defineConfig({
   tanstackStart: {
