@@ -550,6 +550,8 @@ function Profile() {
         </div>
       </section>
 
+      <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
+
       <WearableCard />
 
       <NotificationsSection signedIn={signedIn} />
