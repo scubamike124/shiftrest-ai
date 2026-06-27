@@ -98,6 +98,12 @@ type Row = {
   tomorrow_preview_enabled?: boolean | null;
   daily_review_enabled?: boolean | null;
   feedback_learning_enabled?: boolean | null;
+  home_tz?: string | null;
+  current_tz?: string | null;
+  tz_auto?: boolean | null;
+  offline_enabled?: boolean | null;
+  travel_mode_enabled?: boolean | null;
+  calendar_travel_detect?: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
