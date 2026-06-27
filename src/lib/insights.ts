@@ -77,13 +77,18 @@ function shiftLengthHours(s: Shift): number {
   return (endAbsolute(s) - s.start) / 60;
 }
 
-/** Detect a run of consecutive backward-rotating transitions ending at dayIdx. */
-function backwardStreakEndingAt(shifts: Shift[], dayIdx: number): number {
+/** Detect a run of consecutive backward-rotating transitions ending at `date`. */
+function backwardStreakEndingAt(
+  shifts: Shift[],
+  date: Date,
+  anchor: string | null,
+  cycleWeeks: number,
+): number {
   const order = ["day", "evening", "night"];
   let streak = 0;
   for (let back = 0; back < 6; back++) {
-    const a = shifts.find((s) => s.day === (dayIdx - back - 1 + 7) % 7);
-    const b = shifts.find((s) => s.day === (dayIdx - back + 7) % 7);
+    const a = shiftsForDate(shifts, addDays(date, -back - 1), anchor, cycleWeeks)[0];
+    const b = shiftsForDate(shifts, addDays(date, -back), anchor, cycleWeeks)[0];
     if (!a || !b) break;
     if (order.indexOf(shiftType(b)) < order.indexOf(shiftType(a))) streak++;
     else break;
@@ -91,14 +96,20 @@ function backwardStreakEndingAt(shifts: Shift[], dayIdx: number): number {
   return streak;
 }
 
+function addDays(d: Date, n: number): Date {
+  const out = new Date(d);
+  out.setDate(out.getDate() + n);
+  return out;
+}
+
 /**
- * Per-day fatigue score. Uses the calendar weekday for shift lookup
- * (the 7-day pattern repeats), plus history-aware modifiers driven by
- * `dayOffset` so the 14-day curve isn't just a flat repeat.
+ * Per-day fatigue score. Uses an absolute `date` so that multi-week rotations
+ * (cycleWeeks > 1) resolve to the correct week's shift. Falls back to the
+ * legacy weekly behavior when cycleWeeks === 1.
  */
 function dayFatigue(
   shifts: Shift[],
-  weekdayIdx: number,
+  date: Date,
   dayOffset: number,
   prefs: Prefs,
   ctx: {
@@ -108,15 +119,16 @@ function dayFatigue(
     lastEfficiency: number | null; // 0..1
   },
 ): FatiguePoint {
-  const todayShift = shifts.find((s) => s.day === weekdayIdx);
+  const anchor = prefs.cycleAnchor;
+  const cw = prefs.cycleWeeks ?? 1;
+  const weekdayIdx = (date.getDay() + 6) % 7;
+  const todayShift = shiftsForDate(shifts, date, anchor, cw)[0];
   let score = 0;
   let reason = "Recovery day";
 
-  // ── Carry-over from previous 2 days with exponential decay (8h half-life
-  //    per day approximated as 0.6, 0.3 weights).
+  // ── Carry-over from previous 2 days with exponential decay
   for (let back = 1; back <= 2; back++) {
-    const idx = (weekdayIdx - back + 7) % 7;
-    const prev = shifts.find((s) => s.day === idx);
+    const prev = shiftsForDate(shifts, addDays(date, -back), anchor, cw)[0];
     if (!prev) continue;
     const decay = back === 1 ? 0.6 : 0.3;
     const base =
@@ -140,7 +152,7 @@ function dayFatigue(
     }
     if (len > 10) score += 8;
 
-    const prev = shifts.find((s) => s.day === (weekdayIdx - 1 + 7) % 7);
+    const prev = shiftsForDate(shifts, addDays(date, -1), anchor, cw)[0];
     if (prev) {
       const gap = todayShift.start + 1440 - endAbsolute(prev);
       if (gap < 11 * 60) {
@@ -149,17 +161,15 @@ function dayFatigue(
       }
     }
 
-    // Backward-rotation streak penalty: 6 per consecutive backward jump,
-    // capped at 18 so it doesn't drown out other signals.
-    const streak = backwardStreakEndingAt(shifts, weekdayIdx);
+    const streak = backwardStreakEndingAt(shifts, date, anchor, cw);
     if (streak > 0) {
       const penalty = Math.min(18, 6 * streak);
       score += penalty;
       reason += ` · backward rotation x${streak}`;
     }
   } else {
-    const prev = shifts.find((s) => s.day === (weekdayIdx - 1 + 7) % 7);
-    const next = shifts.find((s) => s.day === (weekdayIdx + 1) % 7);
+    const prev = shiftsForDate(shifts, addDays(date, -1), anchor, cw)[0];
+    const next = shiftsForDate(shifts, addDays(date, 1), anchor, cw)[0];
     if (!prev && !next) {
       score = Math.max(0, score - 12);
       reason = "Full rest day";
@@ -169,17 +179,14 @@ function dayFatigue(
   }
 
   // ── Personalization layer
-  // 1) Sleep target shortfall
   if (prefs.sleepHours < 7) score += 4;
 
-  // 2) Rolling sleep debt amplifies (cap at +14)
   if (ctx.sleepDebtHours > 1) {
     const add = Math.min(14, Math.round(ctx.sleepDebtHours * 2));
     score += add;
     if (add >= 6) reason += ` · sleep debt ${ctx.sleepDebtHours.toFixed(1)}h`;
   }
 
-  // 3) Today-only: yesterday's measured deficit and low efficiency
   if (dayOffset === 0) {
     if (ctx.lastNightDeficit != null && ctx.lastNightDeficit > 1) {
       score += Math.min(10, Math.round(ctx.lastNightDeficit * 3));
@@ -197,7 +204,6 @@ function dayFatigue(
     }
   }
 
-  // 4) Future-day decay: signal strength fades with distance (less certainty)
   if (dayOffset >= 3) {
     const fade = Math.min(0.25, (dayOffset - 2) * 0.04);
     score = Math.round(score * (1 - fade));
