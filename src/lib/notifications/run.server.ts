@@ -67,8 +67,9 @@ export async function runNotificationTick(now: Date) {
   if (users.length === 0) return { users: 0, sent: 0, suppressed: 0 };
 
   const userIds = users.map((u) => u.user_id);
+  const horizon = new Date(now.getTime() + 24 * 60 * 60_000);
 
-  const [prefsRes, shiftsRes] = await Promise.all([
+  const [prefsRes, shiftsRes, eventsRes] = await Promise.all([
     supabaseAdmin
       .from("user_prefs")
       .select(
@@ -79,6 +80,12 @@ export async function runNotificationTick(now: Date) {
       .from("shifts")
       .select("id, user_id, day, week_index, start_min, end_min, employer_id, title, notes")
       .in("user_id", userIds),
+    supabaseAdmin
+      .from("user_events")
+      .select("id, user_id, kind, title, starts_at, reminder_min, travel_buffer_min")
+      .in("user_id", userIds)
+      .gte("starts_at", new Date(now.getTime() - 60 * 60_000).toISOString())
+      .lte("starts_at", horizon.toISOString()),
   ]);
 
   const prefsByUser = new Map<string, Prefs>();
@@ -109,6 +116,34 @@ export async function runNotificationTick(now: Date) {
       notes: r.notes,
     });
     shiftsByUser.set(r.user_id, arr);
+  }
+  const eventsByUser = new Map<string, Array<{
+    id: string;
+    kind: "calendar" | "commute" | "personal";
+    title: string;
+    starts_at: string;
+    reminder_min: number;
+    travel_buffer_min: number;
+  }>>();
+  for (const r of (eventsRes.data ?? []) as Array<{
+    id: string;
+    user_id: string;
+    kind: "calendar" | "commute" | "personal";
+    title: string;
+    starts_at: string;
+    reminder_min: number;
+    travel_buffer_min: number;
+  }>) {
+    const arr = eventsByUser.get(r.user_id) ?? [];
+    arr.push({
+      id: r.id,
+      kind: r.kind,
+      title: r.title,
+      starts_at: r.starts_at,
+      reminder_min: r.reminder_min,
+      travel_buffer_min: r.travel_buffer_min,
+    });
+    eventsByUser.set(r.user_id, arr);
   }
 
   let totalSent = 0;
