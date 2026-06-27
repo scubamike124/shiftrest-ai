@@ -135,9 +135,14 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       "subscriptions",
       "legal_acceptances",
     ] as const;
-    const data: Record<string, unknown> = {};
+    const data: Record<string, Array<Record<string, unknown>>> = {};
+    const client = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => { eq: (col: string, v: string) => Promise<{ data: Array<Record<string, unknown>> | null; error: { message: string } | null }> };
+      };
+    };
     for (const t of tables) {
-      const { data: rows, error } = await supabaseAdmin.from(t).select("*").eq("user_id", uid);
+      const { data: rows, error } = await client.from(t).select("*").eq("user_id", uid);
       if (!error) data[t] = rows ?? [];
     }
     const { data: userInfo } = await supabaseAdmin.auth.admin.getUserById(uid);
