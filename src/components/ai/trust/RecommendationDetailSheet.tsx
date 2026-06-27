@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
-import { Sparkles, Database, Lightbulb, GitCompare, Target, Loader2 } from "lucide-react";
+import { Sparkles, Database, Lightbulb, GitCompare, Target, Loader2, CalendarRange } from "lucide-react";
 import {
   deriveSources,
   fetchPreviousForIntent,
