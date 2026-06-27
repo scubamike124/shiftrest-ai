@@ -328,6 +328,18 @@ function Dashboard() {
         context={insights?.contextString ?? ""}
       />
 
+      {/* AI Decision Center — what the AI did for you today */}
+      <div className="mt-3">
+        <DecisionCenterCard signedIn={signedIn === true} />
+      </div>
+
+      {/* Activity preview — collapsed live feed */}
+      {signedIn === true && (
+        <div className="mt-3">
+          <AIActivityFeed max={5} />
+        </div>
+      )}
+
       {/* Companion whisper — proactive observation */}
       {insights && (
         <div className="mt-3">
