@@ -62,8 +62,17 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
-      const isRecurring = stripePrice.type === "recurring";
-      const offerTrial = isRecurring && !ONE_TIME_PRICES.has(data.priceId);
+      // Hard guard: a known one-time price MUST be one-time in Stripe. If it
+      // ever syncs as recurring, fail loudly instead of opening a subscription
+      // checkout with a trial.
+      const forcedOneTime = ONE_TIME_PRICES.has(data.priceId);
+      if (forcedOneTime && stripePrice.type === "recurring") {
+        throw new Error(
+          `Price "${data.priceId}" must be a one-time Stripe price but is configured as recurring. Fix it in Stripe and retry.`,
+        );
+      }
+      const isRecurring = !forcedOneTime && stripePrice.type === "recurring";
+      const offerTrial = isRecurring;
 
       const customerId = await resolveOrCreateCustomer(stripe, { email, userId });
 
@@ -86,7 +95,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ...(!isRecurring && {
           payment_intent_data: { description: productDescription, metadata: { userId } },
         }),
-        metadata: { userId },
+        metadata: { userId, priceId: data.priceId },
         ...(isRecurring && {
           subscription_data: {
             metadata: { userId },
