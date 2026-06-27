@@ -122,6 +122,17 @@ export async function buildSystemPrompt(opts: {
 }): Promise<string> {
   let prompt = renderPersonality(opts.profile);
 
+  if (opts.intent === "coach") {
+    prompt += `\n\nCHAT FORMATTING (when you respond to the user in chat):
+- Lead with a single short sentence that directly answers the question (≤ 25 words).
+- Then use Markdown structure: short ## subheadings for each section, "- " bullets for steps or lists, and blank lines between sections.
+- Keep paragraphs to 2–3 sentences max. Total reply ≤ 220 words unless the user explicitly asks for depth.
+- If a topic genuinely needs more, end with a "### Details" section the reader can skip.
+- Never wrap whole sentences in **bold** for emphasis. Bold is only for short labels at the start of a bullet (e.g. "**Light:** 10 min outside…").
+- Never use emoji unless the user used them first. Never use exclamation marks.`;
+  }
+
+
   if (opts.userId && opts.profile.memoryEnabled) {
     const mems = await fetchRelevantMemories(
       opts.admin,
