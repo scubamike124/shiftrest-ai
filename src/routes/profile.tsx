@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { deleteAccountFn } from "@/lib/account.functions";
+import { deleteAccountFn, exportAccountFn, purgeAiMemoryFn } from "@/lib/account.functions";
 import {
   Bell as _UnusedBell,
   Moon,
