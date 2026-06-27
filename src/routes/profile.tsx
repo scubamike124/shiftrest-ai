@@ -120,19 +120,34 @@ function Profile() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user.email ?? null);
     });
-    // Handle return from Stripe Checkout
+    // Handle return from Stripe Checkout: poll for the webhook-written row so
+    // Premium unlocks as soon as it lands (typically <5s, occasionally longer).
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("checkout") === "success") {
-        toast.success("Payment received — Premium is unlocking now.");
-        // Webhook may take a moment; retry briefly.
-        setTimeout(() => refetchSub(), 1500);
-        setTimeout(() => refetchSub(), 4000);
+        toast.success("Payment received — syncing your Premium access…");
         window.history.replaceState({}, "", window.location.pathname);
+        let attempts = 0;
+        const maxAttempts = 15; // ~30s
+        const tick = async () => {
+          attempts += 1;
+          const { data: s } = await refetchSub();
+          if (s?.isPremium) {
+            toast.success("Premium unlocked.");
+            return;
+          }
+          if (attempts < maxAttempts) setTimeout(tick, 2000);
+          else
+            toast.error(
+              "We received your payment but couldn't confirm Premium yet. Refresh in a moment.",
+            );
+        };
+        setTimeout(tick, 1500);
       }
     }
     return () => sub.subscription.unsubscribe();
   }, [refetchSub]);
+
 
   async function handleSignOut() {
     await supabase.auth.signOut();
