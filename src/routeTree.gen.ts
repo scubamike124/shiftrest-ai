@@ -26,6 +26,7 @@ import { Route as ApiSwapRouteImport } from './routes/api/swap'
 import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -117,6 +118,11 @@ const ApiBriefRoute = ApiBriefRouteImport.update({
   path: '/api/brief',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAiRoute = ApiAiRouteImport.update({
+  id: '/api/ai',
+  path: '/api/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/share': typeof ShareRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
   '/api/insights': typeof ApiInsightsRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/ai'
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/ai'
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/share'
     | '/swap'
     | '/terms'
+    | '/api/ai'
     | '/api/brief'
     | '/api/coach'
     | '/api/insights'
@@ -307,6 +319,7 @@ export interface RootRouteChildren {
   ShareRoute: typeof ShareRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
+  ApiAiRoute: typeof ApiAiRoute
   ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
   ApiInsightsRoute: typeof ApiInsightsRoute
@@ -440,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBriefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ai': {
+      id: '/api/ai'
+      path: '/api/ai'
+      fullPath: '/api/ai'
+      preLoaderRoute: typeof ApiAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -491,6 +511,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShareRoute: ShareRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
+  ApiAiRoute: ApiAiRoute,
   ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
   ApiInsightsRoute: ApiInsightsRoute,
