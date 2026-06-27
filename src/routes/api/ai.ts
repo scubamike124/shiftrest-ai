@@ -34,7 +34,9 @@ type Body =
   | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
   | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
   | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
-  | { intent: "coach_tip"; context?: string };
+  | { intent: "coach_tip"; context?: string }
+  | { intent: "right_now"; context?: string }
+  | { intent: "adjust_plan"; observation: string; context?: string };
 
 const BRIEF_SYSTEM = `You are RestPilot AI's recovery coach narrating a personalized voice briefing for a shift worker.
 
