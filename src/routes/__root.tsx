@@ -158,13 +158,12 @@ function RootComponent() {
       queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
-      if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-        try {
-          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-        } catch (err) {
-          console.warn("sw register failed", err);
-        }
-      }
+      // Single guarded registrar; refuses in dev/preview/iframe and
+      // unregisters stale workers in those contexts. On production
+      // origins this activates BOTH app-shell caching and push handlers
+      // from the same /sw.js file.
+      const { registerAppShell } = await import("@/lib/pwa/register");
+      await registerAppShell();
     }
     bootstrap();
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
