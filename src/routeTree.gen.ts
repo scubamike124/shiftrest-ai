@@ -19,6 +19,7 @@ import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -82,6 +83,11 @@ const PaywallRoute = PaywallRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoachRoute = CoachRouteImport.update({
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
@@ -215,6 +223,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/paywall': typeof PaywallRoute
   '/plan': typeof PlanRoute
@@ -243,6 +252,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
     | '/paywall'
     | '/plan'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
     | '/paywall'
     | '/plan'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/dashboard'
     | '/events'
     | '/paywall'
     | '/plan'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   CoachRoute: typeof CoachRoute
+  DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   PaywallRoute: typeof PaywallRoute
   PlanRoute: typeof PlanRoute
@@ -415,6 +428,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coach': {
@@ -522,6 +542,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   CoachRoute: CoachRoute,
+  DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   PaywallRoute: PaywallRoute,
   PlanRoute: PlanRoute,

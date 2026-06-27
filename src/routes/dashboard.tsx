@@ -186,7 +186,7 @@ function Dashboard() {
 
 
   return (
-    <main className="flex flex-col px-5 pt-10 pb-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-col px-5 pt-10 pb-12 lg:px-10">
       {/* Header */}
       <header className="mb-5 flex items-end justify-between">
         <div>
