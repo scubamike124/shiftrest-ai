@@ -124,6 +124,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
     out.assistant_name = (p.assistantName.trim() || "RestPilot").slice(0, 40);
   if (p.assistantMode !== undefined) out.assistant_mode = p.assistantMode;
   if (p.memoryEnabled !== undefined) out.memory_enabled = p.memoryEnabled;
+  if (p.predictiveEnabled !== undefined) out.predictive_enabled = p.predictiveEnabled;
+  if (p.tomorrowPreviewEnabled !== undefined) out.tomorrow_preview_enabled = p.tomorrowPreviewEnabled;
+  if (p.dailyReviewEnabled !== undefined) out.daily_review_enabled = p.dailyReviewEnabled;
+  if (p.feedbackLearningEnabled !== undefined) out.feedback_learning_enabled = p.feedbackLearningEnabled;
   return out;
 }
 
@@ -145,7 +149,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled",
     )
     .eq("user_id", uid)
     .maybeSingle();
