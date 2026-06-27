@@ -35,12 +35,19 @@ import {
 } from "@/lib/schedule";
 
 import { LastNightStrip } from "@/components/LastNightStrip";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { useOnlineTransition } from "@/hooks/use-online";
+import {
+  hydrateQueryCacheFromSnapshot,
+  persistSnapshot,
+  reconcileOnReconnect,
+} from "@/lib/offline/snapshot";
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -73,14 +80,55 @@ function Dashboard() {
   const [editing, setEditing] = useState<{ day: number; weekIndex: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
 
+  // Hydrate React Query cache from the offline snapshot BEFORE first paint
+  // so a cold airplane-mode load shows the saved plan, not an empty skeleton.
+  // Runs synchronously in a layout-free useState initializer pattern via
+  // useEffect: the queries above use whatever's in cache, and our seeded
+  // values become the initial data when their query hasn't resolved yet.
   useEffect(() => {
     setMounted(true);
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    supabase.auth.getSession().then(({ data }) => {
+      setSignedIn(!!data.session);
+      setUserId(data.session?.user.id ?? null);
+      hydrateQueryCacheFromSnapshot(queryClient, data.session?.user.id ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSignedIn(!!session);
+      setUserId(session?.user.id ?? null);
+    });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [queryClient]);
+
+  // Mirror the latest plan inputs (shifts/prefs/employers) to localStorage
+  // whenever they change while we're online. We deliberately do NOT save
+  // while offline — that would overwrite the last *good* snapshot with a
+  // possibly-empty failed-fetch state.
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+    persistSnapshot(queryClient, userId);
+  }, [queryClient, userId, prefs]);
+
+  // Offline → online edge: reconcile tz, refresh data, and tell the user
+  // what changed. The reconcile helper handles tz logging + invalidations;
+  // we just translate the result into a toast in the coach voice.
+  useOnlineTransition(() => {
+    void (async () => {
+      try {
+        const result = await reconcileOnReconnect(queryClient, userId);
+        if (result.tzChanged) {
+          toast.success("You're back online. I detected a new time zone and rebuilt your recovery plan.");
+        } else {
+          toast.success("You're back online. Plan refreshed.");
+        }
+      } catch (e) {
+        console.warn("reconcile failed", e);
+      }
+    })();
+  });
+
 
   // Travel/tz auto-detect: when prefs.tzAuto is on, keep currentTz in sync
   // with the device's IANA zone. Seeds homeTz on first run so body-clock
@@ -240,6 +288,10 @@ function Dashboard() {
           <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </Link>
       </div>
+
+      <OfflineBanner userId={userId} />
+
+
 
 
       {/* ★ AI HERO — Right Now */}

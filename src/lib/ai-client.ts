@@ -4,28 +4,84 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Recommendation } from "@/lib/recommendations";
+import { lsGet, lsSet } from "@/lib/offline/cache";
 
-async function authHeaders(): Promise<HeadersInit> {
+async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | null }> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   return {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    userId: data.session?.user.id ?? null,
   };
 }
 
-async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
-  const res = await fetch("/api/ai", {
-    method: "POST",
-    headers: await authHeaders(),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `AI request failed (${res.status})`);
+/**
+ * Stable cache key for an AI response. We hash only the *intent-defining*
+ * fields (intent name + any ID-like inputs) — never the free-form `context`
+ * string, which would explode the cache and never hit. This means two
+ * "right_now" requests from the same user collapse onto one cached
+ * recommendation, which is exactly what we want for the offline replay.
+ */
+function aiCacheScope(payload: Record<string, unknown>): string {
+  const intent = String(payload.intent ?? "unknown");
+  const keyFields: Record<string, unknown> = {};
+  for (const k of ["patternKey", "horizon", "phase", "tripId"]) {
+    if (payload[k] !== undefined) keyFields[k] = payload[k];
   }
-  return (await res.json()) as T;
+  const tail = Object.keys(keyFields).length ? `:${JSON.stringify(keyFields)}` : "";
+  return `ai:${intent}${tail}`;
 }
+
+class OfflineAiError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OfflineAiError";
+  }
+}
+
+async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
+  const { headers, userId } = await authHeaders();
+  const scope = aiCacheScope(payload);
+
+  // Hard offline → skip the doomed fetch and replay the last good answer.
+  // Coach voice contract still holds because the cached JSON was produced
+  // by the same model/system prompt; the wrapper just adds a "cached" pill.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    const cached = lsGet<T>(scope, userId);
+    if (cached) return cached.value;
+    throw new OfflineAiError("You're offline and I don't have a cached version of this yet.");
+  }
+
+  try {
+    const res = await fetch("/api/ai", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || `AI request failed (${res.status})`);
+    }
+    const json = (await res.json()) as T;
+    // Persist on success so the next offline open has something to show.
+    lsSet(scope, userId, json);
+    return json;
+  } catch (e) {
+    // Network errors (DNS failure, fetch aborted by offline) — try cache.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const cached = lsGet<T>(scope, userId);
+      if (cached) return cached.value;
+      throw new OfflineAiError("You're offline and I don't have a cached version of this yet.");
+    }
+    throw e;
+  }
+}
+
+export { OfflineAiError };
+
 
 export type DailyPlanResponse = {
   headline: string;
