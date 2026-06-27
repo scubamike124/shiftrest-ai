@@ -138,11 +138,11 @@ export async function deleteShift(id: string): Promise<void> {
 /** Used by Playbooks: wipe and replace the user's entire schedule. */
 export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
   const userId = await currentUserId();
-  if (!userId) return;
+  if (!userId) throw new AuthRequiredError("Sign in to save your schedule.");
   const { error: delErr } = await supabase.from("shifts").delete().eq("user_id", userId);
   if (delErr) {
     console.error("replaceAllShifts:delete", delErr);
-    return;
+    throw delErr;
   }
   if (next.length === 0) return;
   const rows = next.map((s) => ({
@@ -155,7 +155,10 @@ export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
     notes: s.notes?.trim() || null,
   }));
   const { error: insErr } = await supabase.from("shifts").insert(rows);
-  if (insErr) console.error("replaceAllShifts:insert", insErr);
+  if (insErr) {
+    console.error("replaceAllShifts:insert", insErr);
+    throw insErr;
+  }
 }
 
 /** One-time migration of legacy localStorage shifts into Supabase. Idempotent. */
