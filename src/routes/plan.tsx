@@ -14,6 +14,7 @@ import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
 
 export const Route = createFileRoute("/plan")({
