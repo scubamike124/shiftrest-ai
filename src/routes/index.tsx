@@ -269,7 +269,7 @@ function Dashboard() {
       <div className="mt-4 grid grid-cols-5 gap-3">
 
         <button
-          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday }); }}
+          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
           className="col-span-3 flex flex-col justify-between rounded-[24px] border border-primary/40 p-5 text-left active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
