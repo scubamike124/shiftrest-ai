@@ -240,11 +240,17 @@ function Paywall() {
           for full details.
         </p>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-          <Link to="/terms" className="text-primary underline">
-            Terms of Service
+          <Link to="/legal/terms" className="text-primary underline">
+            Terms
           </Link>
-          <Link to="/privacy" className="text-primary underline">
-            Privacy Policy
+          <Link to="/legal/privacy" className="text-primary underline">
+            Privacy
+          </Link>
+          <Link to="/legal/subscription" className="text-primary underline">
+            Subscription Terms
+          </Link>
+          <Link to="/legal/refunds" className="text-primary underline">
+            Refunds
           </Link>
           <button
             type="button"
