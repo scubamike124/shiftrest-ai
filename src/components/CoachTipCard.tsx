@@ -7,10 +7,10 @@ import { aiCoachTip } from "@/lib/ai-client";
  * - Fetches once per mount; user can refresh on demand.
  * - Hidden entirely for guests (AI calls require auth + budget).
  */
-export function CoachTipCard({ signedIn }: { signedIn: boolean }) {
+export function CoachTipCard({ signedIn, context }: { signedIn: boolean; context?: string }) {
   const { data, isFetching, refetch, error } = useQuery({
-    queryKey: ["ai-coach-tip"],
-    queryFn: () => aiCoachTip(),
+    queryKey: ["ai-coach-tip", context ?? ""],
+    queryFn: () => aiCoachTip({ context }),
     enabled: signedIn,
     staleTime: 60 * 60_000,
     retry: 0,
