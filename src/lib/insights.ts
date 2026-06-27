@@ -300,13 +300,23 @@ export function computeInsights(
           : "depleted";
 
   const rotation = detectRotation(shifts).label;
+  const anchor = prefs.cycleAnchor;
+  const cw = prefs.cycleWeeks ?? 1;
+  const todayShifts = shiftsForDate(shifts, now, anchor, cw);
+  const todayShift = todayShifts[0];
 
   // ── Signals (dashboard bullets + coach grounding)
   const signals: string[] = [];
-  const nightCount = shifts.filter((s) => shiftType(s) === "night").length;
-  if (nightCount >= 3) signals.push(`${nightCount} night shifts this week`);
+  // Count nights across the upcoming 7-day window so rotations beyond a
+  // single week still surface "lots of nights" warnings.
+  let nightCount = 0;
+  for (let i = 0; i < 7; i++) {
+    const s = shiftsForDate(shifts, addDays(now, i), anchor, cw)[0];
+    if (s && shiftType(s) === "night") nightCount++;
+  }
+  if (nightCount >= 3) signals.push(`${nightCount} night shifts in the next 7 days`);
   if (debt.reasons.length) signals.push(...debt.reasons.slice(0, 3));
-  if (!shifts.find((s) => s.day === weekdayToday)) signals.push("No shift today");
+  if (!todayShift) signals.push("No shift today");
   if (sleepDebtHours >= 3)
     signals.push(`Sleep debt ${sleepDebtHours.toFixed(1)}h over last 7 nights`);
   if (hrvTrend != null && Math.abs(hrvTrend) >= 0.07)
@@ -336,25 +346,35 @@ export function computeInsights(
     );
   }
 
-  // Multi-employer signals
+  // Multi-employer signals (look across the upcoming 7 days, cycle-aware)
+  const upcomingByOffset: { offset: number; shift: Shift }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const s = shiftsForDate(shifts, addDays(now, i), anchor, cw)[0];
+    if (s) upcomingByOffset.push({ offset: i, shift: s });
+  }
   const employersThisWeek = new Set(
-    shifts.map((s) => s.employerId).filter(Boolean) as string[],
+    upcomingByOffset.map((x) => x.shift.employerId).filter(Boolean) as string[],
   );
   if (employersThisWeek.size > 1) {
     const names = Array.from(employersThisWeek)
       .map((id) => employerById.get(id)?.name)
       .filter(Boolean);
     signals.push(`Working ${employersThisWeek.size} employers: ${names.join(", ")}`);
-    for (let d = 0; d < 7; d++) {
-      const a = shifts.find((s) => s.day === d);
-      const b = shifts.find((s) => s.day === (d + 1) % 7);
-      if (a && b && a.employerId && b.employerId && a.employerId !== b.employerId) {
-        const gap = b.start + 1440 - endAbsolute(a);
+    for (let i = 0; i < upcomingByOffset.length - 1; i++) {
+      const a = upcomingByOffset[i];
+      const b = upcomingByOffset[i + 1];
+      if (
+        b.offset - a.offset === 1 &&
+        a.shift.employerId &&
+        b.shift.employerId &&
+        a.shift.employerId !== b.shift.employerId
+      ) {
+        const gap = b.shift.start + 1440 - endAbsolute(a.shift);
         if (gap < 14 * 60) {
           signals.push(
-            `${employerById.get(a.employerId)?.name ?? "Job A"} → ${
-              employerById.get(b.employerId)?.name ?? "Job B"
-            } on ${DAYS[(d + 1) % 7]} (short gap)`,
+            `${employerById.get(a.shift.employerId)?.name ?? "Job A"} → ${
+              employerById.get(b.shift.employerId)?.name ?? "Job B"
+            } on ${DAYS[(weekdayToday + b.offset) % 7]} (short gap)`,
           );
           break;
         }
@@ -362,11 +382,10 @@ export function computeInsights(
     }
   }
 
-  // Next upcoming shift within 7 days
+  // Next upcoming shift within 14 days (cycle-aware)
   let nextShift: Insights["nextShift"];
-  for (let offset = 0; offset < 7; offset++) {
-    const idx = (weekdayToday + offset) % 7;
-    const s = shifts.find((x) => x.day === idx);
+  for (let offset = 0; offset < 14; offset++) {
+    const s = shiftsForDate(shifts, addDays(now, offset), anchor, cw)[0];
     if (!s) continue;
     if (offset === 0 && now.getHours() * 60 + now.getMinutes() > s.start) continue;
     const hoursAway =
@@ -375,7 +394,7 @@ export function computeInsights(
     break;
   }
 
-  const todayShift = shifts.find((s) => s.day === weekdayToday);
+
   const fmtHM = (m: number) =>
     `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
