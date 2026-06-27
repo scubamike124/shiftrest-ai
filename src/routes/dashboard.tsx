@@ -24,6 +24,9 @@ import { ArrivalHero } from "@/components/ArrivalHero";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
 import { RightNowCard } from "@/components/RightNowCard";
 import { CompanionWhisper } from "@/components/CompanionWhisper";
+import { TomorrowPreviewCard } from "@/components/TomorrowPreviewCard";
+import { DailyReviewCard } from "@/components/DailyReviewCard";
+import { PatternAlerts } from "@/components/PatternAlerts";
 import { LongClock } from "@/components/LongClock";
 import {
   shiftsForDate,
@@ -224,6 +227,34 @@ function Dashboard() {
           />
         </div>
       )}
+
+      {/* Predictive: proactive pattern alerts (only when detected) */}
+      {prefs.predictiveEnabled && (
+        <div className="mt-3">
+          <PatternAlerts
+            signedIn={signedIn === true}
+            context={insights?.contextString ?? ""}
+            enabled={prefs.predictiveEnabled}
+          />
+        </div>
+      )}
+
+      {/* Predictive: tomorrow's plan + today's recap */}
+      {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) && prefs.predictiveEnabled && (
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <TomorrowPreviewCard
+            signedIn={signedIn === true}
+            context={insights?.contextString ?? ""}
+            enabled={prefs.tomorrowPreviewEnabled}
+          />
+          <DailyReviewCard
+            signedIn={signedIn === true}
+            context={insights?.contextString ?? ""}
+            enabled={prefs.dailyReviewEnabled}
+          />
+        </div>
+      )}
+
 
       {/* HERO BENTO — circadian debt + next sleep + ring */}
       <section

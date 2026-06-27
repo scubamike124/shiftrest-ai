@@ -22,6 +22,14 @@ export type Prefs = {
   assistantMode: AssistantMode;
   /** Opt-in for long-term memory. Default OFF — privacy-first. */
   memoryEnabled: boolean;
+  /** Predictive insights: patterns, tomorrow preview, daily review. Default ON. */
+  predictiveEnabled: boolean;
+  /** Tomorrow preview card on the dashboard. Default ON. */
+  tomorrowPreviewEnabled: boolean;
+  /** Daily review card after wake. Default ON. */
+  dailyReviewEnabled: boolean;
+  /** Feed feedback back into ranked learned preferences. Default ON. */
+  feedbackLearningEnabled: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -39,6 +47,10 @@ export const DEFAULT_PREFS: Prefs = {
   assistantName: "RestPilot",
   assistantMode: "coach",
   memoryEnabled: false,
+  predictiveEnabled: true,
+  tomorrowPreviewEnabled: true,
+  dailyReviewEnabled: true,
+  feedbackLearningEnabled: true,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -64,6 +76,10 @@ type Row = {
   assistant_name: string | null;
   assistant_mode: string | null;
   memory_enabled: boolean | null;
+  predictive_enabled?: boolean | null;
+  tomorrow_preview_enabled?: boolean | null;
+  daily_review_enabled?: boolean | null;
+  feedback_learning_enabled?: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
@@ -84,6 +100,10 @@ function rowToPrefs(r: Row): Prefs {
     assistantName: r.assistant_name?.trim() || "RestPilot",
     assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
     memoryEnabled: Boolean(r.memory_enabled),
+    predictiveEnabled: r.predictive_enabled ?? true,
+    tomorrowPreviewEnabled: r.tomorrow_preview_enabled ?? true,
+    dailyReviewEnabled: r.daily_review_enabled ?? true,
+    feedbackLearningEnabled: r.feedback_learning_enabled ?? true,
   };
 }
 
@@ -104,6 +124,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
     out.assistant_name = (p.assistantName.trim() || "RestPilot").slice(0, 40);
   if (p.assistantMode !== undefined) out.assistant_mode = p.assistantMode;
   if (p.memoryEnabled !== undefined) out.memory_enabled = p.memoryEnabled;
+  if (p.predictiveEnabled !== undefined) out.predictive_enabled = p.predictiveEnabled;
+  if (p.tomorrowPreviewEnabled !== undefined) out.tomorrow_preview_enabled = p.tomorrowPreviewEnabled;
+  if (p.dailyReviewEnabled !== undefined) out.daily_review_enabled = p.dailyReviewEnabled;
+  if (p.feedbackLearningEnabled !== undefined) out.feedback_learning_enabled = p.feedbackLearningEnabled;
   return out;
 }
 
@@ -125,7 +149,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled",
     )
     .eq("user_id", uid)
     .maybeSingle();

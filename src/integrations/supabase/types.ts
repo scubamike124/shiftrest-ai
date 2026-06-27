@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_feedback: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          outcome_json: Json
+          reaction: Database["public"]["Enums"]["ai_feedback_reaction"]
+          recommendation_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          outcome_json?: Json
+          reaction: Database["public"]["Enums"]["ai_feedback_reaction"]
+          recommendation_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          outcome_json?: Json
+          reaction?: Database["public"]["Enums"]["ai_feedback_reaction"]
+          recommendation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_log: {
         Row: {
           completion_tokens: number
@@ -117,6 +155,117 @@ export type Database = {
             columns: ["superseded_by"]
             isOneToOne: false
             referencedRelation: "ai_memory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_patterns: {
+        Row: {
+          active: boolean
+          created_at: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          muted_until: string | null
+          occurrences: number
+          pattern_key: string
+          severity: number
+          signals_json: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          muted_until?: string | null
+          occurrences?: number
+          pattern_key: string
+          severity?: number
+          signals_json?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          muted_until?: string | null
+          occurrences?: number
+          pattern_key?: string
+          severity?: number
+          signals_json?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_recommendations: {
+        Row: {
+          confidence: number
+          created_at: string
+          evidence_json: Json
+          feedback_score: number | null
+          headline: string
+          id: string
+          intent: string
+          pattern_id: string | null
+          predicted_impact_json: Json
+          rationale: string | null
+          superseded_by: string | null
+          user_id: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          evidence_json?: Json
+          feedback_score?: number | null
+          headline: string
+          id?: string
+          intent: string
+          pattern_id?: string | null
+          predicted_impact_json?: Json
+          rationale?: string | null
+          superseded_by?: string | null
+          user_id: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          evidence_json?: Json
+          feedback_score?: number | null
+          headline?: string
+          id?: string
+          intent?: string
+          pattern_id?: string | null
+          predicted_impact_json?: Json
+          rationale?: string | null
+          superseded_by?: string | null
+          user_id?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_recommendations_pattern_fk"
+            columns: ["pattern_id"]
+            isOneToOne: false
+            referencedRelation: "ai_patterns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_recommendations_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "ai_recommendations"
             referencedColumns: ["id"]
           },
         ]
@@ -536,6 +685,8 @@ export type Database = {
           created_at: string
           cycle_anchor: string | null
           cycle_weeks: number
+          daily_review_enabled: boolean
+          feedback_learning_enabled: boolean
           lat: number
           location_label: string
           lon: number
@@ -545,7 +696,9 @@ export type Database = {
           notifications: boolean
           onboarded_at: string | null
           partner_name: string
+          predictive_enabled: boolean
           sleep_hours: number
+          tomorrow_preview_enabled: boolean
           updated_at: string
           user_id: string
           wind_down_min: number
@@ -557,6 +710,8 @@ export type Database = {
           created_at?: string
           cycle_anchor?: string | null
           cycle_weeks?: number
+          daily_review_enabled?: boolean
+          feedback_learning_enabled?: boolean
           lat?: number
           location_label?: string
           lon?: number
@@ -566,7 +721,9 @@ export type Database = {
           notifications?: boolean
           onboarded_at?: string | null
           partner_name?: string
+          predictive_enabled?: boolean
           sleep_hours?: number
+          tomorrow_preview_enabled?: boolean
           updated_at?: string
           user_id: string
           wind_down_min?: number
@@ -578,6 +735,8 @@ export type Database = {
           created_at?: string
           cycle_anchor?: string | null
           cycle_weeks?: number
+          daily_review_enabled?: boolean
+          feedback_learning_enabled?: boolean
           lat?: number
           location_label?: string
           lon?: number
@@ -587,7 +746,9 @@ export type Database = {
           notifications?: boolean
           onboarded_at?: string | null
           partner_name?: string
+          predictive_enabled?: boolean
           sleep_hours?: number
+          tomorrow_preview_enabled?: boolean
           updated_at?: string
           user_id?: string
           wind_down_min?: number
@@ -705,7 +866,12 @@ export type Database = {
       has_ai_budget: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      ai_feedback_reaction:
+        | "helpful"
+        | "not_helpful"
+        | "already_did"
+        | "ignored_today"
+        | "dismissed_forever"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -832,6 +998,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      ai_feedback_reaction: [
+        "helpful",
+        "not_helpful",
+        "already_did",
+        "ignored_today",
+        "dismissed_forever",
+      ],
+    },
   },
 } as const

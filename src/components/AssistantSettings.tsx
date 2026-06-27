@@ -120,6 +120,39 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
           </p>
         )}
       </div>
+
+      {/* Predictive AI + learning */}
+      <div className="space-y-3 border-t border-border pt-4">
+        <p className="text-sm font-semibold">Predictive AI & learning</p>
+        <p className="text-xs text-muted-foreground">
+          The coach watches for patterns (sleep debt, HRV dips, missed wind-downs) and learns from your feedback to stop repeating things that don't help. All optional.
+        </p>
+        {(
+          [
+            ["predictiveEnabled", "Pattern detection & proactive alerts"],
+            ["tomorrowPreviewEnabled", "Evening 'Tomorrow already planned' card"],
+            ["dailyReviewEnabled", "Morning 'What helped / what drained' recap"],
+            ["feedbackLearningEnabled", "Learn from my Helpful / Not helpful feedback"],
+          ] as const
+        ).map(([key, label]) => {
+          const value = prefs[key] as boolean;
+          return (
+            <div key={key} className="flex items-center justify-between gap-3">
+              <span className="text-sm">{label}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={value}
+                disabled={!signedIn}
+                onClick={() => onChange(key, !value)}
+                className={`relative h-6 w-11 rounded-full transition disabled:opacity-50 ${value ? "bg-primary" : "bg-muted"}`}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition ${value ? "left-[22px]" : "left-0.5"}`} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

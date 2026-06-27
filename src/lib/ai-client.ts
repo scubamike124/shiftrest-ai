@@ -69,6 +69,7 @@ export type RightNowResponse = {
   timeWindow?: { startIso: string; endIso: string };
   ctaLabel: string;
   ctaRoute: "/plan" | "/events" | "/coach" | "/dashboard";
+  recommendationId?: string | null;
 };
 
 export function aiRightNow(input: { context?: string } = {}) {
@@ -80,6 +81,7 @@ export type AdjustPlanResponse = {
   confidence?: "low" | "medium" | "high";
   ifIgnored?: string;
   changes: { label: string; from: string; to: string; reason: string }[];
+  recommendationId?: string | null;
 };
 
 export function aiAdjustPlan(input: { observation: string; context?: string }) {
@@ -90,6 +92,7 @@ export type CommuteResponse = {
   leaveAt: string;
   prepStartAt: string;
   advice: string;
+  recommendationId?: string | null;
 };
 
 export function aiCommute(input: {
@@ -101,8 +104,60 @@ export function aiCommute(input: {
   return postIntent<CommuteResponse>({ intent: "commute", ...input });
 }
 
-export type CoachTipResponse = { tip: string; generatedAt: string };
+export type CoachTipResponse = { tip: string; generatedAt: string; recommendationId?: string | null };
 
 export function aiCoachTip(input: { context?: string } = {}) {
   return postIntent<CoachTipResponse>({ intent: "coach_tip", context: input.context });
 }
+
+// --- Step 3: Predictive intents ---
+
+export type TomorrowPreviewBlock = {
+  kind: "sleep" | "alarm" | "light" | "caffeine" | "commute" | "winddown" | "recovery";
+  title: string;
+  when: string;
+  detail: string;
+};
+export type TomorrowPreviewResponse = {
+  headline: string;
+  summary: string;
+  confidence?: "low" | "medium" | "high";
+  blocks: TomorrowPreviewBlock[];
+  recommendationId?: string | null;
+};
+export function aiTomorrowPreview(input: { context?: string } = {}) {
+  return postIntent<TomorrowPreviewResponse>({ intent: "tomorrow_preview", context: input.context });
+}
+
+export type DailyReviewResponse = {
+  headline: string;
+  wins: string[];
+  drains: string[];
+  metrics: {
+    sleepRecoveredMin: number | null;
+    readinessDelta: number | null;
+    recoveryTrend: "up" | "flat" | "down" | "unknown";
+  };
+  tomorrowFocus: string;
+  recommendationId?: string | null;
+};
+export function aiDailyReview(input: { context?: string } = {}) {
+  return postIntent<DailyReviewResponse>({ intent: "daily_review", context: input.context });
+}
+
+export type PatternAlertResponse = {
+  headline: string;
+  why: string;
+  action: string;
+  confidence: "low" | "medium" | "high";
+  recommendationId?: string | null;
+};
+export function aiPatternAlert(input: {
+  patternKey: string;
+  severity: number;
+  signals: Record<string, unknown>;
+  context?: string;
+}) {
+  return postIntent<PatternAlertResponse>({ intent: "pattern_alert", ...input });
+}
+

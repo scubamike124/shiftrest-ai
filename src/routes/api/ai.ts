@@ -27,6 +27,7 @@ import {
 } from "@/lib/ai/context.server";
 import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
+import { persistRecommendation } from "@/lib/ai/recommendations.server";
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string }
@@ -36,7 +37,10 @@ type Body =
   | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
   | { intent: "coach_tip"; context?: string }
   | { intent: "right_now"; context?: string }
-  | { intent: "adjust_plan"; observation: string; context?: string };
+  | { intent: "adjust_plan"; observation: string; context?: string }
+  | { intent: "tomorrow_preview"; context?: string }
+  | { intent: "daily_review"; context?: string }
+  | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string };
 
 // Shared voice contract — every JSON intent inherits this tone so the AI
 // sounds like the same trusted coach, not a stack of disconnected widgets.
@@ -128,6 +132,44 @@ Return ONLY valid JSON:
   "confidence": "low"|"medium"|"high",
   "ifIgnored": string (<=120 chars, plain consequence if they don't apply the changes),
   "changes": [{"label": string (<=50 chars), "from": string (<=30 chars), "to": string (<=30 chars), "reason": string (<=110 chars, why this specific change helps)}]
+}`;
+
+const TOMORROW_PREVIEW_SYSTEM = `${COACH_VOICE}
+
+You are RestPilot AI building TOMORROW'S PLAN before the user wakes. Treat patterns and last night's recovery as the leading evidence.
+Return ONLY valid JSON:
+{
+  "headline": string (<=80 chars, coach-voice, e.g. "Tomorrow's a recovery day — light morning, early wind-down"),
+  "summary": string (<=180 chars, two sentences max),
+  "confidence": "low"|"medium"|"high",
+  "blocks": [
+    {"kind": "sleep"|"alarm"|"light"|"caffeine"|"commute"|"winddown"|"recovery", "title": string (<=50 chars), "when": string (<=30 chars, e.g. "06:40am" or "tonight 9pm"), "detail": string (<=140 chars, why this and what it earns them)}
+  ]
+}
+Provide 4-6 blocks ordered chronologically.`;
+
+const DAILY_REVIEW_SYSTEM = `${COACH_VOICE}
+
+You are RestPilot AI writing TODAY'S RECAP — encouraging, never judgmental.
+Return ONLY valid JSON:
+{
+  "headline": string (<=80 chars, warm, e.g. "Solid recovery day — small win on caffeine timing"),
+  "wins": [string (<=110 chars, each)],
+  "drains": [string (<=110 chars, each — frame as data not failure)],
+  "metrics": {"sleepRecoveredMin": number|null, "readinessDelta": number|null, "recoveryTrend": "up"|"flat"|"down"|"unknown"},
+  "tomorrowFocus": string (<=130 chars, one small improvement to try)
+}
+1-3 items per list. Skip a metric (null) if you don't have the data.`;
+
+const PATTERN_ALERT_SYSTEM = `${COACH_VOICE}
+
+You are RestPilot AI explaining a detected PATTERN to the user in plain language.
+You receive {pattern_key, severity, signals}. Return ONLY valid JSON:
+{
+  "headline": string (<=70 chars, what's happening),
+  "why": string (<=140 chars, what the signals show — name at least one number),
+  "action": string (<=120 chars, one concrete step today),
+  "confidence": "low"|"medium"|"high"
 }`;
 
 function jsonError(status: number, message: string) {
@@ -273,7 +315,7 @@ export const Route = createFileRoute("/api/ai")({
           }
 
           // ---------- JSON intents (Bundle 2 + AI Coach hero) ----------
-          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan"] as const;
+          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan", "tomorrow_preview", "daily_review", "pattern_alert"] as const;
           type JsonIntent = (typeof jsonIntents)[number];
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
@@ -290,6 +332,7 @@ export const Route = createFileRoute("/api/ai")({
 
             let intentSystem = "";
             let userPayload = "";
+            let patternId: string | null = null;
             switch (body.intent) {
               case "daily_plan":
                 intentSystem = DAILY_PLAN_SYSTEM;
@@ -326,6 +369,32 @@ export const Route = createFileRoute("/api/ai")({
                   nowIso: new Date().toISOString(),
                 });
                 break;
+              case "tomorrow_preview":
+                intentSystem = TOMORROW_PREVIEW_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "daily_review":
+                intentSystem = DAILY_REVIEW_SYSTEM;
+                userPayload = JSON.stringify({ nowIso: new Date().toISOString() });
+                break;
+              case "pattern_alert": {
+                intentSystem = PATTERN_ALERT_SYSTEM;
+                userPayload = JSON.stringify({
+                  pattern_key: body.patternKey,
+                  severity: body.severity,
+                  signals: body.signals,
+                });
+                if (userId) {
+                  const { data: pat } = await admin
+                    .from("ai_patterns")
+                    .select("id")
+                    .eq("user_id", userId)
+                    .eq("pattern_key", body.patternKey)
+                    .maybeSingle();
+                  patternId = (pat as { id: string } | null)?.id ?? null;
+                }
+                break;
+              }
             }
 
             const result = await chatJSON({
@@ -347,14 +416,26 @@ export const Route = createFileRoute("/api/ai")({
             }
             // Parse defensively — strip code fences if the model wrapped them.
             const raw = result.text.trim().replace(/^```(?:json)?\n?|\n?```$/g, "");
-            let parsed: unknown;
+            let parsed: Record<string, unknown>;
             try {
-              parsed = JSON.parse(raw);
+              parsed = JSON.parse(raw) as Record<string, unknown>;
             } catch {
               return jsonError(502, "AI returned malformed JSON");
             }
-            return Response.json(parsed);
+
+            // Persist as ai_recommendations so feedback can target it.
+            let recommendationId: string | null = null;
+            if (userId) {
+              recommendationId = await persistRecommendation(admin, {
+                userId,
+                intent: body.intent,
+                payload: parsed,
+                patternId,
+              });
+            }
+            return Response.json({ ...parsed, recommendationId });
           }
+
 
           return jsonError(400, "Unknown intent");
         } catch (e) {
