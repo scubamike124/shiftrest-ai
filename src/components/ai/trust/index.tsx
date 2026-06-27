@@ -34,3 +34,4 @@ export { ConfidenceBadge } from "./ConfidenceBadge";
 export { WhyButton } from "./WhyButton";
 export { WhatChanged } from "./WhatChanged";
 export { RecommendationDetailSheet } from "./RecommendationDetailSheet";
+export { RecommendationActions } from "./RecommendationActions";

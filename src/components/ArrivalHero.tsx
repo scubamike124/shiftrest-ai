@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useDecisionsSinceLastVisit, useNextDecision } from "@/lib/ai/decisions";
 
 const RIGHT_NOW_CACHE_KEY = "rp_right_now_v1";
 
@@ -90,6 +91,20 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
       : `I've already adjusted today's plan. Here's what I'd like you to do next.`
     : `Welcome back. Here's where you stand today.`;
 
+  const { total, sinceLastVisit } = useDecisionsSinceLastVisit();
+  const nextDecision = useNextDecision();
+  const adjustments = sinceLastVisit > 0 ? sinceLastVisit : total;
+
+  let nextNudge: string | null = null;
+  if (nextDecision) {
+    const ev = nextDecision.evidence as { timeWindow?: { startIso?: string } } | null;
+    const start = ev?.timeWindow?.startIso ? Date.parse(ev.timeWindow.startIso) : NaN;
+    if (!Number.isNaN(start)) {
+      const mins = Math.max(1, Math.round((start - Date.now()) / 60_000));
+      nextNudge = mins < 60 ? `Next nudge in ~${mins} min.` : `Next nudge in ~${Math.round(mins / 60)}h.`;
+    }
+  }
+
   return (
     <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 lg:mb-8">
       <div className="min-w-0">
@@ -104,6 +119,14 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
           {subline}{" "}
           <span className="text-foreground/60">{dateLabel}</span>
         </p>
+        {adjustments > 0 && (
+          <p className="mt-1.5 max-w-xl text-xs text-indigo-glow/90 lg:text-sm">
+            While you were away, I made{" "}
+            <span className="font-semibold text-foreground">{adjustments}</span>{" "}
+            adjustment{adjustments === 1 ? "" : "s"} to today's plan.
+            {nextNudge ? ` ${nextNudge}` : ""}
+          </p>
+        )}
       </div>
     </header>
   );

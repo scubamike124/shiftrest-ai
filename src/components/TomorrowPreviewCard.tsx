@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, RefreshCw, Sparkles, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
 import { aiTomorrowPreview, type TomorrowPreviewResponse, type TomorrowPreviewBlock } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
-import { ConfidenceBadge, WhyButton } from "./ai/trust";
+import { ConfidenceBadge, RecommendationActions, WhyButton } from "./ai/trust";
 
 const KIND_ICON: Record<TomorrowPreviewBlock["kind"], typeof Bed> = {
   sleep: Bed,
@@ -155,6 +155,12 @@ export function TomorrowPreviewCard({
             })}
           </ul>
 
+          <RecommendationActions
+            recommendationId={data.recommendationId}
+            signedIn={signedIn}
+            size="sm"
+            className="mt-3"
+          />
           <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
         </div>
       )}

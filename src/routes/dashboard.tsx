@@ -28,6 +28,8 @@ import { TomorrowPreviewCard } from "@/components/TomorrowPreviewCard";
 import { DailyReviewCard } from "@/components/DailyReviewCard";
 import { PatternAlerts } from "@/components/PatternAlerts";
 import { LongClock } from "@/components/LongClock";
+import { DecisionCenterCard } from "@/components/DecisionCenterCard";
+import { AIActivityFeed } from "@/components/AIActivityFeed";
 import {
   shiftsForDate,
   weekIndexFor,
@@ -325,6 +327,18 @@ function Dashboard() {
         signedIn={signedIn === true}
         context={insights?.contextString ?? ""}
       />
+
+      {/* AI Decision Center — what the AI did for you today */}
+      <div className="mt-3">
+        <DecisionCenterCard signedIn={signedIn === true} />
+      </div>
+
+      {/* Activity preview — collapsed live feed */}
+      {signedIn === true && (
+        <div className="mt-3">
+          <AIActivityFeed max={5} />
+        </div>
+      )}
 
       {/* Companion whisper — proactive observation */}
       {insights && (
