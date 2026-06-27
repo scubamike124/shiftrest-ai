@@ -18,6 +18,9 @@ import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { LastNightStrip } from "@/components/LastNightStrip";
+import { useServerFn } from "@tanstack/react-start";
+import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs, AuthRequiredError } from "@/lib/prefs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -135,9 +138,19 @@ function Dashboard() {
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
   const stability = Math.max(0, 100 - debt.score);
+  const getWearableSummaryFn = useServerFn(getWearableSummary);
+  const { data: wearableSummary } = useQuery({
+    queryKey: ["wearable-summary"],
+    queryFn: () => getWearableSummaryFn(),
+    enabled: signedIn === true,
+    staleTime: 60_000,
+  });
   const insights = useMemo(
-    () => (mounted ? computeInsights(shifts, prefs, today, employers) : null),
-    [shifts, prefs, today, mounted, employers],
+    () =>
+      mounted
+        ? computeInsights(shifts, prefs, today, employers, wearableSummary?.latest ?? null)
+        : null,
+    [shifts, prefs, today, mounted, employers, wearableSummary],
   );
 
   return (
@@ -216,6 +229,10 @@ function Dashboard() {
           <AIBriefCard insights={insights} />
         </div>
       )}
+
+      <div className="mt-4">
+        <LastNightStrip />
+      </div>
 
       {/* Quick Action + Stability */}
       <div className="mt-4 grid grid-cols-5 gap-3">

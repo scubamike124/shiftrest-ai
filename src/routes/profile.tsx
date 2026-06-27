@@ -50,6 +50,7 @@ import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
+import { WearableCard } from "@/components/WearableCard";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -577,27 +578,7 @@ function Profile() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-card">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-mint">
-              <Heart className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold">Wearable & health sync</p>
-              <p className="text-xs text-muted-foreground">
-                Sync actual sleep to compare against your plan.
-              </p>
-              <p className="mt-0.5 text-[10px] text-amber">
-                Coming soon — connect your watch and sleep tracker.
-              </p>
-            </div>
-          </div>
-          <span className="rounded-full bg-secondary px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Soon
-          </span>
-        </div>
-      </section>
+      <WearableCard />
 
       <section className="rounded-2xl border border-border bg-card">
         <ToggleRow

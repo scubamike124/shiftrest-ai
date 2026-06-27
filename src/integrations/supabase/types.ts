@@ -283,6 +283,105 @@ export type Database = {
         }
         Relationships: []
       }
+      wearable_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_sync_at: string | null
+          last_sync_error: string | null
+          provider: string
+          provider_user_id: string | null
+          refresh_token: string | null
+          scope: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          provider: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          provider?: string
+          provider_user_id?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wearable_readings: {
+        Row: {
+          date: string
+          deep_min: number | null
+          fetched_at: string
+          hrv_ms: number | null
+          id: string
+          light_min: number | null
+          provider: string
+          raw: Json | null
+          rem_min: number | null
+          resting_hr: number | null
+          sleep_duration_min: number | null
+          sleep_efficiency: number | null
+          sleep_end: string | null
+          sleep_start: string | null
+          user_id: string
+        }
+        Insert: {
+          date: string
+          deep_min?: number | null
+          fetched_at?: string
+          hrv_ms?: number | null
+          id?: string
+          light_min?: number | null
+          provider: string
+          raw?: Json | null
+          rem_min?: number | null
+          resting_hr?: number | null
+          sleep_duration_min?: number | null
+          sleep_efficiency?: number | null
+          sleep_end?: string | null
+          sleep_start?: string | null
+          user_id: string
+        }
+        Update: {
+          date?: string
+          deep_min?: number | null
+          fetched_at?: string
+          hrv_ms?: number | null
+          id?: string
+          light_min?: number | null
+          provider?: string
+          raw?: Json | null
+          rem_min?: number | null
+          resting_hr?: number | null
+          sleep_duration_min?: number | null
+          sleep_efficiency?: number | null
+          sleep_end?: string | null
+          sleep_start?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

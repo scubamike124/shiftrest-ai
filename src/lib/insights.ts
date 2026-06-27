@@ -110,11 +110,21 @@ function dayFatigue(shifts: Shift[], dayIdx: number, prefs: Prefs): FatiguePoint
   };
 }
 
+export type LastNightSummary = {
+  provider: "fitbit" | "oura";
+  date: string;
+  sleepDurationMin: number | null;
+  sleepEfficiency: number | null;
+  hrvMs: number | null;
+  restingHr: number | null;
+};
+
 export function computeInsights(
   shifts: Shift[],
   prefs: Prefs,
   now: Date,
   employers: Employer[] = [],
+  lastNight: LastNightSummary | null = null,
 ): Insights {
   const weekday = (now.getDay() + 6) % 7;
   const fatigueToday = dayFatigue(shifts, weekday, prefs);
@@ -212,6 +222,15 @@ export function computeInsights(
       : "",
     signals.length ? `Signals: ${signals.join("; ")}.` : "",
     `Sleep target ${prefs.sleepHours}h, wind-down ${prefs.windDownMin}min.`,
+    lastNight && lastNight.sleepDurationMin
+      ? `Last night (${lastNight.provider}, ${lastNight.date}): slept ${(lastNight.sleepDurationMin / 60).toFixed(1)}h${
+          lastNight.sleepEfficiency != null
+            ? ` at ${Math.round(lastNight.sleepEfficiency * 100)}% efficiency`
+            : ""
+        }${lastNight.hrvMs != null ? `, HRV ${Math.round(lastNight.hrvMs)}ms` : ""}${
+          lastNight.restingHr != null ? `, resting HR ${lastNight.restingHr}bpm` : ""
+        }.`
+      : "",
   ]
     .filter(Boolean)
     .join(" ");
