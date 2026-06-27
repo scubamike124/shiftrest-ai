@@ -100,39 +100,10 @@ export function ymdInTz(date: Date, tz: string): { y: number; m: number; d: numb
   }
 }
 
-/** Convert "local time in tz on date Y-M-D" → UTC Date. Uses Intl offset lookup. */
-export function utcFromLocal(
-  y: number,
-  m: number,
-  d: number,
-  minuteOfDay: number,
-  tz: string,
-): Date {
-  const naive = Date.UTC(y, m - 1, d, Math.floor(minuteOfDay / 60), minuteOfDay % 60);
-  const offsetMin = tzOffsetMinutes(new Date(naive), tz);
-  return new Date(naive - offsetMin * 60_000);
-}
-
-function tzOffsetMinutes(date: Date, tz: string): number {
-  try {
-    const dtf = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    const parts = dtf.formatToParts(date);
-    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-    const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
-    return Math.round((asUtc - date.getTime()) / 60_000);
-  } catch {
-    return 0;
-  }
-}
+/** Convert "local time in tz on date Y-M-D" → UTC Date. Re-exported from
+ *  the shared tz helpers so existing callers keep working. */
+import { utcFromLocal, tzOffsetMinutes } from "@/lib/time/tz";
+export { utcFromLocal, tzOffsetMinutes };
 
 /**
  * For today's shift in the user's timezone + the next 24h of user_events,

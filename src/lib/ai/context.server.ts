@@ -149,11 +149,80 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
+  if (opts.userId) {
+    try {
+      prompt += await formatTzBlock(opts.admin, opts.userId);
+    } catch (e) {
+      console.warn("context tz block failed", e);
+    }
+  }
+
   if (opts.liveContext) {
     prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
   }
 
   return prompt;
+}
+
+/**
+ * TZ STATE block — gives the model the user's home tz, current tz, body-clock
+ * offset, and active trip. Required so every intent can disclose its basis
+ * per the COACH_VOICE contract.
+ */
+async function formatTzBlock(admin: SupabaseClient, userId: string): Promise<string> {
+  const { describeTzBasis, normalizeTz, dstChangesWithin, tzOffsetMinutes } =
+    await import("@/lib/time/tz");
+
+  const { data: prefs } = await admin
+    .from("user_prefs")
+    .select("home_tz, current_tz, travel_mode_enabled")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const home = normalizeTz((prefs as { home_tz?: string | null } | null)?.home_tz ?? "UTC");
+  const current = normalizeTz(
+    (prefs as { current_tz?: string | null } | null)?.current_tz ?? home,
+  );
+  const basis = describeTzBasis(current, home);
+
+  const now = new Date();
+  const dst = dstChangesWithin(current, now, 14);
+  const dstLine = dst.length
+    ? `\n- DST transitions in current tz within 14 days: ${dst
+        .map((d) => `${d.atUtc.slice(0, 10)} (${d.fromOffset}→${d.toOffset} min)`)
+        .join("; ")}`
+    : "";
+
+  let tripLine = "";
+  try {
+    const { data: trip } = await admin
+      .from("trips")
+      .select("label, origin_tz, dest_tz, depart_utc, arrive_utc, dest_label, status")
+      .eq("user_id", userId)
+      .in("status", ["planned", "active"])
+      .order("arrive_utc", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (trip) {
+      const t = trip as {
+        label: string | null; origin_tz: string; dest_tz: string;
+        depart_utc: string; arrive_utc: string; dest_label: string | null; status: string;
+      };
+      const destOffsetH = tzOffsetMinutes(new Date(t.arrive_utc), t.dest_tz) / 60;
+      tripLine = `\n- ${t.status === "active" ? "Active" : "Upcoming"} trip${
+        t.label ? ` "${t.label}"` : ""
+      }: ${t.origin_tz} → ${t.dest_tz}${t.dest_label ? ` (${t.dest_label})` : ""}, arrive ${t.arrive_utc} (dest GMT${
+        destOffsetH >= 0 ? "+" : ""
+      }${destOffsetH}h)`;
+    }
+  } catch {
+    /* trips table optional in older deployments */
+  }
+
+  return `\n\nTZ STATE (anchor every time-bearing recommendation to this; when local and body clocks disagree, name which one you used):
+- Home tz: ${home}
+- Current tz: ${current}
+- Body-clock offset: ${basis.offsetMin >= 0 ? "+" : ""}${basis.offsetMin} min (${basis.label})${dstLine}${tripLine}`;
 }
 
 export async function loadAssistantProfile(

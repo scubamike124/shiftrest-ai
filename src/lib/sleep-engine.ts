@@ -1,20 +1,24 @@
 import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
+import { tzOffsetMinutes } from "./time/tz";
 
 // ───── Sunrise / sunset (NOAA simplified). Returns minutes from local midnight
-// AT THE GIVEN LOCATION — never the browser timezone. The previous version
-// used `date.getTimezoneOffset()` which produced wildly wrong values
-// (e.g. "Sunrise 9:26 AM, Sunset 12:31 AM") whenever the user's browser
-// timezone did not match the saved lat/lon.
+// AT THE GIVEN LOCATION — never the browser timezone.
 //
-// Pass `tzOffsetMin` if you have a real IANA-resolved offset for the
-// location; otherwise we approximate from longitude (each 15° = 1 hour),
-// which is the standard astronomical fallback and is correct to within ~30
-// minutes anywhere on Earth.
+// The 4th argument controls the location's UTC offset:
+//   • Pass an IANA tz string ("America/New_York", "Asia/Tokyo") — preferred.
+//     We resolve the offset via `Intl` at the given `date`, so DST is
+//     handled correctly even across transition days.
+//   • Pass a number — interpreted as offset minutes east of UTC (legacy).
+//   • Omit — fall back to longitude/15 (correct to ~30 min anywhere, but
+//     wrong at every political boundary; only used when tz is unknown).
+//
+// Callers that have a saved IANA tz on the user/trip MUST pass it; the
+// longitude fallback exists only for the cold-start case before prefs load.
 export function sunTimes(
   date: Date,
   lat: number | null | undefined,
   lon: number | null | undefined,
-  tzOffsetMin?: number,
+  tzOrOffset?: string | number,
 ): { sunrise: number | null; sunset: number | null } {
   if (
     lat == null ||
@@ -55,10 +59,30 @@ export function sunTimes(
   const sunriseUTC = 720 - 4 * (lon + ha) - eqTime;
   const sunsetUTC = 720 - 4 * (lon - ha) - eqTime;
   // Offset for the LOCATION, not the browser.
-  const offsetMin =
-    typeof tzOffsetMin === "number" ? tzOffsetMin : Math.round(lon / 15) * 60;
+  let offsetMin: number;
+  if (typeof tzOrOffset === "number") {
+    offsetMin = tzOrOffset;
+  } else if (typeof tzOrOffset === "string" && tzOrOffset.length > 0) {
+    offsetMin = tzOffsetMinutes(date, tzOrOffset);
+  } else {
+    offsetMin = Math.round(lon / 15) * 60;
+  }
   const norm = (m: number) => ((Math.round(m + offsetMin) % 1440) + 1440) % 1440;
   return { sunrise: norm(sunriseUTC), sunset: norm(sunsetUTC) };
+}
+
+/**
+ * Tz-aware convenience wrapper. Identical to `sunTimes(date, lat, lon, tz)`
+ * — exported as a separate name so call sites read clearly and so future
+ * features (jet-lag plan, trip preview) can grep for a single symbol.
+ */
+export function sunTimesForTz(
+  date: Date,
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+  tz: string,
+): { sunrise: number | null; sunset: number | null } {
+  return sunTimes(date, lat, lon, tz);
 }
 
 // ───── Rotation detection

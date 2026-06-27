@@ -73,9 +73,10 @@ export function LongClock({
   now: Date;
 }) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  const tz = prefs.currentTz ?? prefs.homeTz ?? undefined;
   const { sunrise, sunset } = useMemo(
-    () => sunTimes(now, prefs.lat ?? null, prefs.lon ?? null),
-    [now, prefs.lat, prefs.lon],
+    () => sunTimes(now, prefs.lat ?? null, prefs.lon ?? null, tz),
+    [now, prefs.lat, prefs.lon, tz],
   );
 
   const { bands, markers } = useMemo(() => {

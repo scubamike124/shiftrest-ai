@@ -30,6 +30,18 @@ export type Prefs = {
   dailyReviewEnabled: boolean;
   /** Feed feedback back into ranked learned preferences. Default ON. */
   feedbackLearningEnabled: boolean;
+  /** IANA time zone the user calls "home" — anchors body-clock math. */
+  homeTz: string | null;
+  /** Latest detected/manual IANA time zone the user is in. */
+  currentTz: string | null;
+  /** Auto-detect tz from the device on app load. Default ON. */
+  tzAuto: boolean;
+  /** Offline cache enabled. Default ON. */
+  offlineEnabled: boolean;
+  /** Travel mode (trips, jet-lag plan) enabled. Default ON. */
+  travelModeEnabled: boolean;
+  /** Opt-in calendar travel detection (future). Default OFF. */
+  calendarTravelDetect: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -51,6 +63,12 @@ export const DEFAULT_PREFS: Prefs = {
   tomorrowPreviewEnabled: true,
   dailyReviewEnabled: true,
   feedbackLearningEnabled: true,
+  homeTz: null,
+  currentTz: null,
+  tzAuto: true,
+  offlineEnabled: true,
+  travelModeEnabled: true,
+  calendarTravelDetect: false,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -80,6 +98,12 @@ type Row = {
   tomorrow_preview_enabled?: boolean | null;
   daily_review_enabled?: boolean | null;
   feedback_learning_enabled?: boolean | null;
+  home_tz?: string | null;
+  current_tz?: string | null;
+  tz_auto?: boolean | null;
+  offline_enabled?: boolean | null;
+  travel_mode_enabled?: boolean | null;
+  calendar_travel_detect?: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
@@ -104,6 +128,12 @@ function rowToPrefs(r: Row): Prefs {
     tomorrowPreviewEnabled: r.tomorrow_preview_enabled ?? true,
     dailyReviewEnabled: r.daily_review_enabled ?? true,
     feedbackLearningEnabled: r.feedback_learning_enabled ?? true,
+    homeTz: r.home_tz ?? null,
+    currentTz: r.current_tz ?? null,
+    tzAuto: r.tz_auto ?? true,
+    offlineEnabled: r.offline_enabled ?? true,
+    travelModeEnabled: r.travel_mode_enabled ?? true,
+    calendarTravelDetect: r.calendar_travel_detect ?? false,
   };
 }
 
