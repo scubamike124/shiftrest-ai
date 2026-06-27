@@ -50,6 +50,7 @@ import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
+import { WearableCard } from "@/components/WearableCard";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
