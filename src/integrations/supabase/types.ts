@@ -206,6 +206,7 @@ export type Database = {
       }
       ai_recommendations: {
         Row: {
+          body_clock_basis: string | null
           confidence: number
           created_at: string
           evidence_json: Json
@@ -217,11 +218,14 @@ export type Database = {
           predicted_impact_json: Json
           rationale: string | null
           superseded_by: string | null
+          tz: string | null
           user_id: string
           valid_from: string
+          valid_in_tz: string | null
           valid_until: string | null
         }
         Insert: {
+          body_clock_basis?: string | null
           confidence?: number
           created_at?: string
           evidence_json?: Json
@@ -233,11 +237,14 @@ export type Database = {
           predicted_impact_json?: Json
           rationale?: string | null
           superseded_by?: string | null
+          tz?: string | null
           user_id: string
           valid_from?: string
+          valid_in_tz?: string | null
           valid_until?: string | null
         }
         Update: {
+          body_clock_basis?: string | null
           confidence?: number
           created_at?: string
           evidence_json?: Json
@@ -249,8 +256,10 @@ export type Database = {
           predicted_impact_json?: Json
           rationale?: string | null
           superseded_by?: string | null
+          tz?: string | null
           user_id?: string
           valid_from?: string
+          valid_in_tz?: string | null
           valid_until?: string | null
         }
         Relationships: [
@@ -531,12 +540,15 @@ export type Database = {
           day: number
           employer_id: string | null
           end_min: number
+          end_utc: string | null
           id: string
           metadata: Json
           notes: string | null
           shift_type: string | null
           start_min: number
+          start_utc: string | null
           title: string | null
+          tz: string | null
           updated_at: string
           user_id: string
           week_index: number
@@ -546,12 +558,15 @@ export type Database = {
           day: number
           employer_id?: string | null
           end_min: number
+          end_utc?: string | null
           id?: string
           metadata?: Json
           notes?: string | null
           shift_type?: string | null
           start_min: number
+          start_utc?: string | null
           title?: string | null
+          tz?: string | null
           updated_at?: string
           user_id: string
           week_index?: number
@@ -561,12 +576,15 @@ export type Database = {
           day?: number
           employer_id?: string | null
           end_min?: number
+          end_utc?: string | null
           id?: string
           metadata?: Json
           notes?: string | null
           shift_type?: string | null
           start_min?: number
+          start_utc?: string | null
           title?: string | null
+          tz?: string | null
           updated_at?: string
           user_id?: string
           week_index?: number
@@ -629,6 +647,87 @@ export type Database = {
         }
         Relationships: []
       }
+      trips: {
+        Row: {
+          arrive_utc: string
+          created_at: string
+          depart_utc: string
+          dest_label: string | null
+          dest_lat: number | null
+          dest_lon: number | null
+          dest_tz: string
+          id: string
+          label: string | null
+          origin_tz: string
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          arrive_utc: string
+          created_at?: string
+          depart_utc: string
+          dest_label?: string | null
+          dest_lat?: number | null
+          dest_lon?: number | null
+          dest_tz: string
+          id?: string
+          label?: string | null
+          origin_tz: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          arrive_utc?: string
+          created_at?: string
+          depart_utc?: string
+          dest_label?: string | null
+          dest_lat?: number | null
+          dest_lon?: number | null
+          dest_tz?: string
+          id?: string
+          label?: string | null
+          origin_tz?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tz_events: {
+        Row: {
+          confidence: number
+          detected_at: string
+          from_tz: string | null
+          id: string
+          source: string
+          to_tz: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number
+          detected_at?: string
+          from_tz?: string | null
+          id?: string
+          source?: string
+          to_tz: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number
+          detected_at?: string
+          from_tz?: string | null
+          id?: string
+          source?: string
+          to_tz?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_events: {
         Row: {
           created_at: string
@@ -682,11 +781,14 @@ export type Database = {
           ai_daily_token_cap: number
           assistant_mode: string
           assistant_name: string
+          calendar_travel_detect: boolean
           created_at: string
+          current_tz: string | null
           cycle_anchor: string | null
           cycle_weeks: number
           daily_review_enabled: boolean
           feedback_learning_enabled: boolean
+          home_tz: string | null
           lat: number
           location_label: string
           lon: number
@@ -694,11 +796,14 @@ export type Database = {
           memory_cutoff_at: string | null
           memory_enabled: boolean
           notifications: boolean
+          offline_enabled: boolean
           onboarded_at: string | null
           partner_name: string
           predictive_enabled: boolean
           sleep_hours: number
           tomorrow_preview_enabled: boolean
+          travel_mode_enabled: boolean
+          tz_auto: boolean
           updated_at: string
           user_id: string
           wind_down_min: number
@@ -707,11 +812,14 @@ export type Database = {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          calendar_travel_detect?: boolean
           created_at?: string
+          current_tz?: string | null
           cycle_anchor?: string | null
           cycle_weeks?: number
           daily_review_enabled?: boolean
           feedback_learning_enabled?: boolean
+          home_tz?: string | null
           lat?: number
           location_label?: string
           lon?: number
@@ -719,11 +827,14 @@ export type Database = {
           memory_cutoff_at?: string | null
           memory_enabled?: boolean
           notifications?: boolean
+          offline_enabled?: boolean
           onboarded_at?: string | null
           partner_name?: string
           predictive_enabled?: boolean
           sleep_hours?: number
           tomorrow_preview_enabled?: boolean
+          travel_mode_enabled?: boolean
+          tz_auto?: boolean
           updated_at?: string
           user_id: string
           wind_down_min?: number
@@ -732,11 +843,14 @@ export type Database = {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          calendar_travel_detect?: boolean
           created_at?: string
+          current_tz?: string | null
           cycle_anchor?: string | null
           cycle_weeks?: number
           daily_review_enabled?: boolean
           feedback_learning_enabled?: boolean
+          home_tz?: string | null
           lat?: number
           location_label?: string
           lon?: number
@@ -744,11 +858,14 @@ export type Database = {
           memory_cutoff_at?: string | null
           memory_enabled?: boolean
           notifications?: boolean
+          offline_enabled?: boolean
           onboarded_at?: string | null
           partner_name?: string
           predictive_enabled?: boolean
           sleep_hours?: number
           tomorrow_preview_enabled?: boolean
+          travel_mode_enabled?: boolean
+          tz_auto?: boolean
           updated_at?: string
           user_id?: string
           wind_down_min?: number
