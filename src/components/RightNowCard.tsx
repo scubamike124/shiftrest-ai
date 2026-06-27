@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Sparkles, AlertCircle, Clock, ArrowRight, RefreshCw, Info } from "lucide-react";
 import { aiRightNow, type RightNowResponse } from "@/lib/ai-client";
 import { FeedbackChips } from "./FeedbackChips";
-import { ConfidenceBadge, WhyButton } from "./ai/trust";
+import { ConfidenceBadge, RecommendationActions, WhyButton } from "./ai/trust";
 
 function fmtWindow(w?: { startIso: string; endIso: string }): string | null {
   if (!w) return null;
