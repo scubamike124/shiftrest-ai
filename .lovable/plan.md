@@ -1,125 +1,114 @@
-# Upgrade 3 — Notifications & Automation
+# RestPilot AI — Bundle Architecture Investigation
 
-Goal: deliver the right reminder at the right moment around every shift, without spamming users or waking them up. Web Push first (works on iOS 16.4+ PWA, Android, desktop), with a clean upgrade path to native push later.
+This is an investigation + proposed architecture only. No code will be written until you approve.
 
-## What the user gets
+---
 
-Five reminder types, each opt-in independently:
+## Scope Reality Check
 
-1. **Wind-down reminder** — fires `windDownMin` before sleep window starts. "Dim lights, screens off, warm shower."
-2. **Caffeine cutoff** — fires 10 min before the computed cutoff. "Last coffee in 10 min — anything later will hit your sleep."
-3. **Pre-shift bright light** — fires at wake time (shift.start − 90 min). "10–20 min bright light now to lock in alertness."
-4. **Shift-end recovery** — fires at shift end. "Hydrate, light protein, start wind-down in {windDownMin} min."
-5. **Quiet-hours guard** — global setting; any reminder whose fire time falls inside quiet hours is suppressed (not deferred — circadian timing matters more than the ping).
+You've requested 5 bundles covering ~35 distinct features. Honest assessment:
 
-All five derive from the existing Long Clock, so they automatically respect multi-week rotations, employer overrides, and saved location.
+- Bundles 1–3 are a natural fit for RestPilot AI (shift-worker rest coach) and reuse 70%+ of what already exists.
+- **Bundle 4 (Business Workspace: Video Library, Brand Kit, Business Assets, Create Another Workflow)** and **Bundle 5 (Commercial Generator: business entry, website scan, scripts, motion consistency)** describe a **commercial/video-generation product**, not a rest/recovery app. These are a different product entirely — different DB schema, different AI models (video gen), different users, different pricing.
 
-## Anti-spam rules (hard constraints)
+**Recommendation:** Drop Bundles 4 & 5 from RestPilot, or split them into a separate project. Trying to ship both inside one app will 3–5x the scope, dilute the brand, and break App Store category fit. The plan below proceeds with Bundles 1–3 only and flags 4–5 as out-of-scope pending your decision.
 
-- Max **4 notifications per 24 h** per user.
-- **30-min dedupe window**: identical kind within 30 min collapses to one.
-- **Off days = silent.** No "rest day" pings.
-- **Quiet hours suppress, never queue-and-dump later.**
-- **Sleep window is always quiet**, even if the user forgot to set quiet hours.
-- One-tap "Snooze 1 h" and "Mute today" from any notification.
+---
 
-## Architecture
+## Shared Foundation (used by all approved bundles)
 
-```text
-┌────────────────────┐    every 5 min     ┌──────────────────────────┐
-│ pg_cron (Supabase) │ ─────────────────► │ /api/public/hooks/notify │
-└────────────────────┘                    └────────────┬─────────────┘
-                                                       │
-                              for each user with prefs.notifications_enabled
-                                                       │
-                                          buildLongClock(shift, today, prefs)
-                                          + quiet-hours + dedupe + daily cap
-                                                       │
-                                                       ▼
-                                       Web Push (VAPID) → user device(s)
-                                                       │
-                              Service Worker shows notification + action btns
-```
+One backend, three primitives — everything else composes from these:
 
-- **No always-on background tabs.** Server-driven via pg_cron + Web Push, so it fires whether the app is open or not.
-- **Service worker** (`public/sw.js`) handles `push`, `notificationclick`, and the Snooze / Mute actions.
+1. **AI Context Service** (`src/lib/ai/context.server.ts`) — single function that assembles user context (prefs, shifts, wearables, fatigue, recent memory) for every AI call. Today this logic is duplicated across `coach`, `brief`, `insights`, `swap` routes.
+2. **AI Memory Store** (new table `ai_memory`) — opt-in long-term facts the assistant has learned. Used by Smart Assistant, Companion Mode, Routine Learning, Daily Recommendations.
+3. **Unified Scheduling/Notification Engine** — already exists (`src/lib/notifications/schedule.ts` + `run.server.ts` + pg_cron). Extend it; do not build a parallel system for alarms/reminders.
 
-## Data model
+---
 
-Three new tables (RLS on, scoped to `auth.uid()`):
+## Bundle 1 — Smart AI Foundation
 
-- `push_subscriptions` — `endpoint`, `p256dh`, `auth`, `user_agent`, `last_seen_at`. One row per device.
-- `notification_prefs` — per-user toggles for the 5 kinds, quiet-hours start/end, daily cap (default 4), `timezone`.
-- `notification_log` — `kind`, `scheduled_for`, `sent_at`, `suppressed_reason` (quiet-hours / cap / dedupe / off-day). Powers dedupe + a "Recent reminders" view in Profile.
+| Feature | Implementation | Reuses |
+|---|---|---|
+| Smart AI Assistant | Upgrade `/api/coach` to use AI Context Service + memory recall | `coach.tsx`, `coach-personality.ts` |
+| Custom AI Name | Add `assistant_name` to `user_prefs`; inject into system prompt | `prefs.ts` |
+| AI Memory Engine (opt-in) | New `ai_memory` table + `memory.functions.ts` (write/read/forget); opt-in toggle in Profile | new |
+| Companion Mode | Personality variant flag (`companion` \| `coach`) in prefs; same endpoint, different system prompt | `coach-personality.ts` |
+| Learning Routines | Nightly cron summarizes last 7 days of shifts + sleep into 1–2 memory rows via Gemini | extends existing cron |
+| Voice Interaction | Already have TTS (`/api/tts`) + `VoicePlayer`. Add Web Speech API STT in coach composer | `VoicePlayer.tsx` |
+| Future AI Expansion | The Context Service + Memory Store ARE the expansion point — new features call them | — |
 
-## Server pieces
+**DB:** 1 new table (`ai_memory`), 2 new columns on `user_prefs` (`assistant_name`, `assistant_mode`, `memory_enabled`).
 
-- `/api/public/hooks/notify` — pg_cron target, runs every 5 min. Anon-key auth header. Inside: loads candidate users, builds today's Long Clock, filters by toggles + quiet hours + cap + log dedupe, sends via `web-push` (Node-compatible, edge-safe).
-- `subscribePush` / `unsubscribePush` server fns — manage `push_subscriptions` for the current user.
-- `sendTestNotification` server fn — fires a single push to the calling user (for the Profile "Send test" button).
+---
 
-## Secrets
+## Bundle 2 — Daily Life Intelligence
 
-- `VAPID_PUBLIC_KEY` — public, fine in client bundle.
-- `VAPID_PRIVATE_KEY` — generated via `generate_secret`, server-only.
-- `VAPID_SUBJECT` — `mailto:` contact for push providers.
+All routed through the existing notification engine — no second scheduler.
 
-## UI
+| Feature | Implementation |
+|---|---|
+| Smart Alarm | New reminder kind `smart-wake` in `notifications/schedule.ts` + `copy.ts`; wakes 15–30 min before shift start, adjusted by fatigue score |
+| Sleep Routine Assistant | Already 80% built (wind-down, blackout, caffeine). Add adaptive timing pulled from AI Memory |
+| Commute Suggestions | Open-Meteo (already wired) + drive-time estimate based on saved location; surfaced in `/plan` and as a pre-shift notification |
+| Productivity Coach | New `productivity-tip` reminder kind, fired mid-shift |
+| Calendar & Reminders | New `user_events` table (id, user_id, title, at, kind, recurrence); feeds the same scheduler |
+| Daily Recommendations | Extend `recommendations.ts`; render on home bento as a new card |
 
-New **Notifications** section in `src/routes/profile.tsx` (replaces today's lightweight `notify.ts` block):
+**DB:** 1 new table (`user_events`). 2 new notification kinds.
 
-- Master toggle "Enable reminders" — triggers `Notification.requestPermission()` and registers the SW + subscription on first enable.
-- Five per-kind switches with one-line explanations and the typical fire time relative to today's shift.
-- Quiet-hours range picker (default 22:00–07:00, follows device TZ).
-- Daily cap slider (1–6, default 4).
-- "Send test notification" button.
-- "Recent reminders" list — last 10 entries from `notification_log` with status (sent / suppressed: reason).
-- Clear unsupported-browser state for iOS < 16.4 with "Add to Home Screen" instructions.
+---
 
-Mobile-first: stacked rows, 44 px tap targets, sticky save bar, no horizontal scroll at 375 px.
+## Bundle 3 — UX Redesign
 
-## Files
+Single design pass, mobile-first, reuses current Midnight Indigo tokens.
 
-New:
-- `public/sw.js`
-- `src/lib/push/vapid.server.ts`
-- `src/lib/push/subscribe.functions.ts` (subscribe / unsubscribe / sendTest)
-- `src/lib/notifications/schedule.ts` (pure: derive due reminders from Long Clock + prefs + log)
-- `src/lib/notifications/copy.ts` (notification titles/bodies per kind)
-- `src/routes/api/public/hooks/notify.ts`
-- `src/components/NotificationsSection.tsx`
+| Feature | Implementation |
+|---|---|
+| Universal AI Search | New `<CommandPalette />` (cmdk) — searches shifts, employers, memories, playbooks; ⌘K on desktop, FAB on mobile. Powered by one new server fn `search.functions.ts` |
+| Simplified Navigation | Collapse `BottomNav` from 5 → 4 tabs: Home, Plan, Coach, Profile. Move Playbooks/Swap/Share under Home cards |
+| Homepage Redesign | Rework `routes/index.tsx` around 4 Creation Cards: **Plan Tonight**, **Log Shift**, **Ask Coach**, **Recovery Playbook** |
+| Improved Dashboard | Keep circadian ring; add Today/Tomorrow/Recommendation strip above bento |
 
-Changed:
-- `src/routes/profile.tsx` — swap legacy notify block for `<NotificationsSection />`.
-- `src/lib/notify.ts` — deprecate in favor of server-driven push; keep a tiny shim that calls `subscribePush`.
-- `src/routes/__root.tsx` — register `/sw.js` once on mount.
+**DB:** none. Pure frontend.
 
-## Migration
+---
 
-```text
-push_subscriptions, notification_prefs, notification_log
-+ RLS policies (user_id = auth.uid())
-+ GRANTs to authenticated + service_role
-+ updated_at triggers
-pg_cron: every 5 min → /api/public/hooks/notify
-```
+## Affected Files (Bundles 1–3)
 
-## Out of scope (call out so we don't scope-creep)
+**New:** `src/lib/ai/context.server.ts`, `src/lib/ai/memory.functions.ts`, `src/components/CommandPalette.tsx`, `src/components/CreationCards.tsx`, `src/components/SmartWakeCard.tsx`, `src/routes/api/search.ts`, 3 migrations.
 
-- Native iOS/Android push (requires Capacitor wrapper — already on the "later" list).
-- SMS reminders (Twilio cost; can add via connector if you want it).
-- Email digests.
-- Partner/co-pilot notifications (belongs in Partner Mode upgrade).
+**Modified:** `coach.tsx`, `routes/api/coach.ts`, `routes/api/brief.ts`, `coach-personality.ts`, `prefs.ts`, `notifications/schedule.ts`, `notifications/copy.ts`, `run.server.ts`, `routes/index.tsx`, `BottomNav.tsx`, `routes/plan.tsx`, `routes/profile.tsx` (memory + assistant settings).
 
-## Acceptance criteria
+**Untouched:** Stripe/billing, wearables, auth, employers — already shipped and verified.
 
-1. Enabling reminders on iOS PWA, Android Chrome, and desktop Chrome registers a subscription row.
-2. With a saved shift starting in 2 h, manually triggering the hook fires the pre-shift bright-light push.
-3. A reminder scheduled inside quiet hours never sends and shows up in the log as `suppressed: quiet-hours`.
-4. Daily cap of 4 is respected; the 5th is suppressed as `suppressed: cap`.
-5. Off-day = zero pushes.
-6. Disabling a kind stops it within one cron cycle.
-7. "Send test notification" works on all three platforms.
-8. Typecheck clean, no runtime errors at 375 px and desktop.
+---
 
-Approve and I'll start implementing in that order: migration → VAPID + SW → subscribe fn → schedule engine → cron hook → Profile UI → cron registration → live verification.
+## Risks
+
+1. **AI Memory privacy** — must be opt-in, user-deletable, never sent to model unless toggle is on. Add explicit consent UI + "Forget everything" button.
+2. **Notification spam** — adding 3 new reminder kinds risks blowing past the daily cap. Need per-kind priority and stricter dedupe.
+3. **STT in PWA** — Web Speech API is Chrome/Safari-only; iOS Safari support is partial. Voice input degrades to text input gracefully.
+4. **Bundle 1 + 2 are deeply coupled.** Recommend shipping them together; shipping Bundle 1 alone leaves Smart Alarm/Routine learning half-wired.
+5. **Bundle 3 navigation change** is a breaking UX shift for existing users — needs a one-time "What's new" sheet.
+
+---
+
+## Recommended Build Order
+
+1. **Bundle 1** (foundation) — ~unblocks everything; 1 ship.
+2. **Bundle 2** (built on Bundle 1's context + memory) — 1 ship.
+3. **Bundle 3** (UI consolidation across new features) — 1 ship.
+4. **One comprehensive QA cycle** across all three bundles before launch.
+
+Three deploys, three verification passes — not 35.
+
+---
+
+## Decisions Needed From You
+
+1. **Confirm Bundles 4 & 5 are out of scope** for RestPilot AI (or split into a separate project). They do not fit a rest/recovery app.
+2. **Approve the shared foundation** (AI Context Service + Memory Store + reuse of existing notification engine).
+3. **Approve the build order** (1 → 2 → 3, single QA at end).
+4. **Confirm Companion Mode tone** — friendly companion vs. clinical coach vs. user-selectable (recommended).
+
+Reply with approvals/changes and I'll begin Bundle 1.
