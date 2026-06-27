@@ -33,7 +33,7 @@ export default defineConfig({
           // so manifest URLs become /assets/... (not /client/assets/...) and
           // the compiled worker lands at dist/client/sw.js where the published
           // site actually serves /sw.js from.
-          swSrc: "public/sw-src.ts",
+          // (swSrc comes from top-level srcDir/filename above)
           swDest: "dist/client/sw.js",
           globDirectory: "dist/client",
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}"],
