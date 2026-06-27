@@ -369,9 +369,13 @@ function Coach() {
 function Bubble({
   role,
   children,
+  onSpeak,
+  tts,
 }: {
   role: "user" | "assistant";
   children: React.ReactNode;
+  onSpeak?: () => void;
+  tts?: ReturnType<typeof useTtsPlayer>;
 }) {
   const isUser = role === "user";
   return (
@@ -384,10 +388,59 @@ function Bubble({
         }`}
       >
         {isUser ? children : <AssistantBody>{children}</AssistantBody>}
+        {!isUser && onSpeak ? <SpeakerRow tts={tts} onSpeak={onSpeak} /> : null}
       </div>
     </div>
   );
 }
+
+function SpeakerRow({
+  tts,
+  onSpeak,
+}: {
+  tts?: ReturnType<typeof useTtsPlayer>;
+  onSpeak: () => void;
+}) {
+  const loading = tts?.state === "loading";
+  const playing = tts?.state === "playing";
+  const needsTap = tts?.needsTap === true;
+  return (
+    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+      {needsTap ? (
+        <button
+          type="button"
+          onClick={() => tts?.playPrepared()}
+          className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-95"
+        >
+          <Play className="h-3 w-3" /> Tap to hear response
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => (playing ? tts?.stop() : onSpeak())}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium active:scale-95 disabled:opacity-60"
+          aria-label={playing ? "Stop voice" : "Hear this reply"}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" /> Preparing…
+            </>
+          ) : playing ? (
+            <>
+              <Square className="h-3 w-3" /> Stop
+            </>
+          ) : (
+            <>
+              <Volume2 className="h-3 w-3" /> Listen
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 
 function AssistantBody({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
