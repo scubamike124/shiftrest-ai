@@ -28,6 +28,7 @@ import {
   type AIMemory,
   type MemoryCategory,
 } from "@/lib/ai-memory";
+import { listPatterns, mutePattern, deletePattern, PATTERN_LABELS } from "@/lib/ai-feedback";
 
 export const Route = createFileRoute("/memory")({
   head: () => ({
