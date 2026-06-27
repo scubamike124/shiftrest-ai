@@ -76,7 +76,11 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
     const deleted: string[] = [];
     const failed: string[] = [];
     for (const table of USER_TABLES) {
-      const { error } = await supabaseAdmin.from(table).delete().eq("user_id", uid);
+      // Tables come from a heterogeneous union; cast for the dynamic loop.
+      const client = supabaseAdmin as unknown as {
+        from: (t: string) => { delete: () => { eq: (c: string, v: string) => Promise<{ error: { message: string } | null }> } };
+      };
+      const { error } = await client.from(table).delete().eq("user_id", uid);
       if (error) failed.push(`${table}: ${error.message}`);
       else deleted.push(table);
     }
