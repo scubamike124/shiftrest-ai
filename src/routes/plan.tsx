@@ -73,10 +73,21 @@ const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
 
 
 function PlanPage() {
+  const qc = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
-  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
+  const { data: shifts, isFetching: shiftsFetching } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: fetchShifts,
+    enabled: signedIn === true,
+  });
+  const { data: prefs = DEFAULT_PREFS } = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    initialData: DEFAULT_PREFS,
+    enabled: signedIn === true,
+  });
+  const safeShifts = shifts ?? [];
   const today = useMemo(() => new Date(), []);
   const weekday = (today.getDay() + 6) % 7;
   const [activeDay, setActiveDay] = useState(weekday);
@@ -84,9 +95,17 @@ function PlanPage() {
   useEffect(() => {
     setMounted(true);
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      setSignedIn(!!session);
+      if (event === "SIGNED_IN") {
+        // Drop any stale empty cache from a pre-auth read.
+        qc.invalidateQueries({ queryKey: ["shifts"] });
+        qc.invalidateQueries({ queryKey: ["prefs"] });
+      }
+    });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [qc]);
+
 
   // Cycle-aware: when activeDay is in the current week, resolve against the
   // user's rotation (cycleWeeks/cycleAnchor). Falls back to weekday match
