@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useDecisionsSinceLastVisit, useNextDecision } from "@/lib/ai/decisions";
 
 const RIGHT_NOW_CACHE_KEY = "rp_right_now_v1";
 

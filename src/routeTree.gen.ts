@@ -22,6 +22,7 @@ import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -102,6 +103,11 @@ const FeaturesRoute = FeaturesRouteImport.update({
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DecisionsRoute = DecisionsRouteImport.update({
+  id: '/decisions',
+  path: '/decisions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
   '/dashboard': typeof DashboardRoute
+  '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
   '/memory': typeof MemoryRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
   '/dashboard': typeof DashboardRoute
+  '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
   '/memory': typeof MemoryRoute
@@ -256,6 +264,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
   '/dashboard': typeof DashboardRoute
+  '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
   '/memory': typeof MemoryRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coach'
     | '/dashboard'
+    | '/decisions'
     | '/events'
     | '/features'
     | '/memory'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coach'
     | '/dashboard'
+    | '/decisions'
     | '/events'
     | '/features'
     | '/memory'
@@ -351,6 +362,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/coach'
     | '/dashboard'
+    | '/decisions'
     | '/events'
     | '/features'
     | '/memory'
@@ -383,6 +395,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   CoachRoute: typeof CoachRoute
   DashboardRoute: typeof DashboardRoute
+  DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
   MemoryRoute: typeof MemoryRoute
@@ -501,6 +514,13 @@ declare module '@tanstack/react-router' {
       path: '/events'
       fullPath: '/events'
       preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/decisions': {
+      id: '/decisions'
+      path: '/decisions'
+      fullPath: '/decisions'
+      preLoaderRoute: typeof DecisionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -623,6 +643,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   CoachRoute: CoachRoute,
   DashboardRoute: DashboardRoute,
+  DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
   MemoryRoute: MemoryRoute,
