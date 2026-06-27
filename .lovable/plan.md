@@ -1,114 +1,59 @@
-# QA Blocker Investigation — Findings & Fix Plan
+# AI Coach Voice — Investigation & Fix Plan
 
-## BLOCKER 1 — Raw permission error "The request is not allowed by the user agent…"
+## Root cause
 
-### Root cause
-This is the standard Safari/WebKit `NotAllowedError` string. It is thrown from **two places** that can fire during a Coach session, and in both we currently surface the raw error text via `toast.error(err.message)`.
+The Coach route never calls TTS. `src/routes/coach.tsx` streams text from `/api/ai` (intent `coach`) and renders it as markdown bubbles — that's it. There is no `fetch("/api/tts")`, no `<audio>` element, no `VoicePlayer` import in the file. Voice Briefing works because `VoicePlayer.tsx` (used on the Plan/Dashboard) owns the full TTS + playback pipeline. Coach simply doesn't share that pipeline.
 
-1. **`VoicePlayer.tsx` → `audio.play()`** (the most likely trigger on /coach and /plan).
-   The play button click is a user gesture, but the code performs `await fetch("/api/brief")` **and** `await fetch("/api/tts")` **and** `await blob()` before finally calling `audio.play()`. iOS Safari treats the original gesture as expired after multiple awaits and rejects the play with the exact "not allowed by user agent or platform" message. The catch then runs `toast.error(e.message)` — the raw browser string the user is seeing.
+So the answer to each investigation question:
+- Is Coach calling TTS? **No.**
+- Audio generated but playback failing? **No** — audio is never generated.
+- Autoplay blocked? **N/A yet** — but it will be the next blocker once we wire TTS in, because audio would start after a streamed response (long after the gesture).
+- Different code path than Voice Briefing? **Yes** — Coach has no audio code path at all.
+- Can both features share one component? **Yes** — `VoicePlayer.tsx` already encapsulates the gesture-preserving pattern (pre-warm `<audio>` under user tap, `NotAllowedError` → friendly "Tap to play"). We will extract its core into a reusable hook so Coach can drive audio per-message without rebuilding it.
 
-2. **`NotificationsSection.tsx` → `Notification.requestPermission()`**.
-   iOS Safari throws the same error when the site is not installed as a Home-Screen PWA, when called from a non-secure context, or when called without a fresh user gesture. The catch surfaces `err.message` verbatim.
+## Fix design
 
-Supporting evidence:
-- `src/components/VoicePlayer.tsx` line ~167–170: `await audio.play(); … toast.error(e instanceof Error ? e.message : …)`
-- `src/components/NotificationsSection.tsx` line ~92–108: `await Notification.requestPermission(); … toast.error(err.message)`
-- `src/lib/notify.ts` `requestPermission()` and `showNotification()` do not pre-check capability beyond `"Notification" in window`.
+### 1. Extract shared audio hook
+Create `src/lib/voice/useTtsPlayer.ts` containing the existing VoicePlayer logic (fetch `/api/tts`, blob → object URL, pre-warm audio under gesture, `NotAllowedError` → "needs tap" state, cleanup on unmount). Refactor `VoicePlayer.tsx` to consume this hook so behavior stays identical (no regression to Voice Briefing).
 
-### Fix
-Frontend-only. No business-logic change.
+Hook surface:
+```ts
+const { prepare, play, pause, stop, state, needsTap, playPrepared } = useTtsPlayer({ voice });
+// state: "idle" | "loading" | "ready" | "playing" | "paused" | "error"
+// prepare(text)  -> fetches + decodes (must be called inside user gesture for autoplay)
+// play(text)     -> prepare + auto-play (gesture path)
+// playPrepared() -> resume after needsTap (called from "Tap to hear response" button)
+```
 
-1. **VoicePlayer — pre-warm the audio element under the gesture, friendly error**
-   - Create/seed `audioRef.current = new Audio()` and call `audio.load()` synchronously at the top of the click handler, before any await. This preserves the gesture token on iOS.
-   - After receiving the blob, set `audio.src` and try `audio.play()`; if it rejects, fall back to a visible **"Tap to play"** state instead of toasting raw text.
-   - Replace `toast.error(e.message)` with a mapped friendly copy:
-     - `NotAllowedError` → "Tap play again to start the briefing — Safari needs a direct tap."
-     - `NotSupportedError` → "Your browser can't play this audio format."
-     - any other → "Voice briefing is temporarily unavailable."
-   - Always `console.error(e)` for diagnostics.
+### 2. Wire Coach to speak every reply
+In `src/routes/coach.tsx`:
+- Pull `voice` pref from `localStorage` (`rp.voice.voiceId`) so Coach matches Briefing.
+- Instantiate `useTtsPlayer` once at component level (single `<audio>` — pause prior reply when new one starts; matches the "single audio reference" rule from the shared knowledge).
+- **Gesture preservation:** in `send()`, BEFORE the `await fetch("/api/ai")`, call `tts.armGesture()` which synchronously creates/loads the `<audio>` element so iOS keeps the gesture token alive across the SSE stream. Same pattern VoicePlayer uses for Briefing.
+- After the SSE stream ends and `assistant` has the final text, call `tts.play(assistant)`.
+- On `NotAllowedError`, the hook flips to `needsTap = true`. Render an inline "Tap to hear response" button on that last assistant bubble; tapping calls `playPrepared()` (no refetch — audio is already decoded).
+- Per-bubble replay: each assistant bubble gets a small speaker icon button that calls `tts.play(message.content)` for that message (so the user can re-listen to any prior reply). Tapping a new bubble stops the previous one.
+- Respect a user toggle: add a "Voice replies" switch in the Coach header (persist to `localStorage` `rp.coach.voice`, default ON). When OFF, skip the auto-`play` step but keep the per-bubble speaker buttons.
 
-2. **NotificationsSection / notify.ts — detect-before-request + friendly catch**
-   - Add a single helper `canRequestNotificationPermission()` that returns `{ ok: false, reason }` for: SSR, no `Notification`, iOS Safari without `standalone`, insecure context, `Notification.permission === "denied"`.
-   - In `enableEverything()`, call the helper first and short-circuit to the existing inline iOS / unsupported / denied UI instead of attempting `requestPermission()` at all.
-   - Wrap the actual `Notification.requestPermission()` call in try/catch and on any throw show the friendly iOS / unsupported / denied panel + `console.error`, never `err.message` in a toast.
-   - Same friendly-mapper used by `lib/notify.ts requestPermission()` so any future caller is safe.
+### 3. Keep text and voice synchronized
+Auto-play is triggered only after the stream completes (final assistant text in state). Streaming partial audio would desync from the text and is not worth the complexity. The bubble visibly finishes typing, then begins speaking — same mental model as Voice Briefing.
 
-3. **Coach route** — already uses friendly toasts; no change required. Confirms the raw string only originates from the two surfaces above.
+### 4. Cost & length guardrails
+Coach replies can be long. Trim to ~1800 chars before sending to `/api/tts` (TTS route already slices to 4000, but we want to avoid bloated calls for long markdown answers). Skip TTS entirely for messages under ~3 chars or pure code blocks.
 
-### Verification
-- Manual on iOS Safari (375×667), iOS Safari standalone (Add to Home Screen), Android Chrome, desktop Chrome, desktop Safari, Firefox.
-- Force `Notification.requestPermission` rejection by toggling site permission to Block; confirm friendly panel appears, no raw string.
-- Force `audio.play()` rejection by adding an artificial 3s `setTimeout` before play in dev; confirm "Tap to play" fallback appears, no raw string.
+### 5. Errors stay friendly
+Reuse VoicePlayer's existing toast strings: "Briefing ready — tap play to start." / "Voice playback is temporarily unavailable." — no raw browser errors ever surface.
 
----
+## Files touched
+- **New:** `src/lib/voice/useTtsPlayer.ts` (shared hook)
+- **Refactor:** `src/components/VoicePlayer.tsx` (consume hook — no behavior change)
+- **Edit:** `src/routes/coach.tsx` (arm gesture before send, auto-speak on completion, needs-tap fallback, per-bubble replay, voice toggle)
 
-## BLOCKER 2 — Plan page shows "No shift scheduled today" for a configured account
+## Verification
+1. Desktop Chrome: ask Coach a question → audio auto-plays after stream completes; tapping speaker on an older bubble replays it; new playback stops the old one.
+2. iOS Safari: same flow → if autoplay blocked, "Tap to hear response" appears immediately under the final bubble; one tap plays the already-decoded audio (no second network call).
+3. Toggle "Voice replies" off → text-only, no TTS calls in network panel; per-bubble speaker still works on demand.
+4. TTS 402/429/unavailable → friendly toast, bubble text still rendered, no raw error.
+5. Voice Briefing on Plan page regression check — unchanged.
 
-### Root cause
-A **hydration race between Supabase auth and React Query** on `/plan`.
-
-- `fetchShifts()` (`src/lib/shifts.ts`) calls `supabase.auth.getUser()`. If the session has not finished restoring at the moment the query first runs, `userId` is `null` and the function returns `[]`.
-- In `src/routes/plan.tsx` the shifts and prefs queries are **not gated** by `signedIn`:
-  ```tsx
-  const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
-  const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
-  ```
-  (Employers and wearables ARE gated with `enabled: signedIn === true`.)
-- The empty result is cached. When auth eventually resolves and `signedIn` flips to `true`, nothing invalidates `["shifts"]` from this route, so the UI stays on the "No shift" empty state.
-- `__root.tsx` does invalidate `["shifts"]` after migrations during the bootstrap, but only when `SIGNED_IN`/`SIGNED_OUT` events fire **after** session restore; on a warm reload where the session is already in storage and no auth event fires, the invalidation path runs once but can still race the first query fetch on `/plan` because `bootstrap()` awaits migrations first.
-
-Database confirms the user is correctly configured:
-- profile `scubamike124@gmail.com` exists, `cycle_weeks = 1`, `location_label = "Los Angeles, California"`.
-- 2 shifts stored, including `day = 5, week_index = 0` (Saturday). Today (Sat 2026-06-27) maps to weekday 5 → shift SHOULD render.
-
-So data, schedule math (`shiftsForDate`), and timezone handling are all correct. The only failure is the empty `[]` cache from the race.
-
-### Fix
-Frontend-only.
-
-1. **Gate the queries on auth in `plan.tsx`** (mirror the pattern already used by employers/wearable):
-   ```tsx
-   const { data: shifts = [] } = useQuery({
-     queryKey: ["shifts"], queryFn: fetchShifts,
-     enabled: signedIn === true,
-   });
-   const { data: prefs = DEFAULT_PREFS } = useQuery({
-     queryKey: ["prefs"], queryFn: fetchPrefs,
-     initialData: DEFAULT_PREFS,
-     enabled: signedIn === true,
-   });
-   ```
-2. **Tighten the empty-state copy** so it only appears once we actually know the user has no shift today (`signedIn === true && shifts.length > 0 && !shift`). For `signedIn === null` or `shifts` still loading, render a small skeleton instead of the "No shift" panel.
-3. **Belt-and-suspenders cache invalidation**: in the same `useEffect` that subscribes to `onAuthStateChange`, on `SIGNED_IN` call `queryClient.invalidateQueries({ queryKey: ["shifts"] })` and `["prefs"]` so any stale empty cache from a prior unauthenticated read is dropped. (Root already does this on event firing; we add it to the page for warm-tab navigation correctness.)
-
-No schema changes. No planner-logic changes. No timezone changes.
-
-### Verification
-- Hard reload `/plan` while signed in → shift card renders (no flash of "No shift").
-- Sign out → friendly "Sign in" panel (existing behavior preserved).
-- Sign in from `/plan` → shift card hydrates immediately after auth.
-- Toggle days; Saturday shows the existing 09:00–17:00 shift; rest days show "No shift" correctly.
-- Add a shift on `/dashboard`, navigate to `/plan` → appears.
-
----
-
-## Files to change
-- `src/components/VoicePlayer.tsx` — gesture-preserving play, friendly catch.
-- `src/components/NotificationsSection.tsx` — detect-before-request, friendly catch.
-- `src/lib/notify.ts` — `requestPermission()` returns `"unsupported"` on iOS-Safari-no-standalone / denied; never throws.
-- `src/routes/plan.tsx` — `enabled: signedIn === true` on shifts/prefs; safer empty-state gating; SIGNED_IN invalidation.
-
-No backend, RLS, schema, or AI-orchestrator changes.
-
-## Regression scope
-- Voice playback: still one-tap on Chrome/desktop Safari; iOS gets a clean "Tap to play" fallback instead of a raw error.
-- Notifications: enable flow unchanged on supported platforms; iOS Safari users get the existing install-to-home-screen panel instead of a thrown error.
-- `/plan`: identical UI when signed in with shifts; eliminates the false-empty state on cold loads.
-
-## Cross-browser test matrix
-- Desktop Chrome, Desktop Safari, Desktop Firefox
-- iOS Safari (in-browser) and iOS Safari standalone (Add to Home Screen)
-- Android Chrome
-
-Ready to implement on approval.
+No schema, AI orchestrator, or planner changes.

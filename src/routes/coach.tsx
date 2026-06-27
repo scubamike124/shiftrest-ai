@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Send, Sparkles } from "lucide-react";
+import { Send, Sparkles, Volume2, VolumeX, Play, Square, Loader2 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
 import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { useTtsPlayer } from "@/lib/voice/useTtsPlayer";
+import { expandForSpeech, type VoiceId, VOICES } from "@/lib/voice-rewriter";
 import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { useServerFn } from "@tanstack/react-start";
@@ -37,6 +39,24 @@ const SEED: Msg[] = [
       "Hi — I'm your Sleep Coach. Tell me about your schedule or what's keeping you up, and I'll share concrete, science-backed tips on light exposure, blackout setups, caffeine timing, and recovery.",
   },
 ];
+
+// Strip markdown so TTS speaks the words, not the syntax.
+function plainForSpeech(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ") // drop fenced code blocks entirely
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1800);
+}
 
 const STARTERS = [
   "I work overnight 11p–7a. How do I sleep during the day?",
@@ -99,12 +119,53 @@ function Coach() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Voice settings — match the Voice Briefing voice pref, plus a Coach-level
+  // toggle so the user can mute auto-spoken replies without losing per-bubble
+  // replay buttons.
+  const [voice, setVoice] = useState<VoiceId>("sage");
+  const [voiceOn, setVoiceOn] = useState(true);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("rp.voice.voiceId") as VoiceId | null;
+      if (v && VOICES.some((x) => x.id === v)) setVoice(v);
+      const on = localStorage.getItem("rp.coach.voice");
+      if (on !== null) setVoiceOn(on === "1");
+    } catch {
+      /* no-op */
+    }
+  }, []);
+  const tts = useTtsPlayer({ voice });
+  const lastSpokenRef = useRef<string>("");
+
+  function toggleVoice() {
+    setVoiceOn((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem("rp.coach.voice", next ? "1" : "0");
+      } catch {
+        /* no-op */
+      }
+      if (!next) tts.stop();
+      return next;
+    });
+  }
+
+  const speak = useCallback(
+    (raw: string) => {
+      const text = plainForSpeech(raw);
+      if (!text || text.length < 3) return;
+      void tts.play(expandForSpeech(text));
+    },
+    [tts],
+  );
+
   // Hydrate once when history first arrives. Past that, local state owns the thread.
   useEffect(() => {
     if (hydrated || history === undefined) return;
     if (history.length > 0) setMessages(history as Msg[]);
     setHydrated(true);
   }, [history, hydrated]);
+
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -124,6 +185,9 @@ function Coach() {
     setMessages(baseMessages);
     setInput("");
     setSending(true);
+    // Arm the audio element synchronously inside the user gesture so iOS
+    // Safari will let .play() run after the streamed response completes.
+    if (voiceOn) tts.armGesture();
     scrollToBottom();
 
     try {
@@ -196,6 +260,10 @@ function Coach() {
         // Persist both turns after a successful exchange. No-op for guests.
         void saveCoachMessage("user", trimmed);
         void saveCoachMessage("assistant", assistant);
+        if (voiceOn && assistant !== lastSpokenRef.current) {
+          lastSpokenRef.current = assistant;
+          speak(assistant);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -214,23 +282,50 @@ function Coach() {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
             <Sparkles className="h-5 w-5" />
           </span>
-          <div>
+          <div className="flex-1">
             <h1 className="text-lg font-semibold">AI Sleep Coach</h1>
             <p className="text-xs text-muted-foreground">
               Circadian-rhythm expert · always on
             </p>
           </div>
+          <button
+            type="button"
+            onClick={toggleVoice}
+            className={`flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition active:scale-95 ${
+              voiceOn
+                ? "border-primary/40 bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+            aria-pressed={voiceOn}
+            aria-label={voiceOn ? "Mute voice replies" : "Enable voice replies"}
+          >
+            {voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            <span className="hidden sm:inline">{voiceOn ? "Voice on" : "Voice off"}</span>
+          </button>
         </div>
       </header>
 
       <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-4">
         <div className="flex flex-col gap-3">
-          {messages.map((m, i) => (
-            <Bubble key={i} role={m.role}>
-              {m.content || (sending && i === messages.length - 1 ? <Typing /> : "")}
-            </Bubble>
-          ))}
+          {messages.map((m, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <Bubble
+                key={i}
+                role={m.role}
+                onSpeak={
+                  m.role === "assistant" && m.content
+                    ? () => speak(m.content)
+                    : undefined
+                }
+                tts={isLast && m.role === "assistant" ? tts : undefined}
+              >
+                {m.content || (sending && isLast ? <Typing /> : "")}
+              </Bubble>
+            );
+          })}
         </div>
+
 
         {messages.length <= 1 && (
           <div className="mt-5 flex flex-col gap-2">
@@ -292,9 +387,13 @@ function Coach() {
 function Bubble({
   role,
   children,
+  onSpeak,
+  tts,
 }: {
   role: "user" | "assistant";
   children: React.ReactNode;
+  onSpeak?: () => void;
+  tts?: ReturnType<typeof useTtsPlayer>;
 }) {
   const isUser = role === "user";
   return (
@@ -307,10 +406,59 @@ function Bubble({
         }`}
       >
         {isUser ? children : <AssistantBody>{children}</AssistantBody>}
+        {!isUser && onSpeak ? <SpeakerRow tts={tts} onSpeak={onSpeak} /> : null}
       </div>
     </div>
   );
 }
+
+function SpeakerRow({
+  tts,
+  onSpeak,
+}: {
+  tts?: ReturnType<typeof useTtsPlayer>;
+  onSpeak: () => void;
+}) {
+  const loading = tts?.state === "loading";
+  const playing = tts?.state === "playing";
+  const needsTap = tts?.needsTap === true;
+  return (
+    <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+      {needsTap ? (
+        <button
+          type="button"
+          onClick={() => tts?.playPrepared()}
+          className="flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-95"
+        >
+          <Play className="h-3 w-3" /> Tap to hear response
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => (playing ? tts?.stop() : onSpeak())}
+          disabled={loading}
+          className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium active:scale-95 disabled:opacity-60"
+          aria-label={playing ? "Stop voice" : "Hear this reply"}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" /> Preparing…
+            </>
+          ) : playing ? (
+            <>
+              <Square className="h-3 w-3" /> Stop
+            </>
+          ) : (
+            <>
+              <Volume2 className="h-3 w-3" /> Listen
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
 
 function AssistantBody({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
