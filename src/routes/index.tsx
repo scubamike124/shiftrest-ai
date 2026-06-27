@@ -138,9 +138,15 @@ function Dashboard() {
     return DAYS.map((d, i) => {
       const dt = new Date(monday);
       dt.setDate(monday.getDate() + i);
-      return { label: d, num: dt.getDate(), idx: i };
+      const wi = weekIndexFor(dt, prefs.cycleAnchor, prefs.cycleWeeks);
+      return { label: d, num: dt.getDate(), idx: i, date: dt, weekIndex: wi };
     });
-  }, [today, weekday]);
+  }, [today, weekday, prefs.cycleAnchor, prefs.cycleWeeks]);
+
+  const currentWeekIdx = useMemo(
+    () => weekIndexFor(today, prefs.cycleAnchor, prefs.cycleWeeks),
+    [today, prefs.cycleAnchor, prefs.cycleWeeks],
+  );
 
   // Next sleep window
   const nextSleep = useMemo(() => {
