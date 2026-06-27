@@ -379,7 +379,8 @@ export function LongClock({
           </div>
         );
       })()}
-      </div>
+
+
 
       {/* Legend */}
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-muted-foreground">
