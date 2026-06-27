@@ -7,6 +7,8 @@ import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
+import { useServerFn } from "@tanstack/react-start";
+import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/coach")({
@@ -55,9 +57,17 @@ function Coach() {
     queryKey: ["employers"],
     queryFn: fetchEmployers,
   });
+  const getWearableSummaryFn = useServerFn(getWearableSummary);
+  const { data: wearableSummary } = useQuery({
+    queryKey: ["wearable-summary"],
+    queryFn: () => getWearableSummaryFn(),
+    staleTime: 60_000,
+  });
   const coachContext = useMemo(
-    () => computeInsights(shifts, prefs, new Date(), employers).contextString,
-    [shifts, prefs, employers],
+    () =>
+      computeInsights(shifts, prefs, new Date(), employers, wearableSummary?.latest ?? null)
+        .contextString,
+    [shifts, prefs, employers, wearableSummary],
   );
   const [messages, setMessages] = useState<Msg[]>(SEED);
   const [hydrated, setHydrated] = useState(false);
