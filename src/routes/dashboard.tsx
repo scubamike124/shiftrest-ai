@@ -20,12 +20,10 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
-import { CoachTipCard } from "@/components/CoachTipCard";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
 import { RightNowCard } from "@/components/RightNowCard";
 import { CompanionWhisper } from "@/components/CompanionWhisper";
 import { LongClock } from "@/components/LongClock";
-import { SmartAlarmCard } from "@/components/SmartAlarmCard";
 import {
   shiftsForDate,
   weekIndexFor,
