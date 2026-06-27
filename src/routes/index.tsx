@@ -19,6 +19,12 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
+import { MultiDayPlan } from "@/components/MultiDayPlan";
+import {
+  shiftsForDate,
+  weekIndexFor,
+  weekLabel,
+} from "@/lib/schedule";
 
 import { LastNightStrip } from "@/components/LastNightStrip";
 import { useServerFn } from "@tanstack/react-start";
