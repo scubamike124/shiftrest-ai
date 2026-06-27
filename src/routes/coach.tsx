@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Send, Sparkles } from "lucide-react";
+import { Send, Sparkles, Volume2, VolumeX, Play, Square, Loader2 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
 import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { useTtsPlayer } from "@/lib/voice/useTtsPlayer";
+import { expandForSpeech, type VoiceId, VOICES } from "@/lib/voice-rewriter";
 import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { useServerFn } from "@tanstack/react-start";
