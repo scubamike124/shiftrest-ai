@@ -100,8 +100,10 @@ export function ymdInTz(date: Date, tz: string): { y: number; m: number; d: numb
   }
 }
 
-/** Convert "local time in tz on date Y-M-D" → UTC Date. Uses Intl offset lookup. */
-export { utcFromLocal, tzOffsetMinutes } from "@/lib/time/tz";
+/** Convert "local time in tz on date Y-M-D" → UTC Date. Re-exported from
+ *  the shared tz helpers so existing callers keep working. */
+import { utcFromLocal, tzOffsetMinutes } from "@/lib/time/tz";
+export { utcFromLocal, tzOffsetMinutes };
 
 /**
  * For today's shift in the user's timezone + the next 24h of user_events,
