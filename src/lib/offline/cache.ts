@@ -86,3 +86,44 @@ export function clearAllForUser(userId: string | null | undefined): void {
     /* ignore */
   }
 }
+
+/**
+ * Best-effort sync read of the Supabase user id from localStorage.
+ *
+ * Why this exists
+ * ───────────────
+ * The dashboard needs to hydrate its React Query cache from the per-user
+ * offline snapshot *before* `useQuery` fires its first fetch — otherwise
+ * a cold airplane-mode load lands in an error state before the async
+ * `supabase.auth.getSession()` resolves. The Supabase JS client persists
+ * the session synchronously at a key matching `sb-<project>-auth-token`,
+ * so we can read the user id without an async round-trip.
+ *
+ * Returns `null` if storage is unavailable, the key is missing, the JSON
+ * is malformed, or the session is expired — every caller already handles
+ * the no-cache case gracefully.
+ */
+export function getCachedUserIdSync(): string | null {
+  const ls = safeWindow();
+  if (!ls) return null;
+  try {
+    for (let i = 0; i < ls.length; i += 1) {
+      const k = ls.key(i);
+      if (!k || !k.startsWith("sb-") || !k.endsWith("-auth-token")) continue;
+      const raw = ls.getItem(k);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as {
+        user?: { id?: string };
+        currentSession?: { user?: { id?: string }; expires_at?: number };
+        expires_at?: number;
+      };
+      const expires = parsed.currentSession?.expires_at ?? parsed.expires_at;
+      if (typeof expires === "number" && expires * 1000 < Date.now()) continue;
+      const id = parsed.user?.id ?? parsed.currentSession?.user?.id;
+      if (typeof id === "string" && id.length > 0) return id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
