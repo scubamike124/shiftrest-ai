@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Mic, MicOff, Phone, MessageCircle, Loader2 } from "lucide-react";
+import { Mic, Phone, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";

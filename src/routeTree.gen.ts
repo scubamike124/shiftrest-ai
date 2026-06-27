@@ -19,6 +19,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
+import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
@@ -107,6 +108,11 @@ const PlaybooksRoute = PlaybooksRouteImport.update({
 const PlanRoute = PlanRouteImport.update({
   id: '/plan',
   path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PilotRoute = PilotRouteImport.update({
+  id: '/pilot',
+  path: '/pilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaywallRoute = PaywallRouteImport.update({
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/features': typeof FeaturesRoute
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -421,6 +429,7 @@ export interface FileRoutesById {
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
+  '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
   '/playbooks': typeof PlaybooksRoute
   '/pricing': typeof PricingRoute
@@ -474,6 +483,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -524,6 +534,7 @@ export interface FileRouteTypes {
     | '/features'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -575,6 +586,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/memory'
     | '/paywall'
+    | '/pilot'
     | '/plan'
     | '/playbooks'
     | '/pricing'
@@ -627,6 +639,7 @@ export interface RootRouteChildren {
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
+  PilotRoute: typeof PilotRoute
   PlanRoute: typeof PlanRoute
   PlaybooksRoute: typeof PlaybooksRoute
   PricingRoute: typeof PricingRoute
@@ -722,6 +735,13 @@ declare module '@tanstack/react-router' {
       path: '/plan'
       fullPath: '/plan'
       preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pilot': {
+      id: '/pilot'
+      path: '/pilot'
+      fullPath: '/pilot'
+      preLoaderRoute: typeof PilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/paywall': {
@@ -1051,6 +1071,7 @@ const rootRouteChildren: RootRouteChildren = {
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
+  PilotRoute: PilotRoute,
   PlanRoute: PlanRoute,
   PlaybooksRoute: PlaybooksRoute,
   PricingRoute: PricingRoute,
