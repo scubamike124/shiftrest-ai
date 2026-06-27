@@ -61,10 +61,14 @@ type Row = {
   onboarded_at: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
+  assistant_name: string | null;
+  assistant_mode: string | null;
+  memory_enabled: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
+  const mode = (r.assistant_mode ?? "coach") as AssistantMode;
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -77,6 +81,9 @@ function rowToPrefs(r: Row): Prefs {
     onboarded: r.onboarded_at !== null,
     cycleWeeks: Math.max(1, Math.min(6, cw)),
     cycleAnchor: r.cycle_anchor ?? null,
+    assistantName: r.assistant_name?.trim() || "RestPilot",
+    assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
+    memoryEnabled: Boolean(r.memory_enabled),
   };
 }
 
