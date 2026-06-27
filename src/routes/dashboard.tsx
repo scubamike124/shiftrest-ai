@@ -20,8 +20,10 @@ import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
-import { CoachTipCard } from "@/components/CoachTipCard";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
+import { RightNowCard } from "@/components/RightNowCard";
+import { CompanionWhisper } from "@/components/CompanionWhisper";
+import { LongClock } from "@/components/LongClock";
 import {
   shiftsForDate,
   weekIndexFor,
@@ -216,9 +218,26 @@ function Dashboard() {
       </header>
 
 
-      {/* HERO BENTO */}
+      {/* ★ AI HERO — Right Now */}
+      <RightNowCard
+        signedIn={signedIn === true}
+        context={insights?.contextString ?? ""}
+      />
+
+      {/* Companion whisper — proactive observation */}
+      {insights && (
+        <div className="mt-3">
+          <CompanionWhisper
+            insights={insights}
+            signedIn={signedIn === true}
+            context={insights.contextString}
+          />
+        </div>
+      )}
+
+      {/* HERO BENTO — circadian debt + next sleep + ring */}
       <section
-        className="relative overflow-hidden rounded-[32px] border border-primary/20 p-6"
+        className="mt-4 relative overflow-hidden rounded-[32px] border border-primary/20 p-6"
         style={{ background: "var(--gradient-hero)", boxShadow: "var(--shadow-card)" }}
       >
         <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-primary/30 blur-[60px] breathe" />
@@ -271,16 +290,15 @@ function Dashboard() {
         </div>
       )}
 
-      {/* Contextual coach tip — refreshable, uses budgeted AI */}
-      {insights && (
-        <div className="mt-4">
-          <CoachTipCard signedIn={signedIn === true} context={insights.contextString} />
-        </div>
-      )}
-
       <div className="mt-4">
         <LastNightStrip />
       </div>
+
+      {/* ★ Long Clock — signature whole-day visualization */}
+      <div className="mt-4">
+        <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
+      </div>
+
 
       {/* Quick Action + Stability */}
       <div className="mt-4 grid grid-cols-5 gap-3">

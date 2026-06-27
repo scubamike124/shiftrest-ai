@@ -1,9 +1,22 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Sparkles } from "lucide-react";
+import { AlarmClock, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
-import { aiSmartAlarm } from "@/lib/ai-client";
+import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
+
+const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
+  rem_end: "End of REM cycle",
+  light_sleep: "Light sleep phase",
+  deep_avoid: "Avoiding deep sleep",
+  natural: "Natural wake window",
+};
+
+const CONFIDENCE_TONE: Record<NonNullable<SmartAlarmResponse["confidence"]>, string> = {
+  high: "bg-emerald-500/15 text-emerald-300",
+  medium: "bg-amber-500/15 text-amber-300",
+  low: "bg-slate-500/15 text-slate-300",
+};
 
 /**
  * SmartAlarmCard — schedule an AI-optimized wake inside a ±window.
@@ -16,6 +29,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [windowMin, setWindowMin] = useState(30);
   const [busy, setBusy] = useState(false);
+  const [lastResult, setLastResult] = useState<{ res: SmartAlarmResponse; targetIso: string } | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   const { data: events = [] } = useQuery({
     queryKey: ["events", "alarms"],
@@ -56,14 +71,22 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       const wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
       const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const notePayload = [
+        res.cyclePosition ? CYCLE_LABEL[res.cyclePosition] : null,
+        res.confidence ? `${res.confidence} confidence` : null,
+        res.reason,
+      ]
+        .filter(Boolean)
+        .join(" · ");
       await createEvent({
         kind: "personal",
         title: `Alarm: ${labelTime}`,
         startsAt: wake.toISOString(),
         reminderMin: 0,
-        notes: res.reason,
+        notes: notePayload,
       });
       qc.invalidateQueries({ queryKey: ["events"] });
+      setLastResult({ res, targetIso: target.toISOString() });
       toast.success(`Smart alarm set for ${labelTime}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
@@ -71,6 +94,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       setBusy(false);
     }
   }
+
+  const wakeTime = lastResult ? new Date(lastResult.res.wakeAt) : null;
+  const wakeLabel = wakeTime
+    ? wakeTime.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+  const deltaMin = lastResult && wakeTime
+    ? Math.round((wakeTime.getTime() - new Date(lastResult.targetIso).getTime()) / 60_000)
+    : null;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
@@ -119,6 +150,49 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           <Sparkles className="h-4 w-4" /> {busy ? "Optimizing…" : "Set smart alarm"}
         </button>
       </div>
+
+      {lastResult && wakeLabel && (
+        <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            AI chose
+          </p>
+          <p className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
+            {wakeLabel}
+          </p>
+          <p className="mt-1 text-xs leading-snug text-foreground/90">
+            {deltaMin && deltaMin !== 0
+              ? `Moved ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} — `
+              : ""}
+            {lastResult.res.reason}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {lastResult.res.cyclePosition && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold">
+                {CYCLE_LABEL[lastResult.res.cyclePosition]}
+              </span>
+            )}
+            {lastResult.res.confidence && (
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONFIDENCE_TONE[lastResult.res.confidence]}`}>
+                {lastResult.res.confidence}
+              </span>
+            )}
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-glow hover:underline"
+            >
+              Why this time? <ChevronDown className={`h-3 w-3 transition ${expanded ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+          {expanded && (
+            <p className="mt-2 rounded-lg bg-background/60 p-2 text-[11px] leading-snug text-muted-foreground">
+              Sleep happens in roughly 90-minute cycles. Waking near the end of a cycle — when REM
+              naturally tapers — leaves you alert instead of groggy. RestPilot scans your ±{windowMin}
+              -min window for the moment most likely to land at a cycle boundary using your wake-up
+              time and recent wearable data.
+            </p>
+          )}
+        </div>
+      )}
 
       {alarms.length > 0 && (
         <ul className="mt-4 space-y-2 border-t border-border pt-3">
