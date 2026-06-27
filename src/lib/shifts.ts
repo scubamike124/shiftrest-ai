@@ -6,6 +6,8 @@ export type Shift = {
   id: string;
   /** 0 = Mon ... 6 = Sun */
   day: number;
+  /** Rotation position: 0 = week A, 1 = week B, ... matches user_prefs.cycle_weeks. */
+  weekIndex: number;
   /** minutes from 00:00 */
   start: number;
   /** minutes from 00:00; may be > start when overnight (we wrap) */
