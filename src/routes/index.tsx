@@ -568,6 +568,8 @@ function Timeline({ shift }: { shift: Shift }) {
 
 function ShiftEditor({
   day,
+  weekIndex,
+  cycleWeeks,
   existing,
   employers,
   defaultEmployerId,
@@ -575,11 +577,14 @@ function ShiftEditor({
   onSave,
 }: {
   day: number;
+  weekIndex: number;
+  cycleWeeks: number;
   existing?: Shift;
   employers: Employer[];
   defaultEmployerId: string | null;
   onClose: () => void;
   onSave: (payload: {
+    weekIndex: number;
     start: number;
     end: number;
     employerId: string | null;
@@ -589,12 +594,14 @@ function ShiftEditor({
 }) {
   const [start, setStart] = useState(toTimeInput(existing?.start ?? 23 * 60));
   const [end, setEnd] = useState(toTimeInput(existing?.end ?? 7 * 60));
+  const [wi, setWi] = useState<number>(existing?.weekIndex ?? weekIndex);
   const [employerId, setEmployerId] = useState<string | null>(
     existing?.employerId ?? defaultEmployerId,
   );
   const [title, setTitle] = useState(existing?.title ?? "");
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const showPicker = employers.length > 1;
+  const showWeekPicker = cycleWeeks > 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
@@ -603,6 +610,7 @@ function ShiftEditor({
           <div>
             <p className="text-[10px] uppercase tracking-widest text-indigo-glow">
               {DAYS[day]}
+              {showWeekPicker ? ` · Week ${weekLabel(wi)}` : ""}
             </p>
             <h3 className="text-2xl" style={{ fontFamily: "var(--font-display)" }}>
               {existing ? "Edit shift" : "Log your shift"}
@@ -616,6 +624,27 @@ function ShiftEditor({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {showWeekPicker && (
+          <div className="mb-3">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Rotation week</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: cycleWeeks }, (_, i) => i).map((i) => (
+                <button
+                  key={i}
+                  onClick={() => setWi(i)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    wi === i
+                      ? "border-transparent bg-primary text-primary-foreground"
+                      : "border-border bg-secondary text-foreground"
+                  }`}
+                >
+                  Week {weekLabel(i)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showPicker && (
           <div className="mb-3">
@@ -682,6 +711,7 @@ function ShiftEditor({
         <button
           onClick={() =>
             onSave({
+              weekIndex: wi,
               start: parseTime(start),
               end: parseTime(end),
               employerId,
