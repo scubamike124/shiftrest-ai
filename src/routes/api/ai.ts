@@ -40,7 +40,8 @@ type Body =
   | { intent: "adjust_plan"; observation: string; context?: string }
   | { intent: "tomorrow_preview"; context?: string }
   | { intent: "daily_review"; context?: string }
-  | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string };
+  | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string }
+  | { intent: "jetlag_plan"; tripId?: string; phase?: "pre" | "arrival" | "post"; context?: string };
 
 // Shared voice contract — every JSON intent inherits this tone so the AI
 // sounds like the same trusted coach, not a stack of disconnected widgets.
