@@ -1,222 +1,134 @@
-## Pre-Launch Hardening & Launch Readiness — Investigation Plan
+# Pre-Launch Validation Plan (Blocking)
 
-Investigation only. No code shipped until you approve. Typecheck runs after each step. Plan is sequenced so blocking work (security, privacy) happens before polish (UX, accessibility) and observability (monitoring).
+Goal: prove RestPilot AI is production-ready by running real audits against the published build, fixing every issue surfaced, and producing the seven deliverables below. No new features until this phase closes.
 
----
-
-### Phase 1 — Security Audit
-
-**Current state**
-- Auth: Supabase email/password + Google OAuth via Lovable broker. `_authenticated/route.tsx` gates protected subtree. `requireSupabaseAuth` middleware on server fns. Bearer attached via `attachSupabaseAuth` in `src/start.ts`.
-- RLS: 20 tables, all have policies per `<supabase-tables>`. `has_role` / `has_active_subscription` / `has_ai_budget` are SECURITY DEFINER with locked `search_path`. No client-side admin/role checks found.
-- Secrets: only publishable keys in `.env`. Service role, Stripe, VAPID, Lovable AI keys in Supabase secrets vault.
-- Webhooks: Stripe webhook + Fitbit/Oura callbacks under `/api/public/*` (auth-bypass prefix). Need to verify each does signature/state validation.
-- No `dangerouslySetInnerHTML` user content (only shadcn `chart.tsx` for CSS injection — safe).
-- No raw SQL string concatenation — all queries go through Supabase client (parameterized).
-
-**Missing / to verify**
-1. Run `supabase--linter` + `security--run_security_scan` for unknown findings.
-2. Confirm every `public.*` table has GRANTs matching its policies (audit all 20 migrations).
-3. Audit Stripe webhook (`/api/public/payments/webhook`) for raw-body HMAC + timing-safe compare.
-4. Audit wearable OAuth callbacks for `state` validation (CSRF on OAuth).
-5. Audit cron endpoints (`ai-learn`, `notify`, `wearables/cron`) for shared-secret header check.
-6. Confirm `supabaseAdmin` is never imported at module scope of `*.functions.ts` / route files.
-7. Confirm no protected serverFn lacks `requireSupabaseAuth` (would be public endpoint).
-8. Rate limiting: none today. Add per-user token bucket on `/api/ai`, `/api/tts`, `/api/coach`, `/api/brief`, `/api/swap` (Supabase table or in-memory KV — investigate).
-9. Input validation: audit every `inputValidator` for Zod schemas with bounds. `/api/tts` already caps 4000 chars; check the rest.
-10. No file uploads exist (no storage buckets) — N/A.
-11. Audit log: `ai_log` + `notification_log` exist; need a generic `audit_log` for auth events, deletions, exports, role changes.
-12. Verify `consent_json` writes are append-only (legal_acceptances) — already audit-logged.
-
-**Files in scope (no edits this phase)**: `src/routes/api/public/payments/webhook.ts`, `src/routes/api/public/wearables/*`, `src/routes/api/public/hooks/*`, `src/routes/api/{ai,tts,coach,brief,swap,insights}.ts`, all `*.functions.ts`, all migrations.
-
-**Risk**: rate-limiting design choice (DB vs. in-memory) affects cost & latency. Audit log schema change is a new migration.
+Target URL for all live tests: `https://shift-rest-ai.lovable.app` (production). Local Playwright runs hit `http://localhost:8080` for authenticated flows where the managed Supabase session is injected.
 
 ---
 
-### Phase 2 — Privacy & Compliance Verification
+## Step 1 — Lighthouse Audit
 
-**Current state (built in legal rollout)**
-- Signup checkbox + `recordAcceptanceFn({source:'signup'})`.
-- Onboarding consent slide with required checkboxes.
-- Cookie banner + `user_prefs.consent_json`.
-- `exportAccountFn`, `purgeAiMemoryFn`, expanded `deleteAccountFn` (Stripe cancel + 18-table purge + retention manifest).
-- SafetyNote / RenewalDisclosure / OfflineBanner disclosures.
+Tooling: `lighthouse` CLI (installed on demand via `nix run nixpkgs#lighthouse`) against production URL, mobile + desktop presets, on the four key routes: `/`, `/dashboard`, `/paywall`, `/legal`.
 
-**To verify (Playwright end-to-end on test account)**
-1. Signup → confirm `legal_acceptances` row inserted + `consent_json` populated.
-2. Onboarding completion → 5 doc rows logged with `source='onboarding'`.
-3. Cookie banner: Accept all / Reject / Manage each persist to localStorage + (signed-in) `consent_json.cookies`.
-4. Profile → Export downloads JSON containing all 18 user-owned tables, tokens redacted.
-5. Profile → Erase AI memory → 4 tables emptied, shifts/prefs untouched.
-6. Profile → Delete account → Stripe sub canceled, 18 tables purged, `subscriptions` + `legal_acceptances` retained, `auth.admin.deleteUser` succeeds, redirect to `/auth`.
-7. Disclosure copy matches `/legal/privacy` retention clause.
+Capture JSON + HTML reports into `docs/launch/audits/lighthouse/`. Record per-category scores and the top opportunities/diagnostics.
 
-**Files (no edits unless gaps found)**: `src/routes/auth.tsx`, `src/components/Onboarding.tsx`, `src/lib/account.functions.ts`, `src/lib/legal/consent.functions.ts`, `src/components/legal/CookieBanner.tsx`.
+Fix bar before moving on:
+- Performance ≥ 90 mobile on `/` and `/dashboard`
+- Accessibility ≥ 95 on every audited route
+- Best Practices ≥ 95
+- SEO ≥ 95
 
-**Risk**: test account must be created; deletion is irreversible.
+Likely fix areas (apply only if flagged): image dimensions/`loading="lazy"`, preconnect for fonts, render-blocking CSS, missing `lang`, MIME warnings, console errors in prod.
+
+Deliverable: `docs/launch/audits/lighthouse-report.md` summarizing scores, fixes applied, and links to raw reports.
 
 ---
 
-### Phase 3 — Performance
+## Step 2 — Accessibility Audit (axe)
 
-**Investigation**
-1. Run Lighthouse (mobile + desktop) on `/`, `/dashboard`, `/paywall`, `/pricing`.
-2. Bundle analysis: `bun run build` + visualize chunks; flag any >250 kB route chunk.
-3. Image audit: ensure every `<img>` has `loading="lazy"` + width/height; LCP image gets `fetchpriority="high"` + preload.
-4. React Query: confirm `staleTime` set on heavy queries (AI brief, recommendations); avoid refetch storms.
-5. DB indexing: review hot paths — `ai_log(user_id, created_at)`, `ai_recommendations(user_id, status, created_at)`, `shifts(user_id, starts_at)`, `notification_log(user_id, created_at)`, `wearable_readings(user_id, recorded_at)`. Add missing indexes via migration.
-6. API latency: check Lovable AI gateway timeouts; ensure long calls stream or move to background.
-7. Caching: PWA app-shell already in place; verify `Cache-Control` headers on static assets.
-8. CDN: Lovable's published edge handles this — no action.
+Tooling: `@axe-core/cli` via `bunx` (or Playwright + `axe-core` injected) against `/`, `/dashboard`, `/auth`, `/paywall`, `/legal`, `/memory`, `/decisions`, `/profile`.
 
-**Files (likely)**: `vite.config.ts`, route `head()` blocks, single migration for indexes.
+Manual checks: tab through each route headlessly via Playwright, verify focus rings, skip-link behavior, dialog focus trap, heading order (`h1` once), form label associations, color contrast on muted text, ARIA on custom widgets.
 
-**Risk**: index migration on populated tables can lock briefly — use `CREATE INDEX CONCURRENTLY` where possible (not allowed inside a transaction; investigate migration runner support).
+Fix every Critical + Serious finding; document Moderate/Minor with rationale if deferred.
+
+Deliverable: `docs/launch/audits/accessibility-report.md` (supersedes the placeholder) with raw axe JSON in `docs/launch/audits/axe/`.
 
 ---
 
-### Phase 4 — Accessibility
+## Step 3 — Playwright E2E Regression
 
-**Investigation**
-1. Automated: run axe-core via Playwright on every top-level route.
-2. Manual: keyboard tab order through `/auth`, onboarding, dashboard cards, paywall.
-3. Color contrast: audit `text-muted-foreground` + glow buttons against `bg-background` token. Confirm no arbitrary `text-gray-*` classes (codebase uses semantic tokens — already good).
-4. Icon-only buttons: audit BottomNav, sidebar, card chevrons for `aria-label`.
-5. `<main>` landmark: confirm exactly one per page (root layout vs. routes).
-6. Focus indicators: confirm shadcn `focus-visible` rings not overridden.
-7. Font scaling: confirm dashboard doesn't break at 200% zoom (recent 146px overflow fix relevant).
-8. Reduced motion: respect `prefers-reduced-motion` for circadian dial + aurora animations.
+Test account: rely on `LOVABLE_BROWSER_AUTH_STATUS=injected` Supabase session. For unauthenticated flows (signup, password reset, email verify, consent banner), drive fresh contexts.
 
-**Files (likely edits)**: BottomNav, ArrivalHero, LongClock animations, dashboard card icon buttons.
+Suite organized under `tests/e2e/` (Playwright Python scripts in `/tmp/browser/` per sandbox conventions, then committed where reusable):
+- Auth: signup → consent acceptance → email verify path → login → logout → password reset request
+- Billing: open `/paywall`, start checkout in **sandbox** env first, verify embedded session loads; live charge handled in Step 4
+- Subscription mgmt: upgrade, downgrade, cancel, portal redirect
+- Account: export data, purge AI memory, delete account (uses disposable test user)
+- AI surfaces: Smart Alarm card render + accept/snooze, Right Now card, Companion Whisper, Long Clock interactivity, Tomorrow Preview feedback chips
+- Wearables: connect flow stubs (verify "coming soon" copy where applicable, OAuth start URL builds)
+- Offline: toggle `context.set_offline(True)`, verify `OfflineBanner` + cached plan render, reconnect sync
+- Consent + legal: first-visit cookie banner, granular toggles persist, every `/legal/*` route 200s with required sections
+- Error handling: 404 route, forced server error returns friendly boundary
 
-**Risk**: low — mostly attribute additions.
+Capture screenshots per step; failing assertions block the phase until fixed.
 
----
-
-### Phase 5 — Production Monitoring
-
-**Current state**
-- `reportLovableError` in `src/lib/lovable-error-reporting.ts` captures via `window.__lovableEvents`. Wired into React error boundary?  → verify.
-- Server-side: console.error only. No structured server logs to a sink.
-- `ai_log` table tracks AI requests; `notification_log` tracks pushes.
-
-**Missing**
-1. Confirm a root `ErrorBoundary` calls `reportLovableError`.
-2. Add window `error` + `unhandledrejection` handlers (mechanism=onerror / unhandledrejection).
-3. Add `audit_log` table for: signup, signin, signout, delete, export, role grants, subscription changes, webhook failures.
-4. Document Lovable Cloud's built-in uptime + backup posture (no custom action; surface in launch report).
-5. Define alerting thresholds (AI 5xx > X/min, webhook failure, deletion errors).
-6. Document incident response runbook in `docs/runbook.md`.
-
-**Files**: new `audit_log` migration + helper, `src/routes/__root.tsx` global error handlers, new `docs/runbook.md`.
-
-**Risk**: alert routing depends on Lovable Cloud notification primitives — investigate.
+Deliverable: `docs/launch/audits/playwright-report.md` with pass/fail matrix + screenshot links.
 
 ---
 
-### Phase 6 — AI System Validation
+## Step 4 — Live Stripe Verification
 
-**Per surface — verify failure, retry, offline, timeout, fallback**
-- `/api/ai` orchestrator (all intents)
-- `/api/coach` streaming
-- `/api/brief` Gemini
-- `/api/tts` OpenAI TTS
-- `/api/swap`
-- `/api/insights`
-- `CompanionWhisper`, `RightNowCard`, `SmartAlarmCard`, `LongClock`, `AIBriefCard`, `TomorrowPreviewCard`, `DailyReviewCard`, `WearableCard`
+Single $1 real charge on a temporary live price (created via `payments--create_price` if needed, deleted after). Use a disposable test card on a real consumer card the user owns — confirm with the user before charging.
 
-**Test matrix**
-1. Network offline → all cards fall back to snapshot via `OfflineBanner`/cache.
-2. Gateway 429/402 → human error string via `mapUpstreamError`; UI shows retry, not raw error.
-3. Gateway 500 → no infinite retry; React Query `retry: 1`.
-4. AI returns malformed JSON → server `jsonMode` + safe parse; UI shows "couldn't load" state.
-5. Budget exceeded (`has_ai_budget=false`) → friendly upsell/snooze message.
-6. Wearable token expired → silent refresh; if refresh fails, UI prompts reconnect, no crash.
-7. Voice TTS audio fetch fails → `VoicePlayer` shows error chip, transcript still readable.
+Verify in order:
+1. Embedded checkout completes
+2. `customer.subscription.created` webhook lands at `/api/public/payments/webhook?env=live` (check `subscriptions` row inserted via `supabase--read_query`)
+3. Receipt email arrives
+4. Portal cancellation → `customer.subscription.updated` with `cancel_at_period_end=true` → row updated
+5. Refund the test charge in Stripe to clean up
 
-**Files (likely)**: small UX fixes in the listed components if any state path is missing.
+Deliverable: `docs/launch/audits/stripe-live-verification.md` with timestamps, event IDs (redacted), and DB row snapshots.
 
-**Risk**: stress tests may surface missing error states needing UI work — scoped per finding.
+> Requires user go-ahead before running — flagged in closing message.
 
 ---
 
-### Phase 7 — UI/UX Polish
+## Step 5 — Cross-Device Testing
 
-**Investigation**
-- Loading skeletons present on dashboard cards? (audit each)
-- Empty states: no shifts, no wearables, no AI memory, no recommendations
-- Error states: every `useQuery` has an `error` branch
-- Mobile (375px) responsiveness sweep — recent overflow fix on `/dashboard`; re-audit `/plan`, `/playbooks`, `/memory`, `/decisions`, `/events`, `/profile`
-- Animation: respect `prefers-reduced-motion`; consistent easing
-- Visual consistency: spacing tokens, button variants, card chrome
-- Navigation: BottomNav vs sidebar parity; deep-link back-nav works
+Playwright device emulation covers: iPhone 14 Safari, Pixel 7 Chrome, iPad Pro, desktop Chrome/Firefox/Edge/Safari (WebKit). Real-device pass left to user; we provide a structured checklist and screenshots from emulated runs.
 
-**Files**: per-finding component edits.
+Routes exercised on each device: `/`, `/auth`, `/dashboard`, `/paywall`, `/legal`, `/memory`. Assertions: no horizontal scroll, nav reachable, primary CTAs tappable (≥44px), forms submit, AI cards render.
 
-**Risk**: scope creep — limit to concrete defects, not aesthetic preferences.
+Deliverable: `docs/launch/audits/cross-device-report.md` with screenshot grid + outstanding real-device asks for the user.
 
 ---
 
-### Phase 8 — Beta Readiness Checklist
+## Step 6 — Final Security Verification
 
-Deliver `docs/beta-test-matrix.md`:
-- Devices: iPhone (Safari iOS 17/18), Android (Chrome), Windows (Edge/Chrome/Firefox), macOS (Safari/Chrome/Firefox)
-- Core journeys: signup → onboarding → dashboard → plan → smart alarm → companion → wearable connect → paywall checkout → portal → delete
-- PWA install: home-screen install on iOS Safari + Android Chrome; offline mode works after install
-- Regression: legal flows, consent, export, delete, push notifications, wearable cron
+Run `supabase--linter` and `security--run_security_scan`. Confirm only the two intentional advisories (`pg_cron` in `public`, `authenticated` EXECUTE on `has_ai_budget`/`has_active_subscription`) remain. Spot-check:
+- RLS on every public table (`SELECT relname FROM pg_class WHERE relrowsecurity=false AND relnamespace='public'::regnamespace`)
+- Webhook signature verification (`verifyWebhook` HMAC + 5-min window) unchanged
+- `supabaseAdmin` only imported inside `.server.ts` or lazy `await import` in route handlers
+- No new secrets logged; `fetch_secrets` matches expected set
+- CSP / security headers (audit `__root.tsx` head + edge defaults) — add `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` via meta if missing
 
----
+Add minimal rate limiting on `/api/coach`, `/api/ai`, `/api/tts` if absent (in-memory token bucket keyed by `userId` from middleware).
 
-### Phase 9 — Launch Readiness Checklist
-
-Deliver `docs/launch-checklist.md`:
-- Env vars present in prod (Stripe live keys, VAPID, Lovable AI, Supabase secrets — already configured)
-- `PAYMENTS_LIVE_WEBHOOK_SECRET` wired to live endpoint; `STRIPE_LIVE_API_KEY` test charge confirmed
-- DB: production migrations applied, no pending in `supabase/migrations`
-- Email delivery: Supabase auth emails configured; transactional from custom domain
-- Monitoring + alerts active (Phase 5 deliverable)
-- Analytics: confirm cookie-banner-gated; respect Reject
-- Domain: `shift-rest-ai.lovable.app` live; custom domain status TBD with user
-- SSL: handled by Lovable edge
-- Backups: Supabase managed daily; document RPO/RTO
-- Incident response: runbook from Phase 5
+Deliverable: `docs/launch/audits/security-final-report.md`.
 
 ---
 
-### Deliverables (markdown reports in `docs/launch/`)
+## Step 7 — Launch Checklist Sign-Off
 
-1. `security-report.md`
-2. `privacy-verification-report.md`
-3. `performance-report.md`
-4. `accessibility-report.md`
-5. `launch-readiness-report.md`
-6. `production-checklist.md`
-7. `remaining-issues.md`
-
----
-
-### Investigation answers
-
-- **Files to be modified (across all phases)**: route files under `src/routes/api/*` (input validation + rate limiting), `src/routes/__root.tsx` (global error handlers), select component files for a11y + error states, `vite.config.ts` (bundle analysis only — no behavior change), `src/components/site/*` (a11y polish).
-- **Migrations**: up to 3 — `audit_log` table, missing performance indexes, optional `rate_limit_buckets` table.
-- **Edge functions**: none — TanStack server fns / routes only.
-- **Stripe impact**: webhook verification audit only; no API changes.
-- **Auth impact**: none planned; sign-out hygiene re-verified.
-- **Testing**: Playwright smoke per phase; typecheck after every change; manual cross-browser per Phase 8.
+Walk every item the user listed against the live build; produce a single signed checklist at `docs/launch/launch-checklist.md`:
+- Legal: Privacy, Terms, Cookie, AI disclaimer, Health disclaimer (link audit via script)
+- User controls: Delete account, Export data, Erase AI memory (Playwright-verified in Step 3)
+- Consent: Cookie banner shows on fresh session, choices persist
+- Observability: `reportLovableError` paths fire, `ai_log`/`notification_log`/`legal_acceptances` writing
+- Backups: confirm Lovable Cloud daily backups noted; user-initiated export verified
+- Support: footer links resolve; mailto / help URL present
+- Env vars: cross-check `fetch_secrets` against `production-checklist.md`
 
 ---
 
-### Proposed execution order (after approval)
+## Technical Notes (for the dev)
 
-1. **Phase 1 — Security Audit** (run scanners, fix any critical findings, add rate limiting + audit log).
-2. **Phase 2 — Privacy Verification** (Playwright sweep against test account).
-3. **Phase 5 — Production Monitoring** (error handlers + audit log + runbook).
-4. **Phase 6 — AI System Validation** (failure-mode UX fixes).
-5. **Phase 3 — Performance** (indexes + Lighthouse).
-6. **Phase 4 — Accessibility** (axe + manual sweep).
-7. **Phase 7 — UI/UX Polish**.
-8. **Phase 8 — Beta Matrix** (doc).
-9. **Phase 9 — Launch Checklist** (doc + final go/no-go report).
+- Playwright launches: `headless=True`, viewport `1280x1800`, screenshots only when needed, never `full_page=True`.
+- Lighthouse runs headless Chrome with `--preset=desktop` and default mobile; throttle defaults left as-is for comparability.
+- All audit artifacts land under `docs/launch/audits/` (new). Existing `docs/launch/*.md` reports get updated in place to reflect measured (not assumed) results.
+- Fixes that affect runtime go through normal file edits; no schema changes expected. Any new migration must follow the public-schema grants rule.
+- This phase is execution-only — no new features, no UX redesigns. If a finding requires a feature change, log it in `docs/launch/remaining-issues.md` and surface to the user instead of silently scoping in.
 
-Awaiting approval to begin **Phase 1 — Security Audit**.
+---
+
+## Order of Execution
+
+1. Step 6 first (cheap, blocks everything if RLS regression found)
+2. Step 1 + Step 2 in parallel (read-only against prod)
+3. Step 3 (longest; fix loop)
+4. Step 5 (reuses Playwright infra)
+5. Step 7 checklist sweep
+6. Step 4 last — requires explicit user approval to charge a real card
+
+I'll pause for your approval, then begin with Step 6 and proceed through the list, stopping only at Step 4 to get your go-ahead for the live charge.

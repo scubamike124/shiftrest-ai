@@ -33,7 +33,7 @@ const SECTIONS: Array<{ title: string; category: string }> = [
 
 function LegalIndex() {
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 pb-24 pt-12 lg:px-10">
+    <section className="mx-auto w-full max-w-5xl px-5 pb-24 pt-12 lg:px-10" aria-label="Legal documents">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Legal
@@ -97,7 +97,7 @@ function LegalIndex() {
         </a>
         .
       </footer>
-    </main>
+    </section>
   );
 }
 
