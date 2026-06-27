@@ -14,6 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_log: {
+        Row: {
+          completion_tokens: number
+          created_at: string
+          error: string | null
+          id: string
+          intent: string
+          latency_ms: number | null
+          model: string
+          prompt_tokens: number
+          status: string
+          total_tokens: number | null
+          user_id: string
+        }
+        Insert: {
+          completion_tokens?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          intent: string
+          latency_ms?: number | null
+          model: string
+          prompt_tokens?: number
+          status?: string
+          total_tokens?: number | null
+          user_id: string
+        }
+        Update: {
+          completion_tokens?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          intent?: string
+          latency_ms?: number | null
+          model?: string
+          prompt_tokens?: number
+          status?: string
+          total_tokens?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_memory: {
+        Row: {
+          category: string
+          confidence: number
+          content: string
+          created_at: string
+          id: string
+          last_used_at: string | null
+          pinned: boolean
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          confidence?: number
+          content: string
+          created_at?: string
+          id?: string
+          last_used_at?: string | null
+          pinned?: boolean
+          source?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          confidence?: number
+          content?: string
+          created_at?: string
+          id?: string
+          last_used_at?: string | null
+          pinned?: boolean
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       coach_messages: {
         Row: {
           content: string
@@ -363,6 +444,9 @@ export type Database = {
       }
       user_prefs: {
         Row: {
+          ai_daily_token_cap: number
+          assistant_mode: string
+          assistant_name: string
           created_at: string
           cycle_anchor: string | null
           cycle_weeks: number
@@ -370,6 +454,8 @@ export type Database = {
           location_label: string
           lon: number
           low_light: boolean
+          memory_cutoff_at: string | null
+          memory_enabled: boolean
           notifications: boolean
           onboarded_at: string | null
           partner_name: string
@@ -379,6 +465,9 @@ export type Database = {
           wind_down_min: number
         }
         Insert: {
+          ai_daily_token_cap?: number
+          assistant_mode?: string
+          assistant_name?: string
           created_at?: string
           cycle_anchor?: string | null
           cycle_weeks?: number
@@ -386,6 +475,8 @@ export type Database = {
           location_label?: string
           lon?: number
           low_light?: boolean
+          memory_cutoff_at?: string | null
+          memory_enabled?: boolean
           notifications?: boolean
           onboarded_at?: string | null
           partner_name?: string
@@ -395,6 +486,9 @@ export type Database = {
           wind_down_min?: number
         }
         Update: {
+          ai_daily_token_cap?: number
+          assistant_mode?: string
+          assistant_name?: string
           created_at?: string
           cycle_anchor?: string | null
           cycle_weeks?: number
@@ -402,6 +496,8 @@ export type Database = {
           location_label?: string
           lon?: number
           low_light?: boolean
+          memory_cutoff_at?: string | null
+          memory_enabled?: boolean
           notifications?: boolean
           onboarded_at?: string | null
           partner_name?: string
@@ -520,6 +616,7 @@ export type Database = {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean
       }
+      has_ai_budget: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

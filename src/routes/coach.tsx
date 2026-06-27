@@ -9,6 +9,7 @@ import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/coach")({
@@ -124,10 +125,15 @@ function Coach() {
     scrollToBottom();
 
     try {
-      const resp = await fetch("/api/coach", {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const resp = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: baseMessages, context: coachContext }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ intent: "coach", messages: baseMessages, context: coachContext }),
       });
 
       if (!resp.ok || !resp.body) {

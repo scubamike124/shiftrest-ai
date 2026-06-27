@@ -42,6 +42,9 @@ function rowToPrefs(r: PrefsRow): Prefs {
     onboarded: true,
     cycleWeeks: Math.max(1, Math.min(6, r.cycle_weeks ?? 1)),
     cycleAnchor: r.cycle_anchor ?? null,
+    assistantName: "RestPilot",
+    assistantMode: "coach",
+    memoryEnabled: false,
   };
 }
 

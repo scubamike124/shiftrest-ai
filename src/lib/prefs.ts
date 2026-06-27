@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type AssistantMode = "coach" | "companion" | "minimal";
+
 export type Prefs = {
   windDownMin: number;
   sleepHours: number;
@@ -14,6 +16,12 @@ export type Prefs = {
   cycleWeeks: number;
   /** Anchor (YYYY-MM-DD) for week 0 of the rotation. Null → derives from this week's Monday. */
   cycleAnchor: string | null;
+  /** Display name the AI uses for itself. */
+  assistantName: string;
+  /** Coach (default), Companion (warmer, asks follow-ups), Minimal (terse). */
+  assistantMode: AssistantMode;
+  /** Opt-in for long-term memory. Default OFF — privacy-first. */
+  memoryEnabled: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -28,6 +36,9 @@ export const DEFAULT_PREFS: Prefs = {
   onboarded: false,
   cycleWeeks: 1,
   cycleAnchor: null,
+  assistantName: "RestPilot",
+  assistantMode: "coach",
+  memoryEnabled: false,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -50,10 +61,14 @@ type Row = {
   onboarded_at: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
+  assistant_name: string | null;
+  assistant_mode: string | null;
+  memory_enabled: boolean | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
+  const mode = (r.assistant_mode ?? "coach") as AssistantMode;
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -66,6 +81,9 @@ function rowToPrefs(r: Row): Prefs {
     onboarded: r.onboarded_at !== null,
     cycleWeeks: Math.max(1, Math.min(6, cw)),
     cycleAnchor: r.cycle_anchor ?? null,
+    assistantName: r.assistant_name?.trim() || "RestPilot",
+    assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
+    memoryEnabled: Boolean(r.memory_enabled),
   };
 }
 
@@ -82,6 +100,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.cycleWeeks !== undefined)
     out.cycle_weeks = Math.max(1, Math.min(6, Math.round(p.cycleWeeks)));
   if (p.cycleAnchor !== undefined) out.cycle_anchor = p.cycleAnchor;
+  if (p.assistantName !== undefined)
+    out.assistant_name = (p.assistantName.trim() || "RestPilot").slice(0, 40);
+  if (p.assistantMode !== undefined) out.assistant_mode = p.assistantMode;
+  if (p.memoryEnabled !== undefined) out.memory_enabled = p.memoryEnabled;
   return out;
 }
 
@@ -103,7 +125,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled",
     )
     .eq("user_id", uid)
     .maybeSingle();

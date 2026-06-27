@@ -45,6 +45,7 @@ import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
+import { AssistantSettings } from "@/components/AssistantSettings";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -548,6 +549,8 @@ function Profile() {
           </Link>
         </div>
       </section>
+
+      <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
       <WearableCard />
 
