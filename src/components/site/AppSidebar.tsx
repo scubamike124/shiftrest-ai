@@ -9,6 +9,7 @@ import {
   User,
   Sparkles,
   Moon,
+  Brain,
 } from "lucide-react";
 
 const nav = [
@@ -16,6 +17,7 @@ const nav = [
   { to: "/plan", label: "Today's Plan", icon: Sun },
   { to: "/coach", label: "AI Coach", icon: MessageCircle },
   { to: "/events", label: "Events & Alarm", icon: Calendar },
+  { to: "/memory", label: "Memory", icon: Brain },
   { to: "/playbooks", label: "Playbooks", icon: BookOpen },
   { to: "/swap", label: "Shift Swap", icon: Repeat },
 ] as const;
