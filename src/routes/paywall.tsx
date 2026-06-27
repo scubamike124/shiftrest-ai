@@ -208,6 +208,10 @@ function Paywall() {
         />
       </div>
 
+      <div className="mt-4">
+        <RenewalDisclosure />
+      </div>
+
       <button
         onClick={handleCheckout}
         disabled={loading}
