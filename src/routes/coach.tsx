@@ -40,6 +40,24 @@ const SEED: Msg[] = [
   },
 ];
 
+// Strip markdown so TTS speaks the words, not the syntax.
+function plainForSpeech(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ") // drop fenced code blocks entirely
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1800);
+}
+
 const STARTERS = [
   "I work overnight 11p–7a. How do I sleep during the day?",
   "What blackout setup actually works in a bright apartment?",
