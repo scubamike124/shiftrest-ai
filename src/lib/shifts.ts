@@ -101,6 +101,8 @@ export async function updateShift(
   id: string,
   patch: Partial<ShiftInput>,
 ): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new AuthRequiredError("Sign in to save your shifts.");
   const row: {
     day?: number;
     start_min?: number;
@@ -116,13 +118,22 @@ export async function updateShift(
   if (patch.title !== undefined) row.title = patch.title?.trim() || null;
   if (patch.notes !== undefined) row.notes = patch.notes?.trim() || null;
   const { error } = await supabase.from("shifts").update(row).eq("id", id);
-  if (error) console.error("updateShift", error);
+  if (error) {
+    console.error("updateShift", error);
+    throw error;
+  }
 }
 
 export async function deleteShift(id: string): Promise<void> {
+  const userId = await currentUserId();
+  if (!userId) throw new AuthRequiredError("Sign in to manage your shifts.");
   const { error } = await supabase.from("shifts").delete().eq("id", id);
-  if (error) console.error("deleteShift", error);
+  if (error) {
+    console.error("deleteShift", error);
+    throw error;
+  }
 }
+
 
 /** Used by Playbooks: wipe and replace the user's entire schedule. */
 export async function replaceAllShifts(next: ShiftInput[]): Promise<void> {
