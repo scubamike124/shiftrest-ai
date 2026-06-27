@@ -1,130 +1,113 @@
+# RestPilot AI — Pre-Launch Upgrade Plan
 
-# Wearable Sync v1 — Fitbit + Oura
-
-## Scope decision
-
-Web app, no native wrapper yet. That rules out:
-- **Apple Health** — iOS-only, requires native HealthKit bridge.
-- **Google Fit REST API** — deprecated by Google, shutting down 2026; replacement (Health Connect) is Android-native only.
-
-So v1 ships the two providers that are fully web-OAuth, cover sleep + HRV + resting HR, and are the most-used by shift workers:
-- **Fitbit** (OAuth 2.0 PKCE, free dev tier, Sleep + Heart Rate Variability + Resting HR scopes)
-- **Oura Ring** (OAuth 2.0, Personal API v2, sleep / readiness / HRV / RHR)
-
-Apple Health + Whoop are left for the native phase (separate plan once we wrap with Capacitor).
-
-## What the user sees
-
-1. **Profile → Connected devices** card replaces the current "Coming soon" pill.
-2. Two buttons: **Connect Fitbit**, **Connect Oura**. Tapping opens the provider's OAuth consent page; on return the card shows *Connected · last synced 2m ago* with a **Disconnect** and **Sync now** button.
-3. **Dashboard** gains a small "Last night" strip below the AI brief: Sleep duration, Sleep efficiency, HRV, Resting HR — pulled from whichever device synced most recently.
-4. **Fatigue engine** (`src/lib/insights.ts`) now consumes real sleep instead of estimated-from-shift sleep when a wearable reading exists for that night; otherwise falls back to the current estimator. The Plan and Coach screens automatically reflect the better data.
-
-## Technical design
-
-### Database
-New migration:
-```sql
-CREATE TABLE public.wearable_connections (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider text NOT NULL CHECK (provider IN ('fitbit','oura')),
-  access_token text NOT NULL,        -- encrypted at rest by Supabase
-  refresh_token text,
-  expires_at timestamptz,
-  provider_user_id text,
-  scope text,
-  last_sync_at timestamptz,
-  last_sync_error text,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE (user_id, provider)
-);
-
-CREATE TABLE public.wearable_readings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  provider text NOT NULL,
-  date date NOT NULL,                -- the "night of" date
-  sleep_start timestamptz,
-  sleep_end timestamptz,
-  sleep_duration_min int,
-  sleep_efficiency numeric,          -- 0..1
-  deep_min int, rem_min int, light_min int,
-  hrv_ms numeric,
-  resting_hr int,
-  raw jsonb,
-  fetched_at timestamptz DEFAULT now(),
-  UNIQUE (user_id, provider, date)
-);
-```
-Both tables get the standard GRANT block + RLS scoped to `auth.uid()` (SELECT/INSERT/UPDATE/DELETE own rows). `service_role` ALL for the sync worker.
-
-### Server routes (public, signature-verified callbacks)
-- `GET  /api/public/wearables/fitbit/callback` — exchanges code → tokens, upserts row, redirects back to `/profile?connected=fitbit`.
-- `GET  /api/public/wearables/oura/callback`   — same shape for Oura.
-- `POST /api/public/wearables/cron`            — pg_cron-triggered nightly sync; auth via `CRON_SECRET` header.
-
-### Server functions (auth-gated)
-- `startWearableOAuth({ provider })` — returns the provider auth URL with PKCE/state stored in `sessionStorage`.
-- `disconnectWearable({ provider })` — deletes the connection row.
-- `syncWearableNow({ provider })` — manual pull for the signed-in user.
-- `getWearableSummary()` — returns the most recent reading + connection statuses for the dashboard.
-
-### Token & refresh handling
-Each provider client lives in `src/lib/wearables/{fitbit,oura}.server.ts`: `exchangeCode`, `refreshIfExpired`, `fetchLastNight`. Tokens are refreshed automatically inside `syncWearableNow` and the cron handler.
-
-### Secrets to add (via add_secret, after plan approval)
-- `FITBIT_CLIENT_ID`, `FITBIT_CLIENT_SECRET`
-- `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`
-- `CRON_SECRET` (generated)
-
-User has to register the OAuth apps in each provider's developer portal and paste the IDs — I'll walk them through it when we get there. Redirect URIs use the stable `project--{id}.lovable.app` URL.
-
-### Fatigue engine integration
-`src/lib/insights.ts` gets a new helper `getActualSleep(userId, date)` that prefers `wearable_readings.sleep_duration_min` and falls back to the current shift-based estimate. The existing recovery score formula is unchanged — it just receives better inputs. AI coach context (`src/routes/api/coach.ts` and `src/lib/insights.ts`) gains a "Last night from your Fitbit/Oura: 6h 12m, HRV 38ms" line so the assistant can reference real numbers.
-
-## Files to create
-- `supabase/migrations/<ts>_wearables.sql`
-- `src/lib/wearables/types.ts`
-- `src/lib/wearables/fitbit.server.ts`
-- `src/lib/wearables/oura.server.ts`
-- `src/lib/wearables/wearables.functions.ts`
-- `src/routes/api/public/wearables/fitbit/callback.ts`
-- `src/routes/api/public/wearables/oura/callback.ts`
-- `src/routes/api/public/wearables/cron.ts`
-- `src/components/WearableCard.tsx` (Profile section)
-- `src/components/LastNightStrip.tsx` (Dashboard widget)
-
-## Files to edit
-- `src/routes/profile.tsx` — replace "Coming soon" block with `<WearableCard />`.
-- `src/routes/index.tsx` — render `<LastNightStrip />` under the AI brief.
-- `src/lib/insights.ts` — wire `getActualSleep` into the recovery calc.
-- `src/routes/api/coach.ts` — include last-night wearable data in the system prompt.
-
-## Test plan (will be run before marking complete)
-1. Connect Fitbit on the published site → callback returns, card shows Connected.
-2. Disconnect → row removed, card resets.
-3. Connect Oura → same flow.
-4. **Sync now** → reading row inserted, dashboard strip shows numbers within 5s.
-5. Refresh page → values persist.
-6. Force token expiry (set `expires_at` to past) → next sync refreshes successfully.
-7. AI coach asked "How did I sleep?" → references the wearable number, not an estimate.
-8. Sign out / sign in as different user → no cross-user data leakage (RLS).
-9. Mobile viewport 375×812 → card, buttons, strip all readable and tappable.
-10. Disconnect both providers → dashboard strip falls back to shift-based estimate without error.
-
-## Risks
-- **OAuth app approval**: Fitbit's "personal" tier works immediately for the dev; production sharing with end users needs Fitbit's app review (free but ~1–2 weeks). Oura's Personal v2 is instant.
-- **Rate limits**: Fitbit 150 req/hr per user, Oura 5000/day per app. Nightly cron + manual sync stays well under.
-- **Token storage**: tokens are at rest in Postgres. RLS prevents cross-user reads; service role only used inside server functions. Acceptable for v1; can move to Supabase Vault later if needed.
-- **No Apple Health users on web**: messaging on the card will say "Apple Health & Whoop coming with the iOS app" so iPhone users aren't confused.
-
-## Out of scope for this plan
-- Apple Health / HealthKit (needs native).
-- Whoop (deferred — small user base, can add later via same pattern).
-- Backfilling more than last 7 nights on first connect.
-- Showing weekly trend charts of HRV/RHR (UI polish phase).
+Five upgrades, shipped one at a time. Each one is fully built, tested, and bug-free before the next begins. No launch prep until all five are done.
 
 ---
 
-Approve and I'll start with the migration, then provider clients, OAuth callbacks, sync, UI, and finally engine integration — tested end-to-end on the published site before marking complete.
+## Upgrade 1 — Advanced AI Planning Engine (START HERE)
+
+Goal: turn the current 3-day fatigue model into a real circadian planning brain that personalizes itself to the user.
+
+What we build:
+1. **14-day fatigue + recovery forecast** (today + 13 days) replacing the current 3-day window. Same `FatiguePoint` shape, longer horizon, used by the dashboard ring, AI brief, and coach context.
+2. **Smarter fatigue model** — add:
+   - Sleep debt carry-over (rolling 7-day deficit vs `prefs.sleepHours`)
+   - Recovery half-life between shifts (not just "short turnaround" flag)
+   - Backward-rotation penalty curve (harshness scales with how many days in a row)
+   - Wearable-grounded adjustment: actual sleep duration, efficiency, HRV trend pull the score up or down when data exists
+3. **Personalized recommendations engine** — a new `recommendations.ts` that emits 3–5 ranked, time-stamped actions per day ("Anchor sleep 09:30–17:00", "Caffeine cutoff 13:00", "Bright light walk 16:30"), driven by rotation pattern + wearable signals + user prefs.
+4. **Improved recovery score** — weighted blend of: circadian debt, fatigue, sleep debt, last-night efficiency, HRV trend (when available). Same 0–100 scale, new bands stay stable so the dashboard ring doesn't visually jump.
+5. **Smarter sleep guidance** in `/plan` — anchor-sleep windows for rotating workers, split-sleep suggestion when a turnaround is <9h, pre-shift nap windows on heavy days.
+6. **Richer coach context string** so the AI coach quotes specific numbers ("Your 7-day sleep debt is 4.2h, HRV trending −8% — here's how to bank recovery before Friday's night").
+
+Verification before moving on:
+- Unit-test the new fatigue/recovery math against fixtures (fixed nights, rotating, irregular, with + without wearable data).
+- Live test against 3 schedule shapes (fixed nights / forward-rotating / chaotic) on desktop + mobile preview.
+- Confirm dashboard, `/plan`, AI brief, and coach all consume the new horizon without layout regressions.
+
+---
+
+## Upgrade 2 — Advanced Scheduling ("Long Clock")
+
+Goal: handle real shift-worker calendars, not just a 7-day repeating template.
+
+What we build:
+1. **Multi-week patterns** — extend the `shifts` table to support a rotation length (1, 2, 3, or 4 weeks) and a start anchor date. The current 7-day repeat stays the default.
+2. **Specific-date overrides** — a user can mark "this Wed is OFF" or "extra shift Sat 19:00–07:00" without changing the base pattern. New `shift_overrides` table.
+3. **Long Clock view** — a new horizontal scroll calendar (4 weeks visible) that shows base pattern + overrides + fatigue heatmap behind each day.
+4. **Advanced shift editor** — per-shift break minutes, on-call vs scheduled, employer-aware quick templates, "duplicate to next week" action.
+5. **Smarter calendar logic** — week-over-week comparison, automatic detection of stretches (>3 consecutive shifts, >2 nights in a row) surfaced as warnings in the editor.
+6. **Plan + insights re-wired** to read from base pattern + overrides via a single `resolvedShifts(date)` helper, so every screen stays consistent.
+
+Verification: migration runs cleanly, override CRUD round-trips, Long Clock matches dashboard fatigue exactly, and no regressions on existing 7-day-only users.
+
+---
+
+## Upgrade 3 — Notifications & Automation
+
+Goal: notifications fire at the right time, even when the app is closed, and feel like a personal assistant.
+
+What we build:
+1. **Schedule-aware wind-down** — reminder fires `prefs.windDownMin` before the computed sleep window, recalculated nightly based on the next shift, not a fixed clock time.
+2. **Smart wake notifications** — gentle pre-alarm 15 min before the planned wake, with the day's first action ("Bright light + 200mg caffeine").
+3. **Anchor-sleep nudges** for rotating workers ("Protect this 4h anchor sleep — your Friday night is the heavy one").
+4. **Pre-shift caffeine + meal reminders** at the computed times from Upgrade 1.
+5. **Server-side scheduling** via `pg_cron` + a `/api/public/notifications/cron` route + Web Push (VAPID) for users who granted permission, so notifications fire when the tab is closed. Browser-only fallback stays for users who skip push.
+6. **Quiet hours + snooze** controls in Profile.
+7. **Automation rules** — auto-create the next week's plan when Sunday rolls over; auto-mark a played voice brief as "heard"; auto-clear the AI brief card after the shift starts.
+
+Verification: end-to-end push delivery test on iOS Safari + Chrome desktop; quiet-hours respected; no duplicate notifications when the tab is open.
+
+---
+
+## Upgrade 4 — Wearable Integration (Finish)
+
+Status: Fitbit + Oura code shipped (provider clients, OAuth callbacks, sync engine, dashboard `LastNightStrip`, Profile `WearableCard`). Production secrets pending.
+
+What we finish:
+1. **Apple Health** — read-only via a lightweight web bridge (user exports → drag-drop XML import) until the native wrapper exists; surfaces sleep, HRV, RHR through the same `wearable_readings` table.
+2. **Google Fit** — OAuth + Fitness REST API integration, same shape as Fitbit/Oura.
+3. **Nightly cron** wired to `pg_cron` calling `/api/public/wearables/cron` for all four providers.
+4. **Wearable-grounded coach + insights** — already partially wired in Upgrade 1; verify end-to-end with seeded fake readings.
+5. **Sync history + "compare to plan"** card showing planned vs actual sleep for the last 7 nights.
+6. **Placeholder-safe development** — every provider's client reads its env vars lazily and shows a clean "Add credentials in Settings" UI instead of crashing when keys are missing.
+
+Verification: each provider connects, disconnects, syncs, and refreshes tokens; missing keys never break the build or dashboard.
+
+---
+
+## Upgrade 5 — UX Polish
+
+Goal: every screen feels like a flagship app.
+
+What we build:
+1. **Animation pass** — staggered card mounts on dashboard, spring transitions on tab switches, smooth ring fill on recovery score, subtle parallax on the hero gradient. Framer Motion already available.
+2. **Responsiveness** — audit at 320, 375, 414, 768, 1024, 1440. Fix every overflow, tap-target, and safe-area issue. iOS notch + dynamic island.
+3. **Layout refinement** — consistent 16/24px rhythm, unified card radii, typographic scale audit (Instrument Serif vs body sans).
+4. **Per-screen polish**: dashboard bento alignment, `/plan` timeline visuals, `/coach` message bubbles + streaming indicator, `/swap` analysis card, `/playbooks` card stack, Profile section dividers, paywall hierarchy.
+5. **Empty + loading states** — every async surface gets a skeleton; every empty state gets a one-line CTA.
+6. **Accessibility pass** — focus rings, ARIA labels on icon-only buttons, color-contrast audit, reduced-motion respect.
+7. **Final QA sweep** — Playwright run across every route on mobile + desktop viewports, zero console errors, zero hydration warnings.
+
+Verification: side-by-side before/after screenshots per screen, Lighthouse ≥90 mobile, no runtime errors.
+
+---
+
+## Technical Notes (for the engineer, not the user)
+
+- Upgrade 1 lives mostly in `src/lib/insights.ts`, a new `src/lib/recommendations.ts`, and the `computeInsights` consumers (`/`, `/coach`, `/plan`, `AIBriefCard`). Type changes to `Insights` are additive — keep `fatigueForecast[0..2]` backward-compatible by aliasing into the new 14-day array.
+- Upgrade 2 needs two migrations: `shifts.rotation_weeks`, `shifts.anchor_date`, and a new `shift_overrides` table with full GRANTs + RLS.
+- Upgrade 3 needs a `push_subscriptions` table, VAPID keys via `add_secret`, and a `pg_cron` job hitting the new public route with the anon `apikey` header.
+- Upgrade 4 keeps the lazy-config pattern already in `fitbit.server.ts` / `oura.server.ts` — `getXConfig()` throws with a friendly message; UI shows a "needs setup" state instead of crashing.
+- Upgrade 5 is pure frontend; no schema or server changes.
+
+---
+
+## Rules of engagement
+
+- One upgrade at a time. No parallel feature branches.
+- Each upgrade ends with: green typecheck, green Playwright smoke, manual verification on mobile + desktop preview, and a published build that the user signs off on.
+- Bug found mid-upgrade → fix before continuing.
+- Launch prep (App Store assets, marketing site, onboarding video, etc.) does NOT start until Upgrade 5 is signed off.
+
+Approve to begin **Upgrade 1 — Advanced AI Planning Engine**.
