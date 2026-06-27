@@ -97,7 +97,7 @@ function LegalIndex() {
         </a>
         .
       </footer>
-    </main>
+    </section>
   );
 }
 
