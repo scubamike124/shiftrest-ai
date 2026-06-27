@@ -1,100 +1,95 @@
+# Step 3 — Predictive AI + Continuous Learning
 
-# Step 2 — Memory Evolution + Intelligent Ranking
+Builds on the AI orchestrator (`/api/ai`), memory ranker, and existing telemetry tables (`shifts`, `wearable_readings`, `user_events`, `ai_log`, `ai_memory`). All new intelligence runs through the same gateway — no parallel pipelines, one coach voice.
 
-Goal: turn `ai_memory` from a flat recency list into a ranked, learning, user-controlled long-term store, and give it a proper home in the UI. No breaking changes — every existing call to `listMemories()` / `fetchRelevantMemories()` keeps working.
+## 1. Data foundation (migration)
 
-## 1. Schema additions (single migration)
+Three new tables, all RLS-scoped to `auth.uid()` with `service_role` full access:
 
-Extend `public.ai_memory` (additive only, all NULL-safe):
+- **`ai_recommendations`** — every coachable suggestion the AI surfaces.
+  Fields: `id`, `user_id`, `intent` (right_now / daily_plan / smart_alarm / commute / coach_tip / tomorrow), `headline`, `rationale`, `evidence_json` (memory ids + signals used), `confidence` (0–1), `predicted_impact_json` (e.g. {fatigue_delta, sleep_min}), `valid_from`, `valid_until`, `superseded_by`, `created_at`.
+- **`ai_feedback`** — user reactions used for learning.
+  Fields: `id`, `user_id`, `recommendation_id` (fk), `reaction` enum: `helpful`, `not_helpful`, `already_did`, `ignored_today`, `dismissed_forever`, `note` (text, optional), `outcome_json` (auto-filled later: next-day sleep_min, hrv_delta, readiness_delta), `created_at`.
+- **`ai_patterns`** — durable, named patterns the predictor detects.
+  Fields: `id`, `user_id`, `pattern_key` (e.g. `sleep_debt_3d`, `caffeine_late`, `rotation_change`, `hrv_decline`, `missed_recovery`), `severity` 1–5, `signals_json`, `first_seen_at`, `last_seen_at`, `occurrences`, `active` bool, `muted_until`.
 
-| Column | Type | Default | Purpose |
-|---|---|---|---|
-| `importance` | smallint (1–5) | 3 | Long-term usefulness weight (set by extractor + user pin) |
-| `use_count` | integer | 0 | How often the AI actually referenced this memory |
-| `last_referenced_at` | timestamptz | null | Replaces overloaded `last_used_at` semantics; updated when injected into a prompt |
-| `expires_at` | timestamptz | null | Optional soft TTL for transient facts ("this week I'm on nights") |
-| `superseded_by` | uuid | null | Points at a newer memory that replaces this one (soft-delete chain) |
-| `embedding_hash` | text | null | Lightweight dedupe key (normalized content hash; no pgvector needed yet) |
+Add `pattern_id` (nullable fk) and `feedback_score` (computed via job) to `ai_recommendations`. Indexes on `(user_id, created_at desc)` and `(user_id, active)` on patterns.
 
-Index: `(user_id, superseded_by) WHERE superseded_by IS NULL` for the "active" set.
+## 2. Pattern Detection Engine (server)
 
-Keep existing `confidence`, `pinned`, `source`, `category` — they're inputs to the ranker. Keep `last_used_at` for back-compat; new code writes both.
+New `src/lib/ai/patterns.server.ts` — pure TS detectors that run on demand and on a nightly cron. Each detector takes the last 14–28 days of `shifts`, `wearable_readings`, `user_events`, `ai_feedback` and returns zero or more `{pattern_key, severity, signals}`.
 
-## 2. Ranking function (server-only, `src/lib/ai/memory-rank.server.ts`)
+Detectors shipped:
+- Sleep debt accumulation (rolling 7-day deficit vs target)
+- Shift rotation change (direction flip in last 3 shifts)
+- Frequent overtime (>X hrs/week)
+- Timezone/travel jump (lat-lon or tz delta from `user_events`)
+- Missed recovery windows (planned wind-down not followed by sleep block)
+- Repeated late caffeine (cutoff breached N days in a row)
+- Missed alarms (smart_alarm followed by no wake event within window)
+- Commute fatigue (post-shift drive after >12h awake)
+- HRV / readiness decline trend (linear slope negative over 7d)
+- Long-term sleep consistency (stdev of mid-sleep > threshold)
 
-Pure TS scorer — no LLM call, runs every time we build the system prompt.
+Results upserted to `ai_patterns` (dedupe by `pattern_key`, bump `occurrences` + `last_seen_at`). Detectors are pure; unit-testable.
 
-```text
-score =
-   1.6 * pinned                         (0 or 1)
- + 1.0 * importance / 5
- + 0.8 * confidence
- + 0.6 * recencyDecay(updated_at, 60d half-life)
- + 0.4 * usageDecay(last_referenced_at, 30d half-life)
- + 0.3 * log1p(use_count) / 3
- + 1.2 * categoryRelevance(category, intent)   // e.g. caffeine matters more for right_now
- - 2.0 * expired(expires_at)
- - 5.0 * superseded
-```
+## 3. Predictive intents in `/api/ai`
 
-`fetchRelevantMemories(admin, userId, { intent, limit })` becomes: pull up to ~80 active rows, score in JS, return top N (default 25 for coach, 12 for JSON intents). After selection, fire-and-forget bump: `use_count += 1`, `last_referenced_at = now()` for the chosen IDs (single `UPDATE … WHERE id = ANY(...)`).
+Extend the orchestrator (no new endpoints):
 
-## 3. Smarter extractor (`memory-extractor.server.ts`)
+- New JSON intent `tomorrow_preview` — composes Sleep timing, alarm, light, caffeine cutoff, commute, wind-down, recovery priorities. Schema mirrors `daily_plan` for UI reuse.
+- New JSON intent `daily_review` — recap: went well / reduced fatigue / increased fatigue / sleep recovered / readiness Δ / recovery trend / small improvement tomorrow. Encouraging tone enforced in system prompt.
+- New JSON intent `pattern_alert` — given a pattern row, returns headline + rationale + 1 actionable step + confidence.
+- Extend context builder (`context.server.ts`) to include: top 5 active patterns, last 7 days feedback summary (helpful/ignored counts per intent), and the previous recommendation for the same intent (so the model avoids repetition).
 
-Two upgrades, no new endpoints:
+Every JSON intent response is persisted to `ai_recommendations` before returning, so a stable `recommendation_id` is sent to the client for feedback wiring.
 
-1. **Dedupe + supersede.** Before insert, compute a normalized hash (lowercased, punctuation-stripped, trimmed) and lookup existing active memories in the same category. If hash matches → bump `use_count`, `confidence = min(1, +0.1)`, refresh `updated_at`. If semantically close (same category + first 6 tokens overlap) → insert new row and set `superseded_by` on the old one.
-2. **Importance + TTL hint.** Extractor JSON adds `importance: 1-5` and optional `ttl_days`. Schedule-ish facts ("on nights this week") get `ttl_days: 14`; durable facts ("works at Mercy Hospital") get `importance: 5`.
+## 4. Feedback loop
 
-Still capped at 4 memories per turn, still only when `memory_enabled=true`.
+- New server fn `submitFeedback({recommendation_id, reaction, note?})` — writes `ai_feedback`, and on `dismissed_forever` sets `muted_until = now()+30d` on the linked pattern.
+- Nightly job (`/api/public/hooks/ai-learn` via `pg_cron`) joins feedback with next-day wearable deltas to fill `outcome_json`, then recomputes `feedback_score` per `(user_id, intent, pattern_key)` and stores as a ranked `ai_memory` row of category `learned_preference` (e.g. "caffeine cutoff reminders helpful 4/5"). The ranker (Step 2) already boosts these.
+- The context builder injects the top learned preferences so the model dampens ignored advice and reinforces helpful threads.
 
-## 4. Client API (`src/lib/ai-memory.ts`)
+## 5. Nightly automation
 
-Additive surface, no breaking changes:
+Two cron jobs (`pg_cron` → `/api/public/hooks/*`, anon-key auth):
+- `02:30 user-local` (approx via stored tz): run pattern detection, generate `tomorrow_preview` and `daily_review`, store as `ai_recommendations` ready for arrival.
+- `04:00 UTC`: outcome backfill + learning aggregation described above.
 
-- `AIMemory` type gains `importance`, `useCount`, `lastReferencedAt`, `expiresAt`, `supersededBy`.
-- `listMemories({ query?, category?, includeArchived? })` — server-side `ilike` search on `content` + category filter; hides `superseded_by IS NOT NULL` unless `includeArchived`.
-- `updateMemory` accepts `importance` and `expiresAt`.
-- New `setMemoryEnabled(boolean)` thin wrapper over `user_prefs.memory_enabled` so the Memory page can toggle without duplicating Assistant settings logic.
+Both endpoints iterate `user_prefs.memory_enabled = true` users only and respect `predictive_enabled` (new pref, default true).
 
-## 5. New route — `src/routes/_authenticated/memory.tsx`
+## 6. UI surfaces (mobile-first)
 
-Mobile-first, matches dashboard typography. Sections, top to bottom:
+- **Dashboard arrival** (`ArrivalHero` + new `TomorrowPreviewCard`): shows the AI's pre-built tomorrow plan as collapsible bento card. CTA: "Make it official" / "Adjust".
+- **Daily Review card** appears after first wake event of the day (uses cached `daily_review`).
+- **Pattern Alerts**: `CompanionWhisper` upgraded to render active `ai_patterns` with severity dot, "Why am I seeing this?" expandable evidence list (drawn from `evidence_json`).
+- **Feedback chips** on every recommendation card: 👍 Helpful · 👎 Not helpful · ✅ Already did it · 🌙 Ignore today · ⛔ Don't show again. Single tap → optimistic update → `submitFeedback`.
+- **Trust receipt** (reuse Step 2 component): each card links to the memories/patterns/signals that produced it.
+- **Settings → Assistant**: new toggles — Predictive insights, Daily review, Tomorrow preview, Learn from my feedback. Each independently togglable; off = no writes to corresponding table.
 
-1. **Header strip** — "Long-term memory" + master On/Off switch (writes `user_prefs.memory_enabled`). When off: explain plainly what turning it on does, hide the list.
-2. **Privacy card** — short, plain English: what's stored, what isn't (no emotions / transient state / medical data), where it lives (your account, encrypted at rest), how to export/wipe. Links to Privacy Policy.
-3. **Search + filter bar** — text search, category chip filter, "Pinned only" toggle.
-4. **Memory list** — reuses the existing card layout from `AIMemoryManager`, plus:
-   - Importance dots (1–5, tap to change)
-   - "Last used" relative timestamp + use count chip
-   - Inline edit (textarea), category dropdown, pin, delete
-   - Expiry pill when `expires_at` set (e.g. "expires in 6 days")
-5. **Add memory** — same composer as today, with optional importance + TTL.
-6. **Footer actions** — Export JSON, Clear all (existing confirm flow).
+## 7. Voice & privacy guardrails
 
-Add to nav: a "Memory" entry in `AppSidebar.tsx` and a link from Profile → "Manage memories" that deep-links here. The existing `AIMemoryManager` stays for now but Profile points users at the dedicated page.
+- Extend `COACH_VOICE` with two clauses: never judgmental in reviews; always cite at least one evidence item when severity ≥ 3.
+- Migration adds `predictive_enabled`, `daily_review_enabled`, `tomorrow_preview_enabled`, `feedback_learning_enabled` to `user_prefs` (all default true; flip to false instantly stops the cron from touching that user).
+- Memory page (Step 2) gets a new "Patterns" tab — view, mute, or delete detected patterns. Export bundle includes patterns, recommendations, feedback.
+- All AI outputs continue to flow through `ai_log` for transparency.
 
-## 6. Wiring into the orchestrator
+## 8. Rollout order
 
-`buildSystemPrompt` already takes `userId` + profile. Add an optional `intent` arg and pass it from `/api/ai`. `fetchRelevantMemories` switches to the new ranker. The system-prompt memory block is unchanged in shape — the AI experience is identical, just better-curated rows.
+1. Migration (tables + prefs + grants + RLS).
+2. Pattern detectors + unit-ish smoke check via `tsgo`.
+3. Orchestrator intents (`tomorrow_preview`, `daily_review`, `pattern_alert`) + context builder updates.
+4. Server fns: `submitFeedback`, `listPatterns`, `getTomorrowPreview`, `getDailyReview`.
+5. UI: feedback chips → TomorrowPreviewCard → DailyReviewCard → CompanionWhisper upgrade → Memory "Patterns" tab → Assistant settings toggles.
+6. Cron endpoints + `pg_cron` schedule (separate insert, not migration).
+7. Typecheck + manual smoke on dashboard.
 
-No prompt changes to coach voice, no changes to any other intent's JSON schema → zero risk to existing AI surfaces.
+## Technical notes
 
-## 7. Quality bar
+- No breaking schema changes; existing intents untouched.
+- All new server logic in `*.server.ts` / `*.functions.ts` per import-graph rules.
+- `supabaseAdmin` only inside cron handlers (loaded with `await import`).
+- Confidence + evidence are persisted with every recommendation so the UI can always explain "why".
+- Feedback never silently retrains — it adjusts ranked memory rows the user can view and delete on the Memory page.
 
-- All schema changes additive + backfilled (`importance=3`, `use_count=0`).
-- RLS unchanged (still `auth.uid() = user_id` for all four ops).
-- New page is `_authenticated` only.
-- Mobile-first: single column ≤640px, two-column list ≥768px.
-- Manual QA matrix: memory off → list hidden, extractor no-ops; memory on → add/edit/pin/delete/search/export/clear all work; ranker picks pinned > recent > old-but-important in console-logged debug; supersede chain doesn't surface duplicates.
-
-## Build order
-
-1. Migration (schema additions + indexes).
-2. `memory-rank.server.ts` + update `fetchRelevantMemories`.
-3. Extractor upgrades (dedupe, importance, ttl).
-4. Client `ai-memory.ts` surface additions.
-5. `/memory` route + sidebar/profile links.
-6. QA pass on mobile viewport, then desktop.
-
-Awaiting approval before any code changes.
+Approve and I will start with the migration.
