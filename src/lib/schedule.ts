@@ -259,8 +259,9 @@ export function buildMultiDayPlan(
     date.setDate(start.getDate() + i);
     const dayShifts = shiftsForDate(shifts, date, prefs.cycleAnchor, prefs.cycleWeeks);
     const primary = dayShifts[0];
+    const planTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
     const sun = location
-      ? sunTimes(date, location.lat ?? null, location.lon ?? null)
+      ? sunTimes(date, location.lat ?? null, location.lon ?? null, planTz)
       : { sunrise: null, sunset: null };
     let longClock: LongClockEvent[] = [];
     let sleep: { start: Date; end: Date } | undefined;
