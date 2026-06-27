@@ -14,6 +14,7 @@ import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
+import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
 
 export const Route = createFileRoute("/plan")({
@@ -45,6 +46,7 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
 
 function PlanPage() {
   const [mounted, setMounted] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const { data: shifts = [] } = useQuery({ queryKey: ["shifts"], queryFn: fetchShifts });
   const { data: prefs = DEFAULT_PREFS } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, initialData: DEFAULT_PREFS });
   const today = useMemo(() => new Date(), []);
@@ -53,6 +55,9 @@ function PlanPage() {
 
   useEffect(() => {
     setMounted(true);
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   const shift = shifts.find((s: Shift) => s.day === activeDay);
@@ -99,13 +104,18 @@ function PlanPage() {
 
       {!hasVerifiedLocation && (
         <Link
-          to="/profile"
+          to={signedIn === false ? "/auth" : "/profile"}
+          search={signedIn === false ? ({ return: "/profile" } as never) : undefined}
           className="flex items-center justify-between rounded-2xl border border-amber/40 bg-amber/10 p-3 text-xs"
         >
           <span className="text-amber">
-            Set your location for accurate sunrise & sunset timing.
+            {signedIn === false
+              ? "Sign in to set your location for accurate sunrise & sunset timing."
+              : "Set your location for accurate sunrise & sunset timing."}
           </span>
-          <span className="font-semibold text-amber">Open profile →</span>
+          <span className="font-semibold text-amber">
+            {signedIn === false ? "Sign in →" : "Open profile →"}
+          </span>
         </Link>
       )}
 

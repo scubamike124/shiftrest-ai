@@ -97,15 +97,26 @@ export async function fetchPrefs(): Promise<Prefs> {
   return rowToPrefs(data as Row);
 }
 
-/** Upsert a partial prefs change for the signed-in user. No-op when logged out. */
+/** Thrown by savePrefs/markOnboarded when there's no signed-in user. */
+export class AuthRequiredError extends Error {
+  constructor(message = "Sign in required to save your preferences.") {
+    super(message);
+    this.name = "AuthRequiredError";
+  }
+}
+
+/** Upsert a partial prefs change for the signed-in user. Throws AuthRequiredError when logged out. */
 export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
   const uid = await currentUserId();
-  if (!uid) return;
+  if (!uid) throw new AuthRequiredError();
   const row = prefsToRowPartial(partial);
   const { error } = await supabase
     .from("user_prefs")
     .upsert({ user_id: uid, ...row }, { onConflict: "user_id" });
-  if (error) console.error("savePrefs failed", error);
+  if (error) {
+    console.error("savePrefs failed", error);
+    throw error;
+  }
 }
 
 /** Mark onboarding complete for the signed-in user. Falls back to localStorage flag when logged out. */

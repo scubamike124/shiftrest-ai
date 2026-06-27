@@ -35,6 +35,7 @@ import {
   clearPrefsMigrationFlag,
   fetchPrefs,
   savePrefs,
+  AuthRequiredError,
   type Prefs,
 } from "@/lib/prefs";
 import {
@@ -89,8 +90,18 @@ function Profile() {
       queryClient.setQueryData<Prefs>(["prefs"], { ...(prev ?? DEFAULT_PREFS), ...partial });
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(["prefs"], ctx.prev);
+      if (err instanceof AuthRequiredError) {
+        toast.error("Sign in to save your location", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate({ to: "/auth", search: { return: "/profile" } as never }),
+          },
+        });
+      } else {
+        toast.error("Couldn't save — please try again.");
+      }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["prefs"] }),
   });
@@ -225,7 +236,22 @@ function Profile() {
     }
   }
 
+  const signedIn = userEmail !== null;
+
+  function promptSignIn() {
+    toast.error("Sign in to save your location", {
+      action: {
+        label: "Sign in",
+        onClick: () => navigate({ to: "/auth", search: { return: "/profile" } as never }),
+      },
+    });
+  }
+
   function detectLocation() {
+    if (!signedIn) {
+      promptSignIn();
+      return;
+    }
     if (!("geolocation" in navigator)) {
       toast.error("Geolocation not supported — enter your city below.");
       return;
@@ -254,6 +280,10 @@ function Profile() {
   async function saveCity() {
     const q = cityDraft.trim();
     if (!q) return;
+    if (!signedIn) {
+      promptSignIn();
+      return;
+    }
     setGeocoding(true);
     try {
       const hit = await geocodeCity(q);
@@ -268,6 +298,31 @@ function Profile() {
       setGeocoding(false);
     }
   }
+
+  // One-shot upgrade: if the stored label is coord-shaped (legacy bug), try to
+  // resolve it to a real city name and persist that.
+  useEffect(() => {
+    if (!signedIn) return;
+    const label = prefs.locationLabel?.trim() ?? "";
+    const isCoords = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(label);
+    const hasCoords = Number.isFinite(prefs.lat) && Number.isFinite(prefs.lon);
+    if (!(label === "" || isCoords) || !hasCoords) return;
+    // Skip if at default NYC coords (no real location was ever set).
+    if (prefs.lat === DEFAULT_PREFS.lat && prefs.lon === DEFAULT_PREFS.lon) return;
+    let cancelled = false;
+    (async () => {
+      const resolved = await reverseGeocode(prefs.lat, prefs.lon);
+      if (!cancelled && resolved) {
+        mutation.mutate({ lat: prefs.lat, lon: prefs.lon, locationLabel: resolved });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, prefs.lat, prefs.lon, prefs.locationLabel]);
+
+
 
 
   return (
@@ -390,7 +445,8 @@ function Profile() {
           </div>
           <button
             onClick={detectLocation}
-            className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
+            disabled={!signedIn}
+            className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
           >
             Detect
           </button>
@@ -398,7 +454,7 @@ function Profile() {
         <div className="flex gap-2 px-4 pb-4">
           <input
             type="text"
-            placeholder="Or type a city (e.g. Austin, TX)"
+            placeholder={signedIn ? "Or type a city (e.g. Austin, TX)" : "Sign in to save your location"}
             value={cityDraft}
             onChange={(e) => setCityDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -407,17 +463,29 @@ function Profile() {
                 saveCity();
               }
             }}
-            className="h-10 flex-1 rounded-xl border border-border bg-input px-3 text-sm"
+            disabled={!signedIn}
+            className="h-10 flex-1 rounded-xl border border-border bg-input px-3 text-sm disabled:opacity-60"
           />
           <button
             onClick={saveCity}
-            disabled={geocoding || !cityDraft.trim()}
+            disabled={!signedIn || geocoding || !cityDraft.trim()}
             className="rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
           >
             {geocoding ? "…" : "Save"}
           </button>
         </div>
+        {!signedIn && (
+          <Link
+            to="/auth"
+            search={{ return: "/profile" } as never}
+            className="mx-4 mb-4 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary"
+          >
+            <span>Sign in to save your location</span>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        )}
       </section>
+
 
       <EmployersSection />
 
