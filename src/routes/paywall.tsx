@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
+import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({
