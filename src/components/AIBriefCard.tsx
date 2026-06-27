@@ -273,6 +273,42 @@ export function AIBriefCard({
           </div>
         )}
       </div>
+
+      {/* Personalized ranked recommendations — always rendered, AI-independent */}
+      {recommendations.length > 0 && (
+        <div className="relative z-10 mt-4 border-t border-border/40 pt-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            Personalized for you · next 24h
+          </p>
+          <ol className="mt-2 flex flex-col gap-2">
+            {recommendations.map((r, i) => {
+              const Icon = REC_ICONS[r.kind] ?? Sparkles;
+              return (
+                <li
+                  key={i}
+                  className="flex gap-3 rounded-xl border border-border/60 bg-card/60 p-3"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-indigo-glow">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-sm font-semibold leading-tight">{r.title}</p>
+                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {r.whenLabel}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {r.detail}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
     </section>
+
   );
 }
