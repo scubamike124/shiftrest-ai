@@ -188,9 +188,26 @@ function AuthPage() {
             className="flex-1 bg-transparent text-sm outline-none"
           />
         </label>
+        {mode === "signup" && (
+          <label className="flex items-start gap-2 rounded-xl border border-border bg-card/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            <Checkbox
+              checked={accepted}
+              onCheckedChange={(v) => setAccepted(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              I am 16 or older and agree to the{" "}
+              <Link to="/legal/terms" className="text-primary underline">Terms</Link>,{" "}
+              <Link to="/legal/privacy" className="text-primary underline">Privacy</Link>,{" "}
+              <Link to="/legal/disclaimers" className="text-primary underline">AI &amp; Health Disclaimers</Link>,{" "}
+              <Link to="/safety" className="text-primary underline">Safety Center</Link>, and{" "}
+              <Link to="/legal/electronic-consent" className="text-primary underline">Electronic Consent</Link>. RestPilot AI is not medical advice or an emergency service.
+            </span>
+          </label>
+        )}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || (mode === "signup" && !accepted)}
           className="h-12 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] disabled:opacity-60"
         >
           {loading ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
