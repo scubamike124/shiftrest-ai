@@ -75,7 +75,8 @@ export type ShiftInput = {
 
 export async function addShift(input: ShiftInput): Promise<Shift | null> {
   const userId = await currentUserId();
-  if (!userId) return null;
+  if (!userId) throw new AuthRequiredError("Sign in to save your shifts.");
+
   const { data, error } = await supabase
     .from("shifts")
     .insert({
