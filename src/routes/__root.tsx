@@ -217,6 +217,7 @@ function RootComponent() {
       )}
 
       {surface === "app" && <Onboarding />}
+      <CookieBanner />
       <Toaster />
     </QueryClientProvider>
   );
