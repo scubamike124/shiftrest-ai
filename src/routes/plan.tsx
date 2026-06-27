@@ -209,7 +209,7 @@ function PlanPage() {
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {DAYS.map((d, i) => {
-          const has = shifts.some((s) => s.day === i);
+          const has = safeShifts.some((s) => s.day === i);
           const active = i === activeDay;
           return (
             <button
