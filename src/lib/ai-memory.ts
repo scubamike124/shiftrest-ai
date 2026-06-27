@@ -125,7 +125,13 @@ export async function updateMemory(
     Pick<AIMemory, "content" | "category" | "pinned" | "importance" | "expiresAt">
   >,
 ): Promise<void> {
-  const row: Record<string, unknown> = {};
+  const row: {
+    content?: string;
+    category?: MemoryCategory;
+    pinned?: boolean;
+    importance?: number;
+    expires_at?: string | null;
+  } = {};
   if (patch.content !== undefined) row.content = patch.content.trim().slice(0, 280);
   if (patch.category !== undefined) row.category = patch.category;
   if (patch.pinned !== undefined) row.pinned = patch.pinned;
