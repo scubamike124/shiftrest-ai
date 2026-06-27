@@ -90,8 +90,18 @@ function Profile() {
       queryClient.setQueryData<Prefs>(["prefs"], { ...(prev ?? DEFAULT_PREFS), ...partial });
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(["prefs"], ctx.prev);
+      if (err instanceof AuthRequiredError) {
+        toast.error("Sign in to save your location", {
+          action: {
+            label: "Sign in",
+            onClick: () => navigate({ to: "/auth", search: { return: "/profile" } as never }),
+          },
+        });
+      } else {
+        toast.error("Couldn't save — please try again.");
+      }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["prefs"] }),
   });
