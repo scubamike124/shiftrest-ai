@@ -170,10 +170,26 @@ export function RightNowCard({
       {data && (
         <div className="relative z-10 mt-4 flex flex-col gap-4">
           <div>
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${tone.tag}`}>
-              {data.urgency === "now" ? <AlertCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-              {tone.label}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${tone.tag}`}>
+                {data.urgency === "now" ? <AlertCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                {tone.label}
+              </span>
+              {data.confidence && (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${CONFIDENCE_TONE[data.confidence]}`}
+                  title={data.confidenceReason ?? ""}
+                >
+                  <ShieldCheck className="h-3 w-3" />
+                  {data.confidence} confidence
+                </span>
+              )}
+              {fmtWindow(data.timeWindow) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-secondary/70 px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  <Clock className="h-3 w-3" /> {fmtWindow(data.timeWindow)}
+                </span>
+              )}
+            </div>
             <h2
               className="mt-2 text-2xl leading-tight lg:text-3xl"
               style={{ fontFamily: "var(--font-display)" }}
@@ -182,16 +198,29 @@ export function RightNowCard({
             </h2>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">Why</p>
               <p className="mt-1 text-sm leading-snug text-foreground">{data.why}</p>
             </div>
+            {data.followBenefit && (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300/90">If you follow it</p>
+                <p className="mt-1 text-sm leading-snug text-foreground/90">{data.followBenefit}</p>
+              </div>
+            )}
             <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-300/90">If you skip it</p>
               <p className="mt-1 text-sm leading-snug text-foreground/90">{data.ignoreCost}</p>
             </div>
           </div>
+
+          {data.confidenceReason && (
+            <p className="flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+              <Info className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>{data.confidenceReason}</span>
+            </p>
+          )}
 
           <Link
             to={data.ctaRoute}
