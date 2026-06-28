@@ -41,6 +41,10 @@ export function CompanionAvatar() {
   return (
     <Link
       to="/companion"
+      onClick={() => {
+        track({ event: "avatar_tapped", surface: "dashboard-header" });
+        track({ event: "companion_opened_from_dashboard", via: "header-chip" });
+      }}
       aria-label={pulse ? "Open Companion — new briefing ready" : "Open Companion"}
       className={cn(
         "relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
