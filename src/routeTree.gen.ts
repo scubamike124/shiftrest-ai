@@ -28,6 +28,7 @@ import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -154,6 +155,11 @@ const DecisionsRoute = DecisionsRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanionRoute = CompanionRouteImport.update({
+  id: '/companion',
+  path: '/companion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoachRoute = CoachRouteImport.update({
@@ -324,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -377,6 +384,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -430,6 +438,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/coach': typeof CoachRoute
+  '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -485,6 +494,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/companion'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -538,6 +548,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/companion'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -590,6 +601,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/coach'
+    | '/companion'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -644,6 +656,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   CoachRoute: typeof CoachRoute
+  CompanionRoute: typeof CompanionRoute
   DashboardRoute: typeof DashboardRoute
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
@@ -811,6 +824,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/companion': {
+      id: '/companion'
+      path: '/companion'
+      fullPath: '/companion'
+      preLoaderRoute: typeof CompanionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/coach': {
@@ -1084,6 +1104,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   CoachRoute: CoachRoute,
+  CompanionRoute: CompanionRoute,
   DashboardRoute: DashboardRoute,
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
