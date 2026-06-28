@@ -1,110 +1,162 @@
-# Slice 8 — AI Companion Voice + Action Layer
+# Slice 9 — Real Action Execution Layer
 
-## Goal
-Turn the Companion from a chat + brief surface into an interactive assistant that can propose **typed actions**, get **explicit confirmation**, and execute them safely. Add voice input/reply where supported, with hard privacy rules. Nothing fires silently.
+## 1. Investigation summary
 
-## Investigation Summary
+### What already exists (reuse, don't rebuild)
+- **Action types & registry** — `src/lib/companion/actions.ts` defines `CompanionAction`, `describeAction`, `executeAction`, `intentToAction`. Today it handles: sound playback, stop-all, sleep timer, breathing, wind-down, navigation, smart-alarm prefill, evening summary nav. Several kinds (`create_reminder`, `text_contact`, `calendar_event`, `start_meditation`) are explicit "coming soon" stubs.
+- **Confirmation UI** — `src/components/companion/ActionCard.tsx` (Confirm / Cancel, `done` collapsed state, unavailable reason).
+- **Companion chat surface** — `src/routes/companion.tsx` already wires `executeAction` from both AI-proposed actions and the voice intent router (`intentToAction`), respects `requireActionConfirmation`, auto-runs nav, and TTS-narrates results when voice replies + quiet hours allow.
+- **Sound system** — `src/lib/sounds/mixer.ts` (`play`, `stop`, `stopAll`, `setSleepTimer`, `clearTimer`, `setVolume`, `snapshot`, `applyMix`, `isActive`).
+- **Smart Alarm** — `src/components/SmartAlarmCard.tsx` creates an alarm by inserting `user_events` rows (`kind=personal`, `title="alarm:HH:MM"`) via `src/lib/events.ts` (`addEvent`, `updateEvent`, `removeEvent`, `listEvents`).
+- **Prefs** — `src/lib/prefs.ts` (`updatePrefs`) covers `notifications`, `memoryEnabled`, `memoryLearningPaused`, `briefEnabled`, `brief_layout` (order / hidden cards per period), voice settings.
+- **Local prefs** — `src/lib/companion/voice-action-prefs.ts` for per-device toggles + quiet hours; `quiet-hours.ts` for window math.
+- **Memory** — `ai_memory` + `ai_memory_proposals` tables; existing `/memory` route handles edits/forgets.
 
-**What already exists (reuse, don't rebuild):**
-- `src/routes/companion.tsx` — chat UI, `useMicRecorder` voice input → `/api/stt`, streaming `/api/ai` replies, sound bridge wiring with yes/no confirmation flow already implemented for *sleep sound* intents only.
-- `src/lib/voice/intent-router.ts` + `intent-executor.ts` — deterministic intents (`play_track`, `stop_all`, `set_timer`, `sleep_mode`, `goodnight`, `breathing`, `wake_at`, `save_mix`). Used by `/sleep` and the bridge.
-- `src/lib/voice/companion-sound-bridge.ts` — narrow allow-list (sound intents only). Returns `handled | confirm | miss`.
-- `src/routes/api/tts.ts` — server TTS endpoint already shipped (used by `VoicePlayer`).
-- `src/components/CompanionAvatar.tsx` — dashboard pulse chip linking to `/companion`.
-- `src/routes/settings.companion.tsx` — settings shell from Slice 7.
-- `src/lib/prefs.ts` — `assistantMode`, `assistantName`, `memoryEnabled`, `voiceLanguage` already persisted.
+### Real gaps the slice closes
+1. No **central executor** — `executeAction` is a single switch returning `{ok,message}`; no Queued/Executing/Completed/Failed/Cancelled state machine, no history, no retry.
+2. Smart-alarm "actions" today only **navigate** to `/events` with a prefilled time; they do not create / edit / delete / enable / disable / snooze alarms.
+3. No volume / switch-sound / explicit-stop-one action kinds for the mixer.
+4. No actions for: brief refresh, "remember this", "forget this", summarize today, review tomorrow, toggle voice / notifications / memory / confirmations, pin / reorder / hide dashboard cards.
+5. Confirmation policy is binary (`requireActionConfirmation`). Spec requires destructive actions (delete, forget, disable, reset) to **always** confirm regardless of the toggle.
+6. No structured error taxonomy (offline / auth / validation / not-found / permission denied), no recovery suggestions, no Action History UI, no retry button.
+7. Voice narration in `companion.tsx` speaks the raw result message; spec asks for natural assistant-style narration + a serialization queue so replies don't overlap.
 
-**Gaps this slice closes:**
-1. Only *sleep sound* intents reach a confirm/execute flow. Smart-alarm, breathing, navigation to briefs, reminders have no unified action surface.
-2. No reusable **Action Card** UI — current confirmation is plain assistant text + free-text yes/no parsing.
-3. No voice **reply** (TTS) wired into companion chat (TTS exists but isn't called from `/companion`).
-4. Dashboard avatar opens `/companion` but has no "Ask Companion" quick prompt.
-5. `/settings/companion` has no voice/actions privacy toggles.
-6. No quiet-hours gate for voice output.
+### Permission / safety model
+- Honor `localPrefs.requireActionConfirmation` (per-device).
+- Honor `localPrefs.voiceRepliesEnabled` + `quietHours` + `localPrefs.actionSuggestionsEnabled`.
+- Honor server prefs: `notifications`, `memoryEnabled`, `memoryLearningPaused`, `briefEnabled`.
+- Honor auth: any DB-touching action checks `supabase.auth.getUser()`; offline → typed `OfflineError`, queued for retry but never auto-executed silently.
+- Destructive set (`delete_alarm`, `disable_alarm`, `forget_memory`, `reset_*`, `toggle_*` to OFF for safety-critical features) **forces** a confirmation card even when `requireActionConfirmation` is OFF.
 
-## Affected files
+### Edge cases
+- Sound action fired before AudioContext unlock → mixer already handles user-gesture unlock; we surface "Tap to enable sound" error.
+- Alarm time in the past → bump to next day in handler.
+- Duplicate alarm at same HH:MM → reuse existing row, return `Completed` with "Already scheduled".
+- Memory action while `memoryEnabled=false` → blocked with clear reason + deep link to `/settings/companion`.
+- Concurrent executions → executor serializes per-action-kind where mixer state matters; others run in parallel.
+- TTS overlap → single playback queue in `useTtsPlayer`; new narration cancels nothing already playing, just queues.
 
-**Create**
-- `src/lib/companion/actions.ts` — typed `CompanionAction` registry + `executeAction()` + `describeAction()` (title, body, confirm/cancel labels, availability check). One central place for action types.
-- `src/components/companion/ActionCard.tsx` — confirmation UI rendered inline in chat: title, explanation, Confirm / Cancel buttons. Disabled state when action is unavailable (e.g. integration not connected) with safe placeholder copy.
-- `src/components/companion/VoiceReplyToggle.tsx` — small per-message speaker icon that plays the assistant turn through `/api/tts` (respects pref + quiet hours).
-- `src/lib/companion/quiet-hours.ts` — pure helper: `inQuietHours(prefs, now)`.
+### Rollback strategy
+- New executor lives behind `src/lib/companion/executor.ts`; existing `executeAction` becomes a thin shim that delegates. If a regression appears, revert the shim line to call the old switch.
+- Action history is localStorage-only (no schema change), so removing the UI removes all trace.
+- No DB migrations required for the slice itself; alarm CRUD reuses `user_events`.
 
-**Modify**
-- `src/routes/companion.tsx` — replace ad-hoc `pendingSoundIntent` text-confirmation with the generic `ActionCard`. Route bridge results and a new LLM-tool-style suggestion path through the same action queue. Auto-play TTS for assistant replies when `voiceRepliesEnabled` and not in quiet hours. Render suggested action chips from period briefs.
-- `src/lib/voice/companion-sound-bridge.ts` — return `CompanionAction` objects (not free-text "Want me to…?") so the UI uses ActionCard. Keep the existing allow-list.
-- `src/lib/prefs.ts` — extend `Prefs` with `voiceInputEnabled: boolean`, `voiceRepliesEnabled: boolean`, `actionSuggestionsEnabled: boolean`, `requireActionConfirmation: boolean` (default true, non-disable-able in UI for destructive actions), `companionQuietHours: { start: "HH:MM"; end: "HH:MM" } | null`. Round-trip through `user_prefs` JSON column (no migration needed — `prefs` JSON already exists).
-- `src/routes/settings.companion.tsx` — new "Voice & Actions" section: voice input, voice replies, action suggestions, quiet hours, microphone privacy explainer, link to `/safety`.
-- `src/components/CompanionAvatar.tsx` — keep current pulse chip; add an "Ask Companion" inline button next to it on the dashboard (small popover with quick prompt suggestions for the current period).
-- `src/components/companion/DailyBrief.tsx` — surface period-appropriate suggested actions ("Start wind-down", "Prepare tomorrow") as chips that open the Companion with that action pre-selected via search param `?action=...`.
+## 2. Architecture
 
-**Untouched**
-- `src/routes/api/ai.ts`, `tts.ts`, `stt.ts` — backend stays as-is. All new action logic is client-side.
-- `intent-router.ts`, `intent-executor.ts` — reused unchanged.
-
-## Action Framework
-
-```ts
-type CompanionAction =
-  | { kind: "play_track"; slug: string; label: string }
-  | { kind: "stop_all" }
-  | { kind: "set_timer"; minutes: number }
-  | { kind: "start_breathing" }
-  | { kind: "start_meditation" }            // placeholder if unavailable
-  | { kind: "wind_down" }                   // wraps sleep_mode preset + timer
-  | { kind: "open_route"; to: "/events" | "/sleep" | "/companion" | "/plan"; label: string }
-  | { kind: "recommend_smart_alarm"; hour: number; minute: number }
-  | { kind: "prepare_tomorrow_summary" }
-  | { kind: "create_reminder"; text: string; whenISO: string }      // placeholder
-  | { kind: "text_contact"; contactLabel: string; message: string } // placeholder
-  | { kind: "calendar_event"; title: string; whenISO: string };     // placeholder
+```text
+                  ┌─────────────────────────────┐
+ChatMsg ─────────►│  ActionCard (confirm UI)    │
+VoiceIntent ─────►│   + destructive override    │
+QuickAsk  ───────►└──────────────┬──────────────┘
+                                 │ confirm
+                                 ▼
+                  ┌─────────────────────────────┐
+                  │  ActionExecutor (single)    │
+                  │  - state: queued/exec/done  │
+                  │  - per-kind serialization   │
+                  │  - typed handlers registry  │
+                  │  - structured errors        │
+                  │  - emits to ActionHistory   │
+                  │  - emits to TTSQueue        │
+                  └──────────────┬──────────────┘
+                                 │
+       ┌──────────┬──────────────┼──────────────┬─────────────┐
+       ▼          ▼              ▼              ▼             ▼
+   mixer       events.ts     prefs.ts     memoryProposals  router.nav
+   (sounds)    (alarms)      (toggles)    + ai_memory      (deep links)
 ```
 
-`executeAction(action, ctx)` returns `{ ok, message, undo? }`. Placeholder kinds return `{ ok: false, message: "I can't text contacts yet — coming soon." }` so the UI shows the same safe response, never pretends it ran.
+### Action state machine
+`queued → executing → completed | failed | cancelled`. Cancelled = user hit Cancel on the card before execute or pressed Stop while executing (sound actions only — abort fades).
 
-**Approval rules:**
-- All non-navigation actions require ActionCard confirmation.
-- `open_route` may execute immediately (it just navigates).
-- `requireActionConfirmation` pref forces confirmation even on `open_route` if user wants it on.
+### Error taxonomy (`ActionError.kind`)
+`offline` · `unauthenticated` · `permission_denied` · `not_found` · `validation` · `conflict` · `unavailable` · `unknown`. Each carries `message` and optional `recovery: { label, action: CompanionAction | () => void }` so the failure card can offer "Open settings" / "Retry" / "Sign in".
 
-## Voice Layer
+## 3. Action catalog (final)
 
-- **Input**: existing `useMicRecorder` flow. Mic permission only on tap. Listening pulse + Stop button already present. Add transcript-preview state: after STT returns, show text in composer (already happens) — keep current send-on-press behavior, no auto-send.
-- **Reply**: when `voiceRepliesEnabled` and not in quiet hours, after stream finishes call `/api/tts` for the assistant turn and play through an `<audio>` element. User can tap the speaker icon to replay or mute. No background listening, no always-on mic.
-- **Fallback**: if `MediaRecorder` / `getUserMedia` unavailable, hide mic button and show "Voice not available on this device" tooltip; text input remains.
+| Domain | Kinds | Destructive |
+|---|---|---|
+| Sounds | `play_track`, `stop_track`, `stop_all`, `set_timer`, `clear_timer`, `set_volume`, `switch_track`, `wind_down`, `start_breathing` | no |
+| Smart Alarm | `create_alarm`, `edit_alarm`, `delete_alarm`, `snooze_alarm`, `enable_alarm`, `disable_alarm` | delete / disable |
+| Briefs | `refresh_brief`, `open_brief_section` (weather/commute/calendar/reminders) | no |
+| Evening | `start_bedtime_routine`, `launch_wind_down`, `begin_sleep_session` | no |
+| Companion | `remember_this`, `forget_memory`, `summarize_today`, `review_tomorrow` | forget |
+| Settings | `toggle_voice`, `toggle_notifications`, `toggle_memory`, `toggle_confirmations` | toggling OFF |
+| Dashboard | `open_card`, `pin_card`, `reorder_cards`, `hide_card`, `show_card` | hide |
+| Nav | `open_route` (existing) | no |
 
-## Dashboard avatar
+## 4. Files
 
-- Keep `CompanionAvatar` chip + pulse.
-- Add `<CompanionQuickAsk />` (new, but rendered next to the avatar in `src/routes/index.tsx`): a small button that opens a popover with 2–3 period-aware suggested prompts ("Start my wind-down", "What's tomorrow look like?"). Selecting one navigates to `/companion?prompt=...` which prefills the composer.
-- No new animations beyond the existing pulse.
+### New
+- `src/lib/companion/executor.ts` — `ActionExecutor` class, handler registry, error types, event emitter.
+- `src/lib/companion/handlers/{sounds,alarm,brief,memory,prefs,layout,nav}.ts` — one focused handler module per domain.
+- `src/lib/companion/action-history.ts` — localStorage ring buffer (last 50), `subscribe`, `add`, `retry`.
+- `src/lib/companion/narration.ts` — natural-language formatter ("Your alarm is set for 6 AM.").
+- `src/components/companion/ActionStatusInline.tsx` — Executing / Completed / Failed pill rendered inside `ActionCard` while or after running; reduced-motion aware.
+- `src/components/companion/ActionHistorySheet.tsx` — Sheet listing recent actions with status + Retry; opened from chat header.
 
-## Settings additions (`/settings/companion`)
+### Modified
+- `src/lib/companion/actions.ts` — expand union, keep `describeAction`/`executeAction` API; `executeAction` becomes a delegating shim around the executor (backward compatible for any existing call site).
+- `src/components/companion/ActionCard.tsx` — render new status pill, surface `ActionError.recovery` button when failed, force-confirm badge for destructive actions, ARIA `aria-live="polite"` on the status region.
+- `src/routes/companion.tsx` — use executor's event stream instead of an awaited `executeAction` for progress updates; force-confirm destructive actions even when `requireActionConfirmation=false`; queue narration through a single TTS lane.
+- `src/lib/voice/intent-executor.ts` — for kinds covered by the executor, delegate to it; keep voice-only intents (`save_mix`, `cancel`, `unknown`) unchanged.
+- `src/lib/companion/voice-action-prefs.ts` — no schema change; document destructive override.
 
-New "Voice & Actions" card with:
-- Voice input (switch)
-- Voice replies (switch)
-- Action suggestions (switch)
-- Always confirm before actions (switch, default ON, disabled+forced-on with helper text for destructive types)
-- Quiet hours (two time pickers, optional)
-- Microphone & privacy explainer block (mirrors `/safety` copy, links there)
+### Untouched
+- `src/lib/sounds/mixer.ts`, `src/lib/events.ts`, `src/lib/prefs.ts`, all server functions, all DB schema. Slice 9 is a UI/orchestration layer.
 
-## Risks
+## 5. Confirmation flow
 
-- **TTS cost**: auto-playing every assistant turn could spike usage. Mitigation: only play turns ≤ ~600 chars, throttle to 1 in-flight playback, respect quiet hours, default the toggle OFF.
-- **Browser STT/TTS variability**: Safari/iOS quirks already handled in `useMicRecorder`. Audio playback may require a prior user gesture — already true because reply only plays after user sent a message.
-- **Action drift**: Future kinds (reminders, SMS) must be added to the union, not bolted on ad-hoc — `executeAction` exhaustively switches so TS catches missing cases.
-- **Quiet hours**: must wrap midnight (e.g. 22:00–07:00). Helper handles wrap-around.
-- **Regression surface**: existing sound-bridge yes/no parsing replaced by ActionCard. Keep `isYes`/`isNo` exported as fallback for free-text confirmation when the user types instead of tapping.
+```text
+proposeAction(a)
+  ├─ destructive(a) ──── true ──► render ActionCard (Confirm required, "Destructive" badge)
+  └─ requireActionConfirmation
+        ├─ true  ──► render ActionCard
+        └─ false ──► describeAction(a).isNavigation
+                        ├─ true  ──► auto-run (no card)
+                        └─ false ──► run immediately, render done card retroactively
+```
 
-## Complexity
+## 6. Voice narration
+- New `narration.ts` produces assistant-style text per action result (not the raw toast message).
+- A single `ttsQueue` in `companion.tsx` ensures replies serialize; new narration enqueues, never preempts.
+- Suppressed when `voiceRepliesEnabled=false` or `inQuietHours(now, quietHours)`.
 
-Medium. ~3 new files, 5 modifications, no DB migration, no new server routes. Most plumbing reuses Slice 4–7 work.
+## 7. Action History
+- localStorage key `restpilot.companion.history.v1`, max 50 entries `{id, kind, label, status, at, errorKind?}`.
+- Accessible via a History icon in the chat header → opens `ActionHistorySheet`.
+- Retry button visible only for `failed` rows whose error kind is retryable (`offline`, `unknown`, `conflict`).
 
-## Quality gates before shipping
+## 8. Accessibility
+- `ActionCard` keeps Radix-based buttons (focus ring, keyboard).
+- Status region uses `role="status"` + `aria-live="polite"`.
+- Destructive cards add `aria-describedby` pointing at a "This action cannot be undone" note.
+- Tap targets ≥44px, History sheet uses existing `Sheet` primitive.
+- Honor `prefers-reduced-motion` for the executing spinner (swap to static dot).
 
-- `tsgo --noEmit` clean.
-- Manual: send text → action proposed → confirm → executes; cancel path works; placeholder actions return safe message; quiet hours blocks TTS; voice toggle off hides mic; settings persist across reload; dashboard quick-ask prefills composer; existing `/sleep` voice flow unchanged.
-- No silent action execution anywhere in the chat path.
+## 9. Testing strategy
+- Unit (`bunx vitest run`): executor state transitions, destructive-override logic, error taxonomy, narration strings, history ring buffer.
+- Integration via Playwright against the running app:
+  1. Voice-route → "play rain" with Always Confirm ON → card appears, Confirm starts mixer, completed card + history entry.
+  2. Chat → "set an alarm for 6 am" → confirm → row inserted in `user_events`, alarm visible in Smart Alarm card.
+  3. Toggle memory OFF via action while `memoryEnabled=true` → forced confirm (destructive), pref flipped, /settings/companion reflects it.
+  4. Forced offline → action returns `offline` error with Retry button; reconnect + Retry → completes.
+  5. Quiet hours active + voice replies on → no TTS audio fires (assert via `useTtsPlayer` queue length).
+- `tsgo` clean, `bunx vitest run` clean.
 
-Awaiting approval before implementing.
+## 10. Risks & mitigations
+| Risk | Mitigation |
+|---|---|
+| Regressing existing voice/sound flows | Keep `executeAction` signature; executor wraps the old switch for unchanged kinds first, new handlers added behind flags-by-kind. |
+| Accidentally toggling notifications to OFF | Destructive override forces confirmation. |
+| TTS overlap | Single FIFO queue in `companion.tsx`. |
+| LocalStorage bloat | Hard cap 50 entries; trim on insert. |
+| Alarm dupes on retry | Handler dedupes by HH:MM. |
+
+## 11. Rollback
+1. Replace `executeAction` body with the previous switch (kept in git history).
+2. Remove `ActionHistorySheet` mount + executor import — UI degrades to Slice 8 behavior with zero data loss.
+
+---
+
+**Awaiting approval — no code will be written until you confirm.**

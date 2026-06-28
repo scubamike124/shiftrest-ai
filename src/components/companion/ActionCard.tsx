@@ -1,9 +1,11 @@
-// Slice 8 — Confirmation card the Companion renders inside a chat turn for
+// Slice 9 — Confirmation card the Companion renders inside a chat turn for
 // any proposed action. Nothing executes until the user taps Confirm.
+// Adds destructive badge, structured-error recovery link, and an aria-live
+// status region for executing / completed / failed states.
 
-import { Check, X, Info } from "lucide-react";
+import { Check, X, Info, AlertTriangle, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { describeAction, type CompanionAction } from "@/lib/companion/actions";
+import { describeAction, type ActionResult, type CompanionAction } from "@/lib/companion/actions";
 
 export function ActionCard({
   action,
@@ -17,18 +19,34 @@ export function ActionCard({
   onCancel: () => void;
   busy?: boolean;
   /** When set, the card collapses into a static read-only state. */
-  done?: { ok: boolean; message: string } | null;
+  done?: ActionResult | null;
 }) {
   const d = describeAction(action);
 
   if (done) {
+    const ok = done.ok;
+    const Icon = ok ? CheckCircle2 : XCircle;
     return (
       <div
         role="status"
+        aria-live="polite"
         className="mt-1 rounded-2xl border border-border/60 bg-muted/40 px-3.5 py-2 text-sm"
       >
-        <p className="font-medium">{d.title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{done.message}</p>
+        <div className="flex items-start gap-2">
+          <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${ok ? "text-emerald-500" : "text-destructive"}`} aria-hidden />
+          <div className="flex-1">
+            <p className="font-medium">{d.title}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{done.message}</p>
+            {!ok && done.error?.recovery?.href && (
+              <a
+                href={done.error.recovery.href}
+                className="mt-2 inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+              >
+                {done.error.recovery.label}
+              </a>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -37,16 +55,32 @@ export function ActionCard({
     <div
       role="group"
       aria-label={d.title}
-      className="mt-1 rounded-2xl border border-primary/30 bg-primary/5 px-3.5 py-3 text-sm"
+      className={`mt-1 rounded-2xl border px-3.5 py-3 text-sm ${
+        d.destructive ? "border-destructive/40 bg-destructive/5" : "border-primary/30 bg-primary/5"
+      }`}
     >
-      <p className="font-medium leading-tight">{d.title}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{d.body}</p>
-      {d.unavailable && d.unavailableReason && (
-        <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground">
-          <Info className="h-3 w-3" />
-          {d.unavailableReason}
-        </p>
-      )}
+      <div className="flex items-start gap-2">
+        {d.destructive && (
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+        )}
+        <div className="flex-1">
+          <p className="font-medium leading-tight">
+            {d.title}
+            {d.destructive && (
+              <span className="ml-2 inline-flex items-center rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                Destructive
+              </span>
+            )}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{d.body}</p>
+          {d.unavailable && d.unavailableReason && (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground">
+              <Info className="h-3 w-3" />
+              {d.unavailableReason}
+            </p>
+          )}
+        </div>
+      </div>
       <div className="mt-3 flex items-center justify-end gap-2">
         <Button
           type="button"
@@ -55,6 +89,7 @@ export function ActionCard({
           onClick={onCancel}
           disabled={busy}
           aria-label="Cancel action"
+          className="min-h-11"
         >
           <X className="mr-1 h-3.5 w-3.5" />
           Cancel
@@ -65,9 +100,20 @@ export function ActionCard({
           onClick={onConfirm}
           disabled={busy || d.unavailable}
           aria-label={d.confirmLabel}
+          variant={d.destructive ? "destructive" : "default"}
+          className="min-h-11"
         >
-          <Check className="mr-1 h-3.5 w-3.5" />
-          {busy ? "Working…" : d.confirmLabel}
+          {busy ? (
+            <>
+              <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+              Working…
+            </>
+          ) : (
+            <>
+              <Check className="mr-1 h-3.5 w-3.5" />
+              {d.confirmLabel}
+            </>
+          )}
         </Button>
       </div>
     </div>

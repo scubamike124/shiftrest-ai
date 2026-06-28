@@ -184,6 +184,18 @@ export function DailyBrief({
     if (period === "evening" && eveningQ.data) markBriefSeenPeriod("evening");
   }, [period, eveningQ.data]);
 
+  // Slice 9 — listen for companion-triggered refresh events.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<{ period?: string }>).detail;
+      if (!detail?.period || detail.period === "afternoon") void afternoonQ.refetch();
+      if (!detail?.period || detail.period === "evening") void eveningQ.refetch();
+    };
+    window.addEventListener("companion:brief-refresh", onRefresh as EventListener);
+    return () => window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+  }, [afternoonQ, eveningQ]);
+
   if (!signedIn || !enabled) return null;
 
   if (period === "morning") {

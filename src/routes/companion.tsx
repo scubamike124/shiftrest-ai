@@ -23,12 +23,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { cn } from "@/lib/utils";
 import { DailyBrief } from "@/components/companion/DailyBrief";
 import { ActionCard } from "@/components/companion/ActionCard";
+import { ActionHistorySheet } from "@/components/companion/ActionHistorySheet";
 import {
   describeAction,
   executeAction,
   intentToAction,
+  isDestructive,
   type CompanionAction,
 } from "@/lib/companion/actions";
+import { recordHistory } from "@/lib/companion/action-history";
+import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
@@ -244,27 +248,57 @@ function CompanionPage() {
     }
   }
 
-  // Slice 8 — confirm/cancel buttons on an action card.
+  // Slice 9 — central confirm path: record history (executing → completed/failed)
+  // and narrate the outcome (when voice replies are allowed).
+  async function runAction(action: CompanionAction): Promise<ReturnType<typeof executeAction> extends Promise<infer R> ? R : never> {
+    const d = describeAction(action);
+    recordHistory({ kind: action.kind, label: d.title, status: "executing", message: "Working…", snapshot: action });
+    const result = await executeAction(action, execCtx);
+    recordHistory({
+      kind: action.kind,
+      label: d.title,
+      status: result.ok ? "completed" : "failed",
+      message: result.message,
+      errorKind: result.error?.kind,
+      snapshot: action,
+    });
+    void speakIfEnabled(narrate(action, result));
+    return result;
+  }
+
   async function confirmAction(messageIndex: number) {
     const msg = messages[messageIndex];
     if (!msg?.action) return;
     setActionBusy(messageIndex);
     try {
-      const result = await executeAction(msg.action, execCtx);
+      const result = await runAction(msg.action);
       setMessages((cur) =>
         cur.map((m, i) => (i === messageIndex ? { ...m, actionDone: result } : m)),
       );
-      void speakIfEnabled(result.message);
     } finally {
       setActionBusy(null);
     }
   }
   function cancelAction(messageIndex: number) {
+    const msg = messages[messageIndex];
+    if (msg?.action) {
+      const d = describeAction(msg.action);
+      recordHistory({ kind: msg.action.kind, label: d.title, status: "cancelled", message: "Cancelled.", snapshot: msg.action });
+    }
     setMessages((cur) =>
       cur.map((m, i) =>
         i === messageIndex ? { ...m, actionDone: { ok: false, message: "Cancelled." } } : m,
       ),
     );
+  }
+
+  /** Slice 9 — retry from action history. Re-proposes the action as a fresh card. */
+  function handleRetry(action: CompanionAction) {
+    const d = describeAction(action);
+    setMessages((cur) => [
+      ...cur,
+      { role: "assistant", content: `Retrying: ${d.title}`, action, actionDone: null },
+    ]);
   }
 
   /** Push an assistant message that proposes an action (with confirmation card). */
@@ -289,12 +323,11 @@ function CompanionPage() {
         const action = intentToAction(pendingSoundIntent);
         setPendingSoundIntent(null);
         if (action) {
-          const result = await executeAction(action, execCtx);
+          const result = await runAction(action);
           setMessages([
             ...baseMessages,
             { role: "assistant", content: result.message, action, actionDone: result },
           ]);
-          void speakIfEnabled(result.message);
         }
         return;
       }
@@ -344,14 +377,17 @@ function CompanionPage() {
               return;
             }
           }
-          // If confirmation is off AND the action is non-destructive nav, run inline; else propose.
-          if (!localPrefs.requireActionConfirmation && describeAction(action).isNavigation) {
-            const result = await executeAction(action, execCtx);
+          // Slice 9 — auto-run only when: confirmations off, action is non-destructive, AND it's navigation.
+          if (
+            !localPrefs.requireActionConfirmation &&
+            !isDestructive(action) &&
+            describeAction(action).isNavigation
+          ) {
+            const result = await runAction(action);
             setMessages([
               ...baseMessages,
               { role: "assistant", content: result.message, action, actionDone: result },
             ]);
-            void speakIfEnabled(result.message);
             return;
           }
           proposeAction(baseMessages, action);
@@ -464,7 +500,9 @@ function CompanionPage() {
           <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Companion</p>
           <h1 className="text-xl font-semibold leading-tight">{aiName}</h1>
         </div>
-        <Sheet>
+        <div className="flex items-center gap-1">
+          <ActionHistorySheet onRetry={handleRetry} />
+          <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Companion settings">
               <Settings2 className="h-5 w-5" />
@@ -574,8 +612,9 @@ function CompanionPage() {
                 </p>
               </div>
             </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       {/* Avatar + greeting */}
