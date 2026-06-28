@@ -77,11 +77,14 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         </div>
 
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 md:hidden"
-          aria-label="Menu"
+          className="relative z-50 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card/80 backdrop-blur touch-manipulation md:hidden"
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
         >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {open ? <X className="pointer-events-none h-5 w-5" /> : <Menu className="pointer-events-none h-5 w-5" />}
         </button>
       </div>
 
