@@ -338,15 +338,8 @@ function toggle<T>(s: Set<T>, id: T): Set<T> {
 }
 
 function VoiceActionsCard() {
-  const [p, setP] = useState<import("@/lib/companion/voice-action-prefs").CompanionLocalPrefs>(() =>
-    require_("@/lib/companion/voice-action-prefs").loadLocalPrefs(),
-  );
-  const update = (
-    patch: Partial<import("@/lib/companion/voice-action-prefs").CompanionLocalPrefs>,
-  ) => {
-    const next = require_("@/lib/companion/voice-action-prefs").saveLocalPrefs(patch);
-    setP(next);
-  };
+  const [p, setP] = useState<CompanionLocalPrefs>(() => loadLocalPrefs());
+  const update = (patch: Partial<CompanionLocalPrefs>) => setP(saveLocalPrefs(patch));
   const qh = p.quietHours;
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -422,11 +415,4 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
       {children}
     </div>
   );
-}
-
-// Local dynamic import shim so the settings page doesn't get bundled with the
-// localStorage helpers until needed.
-function require_<T = unknown>(_: string): T {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  return require(_) as T;
 }
