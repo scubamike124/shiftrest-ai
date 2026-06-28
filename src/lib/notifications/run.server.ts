@@ -66,6 +66,15 @@ function rowToPrefs(r: PrefsRow): Prefs {
       order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
       hidden: ["departure"],
     },
+    afternoonLayout: {
+      order: ["remaining", "nextTraffic", "weatherShift", "workingLate", "hydration", "movement", "battery"],
+      hidden: ["nextTraffic"],
+    },
+    eveningLayout: {
+      order: ["tomorrowFirst", "tomorrowWeather", "clothing", "smartAlarm", "bedtime", "prep", "travel", "summary", "windDown"],
+      hidden: [],
+    },
+    briefEnabled: { morning: true, afternoon: true, evening: true },
     homeAddress: null,
     workAddress: null,
     commuteMinutesBaseline: null,
