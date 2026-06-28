@@ -248,27 +248,57 @@ function CompanionPage() {
     }
   }
 
-  // Slice 8 — confirm/cancel buttons on an action card.
+  // Slice 9 — central confirm path: record history (executing → completed/failed)
+  // and narrate the outcome (when voice replies are allowed).
+  async function runAction(action: CompanionAction): Promise<ReturnType<typeof executeAction> extends Promise<infer R> ? R : never> {
+    const d = describeAction(action);
+    recordHistory({ kind: action.kind, label: d.title, status: "executing", message: "Working…", snapshot: action });
+    const result = await executeAction(action, execCtx);
+    recordHistory({
+      kind: action.kind,
+      label: d.title,
+      status: result.ok ? "completed" : "failed",
+      message: result.message,
+      errorKind: result.error?.kind,
+      snapshot: action,
+    });
+    void speakIfEnabled(narrate(action, result));
+    return result;
+  }
+
   async function confirmAction(messageIndex: number) {
     const msg = messages[messageIndex];
     if (!msg?.action) return;
     setActionBusy(messageIndex);
     try {
-      const result = await executeAction(msg.action, execCtx);
+      const result = await runAction(msg.action);
       setMessages((cur) =>
         cur.map((m, i) => (i === messageIndex ? { ...m, actionDone: result } : m)),
       );
-      void speakIfEnabled(result.message);
     } finally {
       setActionBusy(null);
     }
   }
   function cancelAction(messageIndex: number) {
+    const msg = messages[messageIndex];
+    if (msg?.action) {
+      const d = describeAction(msg.action);
+      recordHistory({ kind: msg.action.kind, label: d.title, status: "cancelled", message: "Cancelled.", snapshot: msg.action });
+    }
     setMessages((cur) =>
       cur.map((m, i) =>
         i === messageIndex ? { ...m, actionDone: { ok: false, message: "Cancelled." } } : m,
       ),
     );
+  }
+
+  /** Slice 9 — retry from action history. Re-proposes the action as a fresh card. */
+  function handleRetry(action: CompanionAction) {
+    const d = describeAction(action);
+    setMessages((cur) => [
+      ...cur,
+      { role: "assistant", content: `Retrying: ${d.title}`, action, actionDone: null },
+    ]);
   }
 
   /** Push an assistant message that proposes an action (with confirmation card). */
