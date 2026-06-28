@@ -17,6 +17,7 @@ import { BottomNav } from "../components/BottomNav";
 import { SiteHeader } from "../components/site/SiteHeader";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { AppSidebar } from "../components/site/AppSidebar";
+import { CompanionDock } from "../components/companion/CompanionDock";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
