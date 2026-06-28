@@ -56,7 +56,7 @@ export function Onboarding() {
   const allAcked = ACK_ITEMS.every((i) => acks[i.key]);
 
   async function finish() {
-    if (!allAcked) return;
+    if (!allAcked || busy) return;
     setBusy(true);
     try {
       await recordAcceptanceFn({
@@ -66,16 +66,16 @@ export function Onboarding() {
           flags: { onboarding_ack: new Date().toISOString() },
         },
       });
+      await markOnboarded();
+      await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+      setDismissed(true);
     } catch (err) {
-      console.error("onboarding acceptance failed", err);
-      toast.error("Couldn't save your consent. Please try again.");
+      console.error("onboarding finish failed", err);
+      const msg = err instanceof Error && err.message ? err.message : "Couldn't save. Please try again.";
+      toast.error(msg);
+    } finally {
       setBusy(false);
-      return;
     }
-    setDismissed(true);
-    await markOnboarded();
-    queryClient.invalidateQueries({ queryKey: ["prefs"] });
-    setBusy(false);
   }
 
   return (

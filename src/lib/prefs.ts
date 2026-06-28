@@ -222,7 +222,10 @@ export async function markOnboarded(): Promise<void> {
       { user_id: uid, onboarded_at: new Date().toISOString() },
       { onConflict: "user_id" },
     );
-  if (error) console.error("markOnboarded failed", error);
+  if (error) {
+    console.error("markOnboarded failed", error);
+    throw error;
+  }
 }
 
 /**
