@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
+import { CompanionAvatarFace } from "@/components/companion/Avatar";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
 import { track } from "@/lib/companion/analytics";
