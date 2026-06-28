@@ -41,6 +41,13 @@ function forcedMorning(): boolean {
 }
 
 export const Route = createFileRoute("/companion")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    prompt: typeof s.prompt === "string" ? s.prompt.slice(0, 500) : undefined,
+    period:
+      s.period === "morning" || s.period === "afternoon" || s.period === "evening"
+        ? s.period
+        : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Companion — Your personal AI | RestPilot AI" },
