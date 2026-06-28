@@ -54,6 +54,12 @@ export type Prefs = {
   // ─── Slice 6: Morning Brief ────────────────────────────────────────
   /** Order + hidden set for the Morning Brief cards. */
   briefLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — Afternoon Check-In layout. */
+  afternoonLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — Evening Brief layout. */
+  eveningLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — per-period brief enable toggles. */
+  briefEnabled: { morning: boolean; afternoon: boolean; evening: boolean };
   /** Optional home address — used later for live traffic. */
   homeAddress: string | null;
   /** Optional work address — used later for live traffic. */
@@ -66,6 +72,18 @@ export const DEFAULT_BRIEF_LAYOUT = {
   order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
   hidden: ["departure"] as string[],
 };
+
+export const DEFAULT_AFTERNOON_LAYOUT = {
+  order: ["remaining", "nextTraffic", "weatherShift", "workingLate", "hydration", "movement", "battery"],
+  hidden: ["nextTraffic"] as string[],
+};
+
+export const DEFAULT_EVENING_LAYOUT = {
+  order: ["tomorrowFirst", "tomorrowWeather", "clothing", "smartAlarm", "bedtime", "prep", "travel", "summary", "windDown"],
+  hidden: [] as string[],
+};
+
+export const DEFAULT_BRIEF_ENABLED = { morning: true, afternoon: true, evening: true };
 
 export const DEFAULT_PREFS: Prefs = {
   windDownMin: 120,
@@ -100,6 +118,9 @@ export const DEFAULT_PREFS: Prefs = {
   voiceSpeed: 1.0,
   voiceInstructions: null,
   briefLayout: DEFAULT_BRIEF_LAYOUT,
+  afternoonLayout: DEFAULT_AFTERNOON_LAYOUT,
+  eveningLayout: DEFAULT_EVENING_LAYOUT,
+  briefEnabled: DEFAULT_BRIEF_ENABLED,
   homeAddress: null,
   workAddress: null,
   commuteMinutesBaseline: null,
@@ -145,18 +166,48 @@ type Row = {
   voice_personality?: string | null;
   voice_speed?: number | string | null;
   voice_instructions?: string | null;
-  brief_layout?: { order?: string[]; hidden?: string[] } | null;
+  brief_layout?:
+    | { order?: string[]; hidden?: string[] }
+    | {
+        morning?: { order?: string[]; hidden?: string[] };
+        afternoon?: { order?: string[]; hidden?: string[] };
+        evening?: { order?: string[]; hidden?: string[] };
+      }
+    | null;
+  brief_enabled?: { morning?: boolean; afternoon?: boolean; evening?: boolean } | null;
   home_address?: string | null;
   work_address?: string | null;
   commute_minutes_baseline?: number | null;
 };
 
+type LayoutPart = { order?: string[]; hidden?: string[] };
+function pickLayout(part: LayoutPart | undefined, fallback: { order: string[]; hidden: string[] }) {
+  if (part && Array.isArray(part.order)) {
+    return { order: part.order, hidden: Array.isArray(part.hidden) ? part.hidden : [] };
+  }
+  return fallback;
+}
+
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
   const mode = (r.assistant_mode ?? "coach") as AssistantMode;
-  const layout = r.brief_layout && Array.isArray(r.brief_layout.order)
-    ? { order: r.brief_layout.order, hidden: r.brief_layout.hidden ?? [] }
-    : DEFAULT_BRIEF_LAYOUT;
+  const bl = r.brief_layout as
+    | (LayoutPart & { morning?: LayoutPart; afternoon?: LayoutPart; evening?: LayoutPart })
+    | null
+    | undefined;
+  // Back-compat: old shape was flat { order, hidden } (morning only).
+  const nested = bl && (bl.morning || bl.afternoon || bl.evening);
+  const morning = nested
+    ? pickLayout(bl?.morning, DEFAULT_BRIEF_LAYOUT)
+    : pickLayout(bl ?? undefined, DEFAULT_BRIEF_LAYOUT);
+  const afternoon = pickLayout(bl?.afternoon, DEFAULT_AFTERNOON_LAYOUT);
+  const evening = pickLayout(bl?.evening, DEFAULT_EVENING_LAYOUT);
+  const be = r.brief_enabled ?? {};
+  const briefEnabled = {
+    morning: be.morning ?? true,
+    afternoon: be.afternoon ?? true,
+    evening: be.evening ?? true,
+  };
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -189,7 +240,10 @@ function rowToPrefs(r: Row): Prefs {
     voicePersonality: r.voice_personality || "calm",
     voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
     voiceInstructions: r.voice_instructions ?? null,
-    briefLayout: layout,
+    briefLayout: morning,
+    afternoonLayout: afternoon,
+    eveningLayout: evening,
+    briefEnabled,
     homeAddress: r.home_address ?? null,
     workAddress: r.work_address ?? null,
     commuteMinutesBaseline: r.commute_minutes_baseline ?? null,
@@ -224,7 +278,18 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
   if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
   if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
-  if (p.briefLayout !== undefined) out.brief_layout = p.briefLayout;
+  if (
+    p.briefLayout !== undefined ||
+    p.afternoonLayout !== undefined ||
+    p.eveningLayout !== undefined
+  ) {
+    out.brief_layout = {
+      morning: p.briefLayout ?? DEFAULT_BRIEF_LAYOUT,
+      afternoon: p.afternoonLayout ?? DEFAULT_AFTERNOON_LAYOUT,
+      evening: p.eveningLayout ?? DEFAULT_EVENING_LAYOUT,
+    };
+  }
+  if (p.briefEnabled !== undefined) out.brief_enabled = p.briefEnabled;
   if (p.homeAddress !== undefined) out.home_address = p.homeAddress;
   if (p.workAddress !== undefined) out.work_address = p.workAddress;
   if (p.commuteMinutesBaseline !== undefined) out.commute_minutes_baseline = p.commuteMinutesBaseline;
@@ -249,7 +314,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, home_address, work_address, commute_minutes_baseline",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, brief_enabled, home_address, work_address, commute_minutes_baseline",
     )
     .eq("user_id", uid)
     .maybeSingle();

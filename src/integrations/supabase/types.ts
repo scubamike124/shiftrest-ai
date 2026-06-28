@@ -898,6 +898,7 @@ export type Database = {
           ai_daily_token_cap: number
           assistant_mode: string
           assistant_name: string
+          brief_enabled: Json
           brief_layout: Json
           calendar_travel_detect: boolean
           commute_minutes_baseline: number | null
@@ -942,6 +943,7 @@ export type Database = {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          brief_enabled?: Json
           brief_layout?: Json
           calendar_travel_detect?: boolean
           commute_minutes_baseline?: number | null
@@ -986,6 +988,7 @@ export type Database = {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          brief_enabled?: Json
           brief_layout?: Json
           calendar_travel_detect?: boolean
           commute_minutes_baseline?: number | null

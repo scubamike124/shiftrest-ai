@@ -1,198 +1,197 @@
-# Slice 6 — Smart Morning Intelligence
 
-Make the Companion the first thing users open every morning. The Companion greets the user with a personalized, card-based **Morning Brief** built from data RestPilot already has (sleep, smart alarm, weather, calendar, memory) — never from a blank prompt.
+# Slice 7 — Smart Day & Evening Intelligence
 
-This slice intentionally does **not** redesign the homepage. It puts the architectural seam in place: a small avatar on `/dashboard` that opens the full Companion, and the Morning Brief living inside the Companion route so it can later be lifted to the homepage.
-
----
-
-## 1. User-facing behavior
-
-When the user opens `/companion` between 04:00–11:00 local time (or pulls down "Refresh" any time), they see:
-
-1. **Greeting strip** — "Good morning, Michael. 7:14 AM" + assistant name.
-2. **Morning Brief stack** — ordered cards, each independently loadable, each with a graceful empty/skeleton/hidden state.
-3. **One AI recommendation** — single, short sentence under the stack ("Traffic is heavier than usual. Leave by 7:05.").
-4. **Composer** — existing chat input stays at the bottom; "Review today's schedule?" appears as a suggested chip after the brief.
-
-Outside the morning window the Companion shows its normal greeting; the Morning Brief is collapsed behind a "Show this morning's brief" button so we never feel stale at 8 PM.
+Extends the Companion's existing Morning Brief into an all-day assistant with three time-based briefs: **Morning** (04–11), **Afternoon** (11–17), **Evening** (17–04). The Companion auto-selects which brief to show based on local hour. Same hide-on-empty, parallel-fetch, card-based architecture as Slice 6 — we are generalizing, not duplicating.
 
 ---
 
-## 2. Cards
+## 1. Briefing windows & selection
 
-Each card is an isolated component with three states: `loading`, `ready`, `unavailable` (→ unmounted, never shown as error).
+| Period   | Local hours | Default brief             |
+|----------|-------------|---------------------------|
+| Morning  | 04:00–10:59 | Morning Brief (Slice 6)   |
+| Afternoon| 11:00–16:59 | Afternoon Check-In        |
+| Evening  | 17:00–03:59 | Evening Brief             |
 
-| Card | Source | Notes |
-|---|---|---|
-| Sleep | `insights.ts` + last shift / smart alarm | Duration + score badge |
-| Smart Alarm | `SmartAlarmCard` data | Status + next ring |
-| Weather | Open-Meteo (already wired in `/api/brief`) | Current + today high/low/condition |
-| Traffic | Google Distance Matrix (new) | Home → primary work address, baseline vs today |
-| Calendar | Google Calendar connector (new per-user OAuth, see §6) | Next 3 events today |
-| Departure | derived from Traffic + first calendar event | "Leave by 7:05" |
-| Long Clock | `LongClock` events store | Today's items |
-| Daily Motivation | static rotation, seeded by date | No network |
-| AI Tip | `/api/ai` `coach_tip` intent with brief context | One sentence, cached 4 h |
-
-Hidden by default until enabled: Traffic, Calendar (require connections).
+`/companion` auto-mounts the brief for the current window. `?brief=morning|afternoon|evening` overrides. The "show today's brief" reveal button still works outside the window.
 
 ---
 
-## 3. Frontend changes
+## 2. Cards (each card stays self-contained, hide-on-empty)
+
+**Afternoon Check-In**
+- `remainingEvents` — events later today from `user_events`
+- `nextTraffic` — Wave-A: baseline minutes from `commute_minutes_baseline` toward next event (live traffic = Wave B)
+- `weatherShift` — current vs forecast delta from Open-Meteo
+- `hydration` — static reminder, dismissable per-day
+- `movement` — static stretch nudge (skipped if dismissed)
+- `battery` — only if `navigator.getBattery()` available AND charge < 30%
+- `workingLate` — AI nudge when current time > usual workday end (from memory) and a calendar event still pending
+
+**Evening Brief**
+- `tomorrowFirst` — first event tomorrow from `user_events`
+- `smartAlarmSuggestion` — recommended wake time (existing `sleep-engine`)
+- `tomorrowWeather` — Open-Meteo daily for tomorrow
+- `clothing` — derived from `tomorrowWeather` (rules table, no LLM)
+- `travel` — only when tomorrow has a trip in `trips`
+- `prepChecklist` — derived from event titles (e.g. "Bring laptop" for meetings)
+- `bedtimeSuggestion` — `tomorrow first event − sleep_hours − wind-down`
+- `eveningSummary` — single AI sentence (budget-gated, cached 4h)
+- `windDown` — CTA to start `/sleep` mixer or breathing
+
+All cards hide when their data is missing.
+
+---
+
+## 3. Architecture
+
+Generalize Slice 6, do not fork it.
 
 ```text
-src/routes/companion.tsx                 mount <MorningBrief /> above orb in AM window
-src/components/morning/MorningBrief.tsx  orchestrator: ordering, refresh, empty rollup
-src/components/morning/cards/            one file per card listed above
-src/components/morning/BriefSettingsSheet.tsx  toggle + reorder UI
-src/lib/morning/layout.ts                client store for card order + visibility (user_prefs.brief_layout)
-src/lib/morning/useMorningBrief.ts       react-query orchestrator, parallel sources, 60s stale
-src/routes/dashboard.tsx                 small CompanionAvatar button (top-right) → /companion
-src/components/companion/CompanionAvatar.tsx  reused orb at 40px, pulses when brief is fresh
+src/lib/companion/
+  brief-window.ts                 pure: hour → 'morning'|'afternoon'|'evening'
+  types.ts                        AfternoonBriefDTO, EveningBriefDTO + shared BriefCardId union
+  afternoon-brief.functions.ts    createServerFn, Promise.allSettled fan-out
+  evening-brief.functions.ts      createServerFn, Promise.allSettled fan-out
+  shared.server.ts                eventsForRange(), memorySnippets(), weatherFor()
+
+src/components/companion/
+  DailyBrief.tsx                  orchestrator — picks morning/afternoon/evening
+  cards/afternoon/                RemainingEventsCard, NextTrafficCard, WeatherShiftCard,
+                                  HydrationCard, MovementCard, BatteryCard, WorkingLateCard
+  cards/evening/                  TomorrowFirstCard, SmartAlarmSuggestionCard, TomorrowWeatherCard,
+                                  ClothingCard, TravelCard, PrepChecklistCard, BedtimeCard,
+                                  EveningSummaryCard, WindDownCard
 ```
 
-Cards fetch in parallel via independent `useQuery`s keyed `["brief", source, date]`. The orchestrator never blocks on the slowest source — each card renders the moment its data resolves.
+`src/components/morning/MorningBrief.tsx` stays — `DailyBrief` mounts it for the morning window. Slice 6 UI is untouched.
 
-Settings sheet writes `user_prefs.brief_layout` (jsonb: `{ order: string[], hidden: string[] }`). Drag-reorder via `@dnd-kit/core` (already in tree if present; otherwise simple up/down buttons — no new dep).
+`src/routes/companion.tsx`: swap the `<MorningBrief />` mount for `<DailyBrief />`.
+
+`src/components/CompanionAvatar.tsx`: pulse triggers when *any* brief is unread for today (per-period `brief:lastSeenISO:<period>` key). Reading any brief clears its own pulse.
 
 ---
 
-## 4. Backend changes
+## 4. Data sources (Wave A only, same as Slice 6)
 
-New server route: **`src/routes/api/morning-brief.ts`** (auth-gated server fn, not a public route).
+| Card                    | Source                                     | New infra? |
+|-------------------------|--------------------------------------------|------------|
+| Events / Tomorrow       | `user_events` (existing)                   | no         |
+| Weather / TomorrowWx    | `src/lib/weather.server.ts` (+ daily fn)   | small ext  |
+| Smart Alarm             | `src/lib/sleep-engine.ts`                  | no         |
+| Trips                   | `trips` table                              | no         |
+| Hydration/Movement      | static, dismissed in `localStorage`        | no         |
+| Battery                 | `navigator.getBattery()` (browser)         | no         |
+| Memory                  | `ai_memory` (existing query)               | no         |
+| AI summary/tip          | `/api/ai` `coach_tip` intent + `has_ai_budget` | no     |
 
-Returns a single composite payload so the client makes one round trip during cold load:
+`src/lib/weather.server.ts` gains `fetchTomorrowWeather(lat, lon)` returning `{ high, low, condition, icon, precipChance, sunriseISO }`. Caller-side cache 1h.
 
-```ts
-{
-  greeting: { name, timeISO },
-  sleep:    { hours, minutes, score } | null,
-  alarm:    { nextAt, label } | null,
-  weather:  { tempC, condition, highC, lowC, icon } | null,
-  traffic:  { etaMin, baselineMin, delta } | null,
-  calendar: { events: [{ start, title, location }] } | null,
-  longClock:{ events: [...] } | null,
-  tip:      { text, source: "ai" | "static" } | null,
-}
-```
+---
 
-Implementation rules:
-- Each sub-fetch wrapped in `Promise.allSettled`; failures → `null` (caller hides the card). Never throw.
-- Per-source timeout 1500 ms.
-- Server-side cache (in-memory LRU keyed `userId:date:hour`) for weather/traffic/calendar so repeat opens within an hour are free.
-- `ai_tip` only generated when `has_ai_budget(user)` is true; otherwise omit.
-- AI prompt receives only the structured brief fields it needs, plus top-3 ranked memories (existing `memory-rank`).
+## 5. Companion proactive prompts
 
-New DB migration:
+Inside `DailyBrief`, after first paint, the orchestrator dispatches a single `companion:proactive` event with one of:
+- evening + early meeting tomorrow → "I noticed you have an early meeting tomorrow. Want me to prep?"
+- evening + `wind_down_enabled` → "Would you like me to help you wind down tonight?"
+- evening + relaxation pref → "Want me to start a relaxation session?"
+
+`src/routes/companion.tsx` listens once per session and renders the suggestion chip above the composer. **One** prompt per visit. No autoplay, no notification.
+
+RestPilot relaxation routing reuses `companion-sound-bridge.ts` — no new bridge.
+
+---
+
+## 6. Settings — `/settings/morning` → `/settings/companion`
+
+Rename route file to `src/routes/settings.companion.tsx` (keep `settings.morning.tsx` as a 1-line redirect for back-compat). Adds:
+- Toggle Morning / Afternoon / Evening brief on/off (`brief_enabled` jsonb)
+- Per-period card order + hide list (extend `brief_layout` jsonb to `{ morning:{order,hidden}, afternoon:{...}, evening:{...} }`)
+- Quiet hours start/end (`quiet_start`, `quiet_end` — already exist in `notification_prefs`, surfaced here)
+- Link to Notifications settings (no duplication)
+
+Migration is **additive only** — old `brief_layout` shape stays valid via a back-compat reader that promotes flat layouts to the morning slot on read.
+
+---
+
+## 7. DB migration
+
 ```sql
 ALTER TABLE public.user_prefs
-  ADD COLUMN IF NOT EXISTS brief_layout jsonb
-    DEFAULT '{"order":["sleep","alarm","weather","traffic","calendar","longclock","tip"],"hidden":["traffic","calendar"]}'::jsonb,
-  ADD COLUMN IF NOT EXISTS home_address text,
-  ADD COLUMN IF NOT EXISTS work_address text;
+  ADD COLUMN IF NOT EXISTS brief_enabled jsonb
+    DEFAULT '{"morning":true,"afternoon":true,"evening":true}'::jsonb;
+-- brief_layout keeps existing column; reader handles both old flat and new nested shapes.
 ```
-(No new table — keeps blast radius small.)
 
----
-
-## 5. Data sources
-
-| Source | Status | Action |
-|---|---|---|
-| Sleep, Smart Alarm, Long Clock | Already local | Reuse existing libs |
-| Weather (Open-Meteo) | Already used in `/api/brief` | Extract into `src/lib/weather.server.ts` and call from both |
-| Traffic | **New** — Google Maps Platform connector (gateway-enabled, listed in available connectors) | Distance Matrix API; user must enter `home_address` + `work_address` in profile |
-| Calendar | **New** — per-user Google OAuth (the workspace Google Calendar connector reads the *developer's* account, not end users — wrong scope here) | Build minimal OAuth: client id/secret as secrets, `/api/google/callback` route, store refresh token in new `oauth_tokens` table |
-| AI tip | Lovable AI Gateway (existing) | Reuses `has_ai_budget` |
-| Motivation | Static, bundled | None |
-
-Per-user Google OAuth is the heaviest piece. **Recommendation:** ship cards in two waves so users feel value immediately:
-
-- **Wave A (this slice):** Sleep, Alarm, Weather, Long Clock, Motivation, AI Tip, Departure (using a user-entered "usual commute minutes" instead of live traffic).
-- **Wave B (follow-up slice):** Google Maps connector for live traffic + per-user Google Calendar OAuth.
-
-This keeps Slice 6 deliverable in one pass while preserving the architecture for Wave B (cards already exist, they just light up when their data source connects).
-
----
-
-## 6. Personalization strategy
-
-Only when `prefs.memory_enabled = true` AND ranked memories return ≥1 hit with importance ≥3:
-
-- Inject up to 2 memory snippets into the AI tip prompt under a `# What I know about you` section (same pattern as Companion chat).
-- A single memory may also surface as a one-line subtitle on a card (e.g., the Sleep card shows "You usually sleep 7h 30m — tonight you got 7h 42m"). Hard cap: **one** memory-derived line per Morning Brief render to avoid the "creepy" feeling.
-- Never invent facts. If memory is off → no personalization, neutral copy.
-
----
-
-## 7. Homepage integration approach
-
-This slice prepares, it does not redesign:
-
-- `src/routes/dashboard.tsx` gets a 40 px `CompanionAvatar` pinned top-right that links to `/companion`. The orb pulses gently when there's an unread Morning Brief for today (tracked in `localStorage` `brief:lastSeen:<userId>:<date>`).
-- The Morning Brief components are built **source-of-truth-free of route**: they accept their data via props from `useMorningBrief`. When we later promote the Brief to the homepage we lift the hook one level — no rewrites.
+No new tables. No new GRANTs needed (column add only).
 
 ---
 
 ## 8. Performance
 
-- Parallel `Promise.allSettled` server-side; 1500 ms per-source timeout.
-- In-memory server cache per user/hour for weather/traffic/calendar.
-- Client `react-query` `staleTime: 5 * 60_000`, `gcTime: 30 * 60_000`.
-- Skeletons render in ≤16 ms (no layout shift): cards reserve their final height via `min-h-*`.
-- AI tip request gated behind budget check + cached 4 h per user/day to avoid token waste.
-- Brief payload should land under 4 KB JSON.
+- Each brief = one round trip, `Promise.allSettled`, per-source 1500 ms timeout.
+- `react-query` `staleTime: 5min`, `gcTime: 30min`, key includes period + date.
+- AI summary lazy-loaded (`React.lazy`) and gated by `has_ai_budget` + 4h cache.
+- Battery/hydration/movement cards render with zero network.
+- Dashboard avatar unaffected — still one cheap `localStorage` read.
+- Payload target < 5 KB per brief.
 
 ---
 
-## 9. Privacy review
+## 9. Privacy
 
-- All new data (home/work address, OAuth tokens) lives in the user's row, RLS scoped to `auth.uid()`, GRANTs added in the same migration.
-- Per-user Google tokens stored encrypted-at-rest (Supabase default) in a new `oauth_tokens` table (Wave B); refresh-only flow, no token ever sent to the client.
-- Memory usage in the brief obeys the existing `memory_enabled` + `memory_learning_paused` switches and only reads *accepted* memories.
-- `/legal/third-parties` updated to list Google Maps + Google Calendar before Wave B ships.
-- The Morning Brief never logs PII to `ai_log`; only structured field names are recorded.
-
----
-
-## 10. Testing plan
-
-Automated:
-- Vitest for `useMorningBrief` orchestrator: each source independently failing → card hides, others render.
-- Vitest for layout store: reorder + hide round-trip through `user_prefs`.
-- Playwright (mobile + desktop viewports):
-  - Cold morning load shows all enabled cards within 2 s.
-  - Toggling Weather off in settings removes the card and persists across reload.
-  - Forced weather failure (network mock) → card simply not present, no error banner.
-  - Dashboard avatar navigates to `/companion`; pulse clears after view.
-- Typecheck: `bunx tsgo --noEmit` clean.
-
-Manual sanity sweep after merge:
-- Slice 3/4/5 regressions: Companion chat, sound bridge, memory proposals, pause/resume still work.
-- Sign-out path: `/companion` shows the existing sign-in CTA, no Morning Brief request fired.
+- No new PII fields.
+- AI summary prompt only sees structured brief fields + top-3 ranked memories when `memory_enabled`.
+- `ai_log` records intent + token count, never card contents.
+- Hydration/movement dismissals stay in `localStorage`, never synced.
 
 ---
 
-## 11. Implementation order
+## 10. Testing
 
-1. DB migration: `brief_layout`, `home_address`, `work_address` on `user_prefs`.
-2. `src/lib/weather.server.ts` extracted from `/api/brief`; both endpoints use it.
-3. `src/routes/api/morning-brief.ts` server fn with Wave A sources + `Promise.allSettled`.
-4. `useMorningBrief` hook + skeletons.
-5. Individual cards (Sleep, Alarm, Weather, Long Clock, Motivation, AI Tip, Departure).
-6. `MorningBrief` orchestrator mounted in `/companion` (AM window logic + manual reveal).
-7. `BriefSettingsSheet` for visibility/reorder; persist to `user_prefs`.
-8. `CompanionAvatar` on `/dashboard` with pulse-on-fresh logic.
-9. Playwright sweep + typecheck.
-10. Wave B (separate slice, separate plan): Google Maps Distance Matrix + per-user Google Calendar OAuth.
+- Vitest: `brief-window.ts` boundary hours (03:59, 04:00, 10:59, 11:00, 16:59, 17:00, 23:59).
+- Vitest: each brief server fn — one failing source hides only that card.
+- Vitest: settings layout reader handles both old flat and new nested `brief_layout`.
+- Playwright (mobile + desktop):
+  - Force clock to 14:00 → Afternoon Check-In renders.
+  - Force clock to 20:00 → Evening Brief renders, AI summary streams.
+  - Toggle Evening brief off → not rendered after reload.
+  - Avatar pulses once per period per day.
+- `bunx tsgo --noEmit` clean. No Slice 3–6 regressions.
 
 ---
 
-## Out of scope (call out explicitly)
+## 11. Affected files (summary)
 
-- Full homepage redesign — deferred to its own slice.
-- Voice readout of the Morning Brief — Slice 7 candidate (reuse existing TTS).
-- Push-notification version of the Brief — already covered by the notifications system; this slice is the in-app surface only.
+**New**
+- `src/lib/companion/brief-window.ts`
+- `src/lib/companion/types.ts`
+- `src/lib/companion/afternoon-brief.functions.ts`
+- `src/lib/companion/evening-brief.functions.ts`
+- `src/lib/companion/shared.server.ts`
+- `src/components/companion/DailyBrief.tsx`
+- `src/components/companion/cards/afternoon/*` (7 files)
+- `src/components/companion/cards/evening/*` (9 files)
+- `src/routes/settings.companion.tsx`
 
-Awaiting approval before I touch code.
+**Edited**
+- `src/lib/weather.server.ts` (+ `fetchTomorrowWeather`)
+- `src/lib/prefs.ts` (+ `briefEnabled`, layout reader)
+- `src/routes/companion.tsx` (mount `<DailyBrief />`, proactive listener)
+- `src/components/CompanionAvatar.tsx` (per-period pulse)
+- `src/components/morning/MorningBrief.tsx` (export period key constant; logic unchanged)
+- `src/routes/settings.morning.tsx` (1-line redirect to `/settings/companion`)
+- One DB migration
+
+**Untouched**: every other route, Slice 6 cards themselves, notification runner, sound bridge, intent router.
+
+---
+
+## 12. Out of scope
+
+- Live traffic (still Wave B).
+- Per-user Google Calendar OAuth (Wave B).
+- Push notification version of Afternoon/Evening briefs — Slice 8 candidate.
+- Voice readout of briefs — Slice 8 candidate.
+
+Awaiting approval before touching code.
