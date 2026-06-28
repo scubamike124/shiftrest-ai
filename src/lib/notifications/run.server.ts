@@ -62,6 +62,13 @@ function rowToPrefs(r: PrefsRow): Prefs {
     voicePersonality: "calm",
     voiceSpeed: 1.0,
     voiceInstructions: null,
+    briefLayout: {
+      order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
+      hidden: ["departure"],
+    },
+    homeAddress: null,
+    workAddress: null,
+    commuteMinutesBaseline: null,
   };
 }
 
