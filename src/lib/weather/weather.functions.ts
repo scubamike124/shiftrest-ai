@@ -112,7 +112,11 @@ export const setWeatherLocation = createServerFn({ method: "POST" })
     const lon = Math.round(data.lon * 1e4) / 1e4;
     const label = (data.label ?? "").slice(0, 120);
 
-    const patch: Record<string, unknown> = { user_id: userId, lat, lon };
+    const patch: { user_id: string; lat: number; lon: number; location_label?: string } = {
+      user_id: userId,
+      lat,
+      lon,
+    };
     if (label) patch.location_label = label;
     const { error: prefsErr } = await supabase
       .from("user_prefs")
