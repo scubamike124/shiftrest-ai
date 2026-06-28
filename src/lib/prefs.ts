@@ -68,6 +68,7 @@ export const DEFAULT_PREFS: Prefs = {
   assistantName: "RestPilot",
   assistantMode: "coach",
   memoryEnabled: false,
+  memoryLearningPaused: false,
   predictiveEnabled: true,
   tomorrowPreviewEnabled: true,
   dailyReviewEnabled: true,
@@ -109,6 +110,7 @@ type Row = {
   assistant_name: string | null;
   assistant_mode: string | null;
   memory_enabled: boolean | null;
+  memory_learning_paused?: boolean | null;
   predictive_enabled?: boolean | null;
   tomorrow_preview_enabled?: boolean | null;
   daily_review_enabled?: boolean | null;
@@ -145,6 +147,7 @@ function rowToPrefs(r: Row): Prefs {
     assistantName: r.assistant_name?.trim() || "RestPilot",
     assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
     memoryEnabled: Boolean(r.memory_enabled),
+    memoryLearningPaused: Boolean(r.memory_learning_paused),
     predictiveEnabled: r.predictive_enabled ?? true,
     tomorrowPreviewEnabled: r.tomorrow_preview_enabled ?? true,
     dailyReviewEnabled: r.daily_review_enabled ?? true,
@@ -181,6 +184,7 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
     out.assistant_name = (p.assistantName.trim() || "RestPilot").slice(0, 40);
   if (p.assistantMode !== undefined) out.assistant_mode = p.assistantMode;
   if (p.memoryEnabled !== undefined) out.memory_enabled = p.memoryEnabled;
+  if (p.memoryLearningPaused !== undefined) out.memory_learning_paused = p.memoryLearningPaused;
   if (p.predictiveEnabled !== undefined) out.predictive_enabled = p.predictiveEnabled;
   if (p.tomorrowPreviewEnabled !== undefined) out.tomorrow_preview_enabled = p.tomorrowPreviewEnabled;
   if (p.dailyReviewEnabled !== undefined) out.daily_review_enabled = p.dailyReviewEnabled;
@@ -212,7 +216,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions",
     )
     .eq("user_id", uid)
     .maybeSingle();
