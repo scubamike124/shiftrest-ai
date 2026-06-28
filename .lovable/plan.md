@@ -1,102 +1,192 @@
+# Phase 1 — AI Companion (Investigation & Plan)
 
-# Pilot Launch Blockers — Root Cause + Fix Plan
-
-Investigation done across `src/routes/pilot.tsx`, `src/routes/api/ai.ts`, `src/lib/ai/context.server.ts`, `src/lib/ai/gateway.server.ts`, `src/routes/api/stt.ts`, `src/routes/api/tts.ts`, and `src/components/voice/VoiceSettings.tsx`. No code changes yet.
-
----
-
-## 1. Voice settings not discoverable — root cause
-
-The settings exist and work. They live in `src/components/voice/VoiceSettings.tsx` (language, voice, gender filter, accent, personality, speed presets, Pilot name, live preview) and are mounted on `/profile` at the anchor `id="voice-settings"`. Pilot already has a small header link "Voice" pointing to `/profile#voice-settings`.
-
-Why testers miss it:
-- The link is a tiny ghost button in the top-right corner next to "Text", visually weighted the same as the chat link. On a 375px viewport it reads as a secondary action, not a primary entry into customization.
-- There is no inline affordance near the orb (where the user's attention is) and no first-run nudge.
-- The label "Voice" is ambiguous — sounds like "voice mode" not "voice customization".
-
-### Fix
-- Promote the link to a visible, labeled chip directly under the orb: `⚙ Voice & personality — {currentVoiceName} · {accent} · {speed}`. One tap → `/profile#voice-settings`.
-- Keep the header icon, but rename it `Customize`.
-- First-run nudge: if `prefs.voice_id` is null on Pilot mount, show a dismissible banner above the orb: "Pick Pilot's voice, accent, and personality →".
-- Confirm `VoiceSettings` exposes every requested control (it does: language, voice w/ gender filter, accent dropdown, personality presets, speed slow/normal/fast, Pilot name, live preview button). No schema work needed.
+Goal: turn RestPilot from a sleep app into a daily AI companion that talks, listens, remembers, and acts. Everything below is investigation only — nothing ships until you approve.
 
 ---
 
-## 2. ~30s response latency — root cause
+## 1. Scope decisions you should make before we build
 
-Measured pipeline stages (from code, not yet from live trace — Step A below will confirm with `ai_gateway_logs`):
+A few of the requests have real cost/scope trade-offs. Calling them out up front so we don't over-promise:
 
-| Stage | Current | Notes |
-|---|---|---|
-| STT (`/api/stt` → Whisper) | ~1–2s | Synchronous; client waits for `await sttRes.json()` before doing anything else. |
-| LLM TTFB (Gemini 3 flash preview via Lovable AI) | ~1–3s typical, but the **system prompt is enormous** — `buildSystemPrompt` for "coach" pulls 25 ranked memories + active patterns + 14-day feedback summary + previous recommendation + full TZ block + live context. On a cold path that's 2–4k tokens of context the model has to read before emitting a token. | Biggest single contributor to slow first token. |
-| LLM completion to end | 2–8s | Replies are long (P3 below). |
-| TTS (`/api/tts`) | ~600–1200ms per chunk | Already chunked sentence-by-sentence — good. |
-| Filler audio | Fires after STT returns, **not** at mic-stop | So the user hears nothing for the full STT roundtrip (~1.5s) before the filler even starts. |
+1. **Animated avatar with realistic facial expressions while speaking.** True photoreal lip-sync (D-ID / HeyGen / Ready Player Me + visemes) is paid third-party + heavy on mobile. Recommended path: ship a **stylized animated avatar** (SVG/Lottie or Rive) with mouth/eye/brow states driven by TTS volume + sentiment. Photoreal can be a v2 toggle.
+2. **Smart-home control.** Real device control (Google Home, Alexa, HomeKit, SmartThings) requires per-vendor OAuth, certification, and in some cases native apps. Recommended path: ship a **Smart Home Hub UI + voice intents now**, wired to a pluggable provider layer, with **Home Assistant (long-lived token)** as the first real backend and "Coming soon" badges on Google/Alexa/HomeKit until we add them. This keeps the UX honest.
+3. **Coffee maker / garage / vacuum, etc.** Same as above — exposed through the generic device layer, not bespoke per brand.
+4. **Traffic intelligence with learned favorite places.** Needs a routes/places table and a maps provider (Google Maps Distance Matrix or Mapbox). Open-Meteo is weather only.
+5. **Full voice control of the app.** We already have STT + TTS. The new piece is an **intent router** so spoken commands actually *do* things (play rain, set alarm, etc.) instead of just chatting.
 
-The ~30s the tester sees is the sum of (1) STT silence + (2) huge prompt assembly + (3) long completion + (4) first TTS chunk. The streamed-TTS path works, but the user only hears it after the first sentence lands, which can be 6–10s in.
-
-### Fixes (in order of impact)
-1. **Trim the voice system prompt aggressively.** For `surface: "voice"` reduce ranked memories from 25 → 5, drop the feedback summary and previous-recommendation blocks (text-chat only), keep TZ block compact (one line, not four). Target: <600 tokens of system context. Expected TTFB drop: 1.5–3s.
-2. **Pre-generate filler audio** as 6 static MP3 files under `public/audio/fillers/` and start playback the instant the user releases the mic (before STT returns). Acknowledge < 800ms guaranteed.
-3. **Parallelise STT + filler** — already partly done; move the filler call to the mic-stop callback, not after STT.
-4. **Cap completion length server-side** for `surface: "voice"` via `max_tokens: 180` on the upstream call (currently unbounded). This halves end-to-end on long answers.
-5. **Add stage timing logs** at every boundary (`stt_ms`, `prompt_build_ms`, `ttft_ms`, `tts_first_ms`, `total_ms`) so we can prove the fix and catch future regressions. Log via existing `logAIRequest`.
-6. **(Investigate, not commit)** switch the voice path to `google/gemini-3.1-flash-lite` if Step A's traces show Gemini-3-flash TTFB > 2.5s consistently. Lighter model = faster first token; quality is fine for 2–4 sentence conversational replies.
-
-Target after fixes: filler audible < 800ms, first real word < 2.5s, full reply < 8s.
+If you want any of these descoped, say so and I'll trim before build.
 
 ---
 
-## 3. Replies too long — root cause
+## 2. Implementation plan (feature by feature)
 
-`PILOT_VOICE_SYSTEM` already says "2 to 4 short sentences", but:
-- No server-side length cap — the model freely overshoots.
-- The `expand: true` branch adds "up to ~6 sentences" which can leak into normal turns if the flag is ever sticky.
-- The prompt mixes "ask one clarifying question" with "give the best single tip", so the model often does both.
+### 2.1 AI Avatar Companion
+- New `/companion` route + a persistent **CompanionDock** (floating, dismissible) on dashboard.
+- Avatar picker: 6 stylized presets + "Upload photo" (stored in a new `avatars` Storage bucket, private, signed URLs).
+- Custom name → already supported via `user_prefs.assistant_name`; expose it in the avatar picker.
+- Animation: Rive or Lottie file with states `idle / listening / thinking / speaking / happy / concerned`. Mouth opens off the TTS `<audio>` `AnalyserNode` volume, blinks on a timer, expression chosen from a lightweight sentiment tag the LLM returns alongside text.
+- Companion Mode toggle in Profile → drives whether the dock auto-greets, proactively whispers, and uses warmer phrasing (reuses existing `assistant_mode = "companion"`).
+- Greetings ("Welcome home, Michael", "I noticed tomorrow is a workday") run through the existing `/api/ai` orchestrator with a new `companion_greeting` intent.
 
-### Fix
-- Add `max_tokens: 180` to the upstream chat call when `surface === "voice"` and `expand !== true`.
-- Tighten `PILOT_VOICE_SYSTEM`: "Default to 1–3 sentences (~10–20 seconds spoken). Never exceed 4 sentences unless the user says 'tell me more' or 'details'."
-- Server-side trim: after streaming completes, if the reply has > 4 sentences and `expand !== true`, the UI's "Tell me more" chip is already there to expand — no truncation needed mid-stream (would break TTS).
-- The existing "Tell me more" chip remains as the user-controlled depth toggle.
+### 2.2 Sleep Environment (Soundscape Mixer)
+- 14 looping audio tracks (rain, ocean, river, fireplace, forest, wind, thunder, white/brown/pink noise, fan, coffee shop, crickets, cabin) stored in `public/sounds/` as ~1–2 MB seamless OGG/MP3 loops.
+- New `Mixer` (Web Audio API): each sound = its own `AudioBufferSourceNode` + `GainNode`, mixed to a master gain, with crossfade, fade-in/out, and an optional sleep timer.
+- New `/sleep` route with per-sound volume sliders, presets (Storm, Cozy Cabin, Coastal, Deep Sleep), and a "Save mix" button.
+- Persisted in new table `sound_mixes (user_id, name, tracks_json, is_favorite)`.
+- AI recommendation: a new `sound_suggestion` intent reads recent fatigue + time of day and proposes a preset; surfaces as a chip on the dashboard and the dock.
+
+### 2.3 Full Voice Control (Intent Router)
+- New server file `src/lib/ai/intent-router.server.ts`. After STT transcribes the user, we send the text to the LLM with a tight JSON schema:
+  ```
+  { intent: "play_sound" | "set_alarm" | "start_breathing" | "sleep_mode" | "ask_question" | ...,
+    args: { ... }, speak: "short confirmation" }
+  ```
+- Intents we'll ship in v1: `play_sound`, `stop_sound`, `set_alarm`, `cancel_alarm`, `start_breathing`, `sleep_mode_on/off`, `read_schedule`, `weather_now`, `morning_brief`, `smart_home_action`, `ask_question` (fallback to normal chat).
+- Pilot already handles barge-in + TTS; we add an `onIntent(result)` callback that dispatches into the right client module (Mixer, Smart Alarm, etc.).
+- Confirmation pattern: AI speaks a one-line ack ("Playing rain for 30 minutes") then executes — no extra menu taps.
+
+### 2.4 Smart Morning Assistant
+- Already have `/api/brief` + `AIBriefCard`. Upgrades:
+  - Pull **sleep summary + score** from the existing insights engine.
+  - Pull **weather + sunrise** from existing Open-Meteo wrapper.
+  - Add **traffic & departure** (see 2.6).
+  - Pull today's **calendar events** from `user_events`.
+  - Coffee reminder = a new optional `user_prefs.coffee_time_offset_min` ("15 min after wake").
+- Auto-trigger between wake−10 min and wake+30 min when the user opens the app; play through Pilot voice.
+
+### 2.5 Smart Home Integration
+- New tables:
+  - `smart_home_providers (id, user_id, provider, status, credentials_encrypted, created_at)`
+  - `smart_home_devices (id, user_id, provider_id, external_id, name, type, room, capabilities_json, last_state_json)`
+- Provider abstraction in `src/lib/smarthome/`:
+  - `provider.ts` interface (`listDevices`, `runAction`)
+  - `home-assistant.server.ts` (first real provider — uses user-supplied URL + long-lived token)
+  - `mock.server.ts` (for demos / testers)
+  - Google/Alexa/HomeKit stubs flagged "Coming soon" until OAuth is wired.
+- `/smart-home` route: connect provider, list devices, room grouping, toggle/run actions.
+- Voice intent `smart_home_action` → `{ device, action, value }` runs through the active provider.
+- All credentials live server-side; we never expose tokens to the client.
+
+### 2.6 Traffic Intelligence
+- New tables:
+  - `places (user_id, label, kind: "work"|"school"|"gym"|"custom", lat, lng, address)`
+  - `commute_log (user_id, place_id, departed_at, arrived_at, duration_min)` — for "learned normal"
+- Server fn `predictDeparture(placeId, arriveBy)` → calls **Google Maps Distance Matrix** (preferred) or Mapbox with departure-time traffic, compares to the user's 14-day median, and returns `recommendedDepartUtc + delta`.
+- Surfaced in the morning brief and via voice ("When should I leave for work?").
+- Requires one new secret: `GOOGLE_MAPS_API_KEY` (or Mapbox). I'll request it before we build this slice.
+
+### 2.7 Long Clock
+- Already have a base `LongClock` component. Upgrades:
+  - New table `countdowns (user_id, label, target_utc, kind, recurring, notify_offsets_min[], theme)`.
+  - Built-in types: Bedtime (auto from prefs), Vacation, Birthday, Anniversary, Retirement, Holiday, Custom.
+  - `/clock` route: list + add/edit, drag to reorder, theme picker (color + icon).
+  - Notifications via existing push pipeline using `notify_offsets_min`.
+
+### 2.8 AI Memory
+- We already have `ai_memory` + a `/memory` page + ranking. Upgrades for the companion:
+  - New first-class categories: `music`, `sleep_sound`, `bedtime`, `wake_time`, `coffee`, `family`, `work_schedule`, `place`, `routine`.
+  - **Confirm-before-save**: when the extractor finds a candidate, the companion asks "Want me to remember that?" before persisting (respects "AI should never make personal assumptions").
+  - Memory page already supports view/edit/delete/export/toggle — we add category filters and "Why is this remembered?" rationale.
+
+### 2.9 Voice-First Experience
+- The intent router (2.3) is the foundation. On top of it:
+  - A **wake gesture** — large mic button on dashboard + dock; PTT (push-to-talk) on mobile, hold-to-talk on desktop. No always-on hot-word in v1 (battery + privacy).
+  - All key flows ("Goodnight", "I'm stressed", "Play rain", "Wake me at six", "Read tomorrow's schedule") map to intents.
+  - Pilot keeps brevity rules; confirmations ≤ 1 short sentence.
 
 ---
 
-## 4. Voice UX polish — verification matrix
+## 3. Architecture summary
 
-Will verify on iPhone Safari + Desktop Chrome with Playwright + manual:
-- **Barge-in**: tap-to-interrupt path exists (`onMicTap` cancels queue when `orbState === "speaking"`). Verify it also cancels the in-flight LLM stream (currently it doesn't — the SSE reader keeps draining; need to abort). Add `AbortController` to `/api/ai` fetch and abort on barge-in.
-- **Markdown never spoken**: `stripMd()` is applied per chunk before TTS; verify across 10 sample prompts.
-- **Conversational transcripts**: covered by P3 prompt tightening.
-- **Streaming starts on first sentence**: `takeSpeakableChunks` already flushes at `. ! ?`. Verified in code; will confirm with timing logs.
+```text
+                 ┌──────────────┐
+   mic / text →  │   /api/stt   │ → transcript
+                 └──────┬───────┘
+                        ▼
+                 ┌──────────────┐     intent JSON      ┌───────────────────┐
+                 │ /api/ai      │ ───────────────────► │ intent-router      │
+                 │ (orchestrator│                      │ (client dispatch)  │
+                 │  + memory +  │                      │  ├─ Mixer          │
+                 │  patterns)   │                      │  ├─ Smart Alarm    │
+                 └──────┬───────┘                      │  ├─ Smart Home fn  │
+                        │ text + sentiment              │  ├─ Long Clock     │
+                        ▼                              │  └─ Chat fallback  │
+                 ┌──────────────┐                      └───────────────────┘
+                 │   /api/tts   │ → audio → Avatar visemes
+                 └──────────────┘
+```
 
----
-
-## Investigation Step A (before code)
-
-Use `ai_gateway_logs--list_ai_gateway_requests` filtered to `model: google/gemini-3-flash-preview` over the last 48h, then `get_ai_gateway_request` on 3–5 coach calls to capture real prompt token counts and durations. This confirms whether the bottleneck is prompt size (fix in P2 #1) or model choice (fix in P2 #6). I'll attach the numbers to the implementation PR.
-
----
-
-## Deliverables when implementation lands
-1. Stage-by-stage timing table from real traces, before + after.
-2. Screenshots: Pilot screen with new "Voice & personality" chip; first-run nudge; trimmed reply length.
-3. Short Playwright run proving barge-in cancels both audio and LLM stream.
-4. Updated `PILOT_VOICE_SYSTEM` and `buildSystemPrompt` diff.
-
----
-
-## Files that will change (preview only)
-- `src/routes/pilot.tsx` — visible Voice chip under orb, first-run nudge, barge-in abort, filler-on-mic-stop, timing logs.
-- `src/lib/ai/context.server.ts` — slimmer voice prompt (5 memories, no feedback/prev blocks, compact TZ).
-- `src/lib/ai/prompts.server.ts` — tighter `PILOT_VOICE_SYSTEM` length rule.
-- `src/lib/ai/gateway.server.ts` — accept `maxTokens`, forward to upstream.
-- `src/routes/api/ai.ts` — pass `max_tokens: 180` for voice coach turns; emit timing log.
-- `public/audio/fillers/*.mp3` — 6 pre-generated clips (created via the AI gateway script).
-
-No DB schema changes. No new dependencies.
+- Memory writes go through a new `proposeMemory()` helper that requires user confirmation before insert.
+- All new server logic lives in `createServerFn` or `/api/*` routes; `supabaseAdmin` only inside handlers.
 
 ---
 
-Approve and I'll start with **Investigation Step A** (pull real gateway timings), then implement P1 → P2 → P3 → P4 in that order.
+## 4. Backend / database changes (migrations)
+
+New tables (each with GRANTs + RLS scoped to `auth.uid()`):
+- `avatars` (Storage bucket, private)
+- `sound_mixes`
+- `smart_home_providers`, `smart_home_devices`
+- `places`, `commute_log`
+- `countdowns`
+
+`user_prefs` adds: `companion_enabled`, `avatar_id`, `coffee_time_offset_min`, `voice_ptt_only`.
+
+`ai_memory.category` enum extended with the new categories in 2.8.
+
+---
+
+## 5. Third-party services & secrets
+
+| Service | Why | Secret |
+| --- | --- | --- |
+| Google Maps Distance Matrix (or Mapbox) | Traffic + departure prediction | `GOOGLE_MAPS_API_KEY` |
+| Home Assistant (user-owned) | First real smart-home provider | user-supplied URL + token |
+| Rive / Lottie asset | Avatar animation | none (static asset) |
+| (Already have) Lovable AI, Open-Meteo, BigDataCloud, OpenAI STT/TTS via gateway | — | existing |
+
+No new always-on subscriptions required to ship v1.
+
+---
+
+## 6. Privacy & security
+- Avatars + smart-home tokens stored server-side; RLS scoped to owner; signed URLs only.
+- Memory writes are opt-in and confirmation-gated.
+- Voice audio is sent to STT and discarded; we never store raw audio.
+- Smart-home provider credentials encrypted at rest (pgcrypto) and never returned to the client.
+- New legal copy: smart-home + maps disclosure added to Privacy Policy and Third Parties page.
+
+---
+
+## 7. Recommended build order
+
+1. **Soundscape Mixer + /sleep** (self-contained, high user value, no new APIs).
+2. **Intent Router + voice commands for sounds & alarm** (unlocks voice-first).
+3. **Avatar Companion v1** (stylized Rive avatar, expression states, dock).
+4. **Smart Morning Assistant upgrade** (sleep score + calendar + coffee).
+5. **Long Clock complete**.
+6. **AI Memory: confirm-before-save + new categories**.
+7. **Traffic Intelligence** (needs Google Maps key).
+8. **Smart Home Hub UI + Home Assistant provider** (Google/Alexa/HomeKit stay "Coming soon").
+
+Each slice is independently shippable and reversible.
+
+---
+
+## 8. Risks & recommendations
+- **Photoreal avatar** is a rabbit hole; stylized Rive ships in days, photoreal is weeks + per-minute cost. Recommend stylized.
+- **Always-on wake word** drains battery and triggers app-store review pain on iOS Safari (not supported anyway). Recommend PTT mic button.
+- **Smart-home certification** for Google/Alexa/HomeKit takes weeks. Recommend Home Assistant first, stubs elsewhere.
+- **Audio loop file size**: 14 tracks × ~1.5 MB = ~21 MB. We'll lazy-load per track, not bundle.
+- **Voice intent misfires**: mitigate with a confirmation line ("Playing rain for 30 minutes — say 'cancel' to stop").
+
+---
+
+## 9. Open questions before I start
+
+1. Stylized animated avatar (Rive) for v1, photoreal later — OK?
+2. Smart-home v1 = **Home Assistant only**, others "Coming soon" — OK?
+3. Approve adding **Google Maps Distance Matrix** for traffic (I'll ask for the key when we get to step 7)?
+4. Build order above (Sounds → Voice → Avatar → Morning → Clock → Memory → Traffic → Smart Home) — keep, or reshuffle?
+
+Awaiting approval before any code changes.
