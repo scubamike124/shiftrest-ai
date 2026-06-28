@@ -653,7 +653,7 @@ function CompanionPage() {
           </p>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
             <div
               className={cn(
                 "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
@@ -664,15 +664,36 @@ function CompanionPage() {
             >
               {m.content || (sending && i === messages.length - 1 ? "…" : "")}
             </div>
+            {m.role === "assistant" && m.action && (
+              <div className="w-full max-w-[85%]">
+                <ActionCard
+                  action={m.action}
+                  busy={actionBusy === i}
+                  done={m.actionDone ?? null}
+                  onConfirm={() => confirmAction(i)}
+                  onCancel={() => cancelAction(i)}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Voice-response placeholder badge */}
+      {/* Voice-replies status badge */}
       {companionOn && (
         <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
-          Voice replies coming next — for now, replies appear in chat.
+          {localPrefs.voiceRepliesEnabled ? (
+            <>
+              <Volume2 className="h-3 w-3 text-primary" />
+              Voice replies on
+              {inQuietHours(localPrefs.quietHours) ? " — muted during quiet hours" : ""}
+            </>
+          ) : (
+            <>
+              <VolumeX className="h-3 w-3" />
+              Voice replies off — replies appear in chat
+            </>
+          )}
         </div>
       )}
 
