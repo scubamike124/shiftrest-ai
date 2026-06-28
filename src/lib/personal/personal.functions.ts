@@ -57,7 +57,7 @@ function rowToItem(r: Row): PersonalItem {
     priority: p,
     status,
     followupOf: r.followup_of,
-    metadata: r.metadata ?? {},
+    metadata: sanitizeMeta(r.metadata),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
