@@ -75,7 +75,10 @@ export const recordAcceptanceFn = createServerFn({ method: "POST" })
     const { error: upErr } = await context.supabase
       .from("user_prefs")
       .upsert({ user_id: context.userId, consent_json: merged }, { onConflict: "user_id" });
-    if (upErr) console.error("consent merge failed", upErr);
+    if (upErr) {
+      console.error("consent merge failed", upErr);
+      throw new Error(upErr.message);
+    }
 
     return { ok: true as const, recorded: rows.length };
   });
