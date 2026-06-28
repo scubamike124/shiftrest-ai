@@ -12,6 +12,8 @@ import { TRACKS, PRESETS, type SoundTrack } from "@/lib/sounds/catalog";
 import { mixer } from "@/lib/sounds/mixer";
 import { listMixes, saveMix, deleteMix, toggleFavorite } from "@/lib/sounds/mixes";
 import { supabase } from "@/integrations/supabase/client";
+import { VoiceCommandButton } from "@/components/sleep/VoiceCommandButton";
+import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 
 export const Route = createFileRoute("/sleep")({
   component: SleepPage,
@@ -115,6 +117,7 @@ function SleepPage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [mixName, setMixName] = useState("");
   const [timer, setTimer] = useState<number | null>(null);
+  const [breathingOpen, setBreathingOpen] = useState(false);
   const masterRef = useRef(mixer.masterVolume);
 
   useEffect(() => {
@@ -186,6 +189,8 @@ function SleepPage() {
           The sleep timer fades everything out when you drift off.
         </p>
       </header>
+
+      <VoiceCommandButton signedIn={Boolean(signedIn)} onBreathing={() => setBreathingOpen(true)} />
 
       {/* Presets */}
       <section className="space-y-3">
@@ -347,6 +352,8 @@ function SleepPage() {
           </div>
         </section>
       )}
+
+      <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
     </div>
   );
 }
