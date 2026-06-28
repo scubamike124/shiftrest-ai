@@ -187,7 +187,7 @@ export const getDailyPlan = createServerFn({ method: "POST" })
       const items = agendaDTO && "agenda" in agendaDTO ? agendaDTO.agenda.items : undefined;
       if (Array.isArray(items)) {
         agenda = items.slice(0, 5).map((e) => ({
-          summary: e.summary,
+          summary: e.title,
           startISO: e.startISO,
           allDay: e.allDay,
         }));
