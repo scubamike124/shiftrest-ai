@@ -96,6 +96,8 @@ function CompanionPage() {
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
   const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
+  // Slice 5 — once-per-session memory offer (don't overuse memory in chat).
+  const [memoryOfferUsed, setMemoryOfferUsed] = useState(false);
   const execCtx = {
     signedIn: signedIn === true,
     navigate: (to: string, search?: Record<string, string>) => {
@@ -103,6 +105,21 @@ function CompanionPage() {
     },
     openBreathing: () => undefined,
   };
+
+  // Slice 5 — companion memory awareness (only when memory is enabled).
+  const hintsQ = useQuery({
+    queryKey: ["companion-hints"],
+    queryFn: fetchCompanionHints,
+    enabled: signedIn === true && memoryOn,
+    staleTime: 60_000,
+  });
+  const proposalsQ = useQuery({
+    queryKey: ["memory-proposals", "pending"],
+    queryFn: listPendingProposals,
+    enabled: signedIn === true && memoryOn,
+    staleTime: 30_000,
+  });
+  const pendingProposalCount = proposalsQ.data?.length ?? 0;
 
   useEffect(() => {
     if (micState === "listening") setOrbState("listening");
