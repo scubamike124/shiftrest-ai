@@ -290,10 +290,13 @@ export const Route = createFileRoute("/api/ai")({
             });
 
             const trimmed = body.messages.slice(-20);
+            const isVoice = (body.surface ?? "text") === "voice";
             const upstream = await chatStream({
               model: DEFAULT_CHAT_MODEL,
               messages: [{ role: "system", content: system }, ...trimmed],
+              maxTokens: isVoice && !body.expand ? 180 : undefined,
             });
+
 
             // Tee the stream so we can extract memories + log usage after.
             const [forClient, forCapture] = upstream.body!.tee();
