@@ -612,8 +612,9 @@ function CompanionPage() {
                 </p>
               </div>
             </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        </div>
       </header>
 
       {/* Avatar + greeting */}
