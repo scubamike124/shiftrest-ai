@@ -12,6 +12,7 @@ import {
   Brain,
   Activity,
   Mic,
+  Waves,
 } from "lucide-react";
 
 const nav = [
@@ -19,6 +20,7 @@ const nav = [
   { to: "/pilot", label: "Talk to Pilot", icon: Mic },
   { to: "/decisions", label: "AI Decisions", icon: Activity },
   { to: "/plan", label: "Today's Plan", icon: Sun },
+  { to: "/sleep", label: "Sleep Sounds", icon: Waves },
   { to: "/coach", label: "AI Coach", icon: MessageCircle },
   { to: "/events", label: "Events & Alarm", icon: Calendar },
   { to: "/memory", label: "Memory", icon: Brain },
