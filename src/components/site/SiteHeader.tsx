@@ -21,13 +21,13 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
 
   return (
     <header
-      className={`sticky top-0 z-40 w-full transition-colors ${
+      className={`sticky top-0 z-50 w-full transition-colors ${
         scrolled
           ? "border-b border-border/60 bg-background/80 backdrop-blur-xl"
           : "border-b border-transparent bg-transparent"
       }`}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-5 lg:h-20 lg:px-10">
+      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-5 lg:h-20 lg:px-10">
         <Link to="/" className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-gradient-to-br from-indigo to-secondary shadow-[var(--shadow-glow)]">
             <Moon className="h-4 w-4 text-primary-foreground" />
@@ -77,11 +77,14 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         </div>
 
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 md:hidden"
-          aria-label="Menu"
+          className="relative z-50 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card/80 backdrop-blur touch-manipulation md:hidden"
+          style={{ WebkitTapHighlightColor: "transparent" }}
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
         >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {open ? <X className="pointer-events-none h-5 w-5" /> : <Menu className="pointer-events-none h-5 w-5" />}
         </button>
       </div>
 
