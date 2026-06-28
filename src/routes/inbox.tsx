@@ -78,7 +78,7 @@ function InboxPage() {
       // Defer focus until after paint so the input exists.
       requestAnimationFrame(() => titleInputRef.current?.focus());
       // Clear the query so a refresh doesn't re-apply it.
-      void navigate({ search: (prev) => ({ ...prev, add: undefined }), replace: true });
+      void navigate({ search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, add: undefined }), replace: true });
     }
   }, [search.add, navigate]);
 
