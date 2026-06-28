@@ -128,7 +128,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 space-y-6">
+    <section id="voice-settings" className="rounded-2xl border border-border bg-card p-4 space-y-6 scroll-mt-20">
       <div className="flex items-center gap-2">
         <Mic className="h-5 w-5 text-primary" />
         <h2 className="text-base font-semibold">Pilot voice</h2>
