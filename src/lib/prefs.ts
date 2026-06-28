@@ -117,6 +117,12 @@ type Row = {
   offline_enabled?: boolean | null;
   travel_mode_enabled?: boolean | null;
   calendar_travel_detect?: boolean | null;
+  voice_id?: string | null;
+  voice_language?: string | null;
+  voice_accent?: string | null;
+  voice_personality?: string | null;
+  voice_speed?: number | string | null;
+  voice_instructions?: string | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
@@ -147,6 +153,12 @@ function rowToPrefs(r: Row): Prefs {
     offlineEnabled: r.offline_enabled ?? true,
     travelModeEnabled: r.travel_mode_enabled ?? true,
     calendarTravelDetect: r.calendar_travel_detect ?? false,
+    voiceId: r.voice_id || "sage",
+    voiceLanguage: r.voice_language || "en-US",
+    voiceAccent: r.voice_accent ?? null,
+    voicePersonality: r.voice_personality || "calm",
+    voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
+    voiceInstructions: r.voice_instructions ?? null,
   };
 }
 
