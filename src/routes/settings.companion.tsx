@@ -331,3 +331,97 @@ function toggle<T>(s: Set<T>, id: T): Set<T> {
   else next.add(id);
   return next;
 }
+
+function VoiceActionsCard() {
+  const [p, setP] = useState<import("@/lib/companion/voice-action-prefs").CompanionLocalPrefs>(() =>
+    require_("@/lib/companion/voice-action-prefs").loadLocalPrefs(),
+  );
+  const update = (
+    patch: Partial<import("@/lib/companion/voice-action-prefs").CompanionLocalPrefs>,
+  ) => {
+    const next = require_("@/lib/companion/voice-action-prefs").saveLocalPrefs(patch);
+    setP(next);
+  };
+  const qh = p.quietHours;
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div>
+        <h2 className="text-sm font-semibold">Companion voice &amp; actions</h2>
+        <p className="text-xs text-muted-foreground">
+          Saved on this device only. Microphone is only used when you tap it — no background listening, no
+          always-on recording. Companion actions always ask for confirmation before they run.
+        </p>
+      </div>
+      <Row label="Voice input" hint="Show the mic button on the Companion composer.">
+        <Switch checked={p.voiceInputEnabled} onCheckedChange={(v) => update({ voiceInputEnabled: v })} />
+      </Row>
+      <Row label="Voice replies" hint="Speak the Companion's replies aloud (uses TTS credits).">
+        <Switch checked={p.voiceRepliesEnabled} onCheckedChange={(v) => update({ voiceRepliesEnabled: v })} />
+      </Row>
+      <Row label="Action suggestions" hint="Let the Companion propose actions like starting a sound.">
+        <Switch checked={p.actionSuggestionsEnabled} onCheckedChange={(v) => update({ actionSuggestionsEnabled: v })} />
+      </Row>
+      <Row label="Always confirm" hint="Require Confirm before any action runs.">
+        <Switch
+          checked={p.requireActionConfirmation}
+          onCheckedChange={(v) => update({ requireActionConfirmation: v })}
+        />
+      </Row>
+      <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Quiet hours for voice</p>
+            <p className="text-xs text-muted-foreground">Voice replies stay silent during these hours.</p>
+          </div>
+          <Switch
+            checked={Boolean(qh)}
+            onCheckedChange={(v) =>
+              update({ quietHours: v ? { start: "22:00", end: "07:00" } : null })
+            }
+          />
+        </div>
+        {qh && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs" htmlFor="qh-start">Start</Label>
+              <Input
+                id="qh-start"
+                type="time"
+                value={qh.start}
+                onChange={(e) => update({ quietHours: { ...qh, start: e.target.value } })}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs" htmlFor="qh-end">End</Label>
+              <Input
+                id="qh-end"
+                type="time"
+                value={qh.end}
+                onChange={(e) => update({ quietHours: { ...qh, end: e.target.value } })}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Local dynamic import shim so the settings page doesn't get bundled with the
+// localStorage helpers until needed.
+function require_<T = unknown>(_: string): T {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  return require(_) as T;
+}
