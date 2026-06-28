@@ -208,6 +208,7 @@ function RootComponent() {
             <Outlet />
           </div>
           <BottomNav />
+          <CompanionDock />
         </div>
       )}
 
