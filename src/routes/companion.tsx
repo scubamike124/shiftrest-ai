@@ -8,7 +8,6 @@ import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import {
-  tryCompanionSoundCommand,
   isYes,
   isNo,
 } from "@/lib/voice/companion-sound-bridge";
