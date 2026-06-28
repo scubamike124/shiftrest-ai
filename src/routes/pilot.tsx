@@ -331,48 +331,53 @@ function PilotPage() {
       let firstSentenceFired = false;
       let done = false;
 
-      while (!done) {
-        const { done: rDone, value } = await reader.read();
-        if (rDone) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, nl);
-          buffer = buffer.slice(nl + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") { done = true; break; }
-          try {
-            const parsed = JSON.parse(json);
-            const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (!chunk) continue;
-            assistant += chunk;
-            speakBuffer += chunk;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { role: "assistant", content: assistant };
-              return next;
-            });
-            // Pull sentence-sized chunks and dispatch to TTS.
-            const { chunks, rest } = takeSpeakableChunks(speakBuffer);
-            speakBuffer = rest;
-            for (const c of chunks) {
-              if (!firstSentenceFired) {
-                // First real sentence — cut the filler audio only (do NOT abort LLM).
-                flushQueuedAudio();
-                cancelledRef.current = false;
-                firstSentenceFired = true;
+      try {
+        while (!done) {
+          const { done: rDone, value } = await reader.read();
+          if (rDone) break;
+          if (ac.signal.aborted) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) !== -1) {
+            let line = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (json === "[DONE]") { done = true; break; }
+            try {
+              const parsed = JSON.parse(json);
+              const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
+              if (!chunk) continue;
+              assistant += chunk;
+              speakBuffer += chunk;
+              setMessages((prev) => {
+                const next = [...prev];
+                next[next.length - 1] = { role: "assistant", content: assistant };
+                return next;
+              });
+              // Pull sentence-sized chunks and dispatch to TTS.
+              const { chunks, rest } = takeSpeakableChunks(speakBuffer);
+              speakBuffer = rest;
+              for (const c of chunks) {
+                if (!firstSentenceFired) {
+                  // First real sentence — cut the filler audio only (do NOT abort LLM).
+                  flushQueuedAudio();
+                  cancelledRef.current = false;
+                  firstSentenceFired = true;
+                }
+                void enqueueSpeak(c);
               }
-
-              void enqueueSpeak(c);
+            } catch {
+              buffer = line + "\n" + buffer;
+              break;
             }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
           }
         }
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") console.warn("pilot stream error", e);
       }
+
 
       streamingRef.current = false;
 
