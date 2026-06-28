@@ -25,6 +25,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
         const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
         const { runPatternDetection } = await import("@/lib/ai/patterns.server");
+        const { runMemoryProposer } = await import("@/lib/ai/memory-proposer.server");
 
         // 1) Pull all opted-in users.
         const { data: users } = await admin
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
         let detected = 0;
         let learned = 0;
         let outcomes = 0;
+        let proposed = 0;
 
         for (const u of (users as Array<{
           user_id: string;
@@ -48,6 +50,13 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
             detected += found.length;
           } catch (e) {
             console.warn("pattern detection failed", u.user_id, e);
+          }
+
+          // Slice 5 — Memory proposer (writes pending proposals only).
+          try {
+            proposed += await runMemoryProposer(admin, u.user_id, Number(u.sleep_hours ?? 8));
+          } catch (e) {
+            console.warn("memory proposer failed", u.user_id, e);
           }
 
           if (!u.feedback_learning_enabled) continue;
@@ -137,7 +146,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
           }
         }
 
-        return Response.json({ ok: true, detected, outcomes, learned });
+        return Response.json({ ok: true, detected, outcomes, learned, proposed });
       },
       GET: async () => Response.json({ ok: true, info: "POST with apikey header to trigger" }),
     },
