@@ -140,6 +140,8 @@ function PilotPage() {
   const [lastExchange, setLastExchange] = useState<{ user: string; messages: CoachMsg[] } | null>(null);
   const mic = useMicRecorder();
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const llmAbortRef = useRef<AbortController | null>(null);
+
 
   // === Audio queue (sentence-streamed TTS) ===
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -232,8 +234,9 @@ function PilotPage() {
     [playNext],
   );
 
-  const cancelAllAudio = useCallback(() => {
-    cancelledRef.current = true;
+  // Flush only queued audio (used to cut filler when the first real sentence
+  // arrives — must NOT abort the in-flight LLM stream).
+  const flushQueuedAudio = useCallback(() => {
     const a = audioRef.current;
     if (a) {
       try { a.pause(); } catch { /* */ }
@@ -242,8 +245,19 @@ function PilotPage() {
     queueRef.current.forEach((u) => URL.revokeObjectURL(u));
     queueRef.current = [];
     playingRef.current = false;
-    setNeedsTap(false);
   }, []);
+
+  // Full cancel — used by barge-in. Stops audio AND aborts the LLM stream.
+  const cancelAllAudio = useCallback(() => {
+    cancelledRef.current = true;
+    try { llmAbortRef.current?.abort(); } catch { /* */ }
+    llmAbortRef.current = null;
+    streamingRef.current = false;
+    flushQueuedAudio();
+    setNeedsTap(false);
+  }, [flushQueuedAudio]);
+
+
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -264,18 +278,34 @@ function PilotPage() {
       setOrbState("thinking");
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const resp = await fetch("/api/ai", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          intent: "coach",
-          messages: baseMessages,
-          surface: "voice",
-        }),
-      });
+      const ac = new AbortController();
+      llmAbortRef.current = ac;
+      let resp: Response;
+      try {
+        resp = await fetch("/api/ai", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            intent: "coach",
+            messages: baseMessages,
+            surface: "voice",
+          }),
+          signal: ac.signal,
+        });
+      } catch (e) {
+        // Aborted via barge-in is expected — bail quietly.
+        streamingRef.current = false;
+        if ((e as Error)?.name !== "AbortError") {
+          toast.error("Pilot is unavailable.");
+        }
+        setOrbState("idle");
+        return;
+      }
+
+
 
       if (!resp.ok || !resp.body) {
         streamingRef.current = false;
@@ -301,54 +331,61 @@ function PilotPage() {
       let firstSentenceFired = false;
       let done = false;
 
-      while (!done) {
-        const { done: rDone, value } = await reader.read();
-        if (rDone) break;
-        buffer += decoder.decode(value, { stream: true });
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) !== -1) {
-          let line = buffer.slice(0, nl);
-          buffer = buffer.slice(nl + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (!line.startsWith("data: ")) continue;
-          const json = line.slice(6).trim();
-          if (json === "[DONE]") { done = true; break; }
-          try {
-            const parsed = JSON.parse(json);
-            const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (!chunk) continue;
-            assistant += chunk;
-            speakBuffer += chunk;
-            setMessages((prev) => {
-              const next = [...prev];
-              next[next.length - 1] = { role: "assistant", content: assistant };
-              return next;
-            });
-            // Pull sentence-sized chunks and dispatch to TTS.
-            const { chunks, rest } = takeSpeakableChunks(speakBuffer);
-            speakBuffer = rest;
-            for (const c of chunks) {
-              if (!firstSentenceFired) {
-                // First real sentence — cut the filler and play this immediately.
-                cancelAllAudio();
-                cancelledRef.current = false;
-                firstSentenceFired = true;
+      try {
+        while (!done) {
+          const { done: rDone, value } = await reader.read();
+          if (rDone) break;
+          if (ac.signal.aborted) break;
+          buffer += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buffer.indexOf("\n")) !== -1) {
+            let line = buffer.slice(0, nl);
+            buffer = buffer.slice(nl + 1);
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (!line.startsWith("data: ")) continue;
+            const json = line.slice(6).trim();
+            if (json === "[DONE]") { done = true; break; }
+            try {
+              const parsed = JSON.parse(json);
+              const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
+              if (!chunk) continue;
+              assistant += chunk;
+              speakBuffer += chunk;
+              setMessages((prev) => {
+                const next = [...prev];
+                next[next.length - 1] = { role: "assistant", content: assistant };
+                return next;
+              });
+              // Pull sentence-sized chunks and dispatch to TTS.
+              const { chunks, rest } = takeSpeakableChunks(speakBuffer);
+              speakBuffer = rest;
+              for (const c of chunks) {
+                if (!firstSentenceFired) {
+                  // First real sentence — cut the filler audio only (do NOT abort LLM).
+                  flushQueuedAudio();
+                  cancelledRef.current = false;
+                  firstSentenceFired = true;
+                }
+                void enqueueSpeak(c);
               }
-              void enqueueSpeak(c);
+            } catch {
+              buffer = line + "\n" + buffer;
+              break;
             }
-          } catch {
-            buffer = line + "\n" + buffer;
-            break;
           }
         }
+      } catch (e) {
+        if ((e as Error)?.name !== "AbortError") console.warn("pilot stream error", e);
       }
+
 
       streamingRef.current = false;
 
       // Flush any trailing un-spoken text.
       const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
       for (const c of tail) {
-        if (!firstSentenceFired) { cancelAllAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+        if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+
         void enqueueSpeak(c);
       }
 
@@ -509,7 +546,8 @@ function PilotPage() {
           const { chunks, rest } = takeSpeakableChunks(speakBuffer);
           speakBuffer = rest;
           for (const c of chunks) {
-            if (!firstSentenceFired) { cancelAllAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+            if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+
             void enqueueSpeak(c);
           }
         } catch {
@@ -521,7 +559,7 @@ function PilotPage() {
     streamingRef.current = false;
     const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
     for (const c of tail) {
-      if (!firstSentenceFired) { cancelAllAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+      if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
       void enqueueSpeak(c);
     }
     if (signedIn && assistant.trim()) saveCoachMessage("assistant", assistant.trim()).catch(() => {});
@@ -552,9 +590,10 @@ function PilotPage() {
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link to="/profile" hash="voice-settings">
-                <Settings2 className="mr-1.5 h-4 w-4" /> Voice
+                <Settings2 className="mr-1.5 h-4 w-4" /> Customize
               </Link>
             </Button>
+
           </div>
         </header>
 
@@ -625,7 +664,18 @@ function PilotPage() {
               <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Tell me more
             </Button>
           )}
+
+          {/* Always-visible discoverability chip for voice personalization. */}
+          <Link
+            to="/profile"
+            hash="voice-settings"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Voice, language, accent &amp; personality
+          </Link>
         </div>
+
 
         <section className="mt-10">
           <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">Transcript</h2>

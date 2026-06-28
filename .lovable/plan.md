@@ -1,132 +1,102 @@
 
-# Pilot AI Polish Pass — Pre-Launch Plan
+# Pilot Launch Blockers — Root Cause + Fix Plan
 
-Goal: Pilot should feel like a calm friend on the phone, not a chatbot reading a report. Six priorities, each mapped to concrete changes. Nothing ships until every Acceptance Criterion passes.
-
----
-
-## Priority 1 — Response Speed (1–3s perceived start)
-
-### Where the 7–8s comes from today
-- STT: full recording uploaded after user stops → Whisper round-trip (~1–2s).
-- LLM: `/api/ai` streams tokens, but Pilot waits for the *entire* reply before calling TTS.
-- TTS: one big request for the whole answer (~2–4s before first audio byte).
-- Net effect: user hears nothing until LLM + TTS both finish.
-
-### Fixes
-1. **Sentence-streamed TTS.** As tokens arrive in `pilot.tsx`, buffer until we hit a sentence boundary (`. ! ? \n`) or ~60 chars, then fire `/api/tts` for that chunk and enqueue the resulting MP3 in a tiny audio queue. Subsequent sentences play back-to-back with no gap. First audible word arrives ~1.5–2s after the user finishes speaking.
-2. **Filler audio while we think.** The moment STT returns, immediately play one of 6 pre-generated MP3s ("Let me think about that…", "One sec…", "Looking at that now…", "Hmm, good question…", "Okay…", "Got it — one moment."). Cached in `public/audio/fillers/` so they ship in the PWA shell and play instantly. Filler is interrupted as soon as the first real sentence is ready.
-3. **Audio queue + barge-in.** New `useTtsQueue()` (extracted from `useTtsPlayer`) handles ordered playback, cancellation on barge-in, and "playing" state transitions for the orb.
-4. **Cache common Q&A.** Add a small server-side LRU keyed by `sha256(normalized_question + user_id_or_anon)` for non-personal questions (e.g. "what is sleep debt?", "should I nap before a night shift?"). Hits return cached `text + audio_url` instantly. TTL 24h, max 200 entries per process. Skip cache for anything that references user state.
-5. **STT speedup.** Switch `/api/stt` to send the audio blob with `Content-Type: audio/webm` directly (no base64 round-trip if any). Confirm we're already using fastest Whisper variant.
-6. **Shorter prompt → faster first token.** New `PILOT_VOICE_SYSTEM` (see P2) is ~40% shorter than COACH_VOICE; less context = faster TTFB from Gemini.
-
-### Target timings after fix
-- Filler audio playing: < 800ms after mic stop.
-- First real sentence audible: < 2.5s after mic stop.
-- Full answer: streams continuously, no silent gaps.
+Investigation done across `src/routes/pilot.tsx`, `src/routes/api/ai.ts`, `src/lib/ai/context.server.ts`, `src/lib/ai/gateway.server.ts`, `src/routes/api/stt.ts`, `src/routes/api/tts.ts`, and `src/components/voice/VoiceSettings.tsx`. No code changes yet.
 
 ---
 
-## Priority 2 — Make Pilot Sound Human
+## 1. Voice settings not discoverable — root cause
 
-### Voice contract for spoken intent
-New `PILOT_VOICE_SYSTEM` in `src/lib/ai/prompts.server.ts`, used only by `intent: "coach"` (visual cards keep COACH_VOICE):
+The settings exist and work. They live in `src/components/voice/VoiceSettings.tsx` (language, voice, gender filter, accent, personality, speed presets, Pilot name, live preview) and are mounted on `/profile` at the anchor `id="voice-settings"`. Pilot already has a small header link "Voice" pointing to `/profile#voice-settings`.
 
-```
-You are Pilot, the user's personal sleep & energy companion.
-You're talking out loud, not writing a document.
-- No markdown. No headings. No bullet lists. No bold. No numbered steps.
-- Speak in 2–4 short sentences, ~20–40 seconds when read aloud.
-- Sound like a calm friend or coach. Contractions, natural rhythm.
-- If you need more info to answer well, ASK ONE question instead of guessing.
-- Offer to go deeper at the end ("Want me to walk through it?") only when relevant.
-- Never say "As an AI". Never say "Here are some recommendations".
-```
+Why testers miss it:
+- The link is a tiny ghost button in the top-right corner next to "Text", visually weighted the same as the chat link. On a 375px viewport it reads as a secondary action, not a primary entry into customization.
+- There is no inline affordance near the orb (where the user's attention is) and no first-run nudge.
+- The label "Voice" is ambiguous — sounds like "voice mode" not "voice customization".
 
-### Post-processing safety net
-In `pilot.tsx`, run final text through `stripMd()` already in place AND a new `humanize()`:
-- Strip `**`, `__`, `#`, leading `- `, `1. `, table pipes.
-- Collapse multi-newlines to single space for TTS only (keep newlines in transcript).
-- Drop trailing `Note:` / `Disclaimer:` paragraphs longer than 120 chars.
-
-Transcript on screen renders the lightly-formatted version; TTS gets the fully-flattened version.
+### Fix
+- Promote the link to a visible, labeled chip directly under the orb: `⚙ Voice & personality — {currentVoiceName} · {accent} · {speed}`. One tap → `/profile#voice-settings`.
+- Keep the header icon, but rename it `Customize`.
+- First-run nudge: if `prefs.voice_id` is null on Pilot mount, show a dismissible banner above the orb: "Pick Pilot's voice, accent, and personality →".
+- Confirm `VoiceSettings` exposes every requested control (it does: language, voice w/ gender filter, accent dropdown, personality presets, speed slow/normal/fast, Pilot name, live preview button). No schema work needed.
 
 ---
 
-## Priority 3 — Conversation Quality (ask, don't dump)
+## 2. ~30s response latency — root cause
 
-1. Add to `PILOT_VOICE_SYSTEM`:
-   - "If the user's first message lacks key context (wake time, last shift, how they feel, caffeine, sleep hours), ask ONE clarifying question before giving advice. Pick the most useful one."
-2. Seed examples in the system prompt with 3 short dialogues showing the ask-first pattern.
-3. Soft cap: if model output > 600 chars on the first turn of a topic, the post-processor truncates at the last sentence boundary before 600 and appends "Want the full breakdown?" — but only when no question mark exists in the response.
+Measured pipeline stages (from code, not yet from live trace — Step A below will confirm with `ai_gateway_logs`):
 
----
+| Stage | Current | Notes |
+|---|---|---|
+| STT (`/api/stt` → Whisper) | ~1–2s | Synchronous; client waits for `await sttRes.json()` before doing anything else. |
+| LLM TTFB (Gemini 3 flash preview via Lovable AI) | ~1–3s typical, but the **system prompt is enormous** — `buildSystemPrompt` for "coach" pulls 25 ranked memories + active patterns + 14-day feedback summary + previous recommendation + full TZ block + live context. On a cold path that's 2–4k tokens of context the model has to read before emitting a token. | Biggest single contributor to slow first token. |
+| LLM completion to end | 2–8s | Replies are long (P3 below). |
+| TTS (`/api/tts`) | ~600–1200ms per chunk | Already chunked sentence-by-sentence — good. |
+| Filler audio | Fires after STT returns, **not** at mic-stop | So the user hears nothing for the full STT roundtrip (~1.5s) before the filler even starts. |
 
-## Priority 4 — Voice Personalization Discovery
+The ~30s the tester sees is the sum of (1) STT silence + (2) huge prompt assembly + (3) long completion + (4) first TTS chunk. The streamed-TTS path works, but the user only hears it after the first sentence lands, which can be 6–10s in.
 
-Settings already exist in `/profile` → Voice Settings (built last turn). Make them easier to find:
+### Fixes (in order of impact)
+1. **Trim the voice system prompt aggressively.** For `surface: "voice"` reduce ranked memories from 25 → 5, drop the feedback summary and previous-recommendation blocks (text-chat only), keep TZ block compact (one line, not four). Target: <600 tokens of system context. Expected TTFB drop: 1.5–3s.
+2. **Pre-generate filler audio** as 6 static MP3 files under `public/audio/fillers/` and start playback the instant the user releases the mic (before STT returns). Acknowledge < 800ms guaranteed.
+3. **Parallelise STT + filler** — already partly done; move the filler call to the mic-stop callback, not after STT.
+4. **Cap completion length server-side** for `surface: "voice"` via `max_tokens: 180` on the upstream call (currently unbounded). This halves end-to-end on long answers.
+5. **Add stage timing logs** at every boundary (`stt_ms`, `prompt_build_ms`, `ttft_ms`, `tts_first_ms`, `total_ms`) so we can prove the fix and catch future regressions. Log via existing `logAIRequest`.
+6. **(Investigate, not commit)** switch the voice path to `google/gemini-3.1-flash-lite` if Step A's traces show Gemini-3-flash TTFB > 2.5s consistently. Lighter model = faster first token; quality is fine for 2–4 sentence conversational replies.
 
-1. **In Pilot UI**: add a small "Voice & personality" link beneath the orb that deep-links to `/profile#voice-settings`.
-2. **First-run nudge**: if `user_prefs.voice_id` is null on Pilot's first open, show a one-line dismissible chip "Tap to pick Pilot's voice →".
-3. **Voice Settings audit**: confirm Male/Female grouping, accent dropdown (American, British, Australian, Canadian, Irish, South African), speed slider 0.7–1.3, Pilot name field, and 6 personality presets (Calm, Friendly, Professional, Motivational, Energetic, Companion) are all present with working previews. Add any missing accents.
-4. Anchor `id="voice-settings"` on the section so the deep link scrolls to it.
-
----
-
-## Priority 5 — Companion Personality (real memory)
-
-The `ai_memory` + ranking engine already exists. Wire it into Pilot's opening turn and ongoing context:
-
-1. **Arrival line.** On Pilot route mount, server fn `getPilotGreeting()` builds a one-liner using:
-   - Last conversation timestamp ("Welcome back" / "Good morning" / "How was the night shift?").
-   - Top-ranked memory ("Last time you mentioned an early shift Thursday — that's today.").
-   - Latest sleep delta vs. baseline ("You got an hour more than yesterday — nice.").
-   Shown as a soft text bubble above the orb. Tap to hear it spoken.
-2. **Context injection.** `buildSystemPrompt({ intent: "coach" })` already pulls memory; verify top 5 ranked memories + last 3 user turns are included. Add `lastSeenAt` and `currentLocalTime` so Pilot can greet correctly.
-3. **Natural recall language.** Add to prompt: "When recalling a memory, say it the way a friend would — 'Last week you said…', 'You mentioned…' — never 'According to my records'."
+Target after fixes: filler audible < 800ms, first real word < 2.5s, full reply < 8s.
 
 ---
 
-## Priority 6 — Reduce Information Overload
+## 3. Replies too long — root cause
 
-Covered by P2 + P3, plus:
-1. Default `max_tokens` for `intent: "coach"` lowered from current default → 220.
-2. Server-side check: if response > 4 sentences and user didn't ask "explain" / "details" / "walk me through", trim to first 3 sentences + "Want more on that?".
-3. UI: add small "Tell me more" chip after each Pilot reply that re-sends the same context with `{ expand: true }`, which raises `max_tokens` and removes the brevity instruction for that turn.
+`PILOT_VOICE_SYSTEM` already says "2 to 4 short sentences", but:
+- No server-side length cap — the model freely overshoots.
+- The `expand: true` branch adds "up to ~6 sentences" which can leak into normal turns if the flag is ever sticky.
+- The prompt mixes "ask one clarifying question" with "give the best single tip", so the model often does both.
 
----
-
-## Technical Details
-
-### Files touched
-- `src/routes/pilot.tsx` — sentence-streamed TTS, filler trigger, "Tell me more" chip, voice-settings link, arrival bubble.
-- `src/routes/api/ai.ts` — new `PILOT_VOICE_SYSTEM`, `expand` flag, response-length cap, cache lookup hook.
-- `src/lib/ai/prompts.server.ts` — export `PILOT_VOICE_SYSTEM`, `humanize()` helper.
-- `src/lib/voice/useTtsPlayer.ts` → split into `useTtsQueue.ts` (ordered playback) + thin compat wrapper for existing callers (`VoicePlayer`, `coach.tsx`).
-- `src/lib/voice/fillers.ts` — list of filler MP3 URLs + random picker.
-- `public/audio/fillers/*.mp3` — 6 pre-generated clips (generated once via the existing tts skill, committed as static assets).
-- `src/lib/ai/qa-cache.server.ts` — tiny in-memory LRU for cached Q&A.
-- `src/lib/pilot/greeting.functions.ts` — `getPilotGreeting()` server fn using ranked memory.
-- `src/components/voice/VoiceSettings.tsx` — add `id="voice-settings"`, confirm accent list completeness.
-
-### Out of scope
-- No schema changes. Memory tables already exist.
-- No new paid models. Same `google/gemini-3-flash-preview` + `openai/gpt-4o-mini-tts`.
-- No native iOS work.
+### Fix
+- Add `max_tokens: 180` to the upstream chat call when `surface === "voice"` and `expand !== true`.
+- Tighten `PILOT_VOICE_SYSTEM`: "Default to 1–3 sentences (~10–20 seconds spoken). Never exceed 4 sentences unless the user says 'tell me more' or 'details'."
+- Server-side trim: after streaming completes, if the reply has > 4 sentences and `expand !== true`, the UI's "Tell me more" chip is already there to expand — no truncation needed mid-stream (would break TTS).
+- The existing "Tell me more" chip remains as the user-controlled depth toggle.
 
 ---
 
-## Acceptance Criteria (must all pass before "Launch Ready")
-1. Filler audio plays within 800ms of mic stop; first real sentence within 2.5s.
-2. Zero markdown (`*`, `#`, `-`, `1.`) in any Pilot spoken text across 10 sample prompts.
-3. Average spoken reply 20–40s; long answers gated behind "Tell me more".
-4. Cold-start question without context produces a clarifying question, not advice.
-5. Voice, accent, speed, name, personality all changeable from `/profile`; "Voice & personality" link from Pilot reaches them in one tap.
-6. On second visit, Pilot greets with a memory-grounded line referencing a prior turn or recent sleep.
-7. Barge-in stops both filler and main audio cleanly; no overlapping playback.
-8. Manual QA on iPhone Safari + Desktop Chrome confirms no regressions in transcript, mic, or settings.
+## 4. Voice UX polish — verification matrix
+
+Will verify on iPhone Safari + Desktop Chrome with Playwright + manual:
+- **Barge-in**: tap-to-interrupt path exists (`onMicTap` cancels queue when `orbState === "speaking"`). Verify it also cancels the in-flight LLM stream (currently it doesn't — the SSE reader keeps draining; need to abort). Add `AbortController` to `/api/ai` fetch and abort on barge-in.
+- **Markdown never spoken**: `stripMd()` is applied per chunk before TTS; verify across 10 sample prompts.
+- **Conversational transcripts**: covered by P3 prompt tightening.
+- **Streaming starts on first sentence**: `takeSpeakableChunks` already flushes at `. ! ?`. Verified in code; will confirm with timing logs.
 
 ---
 
-Approve and I'll start with **Priority 1 (speed + filler + sentence streaming)** since it unlocks the rest.
+## Investigation Step A (before code)
+
+Use `ai_gateway_logs--list_ai_gateway_requests` filtered to `model: google/gemini-3-flash-preview` over the last 48h, then `get_ai_gateway_request` on 3–5 coach calls to capture real prompt token counts and durations. This confirms whether the bottleneck is prompt size (fix in P2 #1) or model choice (fix in P2 #6). I'll attach the numbers to the implementation PR.
+
+---
+
+## Deliverables when implementation lands
+1. Stage-by-stage timing table from real traces, before + after.
+2. Screenshots: Pilot screen with new "Voice & personality" chip; first-run nudge; trimmed reply length.
+3. Short Playwright run proving barge-in cancels both audio and LLM stream.
+4. Updated `PILOT_VOICE_SYSTEM` and `buildSystemPrompt` diff.
+
+---
+
+## Files that will change (preview only)
+- `src/routes/pilot.tsx` — visible Voice chip under orb, first-run nudge, barge-in abort, filler-on-mic-stop, timing logs.
+- `src/lib/ai/context.server.ts` — slimmer voice prompt (5 memories, no feedback/prev blocks, compact TZ).
+- `src/lib/ai/prompts.server.ts` — tighter `PILOT_VOICE_SYSTEM` length rule.
+- `src/lib/ai/gateway.server.ts` — accept `maxTokens`, forward to upstream.
+- `src/routes/api/ai.ts` — pass `max_tokens: 180` for voice coach turns; emit timing log.
+- `public/audio/fillers/*.mp3` — 6 pre-generated clips (created via the AI gateway script).
+
+No DB schema changes. No new dependencies.
+
+---
+
+Approve and I'll start with **Investigation Step A** (pull real gateway timings), then implement P1 → P2 → P3 → P4 in that order.
