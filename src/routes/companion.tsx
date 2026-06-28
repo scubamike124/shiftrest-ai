@@ -36,6 +36,8 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
+import { speak, stopSpeaking } from "@/lib/companion/speak";
+import { track } from "@/lib/companion/analytics";
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
@@ -143,8 +145,7 @@ function CompanionPage() {
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
-  // Slice 8 — TTS playback tracking so we can cancel cleanly.
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
 
   const execCtx = {
     signedIn: signedIn === true,
@@ -222,36 +223,17 @@ function CompanionPage() {
     });
   }
 
-  // Slice 8 — assistant message helper that also speaks (TTS) when enabled.
+  // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
+  // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
   async function speakIfEnabled(text: string) {
-    if (!localPrefs.voiceRepliesEnabled) return;
-    if (inQuietHours(localPrefs.quietHours)) return;
-    if (!text.trim()) return;
-    try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      const resp = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ text, voice: prefs?.voiceId }),
-      });
-      if (!resp.ok) return;
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      ttsAudioRef.current?.pause();
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      audio.onended = () => URL.revokeObjectURL(url);
-      await audio.play().catch(() => undefined);
-    } catch {
-      /* TTS is best-effort */
-    }
+    await speak(text, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
   }
 
   // Slice 9 — central confirm path: record history (executing → completed/failed)
   // and narrate the outcome (when voice replies are allowed).
   async function runAction(action: CompanionAction): Promise<ReturnType<typeof executeAction> extends Promise<infer R> ? R : never> {
     const d = describeAction(action);
+    track({ event: "action_started", kind: action.kind, destructive: isDestructive(action) });
     recordHistory({ kind: action.kind, label: d.title, status: "executing", message: "Working…", snapshot: action });
     const result = await executeAction(action, execCtx);
     recordHistory({
@@ -262,6 +244,11 @@ function CompanionPage() {
       errorKind: result.error?.kind,
       snapshot: action,
     });
+    if (result.ok) {
+      track({ event: "action_completed", kind: action.kind });
+    } else {
+      track({ event: "action_failed", kind: action.kind, reason: result.error?.kind });
+    }
     void speakIfEnabled(narrate(action, result));
     return result;
   }
@@ -284,6 +271,7 @@ function CompanionPage() {
     if (msg?.action) {
       const d = describeAction(msg.action);
       recordHistory({ kind: msg.action.kind, label: d.title, status: "cancelled", message: "Cancelled.", snapshot: msg.action });
+      track({ event: "action_cancelled", kind: msg.action.kind });
     }
     setMessages((cur) =>
       cur.map((m, i) =>
@@ -477,6 +465,7 @@ function CompanionPage() {
 
   function handleStop() {
     abortRef.current?.abort();
+    stopSpeaking();
     setSending(false);
   }
 
@@ -680,6 +669,10 @@ function CompanionPage() {
       {/* Conversation list */}
       <div
         ref={listRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-busy={sending}
         className={cn(
           "mt-4 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-border/40 bg-background/40 p-3",
           !companionOn && "opacity-60",

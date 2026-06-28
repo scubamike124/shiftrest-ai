@@ -29,7 +29,6 @@ export function CompanionAvatar() {
     const refresh = () => setPulse(isPeriodFresh());
     window.addEventListener("brief:seen", refresh);
     window.addEventListener("focus", refresh);
-    // Re-check periodically so we transition between periods smoothly.
     const t = window.setInterval(refresh, 5 * 60_000);
     return () => {
       window.removeEventListener("brief:seen", refresh);
@@ -41,21 +40,19 @@ export function CompanionAvatar() {
   return (
     <Link
       to="/companion"
-      aria-label="Open Companion"
+      aria-label={pulse ? "Open Companion — new briefing ready" : "Open Companion"}
       className={cn(
-        "relative mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+        "relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
         "border border-primary/40 bg-gradient-to-br from-primary/20 to-background",
-        "transition-transform hover:scale-105 lg:h-12 lg:w-12",
+        "transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+        "lg:h-12 lg:w-12",
       )}
       data-testid="companion-avatar"
     >
-      <Sparkles className="h-4 w-4 text-primary lg:h-5 lg:w-5" />
+      <Sparkles className="h-4 w-4 text-primary lg:h-5 lg:w-5" aria-hidden />
       {pulse && (
-        <span
-          aria-hidden
-          className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5"
-        >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+        <span aria-hidden className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
         </span>
       )}

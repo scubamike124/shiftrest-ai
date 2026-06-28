@@ -2,7 +2,11 @@
 // any proposed action. Nothing executes until the user taps Confirm.
 // Adds destructive badge, structured-error recovery link, and an aria-live
 // status region for executing / completed / failed states.
+// Slice 10 — keyboard focus management: when a fresh pending card mounts we
+// move focus to the primary confirm button so keyboard / screen-reader users
+// land on the actionable control without having to tab through the chat.
 
+import { useEffect, useRef } from "react";
 import { Check, X, Info, AlertTriangle, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { describeAction, type ActionResult, type CompanionAction } from "@/lib/companion/actions";
@@ -22,6 +26,14 @@ export function ActionCard({
   done?: ActionResult | null;
 }) {
   const d = describeAction(action);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (done || busy || d.unavailable) return;
+    // Focus on first mount only — avoids stealing focus if the user is typing.
+    const id = window.setTimeout(() => confirmRef.current?.focus(), 50);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (done) {
     const ok = done.ok;
@@ -95,6 +107,7 @@ export function ActionCard({
           Cancel
         </Button>
         <Button
+          ref={confirmRef}
           type="button"
           size="sm"
           onClick={onConfirm}

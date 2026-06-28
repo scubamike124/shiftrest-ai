@@ -117,9 +117,13 @@ function nextOccurrenceISO(hour: number, minute: number): string {
 /** Returns true if an action should always require a confirmation card. */
 export function isDestructive(a: CompanionAction): boolean {
   switch (a.kind) {
+    // Delete / Forget — destructive by definition.
     case "delete_alarm":
     case "forget_memory":
     case "hide_card":
+    // Reset / bulk-stop — surprising if executed silently.
+    case "stop_all":
+    case "clear_timer":
       return true;
     case "toggle_notifications":
     case "toggle_memory":
@@ -130,6 +134,19 @@ export function isDestructive(a: CompanionAction): boolean {
       return false;
   }
 }
+
+/** Slice 10 — runtime allow-list for navigation. Mirrors the TS union; we
+ *  enforce again at execution time to prevent a malformed action (e.g. from
+ *  an older cached chat) from triggering an unexpected navigation. */
+const ALLOWED_OPEN_ROUTES: ReadonlySet<string> = new Set([
+  "/events",
+  "/sleep",
+  "/companion",
+  "/plan",
+  "/memory",
+  "/settings/companion",
+  "/dashboard",
+]);
 
 export function describeAction(a: CompanionAction): ActionDescription {
   const D = (d: ActionDescription): ActionDescription => ({ ...d, destructive: isDestructive(a) });
@@ -523,6 +540,9 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
 
       // ───── Navigation ─────
       case "open_route": {
+        if (!ALLOWED_OPEN_ROUTES.has(a.to)) {
+          return fail("permission_denied", "I can't open that route.");
+        }
         ctx.navigate(a.to, a.search);
         return done(`Opening ${a.label}.`);
       }

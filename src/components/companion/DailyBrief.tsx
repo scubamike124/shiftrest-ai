@@ -5,7 +5,7 @@
 // Morning delegates to the existing <MorningBrief /> to avoid regressing
 // Slice 6. Afternoon and Evening are new in this slice.
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { MorningBrief } from "@/components/morning/MorningBrief";
 import { getAfternoonBrief } from "@/lib/companion/afternoon-brief.functions";
 import { getEveningBrief } from "@/lib/companion/evening-brief.functions";
 import type { AfternoonBriefDTO, EveningBriefDTO, AfternoonCardId, EveningCardId } from "@/lib/companion/types";
+import { track } from "@/lib/companion/analytics";
 import {
   RemainingCard,
   NextTrafficCard,
@@ -178,22 +179,46 @@ export function DailyBrief({
   });
 
   useEffect(() => {
-    if (period === "afternoon" && afternoonQ.data) markBriefSeenPeriod("afternoon");
+    if (period === "afternoon" && afternoonQ.data) {
+      markBriefSeenPeriod("afternoon");
+      track({ event: "brief_opened", period: "afternoon" });
+    }
   }, [period, afternoonQ.data]);
   useEffect(() => {
-    if (period === "evening" && eveningQ.data) markBriefSeenPeriod("evening");
+    if (period === "evening" && eveningQ.data) {
+      markBriefSeenPeriod("evening");
+      track({ event: "brief_opened", period: "evening" });
+    }
   }, [period, eveningQ.data]);
+  useEffect(() => {
+    if (period === "afternoon" && afternoonQ.error) {
+      track({ event: "brief_refresh_failed", period: "afternoon", reason: String(afternoonQ.error) });
+    }
+  }, [period, afternoonQ.error]);
+  useEffect(() => {
+    if (period === "evening" && eveningQ.error) {
+      track({ event: "brief_refresh_failed", period: "evening", reason: String(eveningQ.error) });
+    }
+  }, [period, eveningQ.error]);
 
   // Slice 9 — listen for companion-triggered refresh events.
+  // Slice 10 — debounce coalesces rapid bursts (e.g. multiple action completions).
+  const refreshTimer = useRef<number | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onRefresh = (e: Event) => {
       const detail = (e as CustomEvent<{ period?: string }>).detail;
-      if (!detail?.period || detail.period === "afternoon") void afternoonQ.refetch();
-      if (!detail?.period || detail.period === "evening") void eveningQ.refetch();
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+      refreshTimer.current = window.setTimeout(() => {
+        if (!detail?.period || detail.period === "afternoon") void afternoonQ.refetch();
+        if (!detail?.period || detail.period === "evening") void eveningQ.refetch();
+      }, 250);
     };
     window.addEventListener("companion:brief-refresh", onRefresh as EventListener);
-    return () => window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+    return () => {
+      window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    };
   }, [afternoonQ, eveningQ]);
 
   if (!signedIn || !enabled) return null;

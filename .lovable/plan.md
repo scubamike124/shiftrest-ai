@@ -1,162 +1,142 @@
-# Slice 9 — Real Action Execution Layer
+## Slice 10 — Final QA, Hardening & Launch Readiness
 
-## 1. Investigation summary
+Investigation-only. No code will be written until you approve.
 
-### What already exists (reuse, don't rebuild)
-- **Action types & registry** — `src/lib/companion/actions.ts` defines `CompanionAction`, `describeAction`, `executeAction`, `intentToAction`. Today it handles: sound playback, stop-all, sleep timer, breathing, wind-down, navigation, smart-alarm prefill, evening summary nav. Several kinds (`create_reminder`, `text_contact`, `calendar_event`, `start_meditation`) are explicit "coming soon" stubs.
-- **Confirmation UI** — `src/components/companion/ActionCard.tsx` (Confirm / Cancel, `done` collapsed state, unavailable reason).
-- **Companion chat surface** — `src/routes/companion.tsx` already wires `executeAction` from both AI-proposed actions and the voice intent router (`intentToAction`), respects `requireActionConfirmation`, auto-runs nav, and TTS-narrates results when voice replies + quiet hours allow.
-- **Sound system** — `src/lib/sounds/mixer.ts` (`play`, `stop`, `stopAll`, `setSleepTimer`, `clearTimer`, `setVolume`, `snapshot`, `applyMix`, `isActive`).
-- **Smart Alarm** — `src/components/SmartAlarmCard.tsx` creates an alarm by inserting `user_events` rows (`kind=personal`, `title="alarm:HH:MM"`) via `src/lib/events.ts` (`addEvent`, `updateEvent`, `removeEvent`, `listEvents`).
-- **Prefs** — `src/lib/prefs.ts` (`updatePrefs`) covers `notifications`, `memoryEnabled`, `memoryLearningPaused`, `briefEnabled`, `brief_layout` (order / hidden cards per period), voice settings.
-- **Local prefs** — `src/lib/companion/voice-action-prefs.ts` for per-device toggles + quiet hours; `quiet-hours.ts` for window math.
-- **Memory** — `ai_memory` + `ai_memory_proposals` tables; existing `/memory` route handles edits/forgets.
+### 1. Investigation summary
 
-### Real gaps the slice closes
-1. No **central executor** — `executeAction` is a single switch returning `{ok,message}`; no Queued/Executing/Completed/Failed/Cancelled state machine, no history, no retry.
-2. Smart-alarm "actions" today only **navigate** to `/events` with a prefilled time; they do not create / edit / delete / enable / disable / snooze alarms.
-3. No volume / switch-sound / explicit-stop-one action kinds for the mixer.
-4. No actions for: brief refresh, "remember this", "forget this", summarize today, review tomorrow, toggle voice / notifications / memory / confirmations, pin / reorder / hide dashboard cards.
-5. Confirmation policy is binary (`requireActionConfirmation`). Spec requires destructive actions (delete, forget, disable, reset) to **always** confirm regardless of the toggle.
-6. No structured error taxonomy (offline / auth / validation / not-found / permission denied), no recovery suggestions, no Action History UI, no retry button.
-7. Voice narration in `companion.tsx` speaks the raw result message; spec asks for natural assistant-style narration + a serialization queue so replies don't overlap.
+I audited the AI Companion surface against the Slice 1–9 deliverables:
 
-### Permission / safety model
-- Honor `localPrefs.requireActionConfirmation` (per-device).
-- Honor `localPrefs.voiceRepliesEnabled` + `quietHours` + `localPrefs.actionSuggestionsEnabled`.
-- Honor server prefs: `notifications`, `memoryEnabled`, `memoryLearningPaused`, `briefEnabled`.
-- Honor auth: any DB-touching action checks `supabase.auth.getUser()`; offline → typed `OfflineError`, queued for retry but never auto-executed silently.
-- Destructive set (`delete_alarm`, `disable_alarm`, `forget_memory`, `reset_*`, `toggle_*` to OFF for safety-critical features) **forces** a confirmation card even when `requireActionConfirmation` is OFF.
+- Conversation + voice: `src/routes/companion.tsx` (780 lines), `useMicRecorder`, `useTtsPlayer`, `/api/tts`, `/api/ai` (streaming).
+- Voice/action prefs: `src/lib/companion/voice-action-prefs.ts`, `quiet-hours.ts`.
+- Intent + sound bridge: `src/lib/voice/intent-router.ts`, `intent-executor.ts`, `companion-sound-bridge.ts`.
+- Action layer: `actions.ts`, `narration.ts`, `action-history.ts`, `components/companion/ActionCard.tsx`, `ActionHistorySheet.tsx`.
+- Briefs: `morning-brief.functions.ts`, `afternoon-brief.functions.ts`, `evening-brief.functions.ts`, `MorningBrief.tsx`, `DailyBrief.tsx`, `brief-window.ts`.
+- Dashboard integration: `CompanionAvatar.tsx`, `CompanionQuickAsk.tsx`.
+- Memory: `/memory`, `ai_memory_proposals`, `memory-proposer.server.ts`.
+- Settings: `/settings/companion`, `/settings/morning`.
 
-### Edge cases
-- Sound action fired before AudioContext unlock → mixer already handles user-gesture unlock; we surface "Tap to enable sound" error.
-- Alarm time in the past → bump to next day in handler.
-- Duplicate alarm at same HH:MM → reuse existing row, return `Completed` with "Already scheduled".
-- Memory action while `memoryEnabled=false` → blocked with clear reason + deep link to `/settings/companion`.
-- Concurrent executions → executor serializes per-action-kind where mixer state matters; others run in parallel.
-- TTS overlap → single playback queue in `useTtsPlayer`; new narration cancels nothing already playing, just queues.
+### 2. Findings (gaps to fix in Slice 10)
 
-### Rollback strategy
-- New executor lives behind `src/lib/companion/executor.ts`; existing `executeAction` becomes a thin shim that delegates. If a regression appears, revert the shim line to call the old switch.
-- Action history is localStorage-only (no schema change), so removing the UI removes all trace.
-- No DB migrations required for the slice itself; alarm CRUD reuses `user_events`.
+**A. Analytics — missing.** No `track()` / `reportLovableError` calls exist anywhere under `src/lib/companion` or `components/companion`. None of the events the spec lists (brief opened, action started/completed/failed, voice played/muted, memory created/removed, settings changed) are emitted.
 
-## 2. Architecture
+**B. Voice timing.** TTS auto-reply in `companion.tsx` schedules narration after each completed action and after assistant streamed replies. Two paths can fire near-simultaneously (assistant final reply + action completion narration); there's no single TTS queue/lock guaranteeing serial playback. Risk of overlap.
 
-```text
-                  ┌─────────────────────────────┐
-ChatMsg ─────────►│  ActionCard (confirm UI)    │
-VoiceIntent ─────►│   + destructive override    │
-QuickAsk  ───────►└──────────────┬──────────────┘
-                                 │ confirm
-                                 ▼
-                  ┌─────────────────────────────┐
-                  │  ActionExecutor (single)    │
-                  │  - state: queued/exec/done  │
-                  │  - per-kind serialization   │
-                  │  - typed handlers registry  │
-                  │  - structured errors        │
-                  │  - emits to ActionHistory   │
-                  │  - emits to TTSQueue        │
-                  └──────────────┬──────────────┘
-                                 │
-       ┌──────────┬──────────────┼──────────────┬─────────────┐
-       ▼          ▼              ▼              ▼             ▼
-   mixer       events.ts     prefs.ts     memoryProposals  router.nav
-   (sounds)    (alarms)      (toggles)    + ai_memory      (deep links)
-```
+**C. Quiet-hours / muted gate.** Quiet-hours and `voiceRepliesEnabled` are checked at the call site but in a couple of branches (action narration on retry from history sheet) the gate is bypassed. Needs centralization in a `speak()` helper.
 
-### Action state machine
-`queued → executing → completed | failed | cancelled`. Cancelled = user hit Cancel on the card before execute or pressed Stop while executing (sound actions only — abort fades).
+**D. Action retry from history.** `ActionHistorySheet` re-dispatches via `runAction`, but does not pass the original `ActionContext` (navigate, openBreathing) — retry of `start_breathing` or any navigation action will no-op silently.
 
-### Error taxonomy (`ActionError.kind`)
-`offline` · `unauthenticated` · `permission_denied` · `not_found` · `validation` · `conflict` · `unavailable` · `unknown`. Each carries `message` and optional `recovery: { label, action: CompanionAction | () => void }` so the failure card can offer "Open settings" / "Retry" / "Sign in".
+**E. Destructive override.** Confirmed for `delete_alarm`, `forget_memory`; `clear_timer`, `stop_all`, `delete_event` paths should be re-checked against the "destructive always confirms" rule.
 
-## 3. Action catalog (final)
+**F. Offline + permission UX.** `actions.ts` returns `fail("offline", …)` and `fail("unauthenticated", …)` with recovery actions, but `ActionCard` only renders recovery for the post-execution state, not when the executor pre-fails synchronously inside `runAction` — the recovery CTA can be hidden behind a toast.
 
-| Domain | Kinds | Destructive |
-|---|---|---|
-| Sounds | `play_track`, `stop_track`, `stop_all`, `set_timer`, `clear_timer`, `set_volume`, `switch_track`, `wind_down`, `start_breathing` | no |
-| Smart Alarm | `create_alarm`, `edit_alarm`, `delete_alarm`, `snooze_alarm`, `enable_alarm`, `disable_alarm` | delete / disable |
-| Briefs | `refresh_brief`, `open_brief_section` (weather/commute/calendar/reminders) | no |
-| Evening | `start_bedtime_routine`, `launch_wind_down`, `begin_sleep_session` | no |
-| Companion | `remember_this`, `forget_memory`, `summarize_today`, `review_tomorrow` | forget |
-| Settings | `toggle_voice`, `toggle_notifications`, `toggle_memory`, `toggle_confirmations` | toggling OFF |
-| Dashboard | `open_card`, `pin_card`, `reorder_cards`, `hide_card`, `show_card` | hide |
-| Nav | `open_route` (existing) | no |
+**G. Empty / loading / error states.** Companion chat shows a streaming spinner but no skeleton on first mount; `ActionHistorySheet` shows raw "No history yet" but no illustration or guidance; Brief cards have skeletons but no retry CTA on fetch failure.
 
-## 4. Files
+**H. Accessibility.**
+- `ActionCard` confirm/cancel buttons present, but the card itself does not move focus when it appears — screen readers may miss it. Needs `aria-live="polite"` on the chat transcript region (currently on card only) and focus management on first render of a pending action.
+- `CompanionQuickAsk` popover trigger is 36×36 (`size="icon"`), below the 44×44 target on mobile.
+- Mic button is keyboard-reachable but uses `onPointerDown` for hold-to-talk with no keyboard equivalent (Space to toggle).
+- History sheet retry buttons are <11 tap height in places.
+- Reduced-motion: `animate-spin` is wrapped with `motion-reduce:animate-none` in some spots, missing in `CompanionAvatar` pulse and ActionCard executing state.
 
-### New
-- `src/lib/companion/executor.ts` — `ActionExecutor` class, handler registry, error types, event emitter.
-- `src/lib/companion/handlers/{sounds,alarm,brief,memory,prefs,layout,nav}.ts` — one focused handler module per domain.
-- `src/lib/companion/action-history.ts` — localStorage ring buffer (last 50), `subscribe`, `add`, `retry`.
-- `src/lib/companion/narration.ts` — natural-language formatter ("Your alarm is set for 6 AM.").
-- `src/components/companion/ActionStatusInline.tsx` — Executing / Completed / Failed pill rendered inside `ActionCard` while or after running; reduced-motion aware.
-- `src/components/companion/ActionHistorySheet.tsx` — Sheet listing recent actions with status + Retry; opened from chat header.
+**I. Performance.**
+- `DailyBrief` and `MorningBrief` both subscribe to `companion:brief-refresh` but recompute the full brief on every event — debounce + drop in-flight duplicates.
+- `companion.tsx` re-renders on every TTS tick because `ttsState` lives in component state; can be moved into a ref + selector.
+- Action history reads `localStorage` synchronously in render.
 
-### Modified
-- `src/lib/companion/actions.ts` — expand union, keep `describeAction`/`executeAction` API; `executeAction` becomes a delegating shim around the executor (backward compatible for any existing call site).
-- `src/components/companion/ActionCard.tsx` — render new status pill, surface `ActionError.recovery` button when failed, force-confirm badge for destructive actions, ARIA `aria-live="polite"` on the status region.
-- `src/routes/companion.tsx` — use executor's event stream instead of an awaited `executeAction` for progress updates; force-confirm destructive actions even when `requireActionConfirmation=false`; queue narration through a single TTS lane.
-- `src/lib/voice/intent-executor.ts` — for kinds covered by the executor, delegate to it; keep voice-only intents (`save_mix`, `cancel`, `unknown`) unchanged.
-- `src/lib/companion/voice-action-prefs.ts` — no schema change; document destructive override.
+**J. Security.**
+- Deep-link executor accepts `open_route` with arbitrary `href`. Needs an allow-list of internal routes; reject external URLs.
+- `runAction` from URL params (`?prompt=…`) is fine but does not validate `?period` against the known enum.
+- Memory write actions correctly call `addMemory` which is RLS-scoped; verified.
 
-### Untouched
-- `src/lib/sounds/mixer.ts`, `src/lib/events.ts`, `src/lib/prefs.ts`, all server functions, all DB schema. Slice 9 is a UI/orchestration layer.
+**K. Mobile.** Bottom-sheet `ActionHistorySheet` uses `side="right"` — on phone portrait this consumes 100vw and clips the header close button at small widths. Should be `side="bottom"` ≤ md.
 
-## 5. Confirmation flow
+### 3. Implementation plan (after approval)
+
+**P1 — Analytics layer (new, single file)**
+- `src/lib/companion/analytics.ts`: thin `track(event, props)` wrapper using `window.__lovableEvents` if present, plus a typed `CompanionEvent` union. Emit from: `DailyBrief`/`MorningBrief` mount (brief_opened), `runAction` lifecycle (action_started/completed/failed/cancelled), `speak()` helper (voice_played/voice_skipped), memory add/delete (memory_created/removed), `/settings/companion` save (settings_changed), error boundary + `fail()` (error_encountered).
+
+**P2 — Centralized voice gate**
+- New `src/lib/companion/speak.ts`: single `speak(text, { source })` that checks `voiceRepliesEnabled`, `inQuietHours()`, current TTS state, and serializes via an internal queue (cancel-prior policy for narration, queue policy for assistant replies).
+- Replace direct `ttsPlayer.play()` calls in `companion.tsx` and history retry path.
+
+**P3 — Action layer hardening**
+- Persist `ActionContext` adapter (navigate + openBreathing) at module scope of `companion.tsx`, exposed via a small `getActionContext()` so `ActionHistorySheet` retry uses the live router/navigate.
+- Re-classify destructive: add `destructive: true` to `clear_timer`, `stop_all`, alarm bulk ops.
+- Render inline recovery card inside chat transcript when `runAction` pre-fails, not just via toast.
+
+**P4 — A11y pass**
+- Bump `CompanionQuickAsk` trigger to `min-h-11 min-w-11`.
+- Add Space/Enter keyboard handler to mic button for press-to-toggle.
+- Move focus to ActionCard primary button on mount; restore focus after resolve.
+- `aria-live="polite"` on chat transcript wrapper, `aria-busy` while streaming.
+- Add `motion-reduce:animate-none` to `CompanionAvatar` pulse and ActionCard spinner.
+
+**P5 — Performance**
+- Debounce brief refresh listener (250ms trailing) + abort-controller on in-flight `getMorningBrief`/Afternoon/Evening.
+- Memoize action history list; subscribe via `useSyncExternalStore` instead of `useEffect` + state.
+
+**P6 — Security**
+- `open_route` action: validate `href` against `ALLOWED_ROUTES` set; reject otherwise with `fail("forbidden", …)`.
+- Validate `?period` param in `companion.tsx` against `["morning","afternoon","evening"]`.
+
+**P7 — Mobile polish**
+- `ActionHistorySheet`: `side={isMobile ? "bottom" : "right"}` with `h-[85dvh]` on bottom.
+- Verify `h-dvh` everywhere in companion route (currently uses `h-screen` in chat container).
+
+**P8 — Empty/loading/error states**
+- Companion chat first-mount skeleton (avatar + 2 message placeholders).
+- ActionHistorySheet empty state with icon + "Actions you confirm will appear here".
+- Brief cards: retry CTA on fetch error.
+
+**P9 — Documentation (under `docs/launch/companion/`)**
+- `architecture.md` — surface map + data flow diagram (ASCII).
+- `qa-checklist.md` — every test from the spec with pass/fail column.
+- `performance.md` — measurement results (Lighthouse mobile on `/companion`, `/dashboard`, brief refresh wall-clock).
+- `accessibility.md` — axe results + manual screen-reader notes.
+- `analytics.md` — event taxonomy.
+- `rollback.md` — feature-flag strategy (env `VITE_COMPANION_ENABLED` defaults true; flip to false to hide avatar + `/companion` route).
+- `launch-readiness.md` — go/no-go.
+
+### 4. Files affected
 
 ```text
-proposeAction(a)
-  ├─ destructive(a) ──── true ──► render ActionCard (Confirm required, "Destructive" badge)
-  └─ requireActionConfirmation
-        ├─ true  ──► render ActionCard
-        └─ false ──► describeAction(a).isNavigation
-                        ├─ true  ──► auto-run (no card)
-                        └─ false ──► run immediately, render done card retroactively
+new:
+  src/lib/companion/analytics.ts
+  src/lib/companion/speak.ts
+  docs/launch/companion/{architecture,qa-checklist,performance,accessibility,analytics,rollback,launch-readiness}.md
+
+edit:
+  src/routes/companion.tsx          (voice gate, focus mgmt, h-dvh, ?period validation, analytics)
+  src/lib/companion/actions.ts      (destructive flags, open_route allow-list, analytics on fail)
+  src/lib/companion/action-history.ts (useSyncExternalStore export)
+  src/components/companion/ActionCard.tsx       (motion-reduce, focus on mount, inline recovery)
+  src/components/companion/ActionHistorySheet.tsx (responsive side, empty state, retry uses live ctx)
+  src/components/companion/DailyBrief.tsx       (debounce, abort, retry CTA, brief_opened track)
+  src/components/morning/MorningBrief.tsx       (same)
+  src/components/CompanionQuickAsk.tsx          (44×44 target)
+  src/components/CompanionAvatar.tsx            (motion-reduce)
+  src/routes/settings.companion.tsx             (settings_changed track on save)
 ```
 
-## 6. Voice narration
-- New `narration.ts` produces assistant-style text per action result (not the raw toast message).
-- A single `ttsQueue` in `companion.tsx` ensures replies serialize; new narration enqueues, never preempts.
-- Suppressed when `voiceRepliesEnabled=false` or `inQuietHours(now, quietHours)`.
+### 5. QA matrix (executed during implementation)
 
-## 7. Action History
-- localStorage key `restpilot.companion.history.v1`, max 50 entries `{id, kind, label, status, at, errorKind?}`.
-- Accessible via a History icon in the chat header → opens `ActionHistorySheet`.
-- Retry button visible only for `failed` rows whose error kind is retryable (`offline`, `unknown`, `conflict`).
+Will be tracked in `docs/launch/companion/qa-checklist.md`, covering every flow from your spec (conversation, voice on/off, quiet hours, memory on/off, Always Confirm on/off, action execute/retry/cancel, all three briefs, deep links, offline, network failure, permission failure, empty/loading/error/recovery). Each row gets a result + screenshot reference.
 
-## 8. Accessibility
-- `ActionCard` keeps Radix-based buttons (focus ring, keyboard).
-- Status region uses `role="status"` + `aria-live="polite"`.
-- Destructive cards add `aria-describedby` pointing at a "This action cannot be undone" note.
-- Tap targets ≥44px, History sheet uses existing `Sheet` primitive.
-- Honor `prefers-reduced-motion` for the executing spinner (swap to static dot).
+### 6. Risk & rollback
 
-## 9. Testing strategy
-- Unit (`bunx vitest run`): executor state transitions, destructive-override logic, error taxonomy, narration strings, history ring buffer.
-- Integration via Playwright against the running app:
-  1. Voice-route → "play rain" with Always Confirm ON → card appears, Confirm starts mixer, completed card + history entry.
-  2. Chat → "set an alarm for 6 am" → confirm → row inserted in `user_events`, alarm visible in Smart Alarm card.
-  3. Toggle memory OFF via action while `memoryEnabled=true` → forced confirm (destructive), pref flipped, /settings/companion reflects it.
-  4. Forced offline → action returns `offline` error with Retry button; reconnect + Retry → completes.
-  5. Quiet hours active + voice replies on → no TTS audio fires (assert via `useTtsPlayer` queue length).
-- `tsgo` clean, `bunx vitest run` clean.
+- Risk: analytics wrapper could double-fire if both global SDK and direct `track()` are present — mitigated by single-entry helper.
+- Risk: focus-on-mount in ActionCard could steal focus from composer mid-type — only steal when card enters `pending-confirm` and composer is not focused.
+- Rollback: set `VITE_COMPANION_ENABLED=false`; `__root.tsx` / dashboard / route gate read it and hide avatar + redirect `/companion` → `/dashboard`. Existing data untouched.
 
-## 10. Risks & mitigations
-| Risk | Mitigation |
-|---|---|
-| Regressing existing voice/sound flows | Keep `executeAction` signature; executor wraps the old switch for unchanged kinds first, new handlers added behind flags-by-kind. |
-| Accidentally toggling notifications to OFF | Destructive override forces confirmation. |
-| TTS overlap | Single FIFO queue in `companion.tsx`. |
-| LocalStorage bloat | Hard cap 50 entries; trim on insert. |
-| Alarm dupes on retry | Handler dedupes by HH:MM. |
+### 7. Launch readiness gate (must all be green)
 
-## 11. Rollback
-1. Replace `executeAction` body with the previous switch (kept in git history).
-2. Remove `ActionHistorySheet` mount + executor import — UI degrades to Slice 8 behavior with zero data loss.
+1. Typecheck clean.
+2. No new Supabase linter warnings.
+3. Lighthouse mobile ≥ 90 on `/companion` and `/dashboard`.
+4. axe-core: 0 critical, 0 serious on `/companion`, `/settings/companion`, `/dashboard`.
+5. QA checklist: 100% pass.
+6. Manual run of: signup → companion onboarding → confirm one action of each kind → retry a failed action → toggle voice off → verify silence → toggle quiet hours → verify silence → delete a memory (destructive confirm) → sign out.
 
 ---
 
-**Awaiting approval — no code will be written until you confirm.**
+Reply **"approved"** to proceed with implementation, or tell me what to change.

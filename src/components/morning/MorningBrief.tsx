@@ -2,7 +2,7 @@
 // then renders cards in the order saved in user_prefs.brief_layout, skipping
 // hidden ids and skipping cards with no payload. Never renders error states.
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { getMorningBrief } from "@/lib/morning/morning-brief.functions";
 import { quoteForToday } from "@/lib/morning/quotes";
 import type { Prefs } from "@/lib/prefs";
 import type { BriefCardId, MorningBriefDTO } from "@/lib/morning/types";
+import { track } from "@/lib/companion/analytics";
 import { GreetingCard } from "./cards/GreetingCard";
 import { SleepCard } from "./cards/SleepCard";
 import { AlarmCard } from "./cards/AlarmCard";
@@ -68,18 +69,33 @@ export function MorningBrief({
 
   // Mark seen as soon as we have a payload (used by dashboard avatar pulse).
   useEffect(() => {
-    if (query.data) markBriefSeen();
+    if (query.data) {
+      markBriefSeen();
+      track({ event: "brief_opened", period: "morning" });
+    }
   }, [query.data]);
+  useEffect(() => {
+    if (query.error) {
+      track({ event: "brief_refresh_failed", period: "morning", reason: String(query.error) });
+    }
+  }, [query.error]);
 
   // Slice 9 — companion refresh event.
+  // Slice 10 — debounced to coalesce rapid bursts from action completions.
+  const refreshTimer = useRef<number | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onRefresh = (e: Event) => {
       const detail = (e as CustomEvent<{ period?: string }>).detail;
-      if (!detail?.period || detail.period === "morning") void query.refetch();
+      if (detail?.period && detail.period !== "morning") return;
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+      refreshTimer.current = window.setTimeout(() => void query.refetch(), 250);
     };
     window.addEventListener("companion:brief-refresh", onRefresh as EventListener);
-    return () => window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+    return () => {
+      window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    };
   }, [query]);
 
   const order = useMemo<BriefCardId[]>(() => {
