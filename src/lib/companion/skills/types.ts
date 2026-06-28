@@ -51,11 +51,11 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
   {
     id: "calendar_read",
     name: "Calendar Agenda",
-    summary: "See today's schedule inline in your Companion chat.",
+    summary: "See today's schedule, upcoming events, and tomorrow's preview inline.",
     details:
-      "Reads a calendar feed and renders an agenda card with travel buffers. Ships first with read-only ICS; Google Calendar OAuth lands with full write support.",
+      "Connects a read-only ICS feed (Apple, Google 'secret address', Outlook). Reelo shows today's agenda, what's coming up, and tomorrow — and warns when an early meeting means an earlier bedtime. Read-only: never adds, moves, or deletes events.",
     builtin: true,
-    available: false,
+    available: true,
     risk: "safe",
     group: "productivity",
   },
