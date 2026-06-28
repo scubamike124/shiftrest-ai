@@ -528,8 +528,6 @@ function PilotPage() {
   }, [lastExchange, cancelAllAudio, enqueueSpeak, signedIn]);
 
   const orbDisplayState: OrbState = mic.state === "listening" ? "listening" : orbState;
-  const showFirstRunVoiceNudge =
-    signedIn === true && prefs !== undefined && !prefs.voiceId;
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const canExpand =
     !!lastExchange &&
@@ -566,19 +564,7 @@ function PilotPage() {
           </div>
         )}
 
-        {showFirstRunVoiceNudge && (
-          <Link
-            to="/profile"
-            hash="voice-settings"
-            className="mt-4 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs"
-          >
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Pick {pilotName}'s voice & personality
-            </span>
-            <span className="text-primary">→</span>
-          </Link>
-        )}
+
 
         <div className="flex flex-col items-center mt-10">
           <button
