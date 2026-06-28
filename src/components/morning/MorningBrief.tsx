@@ -71,6 +71,17 @@ export function MorningBrief({
     if (query.data) markBriefSeen();
   }, [query.data]);
 
+  // Slice 9 — companion refresh event.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onRefresh = (e: Event) => {
+      const detail = (e as CustomEvent<{ period?: string }>).detail;
+      if (!detail?.period || detail.period === "morning") void query.refetch();
+    };
+    window.addEventListener("companion:brief-refresh", onRefresh as EventListener);
+    return () => window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
+  }, [query]);
+
   const order = useMemo<BriefCardId[]>(() => {
     const raw = prefs?.briefLayout?.order ?? [
       "sleep",
