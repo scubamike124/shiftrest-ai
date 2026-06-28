@@ -145,8 +145,7 @@ function CompanionPage() {
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
-  // Slice 8 — TTS playback tracking so we can cancel cleanly.
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
 
   const execCtx = {
     signedIn: signedIn === true,
