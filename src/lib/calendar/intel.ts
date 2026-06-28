@@ -6,6 +6,7 @@
 //
 // No IO. Safe to unit-test and import anywhere.
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { IcsEvent } from "./ics";
 
 export type CalendarPeriod = "morning" | "afternoon" | "evening";
@@ -62,7 +63,7 @@ function sameLocalDate(iso: string, ref: Date): boolean {
  *  - evening: tomorrow's events
  */
 export function buildAgenda(
-  events: ReadonlyArray<IcsEvent & { source: string; color: string | null }>,
+  events: ReadonlyArray<AgendaItem>,
   period: CalendarPeriod,
   now: Date,
 ): AgendaDTO {
