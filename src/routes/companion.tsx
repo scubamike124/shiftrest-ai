@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MorningBrief } from "@/components/morning/MorningBrief";
 
 export const Route = createFileRoute("/companion")({
   head: () => ({
@@ -438,6 +439,12 @@ function CompanionPage() {
             : `${pendingProposalCount} things to remember →`}
         </Link>
       )}
+
+      {/* Slice 6 — Smart Morning Intelligence: visible mornings or when ?brief=1 */}
+      {signedIn && shouldShowBrief() && (
+        <MorningBrief prefs={prefs ?? null} signedIn={signedIn} />
+      )}
+
 
       {/* Companion off — gentle CTA */}
       {!companionOn && (
