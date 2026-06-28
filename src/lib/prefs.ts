@@ -51,6 +51,20 @@ export type Prefs = {
   voicePersonality: string;              // calm | friendly | professional | …
   voiceSpeed: number;                    // 0.7 – 1.4
   voiceInstructions: string | null;      // optional raw style override
+  // ─── Slice 6: Morning Brief ────────────────────────────────────────
+  /** Order + hidden set for the Morning Brief cards. */
+  briefLayout: { order: string[]; hidden: string[] };
+  /** Optional home address — used later for live traffic. */
+  homeAddress: string | null;
+  /** Optional work address — used later for live traffic. */
+  workAddress: string | null;
+  /** User-supplied typical one-way commute minutes (Wave A departure estimate). */
+  commuteMinutesBaseline: number | null;
+};
+
+export const DEFAULT_BRIEF_LAYOUT = {
+  order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
+  hidden: ["departure"] as string[],
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -85,6 +99,10 @@ export const DEFAULT_PREFS: Prefs = {
   voicePersonality: "calm",
   voiceSpeed: 1.0,
   voiceInstructions: null,
+  briefLayout: DEFAULT_BRIEF_LAYOUT,
+  homeAddress: null,
+  workAddress: null,
+  commuteMinutesBaseline: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
