@@ -95,12 +95,34 @@ export const Route = createFileRoute("/api/brief")({
         }
 
         try {
+          // Load language pref up front so the briefing is generated directly in
+          // the user's chosen language (no English-first then translate).
+          const admin = getAdmin();
+          const userId = await userIdFromAuth(
+            admin,
+            request.headers.get("authorization"),
+          );
+          let language = "en-US";
+          let accent: string | null = null;
+          if (admin && userId) {
+            const { data } = await admin
+              .from("user_prefs")
+              .select("voice_language, voice_accent")
+              .eq("user_id", userId)
+              .maybeSingle();
+            const row = data as { voice_language?: string | null; voice_accent?: string | null } | null;
+            language = row?.voice_language || "en-US";
+            accent = row?.voice_accent || null;
+          }
+          const system = languageDirective(language, accent) + BRIEF_SYSTEM;
+
           const result = await chatJSON({
             messages: [
-              { role: "system", content: BRIEF_SYSTEM },
+              { role: "system", content: system },
               { role: "user", content: plan },
             ],
           });
+
 
           if (!result.text) {
             console.error("[brief] empty model response");
