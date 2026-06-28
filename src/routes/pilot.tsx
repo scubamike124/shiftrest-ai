@@ -234,12 +234,9 @@ function PilotPage() {
     [playNext],
   );
 
-  const cancelAllAudio = useCallback(() => {
-    cancelledRef.current = true;
-    // Abort the in-flight LLM stream so the server stops generating too.
-    try { llmAbortRef.current?.abort(); } catch { /* */ }
-    llmAbortRef.current = null;
-    streamingRef.current = false;
+  // Flush only queued audio (used to cut filler when the first real sentence
+  // arrives — must NOT abort the in-flight LLM stream).
+  const flushQueuedAudio = useCallback(() => {
     const a = audioRef.current;
     if (a) {
       try { a.pause(); } catch { /* */ }
@@ -248,8 +245,18 @@ function PilotPage() {
     queueRef.current.forEach((u) => URL.revokeObjectURL(u));
     queueRef.current = [];
     playingRef.current = false;
-    setNeedsTap(false);
   }, []);
+
+  // Full cancel — used by barge-in. Stops audio AND aborts the LLM stream.
+  const cancelAllAudio = useCallback(() => {
+    cancelledRef.current = true;
+    try { llmAbortRef.current?.abort(); } catch { /* */ }
+    llmAbortRef.current = null;
+    streamingRef.current = false;
+    flushQueuedAudio();
+    setNeedsTap(false);
+  }, [flushQueuedAudio]);
+
 
 
   // Auto-scroll transcript
