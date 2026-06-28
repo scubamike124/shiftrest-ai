@@ -184,7 +184,7 @@ export const getDailyPlan = createServerFn({ method: "POST" })
         data: { period: data.period },
         context,
       } as never);
-      const items = agendaDTO?.agenda?.items;
+      const items = agendaDTO && "agenda" in agendaDTO ? agendaDTO.agenda.items : undefined;
       if (Array.isArray(items)) {
         agenda = items.slice(0, 5).map((e) => ({
           summary: e.summary,
