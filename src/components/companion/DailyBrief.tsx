@@ -36,6 +36,7 @@ import {
   SummaryCard,
   WindDownCard,
 } from "./EveningCards";
+import { WeatherAlertsCard } from "@/components/weather/WeatherAlertsCard";
 
 function CardSkeleton() {
   return (
@@ -224,7 +225,12 @@ export function DailyBrief({
   if (!signedIn || !enabled) return null;
 
   if (period === "morning") {
-    return <MorningBrief prefs={prefs} signedIn={signedIn} />;
+    return (
+      <>
+        <WeatherAlertsCard period="morning" signedIn={signedIn} />
+        <MorningBrief prefs={prefs} signedIn={signedIn} />
+      </>
+    );
   }
 
   return (
@@ -233,6 +239,7 @@ export function DailyBrief({
       className="mt-2 flex flex-col gap-3"
       data-testid={`daily-brief-${period}`}
     >
+      <WeatherAlertsCard period={period} signedIn={signedIn} />
       {period === "afternoon" ? (
         afternoonQ.isLoading && !afternoonQ.data ? (
           <CardSkeleton />

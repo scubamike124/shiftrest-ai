@@ -35,6 +35,7 @@ import {
   type SkillConnection,
 } from "@/lib/companion/skills/connections";
 import type { SkillDescriptor } from "@/lib/companion/skills/types";
+import { WeatherLocationCard } from "@/components/weather/WeatherLocationCard";
 
 export const Route = createFileRoute("/settings/skills")({
   head: () => ({
@@ -199,14 +200,18 @@ function SkillsSettings() {
                 {GROUP_LABELS[group]}
               </p>
               {skills.map((skill) => (
-                <SkillRow
-                  key={skill.id}
-                  skill={skill}
-                  flagOn={flagOn}
-                  busy={busyId === skill.id}
-                  onToggle={(v) => onToggleSkill(skill, v)}
-                  onDisconnect={() => onDisconnect(skill)}
-                />
+                <div key={skill.id} className="flex flex-col gap-2">
+                  <SkillRow
+                    skill={skill}
+                    flagOn={flagOn}
+                    busy={busyId === skill.id}
+                    onToggle={(v) => onToggleSkill(skill, v)}
+                    onDisconnect={() => onDisconnect(skill)}
+                  />
+                  {skill.id === "weather_alerts" && skill.status !== "coming_soon" && (
+                    <WeatherLocationCard flagOn={flagOn} onSaved={() => void refresh()} />
+                  )}
+                </div>
               ))}
             </section>
           );
