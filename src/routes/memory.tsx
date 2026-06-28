@@ -40,6 +40,18 @@ import {
 } from "@/lib/memory-proposals";
 import { ProposalCard } from "@/components/memory/ProposalCard";
 import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
+import { LearningConsentsCard } from "@/components/memory/LearningConsentsCard";
+import { RoutineSuggestionCard } from "@/components/memory/RoutineSuggestionCard";
+import {
+  listPendingRoutineSuggestions,
+  acceptRoutineSuggestion,
+  dismissRoutineSuggestion,
+  snoozeRoutineSuggestion,
+  type RoutineSuggestion,
+} from "@/lib/memory/suggestions";
+import { scanForRoutines } from "@/lib/memory/suggestions.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/memory")({
   head: () => ({
