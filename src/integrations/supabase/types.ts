@@ -898,7 +898,9 @@ export type Database = {
           ai_daily_token_cap: number
           assistant_mode: string
           assistant_name: string
+          brief_layout: Json
           calendar_travel_detect: boolean
+          commute_minutes_baseline: number | null
           consent_json: Json
           created_at: string
           current_tz: string | null
@@ -906,6 +908,7 @@ export type Database = {
           cycle_weeks: number
           daily_review_enabled: boolean
           feedback_learning_enabled: boolean
+          home_address: string | null
           home_tz: string | null
           lat: number
           location_label: string
@@ -933,12 +936,15 @@ export type Database = {
           voice_provider: string
           voice_speed: number
           wind_down_min: number
+          work_address: string | null
         }
         Insert: {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          brief_layout?: Json
           calendar_travel_detect?: boolean
+          commute_minutes_baseline?: number | null
           consent_json?: Json
           created_at?: string
           current_tz?: string | null
@@ -946,6 +952,7 @@ export type Database = {
           cycle_weeks?: number
           daily_review_enabled?: boolean
           feedback_learning_enabled?: boolean
+          home_address?: string | null
           home_tz?: string | null
           lat?: number
           location_label?: string
@@ -973,12 +980,15 @@ export type Database = {
           voice_provider?: string
           voice_speed?: number
           wind_down_min?: number
+          work_address?: string | null
         }
         Update: {
           ai_daily_token_cap?: number
           assistant_mode?: string
           assistant_name?: string
+          brief_layout?: Json
           calendar_travel_detect?: boolean
+          commute_minutes_baseline?: number | null
           consent_json?: Json
           created_at?: string
           current_tz?: string | null
@@ -986,6 +996,7 @@ export type Database = {
           cycle_weeks?: number
           daily_review_enabled?: boolean
           feedback_learning_enabled?: boolean
+          home_address?: string | null
           home_tz?: string | null
           lat?: number
           location_label?: string
@@ -1013,6 +1024,7 @@ export type Database = {
           voice_provider?: string
           voice_speed?: number
           wind_down_min?: number
+          work_address?: string | null
         }
         Relationships: []
       }

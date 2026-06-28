@@ -51,6 +51,20 @@ export type Prefs = {
   voicePersonality: string;              // calm | friendly | professional | …
   voiceSpeed: number;                    // 0.7 – 1.4
   voiceInstructions: string | null;      // optional raw style override
+  // ─── Slice 6: Morning Brief ────────────────────────────────────────
+  /** Order + hidden set for the Morning Brief cards. */
+  briefLayout: { order: string[]; hidden: string[] };
+  /** Optional home address — used later for live traffic. */
+  homeAddress: string | null;
+  /** Optional work address — used later for live traffic. */
+  workAddress: string | null;
+  /** User-supplied typical one-way commute minutes (Wave A departure estimate). */
+  commuteMinutesBaseline: number | null;
+};
+
+export const DEFAULT_BRIEF_LAYOUT = {
+  order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
+  hidden: ["departure"] as string[],
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -85,6 +99,10 @@ export const DEFAULT_PREFS: Prefs = {
   voicePersonality: "calm",
   voiceSpeed: 1.0,
   voiceInstructions: null,
+  briefLayout: DEFAULT_BRIEF_LAYOUT,
+  homeAddress: null,
+  workAddress: null,
+  commuteMinutesBaseline: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -127,11 +145,18 @@ type Row = {
   voice_personality?: string | null;
   voice_speed?: number | string | null;
   voice_instructions?: string | null;
+  brief_layout?: { order?: string[]; hidden?: string[] } | null;
+  home_address?: string | null;
+  work_address?: string | null;
+  commute_minutes_baseline?: number | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
   const mode = (r.assistant_mode ?? "coach") as AssistantMode;
+  const layout = r.brief_layout && Array.isArray(r.brief_layout.order)
+    ? { order: r.brief_layout.order, hidden: r.brief_layout.hidden ?? [] }
+    : DEFAULT_BRIEF_LAYOUT;
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -164,6 +189,10 @@ function rowToPrefs(r: Row): Prefs {
     voicePersonality: r.voice_personality || "calm",
     voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
     voiceInstructions: r.voice_instructions ?? null,
+    briefLayout: layout,
+    homeAddress: r.home_address ?? null,
+    workAddress: r.work_address ?? null,
+    commuteMinutesBaseline: r.commute_minutes_baseline ?? null,
   };
 }
 
@@ -195,6 +224,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
   if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
   if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
+  if (p.briefLayout !== undefined) out.brief_layout = p.briefLayout;
+  if (p.homeAddress !== undefined) out.home_address = p.homeAddress;
+  if (p.workAddress !== undefined) out.work_address = p.workAddress;
+  if (p.commuteMinutesBaseline !== undefined) out.commute_minutes_baseline = p.commuteMinutesBaseline;
   return out;
 }
 
@@ -216,7 +249,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, home_address, work_address, commute_minutes_baseline",
     )
     .eq("user_id", uid)
     .maybeSingle();
