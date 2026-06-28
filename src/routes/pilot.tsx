@@ -236,6 +236,10 @@ function PilotPage() {
 
   const cancelAllAudio = useCallback(() => {
     cancelledRef.current = true;
+    // Abort the in-flight LLM stream so the server stops generating too.
+    try { llmAbortRef.current?.abort(); } catch { /* */ }
+    llmAbortRef.current = null;
+    streamingRef.current = false;
     const a = audioRef.current;
     if (a) {
       try { a.pause(); } catch { /* */ }
@@ -246,6 +250,7 @@ function PilotPage() {
     playingRef.current = false;
     setNeedsTap(false);
   }, []);
+
 
   // Auto-scroll transcript
   useEffect(() => {
