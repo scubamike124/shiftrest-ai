@@ -66,30 +66,32 @@ function normalize(s: string): string {
 }
 
 function resolveTrack(phrase: string): { slug: string; label: string } | null {
-  const cleaned = normalize(phrase).replace(/\b(some|the|a|please|sound|sounds|noise|noises|on|now)\b/g, " ").replace(/\s+/g, " ").trim();
-  if (!cleaned) return null;
+  const raw = normalize(phrase);
+  const cleaned = raw.replace(/\b(some|the|a|please|on|now)\b/g, " ").replace(/\s+/g, " ").trim();
+  const candidates = Array.from(new Set([raw, cleaned, cleaned.replace(/\b(sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim()]))
+    .filter(Boolean);
 
-  // 1. Exact alias.
-  if (TRACK_ALIASES[cleaned]) {
-    const slug = TRACK_ALIASES[cleaned];
-    const t = TRACKS.find((x) => x.slug === slug);
-    if (t) return { slug, label: t.label };
-  }
+  const aliasKeys = Object.keys(TRACK_ALIASES).sort((a, b) => b.length - a.length);
 
-  // 2. Substring match against alias keys (longest first).
-  const keys = Object.keys(TRACK_ALIASES).sort((a, b) => b.length - a.length);
-  for (const k of keys) {
-    if (cleaned === k || cleaned.includes(k)) {
-      const t = TRACKS.find((x) => x.slug === TRACK_ALIASES[k]);
+  for (const c of candidates) {
+    // 1. Exact alias.
+    if (TRACK_ALIASES[c]) {
+      const t = TRACKS.find((x) => x.slug === TRACK_ALIASES[c]);
       if (t) return { slug: t.slug, label: t.label };
     }
+    // 2. Longest-substring alias match.
+    for (const k of aliasKeys) {
+      const re = new RegExp(`\\b${k.replace(/\s+/g, "\\s+")}\\b`);
+      if (re.test(c)) {
+        const t = TRACKS.find((x) => x.slug === TRACK_ALIASES[k]);
+        if (t) return { slug: t.slug, label: t.label };
+      }
+    }
+    // 3. Direct label match.
+    for (const t of TRACKS) {
+      if (c === t.label.toLowerCase()) return { slug: t.slug, label: t.label };
+    }
   }
-
-  // 3. Match against track labels directly.
-  for (const t of TRACKS) {
-    if (cleaned === t.label.toLowerCase()) return { slug: t.slug, label: t.label };
-  }
-
   return null;
 }
 
