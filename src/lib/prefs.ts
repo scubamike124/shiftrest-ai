@@ -54,6 +54,12 @@ export type Prefs = {
   // ─── Slice 6: Morning Brief ────────────────────────────────────────
   /** Order + hidden set for the Morning Brief cards. */
   briefLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — Afternoon Check-In layout. */
+  afternoonLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — Evening Brief layout. */
+  eveningLayout: { order: string[]; hidden: string[] };
+  /** Slice 7 — per-period brief enable toggles. */
+  briefEnabled: { morning: boolean; afternoon: boolean; evening: boolean };
   /** Optional home address — used later for live traffic. */
   homeAddress: string | null;
   /** Optional work address — used later for live traffic. */
@@ -66,6 +72,18 @@ export const DEFAULT_BRIEF_LAYOUT = {
   order: ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"],
   hidden: ["departure"] as string[],
 };
+
+export const DEFAULT_AFTERNOON_LAYOUT = {
+  order: ["remaining", "nextTraffic", "weatherShift", "workingLate", "hydration", "movement", "battery"],
+  hidden: ["nextTraffic"] as string[],
+};
+
+export const DEFAULT_EVENING_LAYOUT = {
+  order: ["tomorrowFirst", "tomorrowWeather", "clothing", "smartAlarm", "bedtime", "prep", "travel", "summary", "windDown"],
+  hidden: [] as string[],
+};
+
+export const DEFAULT_BRIEF_ENABLED = { morning: true, afternoon: true, evening: true };
 
 export const DEFAULT_PREFS: Prefs = {
   windDownMin: 120,
