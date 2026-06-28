@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square } from "lucide-react";
@@ -7,6 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
+import {
+  tryCompanionSoundCommand,
+  executePending,
+  isYes,
+  isNo,
+} from "@/lib/voice/companion-sound-bridge";
+import type { Intent } from "@/lib/voice/intent-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,6 +91,17 @@ function CompanionPage() {
   const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1200 });
   const [transcribing, setTranscribing] = useState(false);
 
+  // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
+  const navigate = useNavigate();
+  const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
+  const execCtx = {
+    signedIn: signedIn === true,
+    navigate: (to: string, search?: Record<string, string>) => {
+      navigate({ to, search: search ?? undefined } as never).catch(() => undefined);
+    },
+    openBreathing: () => undefined,
+  };
+
   useEffect(() => {
     if (micState === "listening") setOrbState("listening");
     else if (sending) setOrbState("thinking");
@@ -134,10 +152,48 @@ function CompanionPage() {
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+
+    // Slice 4 — sleep-sound bridge. Intercept before hitting /api/ai so
+    // we never bill tokens for a deterministic local action, and reuse
+    // the same mixer + executor that /sleep uses.
+    if (pendingSoundIntent) {
+      if (isYes(text)) {
+        const reply = await executePending(pendingSoundIntent, execCtx);
+        setPendingSoundIntent(null);
+        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        return;
+      }
+      if (isNo(text)) {
+        setPendingSoundIntent(null);
+        setMessages([...baseMessages, { role: "assistant", content: "Okay, cancelled." }]);
+        return;
+      }
+      // Anything else clears the pending and continues as normal chat.
+      setPendingSoundIntent(null);
+    }
+
+    try {
+      const bridged = await tryCompanionSoundCommand(text, execCtx);
+      if (bridged.kind === "handled") {
+        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
+        return;
+      }
+      if (bridged.kind === "confirm") {
+        setPendingSoundIntent(bridged.pendingIntent);
+        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
+        return;
+      }
+    } catch (err) {
+      // Bridge failure (e.g. mixer init) → fall through to AI chat, don't block the user.
+      console.warn("[companion] sound bridge error", err);
+    }
+
     setSending(true);
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
+
+
 
     try {
       const { data: sess } = await supabase.auth.getSession();
