@@ -276,12 +276,32 @@ export async function loadAssistantProfile(
 ): Promise<AssistantProfile> {
   const { data } = await admin
     .from("user_prefs")
-    .select("assistant_name, assistant_mode, memory_enabled")
+    .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
     .eq("user_id", userId)
     .maybeSingle();
+  const row = (data ?? null) as
+    | {
+        assistant_name?: string | null;
+        assistant_mode?: string | null;
+        memory_enabled?: boolean | null;
+        voice_language?: string | null;
+        voice_accent?: string | null;
+      }
+    | null;
   return {
-    name: (data?.assistant_name as string) || "RestPilot",
-    mode: ((data?.assistant_mode as AssistantMode) || "coach"),
-    memoryEnabled: Boolean(data?.memory_enabled),
+    name: row?.assistant_name || "RestPilot",
+    mode: ((row?.assistant_mode as AssistantMode) || "coach"),
+    memoryEnabled: Boolean(row?.memory_enabled),
+    language: row?.voice_language || "en-US",
+    accent: row?.voice_accent || null,
   };
 }
+
+export const DEFAULT_ASSISTANT_PROFILE: AssistantProfile = {
+  name: "RestPilot",
+  mode: "coach",
+  memoryEnabled: false,
+  language: "en-US",
+  accent: null,
+};
+
