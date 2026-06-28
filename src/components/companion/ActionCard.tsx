@@ -34,6 +34,10 @@ export function ActionCard({
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (done) {
+    const ok = done.ok;
+    const Icon = ok ? CheckCircle2 : XCircle;
     return (
       <div
         role="status"
