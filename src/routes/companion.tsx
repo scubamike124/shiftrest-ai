@@ -123,16 +123,43 @@ function CompanionPage() {
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
+  const search = useSearch({ from: Route.id });
   const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
   // Slice 5 — once-per-session memory offer (don't overuse memory in chat).
   const [memoryOfferUsed, setMemoryOfferUsed] = useState(false);
+  // Slice 8 — voice + action local prefs.
+  const [localPrefs, setLocalPrefs] = useState<CompanionLocalPrefs>(() => loadLocalPrefs());
+  useEffect(() => {
+    const onChange = () => setLocalPrefs(loadLocalPrefs());
+    if (typeof window !== "undefined") {
+      window.addEventListener("companion-local-prefs:changed", onChange);
+      return () => window.removeEventListener("companion-local-prefs:changed", onChange);
+    }
+  }, []);
+  const updateLocal = (patch: Partial<CompanionLocalPrefs>) => setLocalPrefs(saveLocalPrefs(patch));
+  // Slice 8 — breathing overlay + action busy state.
+  const [breathingOpen, setBreathingOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState<number | null>(null);
+  // Slice 8 — TTS playback tracking so we can cancel cleanly.
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const execCtx = {
     signedIn: signedIn === true,
     navigate: (to: string, search?: Record<string, string>) => {
       navigate({ to, search: search ?? undefined } as never).catch(() => undefined);
     },
-    openBreathing: () => undefined,
+    openBreathing: () => setBreathingOpen(true),
   };
+
+  // Prefill from ?prompt= once on mount.
+  const promptedRef = useRef(false);
+  useEffect(() => {
+    if (promptedRef.current) return;
+    if (search.prompt) {
+      promptedRef.current = true;
+      setInput(search.prompt);
+    }
+  }, [search.prompt]);
 
   // Slice 5 — companion memory awareness (only when memory is enabled).
   const hintsQ = useQuery({
