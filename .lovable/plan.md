@@ -1,72 +1,84 @@
-# Launch Blocker — Onboarding Save Spins Forever
+# Pilot AI Personalization — Plan
 
-## Root cause
+## Goal
+Give every user a settings surface to fully personalize their Pilot companion, with selections that persist across devices and apply to **every** voice surface (Pilot, Voice Briefings, Coach TTS).
 
-Two compounding bugs:
+## Provider decision (important — please confirm)
 
-1. **Missing Data API GRANTs** (primary). `public.legal_acceptances` and `public.user_prefs` have **no `GRANT` for the `authenticated` or `service_role` roles**. Supabase's PostgREST denies every write with `permission denied for table …` regardless of RLS. So when the user taps **I agree — Get started**:
-   - `recordAcceptanceFn` → `INSERT INTO legal_acceptances` → denied
-   - `recordAcceptanceFn` → `UPSERT user_prefs.consent_json` → denied
-   - `markOnboarded` → `UPSERT user_prefs.onboarded_at` → denied
+The current TTS provider is **Lovable AI Gateway → `openai/gpt-4o-mini-tts`**. It is fast, already wired, and free of extra connector setup, but it has real limits relative to your spec:
 
-2. **Onboarding swallows / mishandles failures**. In `src/components/Onboarding.tsx → finish()`:
-   - `markOnboarded()` only `console.error`s its failure, so the modal dismisses but onboarding never actually completes — next load re-opens the modal (looks like "spinning forever / never moves forward").
-   - There is no `try/finally` around `setBusy`, so any thrown error after `setDismissed(true)` leaves the button in its busy state.
-   - The user never sees the real reason (permission denied) — only a generic toast or a stuck button.
+- **Voices:** ~9 fixed voices (alloy, ash, ballad, coral, echo, sage, shimmer, verse, nova). They cover male / female / neutral tones but are not labeled by accent. Language is auto-detected from the input text; there is no "British English" vs "American English" toggle at the voice level — the same voice speaks whatever language you send it.
+- **Accents:** not selectable as a first-class control. We can *steer* tone via the `instructions` field ("Speak with a calm British accent") but quality varies and is not guaranteed.
+- **Personality / speed:** fully supported via `instructions` + `speed` (0.7–1.2).
 
-This is environment-independent (preview and production both miss the grants).
+To deliver the spec **literally** (true British/Australian/Mexican voices, dozens of named voices per language, voice library previews), we need to add **ElevenLabs** as a second provider. ElevenLabs has the named multi-accent voice catalog, 29-language support, and a `speed` control, and an `elevenlabs` standard connector already exists.
 
-## Fix
+**Recommendation — two-tier rollout:**
 
-### 1. Database migration — add missing GRANTs
+- **Tier 1 (this ship, no new connectors):** Ship the full settings UI now against OpenAI TTS. Voice = 9 curated options labeled by tone/gender. Language = auto. Accent = steered via instructions (clearly labeled "best effort"). Personality, speed, name, previews, persistence, global application — all real.
+- **Tier 2 (follow-up, behind ElevenLabs connector):** Swap the voice catalog to ElevenLabs' named multi-accent voices, add explicit language + accent dropdowns backed by their voice library, keep the same settings UI. This is a provider swap inside `/api/tts`, not a UI rewrite.
 
-Both tables are auth-only (every policy scopes to `auth.uid()`), so no `anon` grant.
+If you want Tier 2 in this ship, I'll add a step to link the ElevenLabs connector first. **Please confirm Tier 1 now / Tier 1+2 now / Tier 2 only.** The rest of the plan assumes Tier 1 with Tier 2 wiring stubbed.
 
-```sql
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.legal_acceptances TO authenticated;
-GRANT ALL ON public.legal_acceptances TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_prefs TO authenticated;
-GRANT ALL ON public.user_prefs TO service_role;
-```
+## What we'll build
 
-### 2. `src/lib/prefs.ts` — make `markOnboarded` actually throw on failure
+### 1. Schema (one migration)
+Add to `public.user_prefs`:
+- `voice_id text` (default `'sage'`)
+- `voice_provider text` (default `'openai'`, future `'elevenlabs'`)
+- `voice_language text` (default `'en-US'`, BCP-47)
+- `voice_accent text null` (free-form label, optional)
+- `voice_personality text` (default `'calm'` — calm | friendly | professional | motivational | companion | coach | energetic)
+- `voice_speed numeric` (default `1.0`, clamped 0.7–1.2)
+- `voice_instructions text null` (computed server-side from personality, stored for transparency)
 
-Today it only `console.error`s. Throw so the caller can react and the user sees a real error.
+No new table. `assistant_name` already exists and becomes the "Pilot Name" field.
 
-### 3. `src/components/Onboarding.tsx` — robust `finish()`
+### 2. Server: unified voice config
+- New `src/lib/voice/profile.server.ts` — loads `user_prefs` voice fields, returns a normalized `VoiceProfile`.
+- `src/routes/api/tts.ts` rewrite: accepts `{ text, userId? }`, loads the profile, applies `voice`, `speed`, and a personality-derived `instructions` string. Backward-compatible with current `{ text, voice }` callers.
+- New `src/routes/api/tts/preview.ts` — same as `/api/tts` but takes ad-hoc overrides (so the settings UI can preview a voice/speed/personality before saving). Short sample text per language.
 
-- Wrap the whole flow in `try / catch / finally` so `setBusy(false)` always runs (no infinite spinner).
-- Only `setDismissed(true)` **after** both `recordAcceptanceFn` and `markOnboarded` succeed.
-- Show a user-friendly toast with the real error message on failure.
-- Button already disabled while `busy` — prevents double-tap.
+### 3. Client: settings surface
+- New `src/components/voice/VoiceSettings.tsx`:
+  - Pilot Name (reuses `assistant_name`).
+  - Voice picker grid (gender/tone label per voice, tap to preview, "Use this voice" to save).
+  - Language dropdown (all locales currently in any RestPilot string + the list above).
+  - Accent dropdown (filtered by language; "Best effort" badge on Tier 1).
+  - Personality chips.
+  - Speed slider (Slow 0.85 / Normal 1.0 / Fast 1.15) — also a fine slider.
+  - Live "Preview" button per change.
+- Mount in **Profile → Assistant** (alongside `AssistantSettings.tsx`) and add a "Voice & Personality" entry-point card on `/pilot`.
 
-### 4. `src/lib/legal/consent.functions.ts` — surface the user_prefs upsert error
+### 4. Global application
+- `useTtsPlayer`, `VoicePlayer`, `AIBriefCard`, Coach TTS, and `/pilot` all stop hard-coding `voice: "sage"`. They call `/api/tts` with no voice override; the server resolves from the profile.
+- Remove the legacy `rp.voice.voiceId` / `rp.voice.speed` `localStorage` keys; migrate once into prefs on first load if present.
 
-Replace the silent `console.error` on the `consent_json` upsert with a thrown error so the client knows the save didn't fully complete.
+### 5. Persistence + sync
+- Writes go through a new server fn `updateVoicePrefs` (auth-protected) that upserts `user_prefs`.
+- Same React Query invalidation pattern as existing `user_prefs` consumers, so other tabs / devices pick it up.
 
-## Files changed
+### 6. Acceptance verification
+- Playwright: change voice + speed + personality + name on `/profile`, refresh, log out / in, confirm values persist; trigger Voice Briefing on `/dashboard` and assert outbound `/api/tts` POST carries no `voice` override and the server picks the saved one.
+- Manual matrix: iPhone Safari, Android Chrome, desktop Chrome.
 
-- Migration (new): grants on `legal_acceptances` + `user_prefs`
-- `src/lib/prefs.ts` — `markOnboarded` throws on error
-- `src/components/Onboarding.tsx` — try/catch/finally, ordered state updates, surfaced errors
-- `src/lib/legal/consent.functions.ts` — throw on user_prefs upsert failure
+## Out of scope (call out to user)
+- True per-language native voices for every locale (needs Tier 2 / ElevenLabs).
+- STT language selection — Whisper auto-detects today; we can add a forced-language hint to `/api/stt` in a follow-up if you want.
+- Voice cloning / custom uploaded voices.
 
-## Verification
+## Risks
+- Accent fidelity on Tier 1 is steered, not native. UI will label these clearly so we don't oversell.
+- Speed extremes (<0.85 or >1.15) on `gpt-4o-mini-tts` degrade naturalness; we clamp.
+- iOS Safari still needs a user gesture for preview playback — reuse the existing gesture-arm pattern from `useTtsPlayer`.
 
-- DB: `\dp public.legal_acceptances` and `public.user_prefs` show grants for `authenticated` + `service_role`.
-- Sign in (email/password and Google), complete onboarding → single Save tap → modal closes → land on `/dashboard`; refresh does not re-prompt.
-- Force a failure (revoke a grant temporarily) → button returns to idle, toast shows real error, no infinite spinner.
-- Tested on iPhone Safari (375×598) and desktop Chrome.
+## Deliverables checklist
+- [ ] Migration adds voice fields to `user_prefs`
+- [ ] `/api/tts` resolves from profile; `/api/tts/preview` accepts overrides
+- [ ] `VoiceSettings.tsx` mounted on Profile + entry on Pilot
+- [ ] All TTS callers drop hard-coded voice
+- [ ] Legacy localStorage migrated then removed
+- [ ] Playwright persistence + cross-surface check passes
+- [ ] Tier 2 (ElevenLabs) ticket filed if not shipping now
 
-## Acceptance criteria mapping
-
-| Criterion | Met by |
-| --- | --- |
-| Save completes on one tap | GRANTs added |
-| Redirect to dashboard | `markOnboarded` succeeds → `prefs.onboarded` true → existing redirect logic runs |
-| No infinite spinner | `try/finally` around `setBusy` |
-| Friendly error on failure | `toast.error(err.message)` |
-| Real error logged | `console.error` preserved |
-| No double-tap | `disabled={busy}` already in place |
-| iOS Safari + desktop | Pure data-layer fix, no platform-specific code |
-| Google + email/password | Both go through the same server fn |
+**Please confirm: Tier 1 only, Tier 1 + Tier 2, or Tier 2 only?** Then I'll execute.
