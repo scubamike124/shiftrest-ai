@@ -61,7 +61,12 @@ export const Route = createFileRoute("/companion")({
   component: CompanionPage,
 });
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  action?: CompanionAction;
+  actionDone?: { ok: boolean; message: string } | null;
+};
 
 function firstName(p: Prefs, email: string | null): string {
   if (p.partnerName?.trim()) return p.partnerName.trim().split(/\s+/)[0];
