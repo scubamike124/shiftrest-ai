@@ -159,6 +159,57 @@ export type Database = {
           },
         ]
       }
+      ai_memory_proposals: {
+        Row: {
+          category: string
+          confidence: number
+          content: string
+          created_at: string
+          decided_at: string | null
+          dedupe_key: string
+          evidence: Json
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          observed_count: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          confidence?: number
+          content: string
+          created_at?: string
+          decided_at?: string | null
+          dedupe_key: string
+          evidence?: Json
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          observed_count?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          confidence?: number
+          content?: string
+          created_at?: string
+          decided_at?: string | null
+          dedupe_key?: string
+          evidence?: Json
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          observed_count?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_patterns: {
         Row: {
           active: boolean
@@ -862,6 +913,7 @@ export type Database = {
           low_light: boolean
           memory_cutoff_at: string | null
           memory_enabled: boolean
+          memory_learning_paused: boolean
           notifications: boolean
           offline_enabled: boolean
           onboarded_at: string | null
@@ -901,6 +953,7 @@ export type Database = {
           low_light?: boolean
           memory_cutoff_at?: string | null
           memory_enabled?: boolean
+          memory_learning_paused?: boolean
           notifications?: boolean
           offline_enabled?: boolean
           onboarded_at?: string | null
@@ -940,6 +993,7 @@ export type Database = {
           low_light?: boolean
           memory_cutoff_at?: string | null
           memory_enabled?: boolean
+          memory_learning_paused?: boolean
           notifications?: boolean
           offline_enabled?: boolean
           onboarded_at?: string | null

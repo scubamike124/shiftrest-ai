@@ -13,7 +13,9 @@ import {
   isYes,
   isNo,
 } from "@/lib/voice/companion-sound-bridge";
-import type { Intent } from "@/lib/voice/intent-router";
+import { parseIntent, type Intent } from "@/lib/voice/intent-router";
+import { TRACKS } from "@/lib/sounds/catalog";
+import { fetchCompanionHints, listPendingProposals } from "@/lib/memory-proposals";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -94,6 +96,8 @@ function CompanionPage() {
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
   const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
+  // Slice 5 — once-per-session memory offer (don't overuse memory in chat).
+  const [memoryOfferUsed, setMemoryOfferUsed] = useState(false);
   const execCtx = {
     signedIn: signedIn === true,
     navigate: (to: string, search?: Record<string, string>) => {
@@ -101,6 +105,21 @@ function CompanionPage() {
     },
     openBreathing: () => undefined,
   };
+
+  // Slice 5 — companion memory awareness (only when memory is enabled).
+  const hintsQ = useQuery({
+    queryKey: ["companion-hints"],
+    queryFn: fetchCompanionHints,
+    enabled: signedIn === true && memoryOn,
+    staleTime: 60_000,
+  });
+  const proposalsQ = useQuery({
+    queryKey: ["memory-proposals", "pending"],
+    queryFn: listPendingProposals,
+    enabled: signedIn === true && memoryOn,
+    staleTime: 30_000,
+  });
+  const pendingProposalCount = proposalsQ.data?.length ?? 0;
 
   useEffect(() => {
     if (micState === "listening") setOrbState("listening");
@@ -170,6 +189,39 @@ function CompanionPage() {
       }
       // Anything else clears the pending and continues as normal chat.
       setPendingSoundIntent(null);
+    }
+
+    // Slice 5 — memory-aware fallback. If the user is asking for a generic
+    // bedtime intent and we know a favorite sound, offer it once per
+    // session instead of the generic wind-down preset. Confirmation only —
+    // never auto-acts.
+    try {
+      const parsed = parseIntent(text);
+      const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
+      const wantsBedtime = parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
+      if (
+        memoryOn &&
+        !memoryOfferUsed &&
+        wantsBedtime &&
+        favoriteSlug
+      ) {
+        const track = TRACKS.find((t) => t.slug === favoriteSlug);
+        if (track) {
+          const offer: Intent = { kind: "play_track", slug: track.slug, label: track.label };
+          setPendingSoundIntent(offer);
+          setMemoryOfferUsed(true);
+          setMessages([
+            ...baseMessages,
+            {
+              role: "assistant",
+              content: `You usually use ${track.label} before bed. Want me to start it?`,
+            },
+          ]);
+          return;
+        }
+      }
+    } catch {
+      /* parsing is best-effort; fall through to normal bridge */
     }
 
     try {
@@ -373,6 +425,19 @@ function CompanionPage() {
           </p>
         </div>
       </section>
+
+      {/* Slice 5 — pending memory proposals (non-intrusive). */}
+      {memoryOn && pendingProposalCount > 0 && (
+        <Link
+          to="/memory"
+          className="mb-1 inline-flex items-center justify-center gap-2 self-center rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/15"
+        >
+          <Sparkles className="h-3 w-3" />
+          {pendingProposalCount === 1
+            ? "1 thing to remember →"
+            : `${pendingProposalCount} things to remember →`}
+        </Link>
+      )}
 
       {/* Companion off — gentle CTA */}
       {!companionOn && (
