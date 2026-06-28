@@ -663,8 +663,23 @@ function PilotPage() {
             <Button size="sm" variant="outline" className="mt-3" onClick={() => void tellMeMore()}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Tell me more
             </Button>
+          {canExpand && (
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => void tellMeMore()}>
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Tell me more
+            </Button>
           )}
+
+          {/* Always-visible discoverability chip for voice personalization. */}
+          <Link
+            to="/profile"
+            hash="voice-settings"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Voice, language, accent &amp; personality
+          </Link>
         </div>
+
 
         <section className="mt-10">
           <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">Transcript</h2>
