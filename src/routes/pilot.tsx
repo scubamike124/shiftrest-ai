@@ -140,6 +140,8 @@ function PilotPage() {
   const [lastExchange, setLastExchange] = useState<{ user: string; messages: CoachMsg[] } | null>(null);
   const mic = useMicRecorder();
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const llmAbortRef = useRef<AbortController | null>(null);
+
 
   // === Audio queue (sentence-streamed TTS) ===
   const audioRef = useRef<HTMLAudioElement | null>(null);
