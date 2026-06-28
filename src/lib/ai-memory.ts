@@ -13,7 +13,13 @@ export type MemoryCategory =
   | "recovery"
   | "caffeine"
   | "family"
-  | "goals";
+  | "goals"
+  // Slice 5 — sleep-domain categories
+  | "sleep_habits"
+  | "alarm_prefs"
+  | "favorite_sounds"
+  | "daily_routine"
+  | "companion_prefs";
 
 export type AIMemory = {
   id: string;
