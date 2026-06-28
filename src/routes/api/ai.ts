@@ -31,7 +31,7 @@ import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM } from "@/lib/ai/prompts.server";
 
 type Body =
-  | { intent: "coach"; messages: ChatMsg[]; context?: string }
+  | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
   | { intent: "brief"; plan: string }
   | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
   | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
@@ -285,6 +285,8 @@ export const Route = createFileRoute("/api/ai")({
               profile,
               liveContext: body.context,
               intent: "coach",
+              surface: body.surface ?? "text",
+              expand: body.expand ?? false,
             });
 
             const trimmed = body.messages.slice(-20);
