@@ -15,7 +15,17 @@ export type CompanionEvent =
   | { event: "memory_created" }
   | { event: "memory_removed" }
   | { event: "settings_changed"; surface: "companion-sheet" | "companion-settings-page" }
-  | { event: "error_encountered"; where: string; message?: string };
+  | { event: "error_encountered"; where: string; message?: string }
+  // Slice 11 — Avatar home integration
+  | { event: "avatar_viewed"; surface: "dashboard-hero" | "dashboard-header" }
+  | { event: "avatar_tapped"; surface: "dashboard-hero" | "dashboard-header" }
+  | { event: "companion_opened_from_dashboard"; via: "hero-cta" | "header-chip" | "quick-ask" }
+  | { event: "intro_viewed"; step: number }
+  | { event: "intro_completed"; skipped?: boolean }
+  | { event: "memory_explainer_viewed"; surface: "intro-sheet" | "memory-page" }
+  | { event: "prompt_dismissed"; key: string }
+  | { event: "prompt_accepted"; key: string }
+  | { event: "companion_settings_opened"; from: "hero" | "intro" | "header" };
 
 export function track(evt: CompanionEvent): void {
   if (typeof window === "undefined") return;

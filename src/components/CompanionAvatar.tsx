@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
+import { track } from "@/lib/companion/analytics";
 
 function isPeriodFresh(): boolean {
   if (typeof window === "undefined") return false;
@@ -40,6 +41,10 @@ export function CompanionAvatar() {
   return (
     <Link
       to="/companion"
+      onClick={() => {
+        track({ event: "avatar_tapped", surface: "dashboard-header" });
+        track({ event: "companion_opened_from_dashboard", via: "header-chip" });
+      }}
       aria-label={pulse ? "Open Companion — new briefing ready" : "Open Companion"}
       className={cn(
         "relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full",
