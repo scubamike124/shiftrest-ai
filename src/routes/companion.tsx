@@ -191,6 +191,39 @@ function CompanionPage() {
       setPendingSoundIntent(null);
     }
 
+    // Slice 5 — memory-aware fallback. If the user is asking for a generic
+    // bedtime intent and we know a favorite sound, offer it once per
+    // session instead of the generic wind-down preset. Confirmation only —
+    // never auto-acts.
+    try {
+      const parsed = parseIntent(text);
+      const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
+      const wantsBedtime = parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
+      if (
+        memoryOn &&
+        !memoryOfferUsed &&
+        wantsBedtime &&
+        favoriteSlug
+      ) {
+        const track = TRACKS.find((t) => t.slug === favoriteSlug);
+        if (track) {
+          const offer: Intent = { kind: "play_track", slug: track.slug, label: track.label };
+          setPendingSoundIntent(offer);
+          setMemoryOfferUsed(true);
+          setMessages([
+            ...baseMessages,
+            {
+              role: "assistant",
+              content: `You usually use ${track.label} before bed. Want me to start it?`,
+            },
+          ]);
+          return;
+        }
+      }
+    } catch {
+      /* parsing is best-effort; fall through to normal bridge */
+    }
+
     try {
       const bridged = await tryCompanionSoundCommand(text, execCtx);
       if (bridged.kind === "handled") {
