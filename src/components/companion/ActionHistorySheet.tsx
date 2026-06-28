@@ -21,6 +21,7 @@ import {
   type ActionHistoryEntry,
 } from "@/lib/companion/action-history";
 import type { CompanionAction } from "@/lib/companion/actions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function statusIcon(s: ActionHistoryEntry["status"]) {
   switch (s) {
@@ -55,6 +56,7 @@ export function ActionHistorySheet({
 }) {
   const [entries, setEntries] = useState<ActionHistoryEntry[]>([]);
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setEntries(listHistory());
@@ -70,8 +72,8 @@ export function ActionHistorySheet({
           type="button"
           variant="ghost"
           size="sm"
-          className="relative h-9 gap-1.5 px-2 text-xs"
-          aria-label="Action history"
+          className="relative h-11 min-w-11 gap-1.5 px-2 text-xs"
+          aria-label={failureCount > 0 ? `Action history (${failureCount} retryable)` : "Action history"}
         >
           <History className="h-4 w-4" />
           <span className="hidden sm:inline">History</span>
@@ -82,8 +84,15 @@ export function ActionHistorySheet({
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="w-full max-w-md overflow-y-auto">
-        <SheetHeader>
+      <SheetContent
+        side={isMobile ? "bottom" : "right"}
+        className={
+          isMobile
+            ? "max-h-[85dvh] overflow-y-auto rounded-t-2xl"
+            : "w-full max-w-md overflow-y-auto"
+        }
+      >
+        <SheetHeader className="text-left">
           <SheetTitle>Action history</SheetTitle>
           <SheetDescription>
             The last {entries.length || "0"} actions your Companion has run on this device.
