@@ -24,11 +24,13 @@ import {
 import {
   buildSystemPrompt,
   loadAssistantProfile,
+  DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
 import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
-import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM } from "@/lib/ai/prompts.server";
+import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
+
 
 type Body =
   | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
@@ -277,7 +279,7 @@ export const Route = createFileRoute("/api/ai")({
 
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
-              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+              : DEFAULT_ASSISTANT_PROFILE;
 
             const system = await buildSystemPrompt({
               admin,
@@ -329,12 +331,18 @@ export const Route = createFileRoute("/api/ai")({
 
           if (body.intent === "brief") {
             if (!body.plan) return jsonError(400, "plan required");
+            const briefProfile = userId
+              ? await loadAssistantProfile(admin, userId)
+              : DEFAULT_ASSISTANT_PROFILE;
+            const briefSystem =
+              languageDirective(briefProfile.language, briefProfile.accent) + BRIEF_SYSTEM;
             const result = await chatJSON({
               messages: [
-                { role: "system", content: BRIEF_SYSTEM },
+                { role: "system", content: briefSystem },
                 { role: "user", content: body.plan },
               ],
             });
+
             if (userId) {
               await logAIRequest(admin, {
                 user_id: userId,
@@ -355,7 +363,7 @@ export const Route = createFileRoute("/api/ai")({
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
-              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+              : DEFAULT_ASSISTANT_PROFILE;
             const ctxString = "context" in body ? body.context : undefined;
             const system = await buildSystemPrompt({
               admin,

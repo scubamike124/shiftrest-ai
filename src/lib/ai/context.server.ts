@@ -17,7 +17,10 @@ export type AssistantProfile = {
   name: string;
   mode: AssistantMode;
   memoryEnabled: boolean;
+  language: string;     // BCP-47, e.g. "es-MX". Defaults to "en-US".
+  accent: string | null;
 };
+
 
 const BASE_PERSONALITY = `You are {{NAME}} — a warm, sharp recovery and circadian-rhythm guide for shift workers (nurses, EMTs, pilots, factory crews, hospitality, security).
 
@@ -125,6 +128,8 @@ export async function buildSystemPrompt(opts: {
   expand?: boolean;
 }): Promise<string> {
   const surface = opts.surface ?? "text";
+  const { languageDirective } = await import("@/lib/ai/prompts.server");
+  const langPrefix = languageDirective(opts.profile.language, opts.profile.accent);
 
   // For the voice surface we REPLACE the writing personality entirely with
   // PILOT_VOICE_SYSTEM — markdown chat rules would leak into spoken output.
@@ -132,12 +137,12 @@ export async function buildSystemPrompt(opts: {
   if (surface === "voice" && opts.intent === "coach") {
     const { PILOT_VOICE_SYSTEM } = await import("@/lib/ai/prompts.server");
     const named = PILOT_VOICE_SYSTEM.replace(/\bPilot\b/g, opts.profile.name || "Pilot");
-    prompt = named;
+    prompt = langPrefix + named;
     if (opts.expand) {
       prompt += `\n\nThis turn the user explicitly asked for more depth — you may give a fuller answer (still spoken, still no markdown, up to ~6 sentences).`;
     }
   } else {
-    prompt = renderPersonality(opts.profile);
+    prompt = langPrefix + renderPersonality(opts.profile);
     if (opts.intent === "coach") {
       prompt += `\n\nCHAT FORMATTING (when you respond to the user in chat):
 - Lead with a single short sentence that directly answers the question (≤ 25 words).
@@ -148,6 +153,7 @@ export async function buildSystemPrompt(opts: {
 - Never use emoji unless the user used them first. Never use exclamation marks.`;
     }
   }
+
 
 
   const isVoiceCoach = surface === "voice" && opts.intent === "coach";
@@ -273,12 +279,32 @@ export async function loadAssistantProfile(
 ): Promise<AssistantProfile> {
   const { data } = await admin
     .from("user_prefs")
-    .select("assistant_name, assistant_mode, memory_enabled")
+    .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
     .eq("user_id", userId)
     .maybeSingle();
+  const row = (data ?? null) as
+    | {
+        assistant_name?: string | null;
+        assistant_mode?: string | null;
+        memory_enabled?: boolean | null;
+        voice_language?: string | null;
+        voice_accent?: string | null;
+      }
+    | null;
   return {
-    name: (data?.assistant_name as string) || "RestPilot",
-    mode: ((data?.assistant_mode as AssistantMode) || "coach"),
-    memoryEnabled: Boolean(data?.memory_enabled),
+    name: row?.assistant_name || "RestPilot",
+    mode: ((row?.assistant_mode as AssistantMode) || "coach"),
+    memoryEnabled: Boolean(row?.memory_enabled),
+    language: row?.voice_language || "en-US",
+    accent: row?.voice_accent || null,
   };
 }
+
+export const DEFAULT_ASSISTANT_PROFILE: AssistantProfile = {
+  name: "RestPilot",
+  mode: "coach",
+  memoryEnabled: false,
+  language: "en-US",
+  accent: null,
+};
+
