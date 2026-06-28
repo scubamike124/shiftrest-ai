@@ -130,11 +130,8 @@ export const Route = createFileRoute("/api/brief")({
           }
 
           // Best-effort usage log; never block the response on it.
-          const admin = getAdmin();
-          const userId = await userIdFromAuth(
-            admin,
-            request.headers.get("authorization"),
-          );
+          // (admin + userId already resolved above.)
+
           if (admin && userId) {
             logAIRequest(admin, {
               user_id: userId,
