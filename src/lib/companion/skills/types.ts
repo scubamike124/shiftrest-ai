@@ -9,7 +9,8 @@ export type SkillId =
   | "smart_home"
   | "comms_email"
   | "comms_sms"
-  | "routines";
+  | "routines"
+  | "personal_intel";
 
 export type SkillStatus = "connected" | "disabled" | "disconnected" | "coming_soon";
 

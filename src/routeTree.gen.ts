@@ -24,6 +24,7 @@ import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
+import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
@@ -138,6 +139,11 @@ const MemoryRoute = MemoryRouteImport.update({
 const LegalRoute = LegalRouteImport.update({
   id: '/legal',
   path: '/legal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -353,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
@@ -410,6 +417,7 @@ export interface FileRoutesByTo {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/inbox': typeof InboxRoute
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/pilot': typeof PilotRoute
@@ -467,6 +475,7 @@ export interface FileRoutesById {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
@@ -526,6 +535,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/inbox'
     | '/legal'
     | '/memory'
     | '/paywall'
@@ -583,6 +593,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/inbox'
     | '/memory'
     | '/paywall'
     | '/pilot'
@@ -639,6 +650,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/inbox'
     | '/legal'
     | '/memory'
     | '/paywall'
@@ -697,6 +709,7 @@ export interface RootRouteChildren {
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
+  InboxRoute: typeof InboxRoute
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
@@ -835,6 +848,13 @@ declare module '@tanstack/react-router' {
       path: '/legal'
       fullPath: '/legal'
       preLoaderRoute: typeof LegalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -1169,6 +1189,7 @@ const rootRouteChildren: RootRouteChildren = {
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
+  InboxRoute: InboxRoute,
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
