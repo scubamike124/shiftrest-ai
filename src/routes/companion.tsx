@@ -426,6 +426,19 @@ function CompanionPage() {
         </div>
       </section>
 
+      {/* Slice 5 — pending memory proposals (non-intrusive). */}
+      {memoryOn && pendingProposalCount > 0 && (
+        <Link
+          to="/memory"
+          className="mb-1 inline-flex items-center justify-center gap-2 self-center rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/15"
+        >
+          <Sparkles className="h-3 w-3" />
+          {pendingProposalCount === 1
+            ? "1 thing to remember →"
+            : `${pendingProposalCount} things to remember →`}
+        </Link>
+      )}
+
       {/* Companion off — gentle CTA */}
       {!companionOn && (
         <Card className="mt-2 border-primary/20 bg-primary/5 p-4">
