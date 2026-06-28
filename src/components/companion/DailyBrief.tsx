@@ -36,6 +36,7 @@ import {
   SummaryCard,
   WindDownCard,
 } from "./EveningCards";
+import { WeatherAlertsCard } from "@/components/weather/WeatherAlertsCard";
 
 function CardSkeleton() {
   return (
