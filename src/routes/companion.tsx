@@ -377,14 +377,17 @@ function CompanionPage() {
               return;
             }
           }
-          // If confirmation is off AND the action is non-destructive nav, run inline; else propose.
-          if (!localPrefs.requireActionConfirmation && describeAction(action).isNavigation) {
-            const result = await executeAction(action, execCtx);
+          // Slice 9 — auto-run only when: confirmations off, action is non-destructive, AND it's navigation.
+          if (
+            !localPrefs.requireActionConfirmation &&
+            !isDestructive(action) &&
+            describeAction(action).isNavigation
+          ) {
+            const result = await runAction(action);
             setMessages([
               ...baseMessages,
               { role: "assistant", content: result.message, action, actionDone: result },
             ]);
-            void speakIfEnabled(result.message);
             return;
           }
           proposeAction(baseMessages, action);
