@@ -104,6 +104,7 @@ export function stopSpeaking(): void {
     currentUrl = null;
   }
   currentAudio = null;
+  stopLevelMeter();
 }
 
 export async function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
