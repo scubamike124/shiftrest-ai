@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CompanionAvatar } from "@/components/CompanionAvatar";
-import { CompanionQuickAsk } from "@/components/CompanionQuickAsk";
-import { CompanionHero } from "@/components/companion/CompanionHero";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { GreetingHeader } from "@/components/home/GreetingHeader";
+import { HomeCard, HomeCardHeader } from "@/components/home/HomeCard";
+import { SleepSoundsCard } from "@/components/home/SleepSoundsCard";
+import { HydrationCard } from "@/components/home/HydrationCard";
+import { SleepStreakCard } from "@/components/home/SleepStreakCard";
+import { QuickActionsCard } from "@/components/home/QuickActionsCard";
+import { SmartAlarmCard } from "@/components/SmartAlarmCard";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X, Sparkles, Moon, MessageSquare, CalendarClock, Sun } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
 
 import {
   DAYS,
