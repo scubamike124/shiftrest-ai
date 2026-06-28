@@ -279,7 +279,7 @@ export const Route = createFileRoute("/api/ai")({
 
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
-              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+              : DEFAULT_ASSISTANT_PROFILE;
 
             const system = await buildSystemPrompt({
               admin,
@@ -357,7 +357,7 @@ export const Route = createFileRoute("/api/ai")({
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
-              : { name: "RestPilot", mode: "coach" as const, memoryEnabled: false };
+              : DEFAULT_ASSISTANT_PROFILE;
             const ctxString = "context" in body ? body.context : undefined;
             const system = await buildSystemPrompt({
               admin,
