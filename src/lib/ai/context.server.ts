@@ -119,17 +119,34 @@ export async function buildSystemPrompt(opts: {
   profile: AssistantProfile;
   liveContext?: string;
   intent?: string;
+  /** "voice" = Pilot (spoken). "text" = Coach chat. Defaults to "text". */
+  surface?: "voice" | "text";
+  /** When true, lift the brevity cap for this turn ("tell me more"). */
+  expand?: boolean;
 }): Promise<string> {
-  let prompt = renderPersonality(opts.profile);
+  const surface = opts.surface ?? "text";
 
-  if (opts.intent === "coach") {
-    prompt += `\n\nCHAT FORMATTING (when you respond to the user in chat):
+  // For the voice surface we REPLACE the writing personality entirely with
+  // PILOT_VOICE_SYSTEM — markdown chat rules would leak into spoken output.
+  let prompt: string;
+  if (surface === "voice" && opts.intent === "coach") {
+    const { PILOT_VOICE_SYSTEM } = await import("@/lib/ai/prompts.server");
+    const named = PILOT_VOICE_SYSTEM.replace(/\bPilot\b/g, opts.profile.name || "Pilot");
+    prompt = named;
+    if (opts.expand) {
+      prompt += `\n\nThis turn the user explicitly asked for more depth — you may give a fuller answer (still spoken, still no markdown, up to ~6 sentences).`;
+    }
+  } else {
+    prompt = renderPersonality(opts.profile);
+    if (opts.intent === "coach") {
+      prompt += `\n\nCHAT FORMATTING (when you respond to the user in chat):
 - Lead with a single short sentence that directly answers the question (≤ 25 words).
 - Then use Markdown structure: short ## subheadings for each section, "- " bullets for steps or lists, and blank lines between sections.
 - Keep paragraphs to 2–3 sentences max. Total reply ≤ 220 words unless the user explicitly asks for depth.
 - If a topic genuinely needs more, end with a "### Details" section the reader can skip.
 - Never wrap whole sentences in **bold** for emphasis. Bold is only for short labels at the start of a bullet (e.g. "**Light:** 10 min outside…").
 - Never use emoji unless the user used them first. Never use exclamation marks.`;
+    }
   }
 
 
