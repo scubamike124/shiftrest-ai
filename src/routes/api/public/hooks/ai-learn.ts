@@ -60,6 +60,13 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
             console.warn("memory proposer failed", u.user_id, e);
           }
 
+          // Phase 6 — Cross-skill routine suggestions.
+          try {
+            await runCrossSkillSuggester(admin, u.user_id);
+          } catch (e) {
+            console.warn("cross-skill suggester failed", u.user_id, e);
+          }
+
           if (!u.feedback_learning_enabled) continue;
 
           // b) Outcome backfill: feedback rows from 18-36h ago with empty outcome.
