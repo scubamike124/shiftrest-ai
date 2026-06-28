@@ -57,7 +57,7 @@ export function MorningBrief({
   prefs: Prefs | null | undefined;
   signedIn: boolean;
 }) {
-  const fetchBrief = useServerFnSafe();
+  const fetchBrief = useServerFn(getMorningBrief);
   const query = useQuery({
     queryKey: ["morning-brief"],
     queryFn: () => fetchBrief(),
