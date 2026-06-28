@@ -145,11 +145,18 @@ type Row = {
   voice_personality?: string | null;
   voice_speed?: number | string | null;
   voice_instructions?: string | null;
+  brief_layout?: { order?: string[]; hidden?: string[] } | null;
+  home_address?: string | null;
+  work_address?: string | null;
+  commute_minutes_baseline?: number | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
   const mode = (r.assistant_mode ?? "coach") as AssistantMode;
+  const layout = r.brief_layout && Array.isArray(r.brief_layout.order)
+    ? { order: r.brief_layout.order, hidden: r.brief_layout.hidden ?? [] }
+    : DEFAULT_BRIEF_LAYOUT;
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -182,6 +189,10 @@ function rowToPrefs(r: Row): Prefs {
     voicePersonality: r.voice_personality || "calm",
     voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
     voiceInstructions: r.voice_instructions ?? null,
+    briefLayout: layout,
+    homeAddress: r.home_address ?? null,
+    workAddress: r.work_address ?? null,
+    commuteMinutesBaseline: r.commute_minutes_baseline ?? null,
   };
 }
 
