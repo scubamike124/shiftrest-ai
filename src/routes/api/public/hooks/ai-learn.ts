@@ -26,6 +26,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
 
         const { runPatternDetection } = await import("@/lib/ai/patterns.server");
         const { runMemoryProposer } = await import("@/lib/ai/memory-proposer.server");
+        const { runCrossSkillSuggester } = await import("@/lib/memory/cross-skill-suggester.server");
 
         // 1) Pull all opted-in users.
         const { data: users } = await admin
