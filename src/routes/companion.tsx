@@ -1,15 +1,13 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square } from "lucide-react";
+import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import {
-  tryCompanionSoundCommand,
-  executePending,
   isYes,
   isNo,
 } from "@/lib/voice/companion-sound-bridge";
@@ -24,6 +22,16 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { DailyBrief } from "@/components/companion/DailyBrief";
+import { ActionCard } from "@/components/companion/ActionCard";
+import {
+  describeAction,
+  executeAction,
+  intentToAction,
+  type CompanionAction,
+} from "@/lib/companion/actions";
+import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
+import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
+import { inQuietHours } from "@/lib/companion/quiet-hours";
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
@@ -32,6 +40,13 @@ function forcedMorning(): boolean {
 }
 
 export const Route = createFileRoute("/companion")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    prompt: typeof s.prompt === "string" ? s.prompt.slice(0, 500) : undefined,
+    period:
+      s.period === "morning" || s.period === "afternoon" || s.period === "evening"
+        ? s.period
+        : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Companion — Your personal AI | RestPilot AI" },
@@ -45,7 +60,12 @@ export const Route = createFileRoute("/companion")({
   component: CompanionPage,
 });
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  action?: CompanionAction;
+  actionDone?: { ok: boolean; message: string } | null;
+};
 
 function firstName(p: Prefs, email: string | null): string {
   if (p.partnerName?.trim()) return p.partnerName.trim().split(/\s+/)[0];
@@ -102,16 +122,43 @@ function CompanionPage() {
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
+  const search = useSearch({ from: Route.id });
   const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
   // Slice 5 — once-per-session memory offer (don't overuse memory in chat).
   const [memoryOfferUsed, setMemoryOfferUsed] = useState(false);
+  // Slice 8 — voice + action local prefs.
+  const [localPrefs, setLocalPrefs] = useState<CompanionLocalPrefs>(() => loadLocalPrefs());
+  useEffect(() => {
+    const onChange = () => setLocalPrefs(loadLocalPrefs());
+    if (typeof window !== "undefined") {
+      window.addEventListener("companion-local-prefs:changed", onChange);
+      return () => window.removeEventListener("companion-local-prefs:changed", onChange);
+    }
+  }, []);
+  const updateLocal = (patch: Partial<CompanionLocalPrefs>) => setLocalPrefs(saveLocalPrefs(patch));
+  // Slice 8 — breathing overlay + action busy state.
+  const [breathingOpen, setBreathingOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState<number | null>(null);
+  // Slice 8 — TTS playback tracking so we can cancel cleanly.
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const execCtx = {
     signedIn: signedIn === true,
     navigate: (to: string, search?: Record<string, string>) => {
       navigate({ to, search: search ?? undefined } as never).catch(() => undefined);
     },
-    openBreathing: () => undefined,
+    openBreathing: () => setBreathingOpen(true),
   };
+
+  // Prefill from ?prompt= once on mount.
+  const promptedRef = useRef(false);
+  useEffect(() => {
+    if (promptedRef.current) return;
+    if (search.prompt) {
+      promptedRef.current = true;
+      setInput(search.prompt);
+    }
+  }, [search.prompt]);
 
   // Slice 5 — companion memory awareness (only when memory is enabled).
   const hintsQ = useQuery({
@@ -171,6 +218,63 @@ function CompanionPage() {
     });
   }
 
+  // Slice 8 — assistant message helper that also speaks (TTS) when enabled.
+  async function speakIfEnabled(text: string) {
+    if (!localPrefs.voiceRepliesEnabled) return;
+    if (inQuietHours(localPrefs.quietHours)) return;
+    if (!text.trim()) return;
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const resp = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ text, voice: prefs?.voiceId }),
+      });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      ttsAudioRef.current?.pause();
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play().catch(() => undefined);
+    } catch {
+      /* TTS is best-effort */
+    }
+  }
+
+  // Slice 8 — confirm/cancel buttons on an action card.
+  async function confirmAction(messageIndex: number) {
+    const msg = messages[messageIndex];
+    if (!msg?.action) return;
+    setActionBusy(messageIndex);
+    try {
+      const result = await executeAction(msg.action, execCtx);
+      setMessages((cur) =>
+        cur.map((m, i) => (i === messageIndex ? { ...m, actionDone: result } : m)),
+      );
+      void speakIfEnabled(result.message);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+  function cancelAction(messageIndex: number) {
+    setMessages((cur) =>
+      cur.map((m, i) =>
+        i === messageIndex ? { ...m, actionDone: { ok: false, message: "Cancelled." } } : m,
+      ),
+    );
+  }
+
+  /** Push an assistant message that proposes an action (with confirmation card). */
+  function proposeAction(base: Msg[], action: CompanionAction, leading?: string) {
+    const d = describeAction(action);
+    const content = leading ?? d.title;
+    setMessages([...base, { role: "assistant", content, action, actionDone: null }]);
+    void speakIfEnabled(content);
+  }
+
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
     const text = input.trim();
@@ -179,72 +283,83 @@ function CompanionPage() {
     setMessages(baseMessages);
     setInput("");
 
-    // Slice 4 — sleep-sound bridge. Intercept before hitting /api/ai so
-    // we never bill tokens for a deterministic local action, and reuse
-    // the same mixer + executor that /sleep uses.
+    // Pending text-based yes/no fallback (kept for accessibility & voice flows).
     if (pendingSoundIntent) {
       if (isYes(text)) {
-        const reply = await executePending(pendingSoundIntent, execCtx);
+        const action = intentToAction(pendingSoundIntent);
         setPendingSoundIntent(null);
-        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        if (action) {
+          const result = await executeAction(action, execCtx);
+          setMessages([
+            ...baseMessages,
+            { role: "assistant", content: result.message, action, actionDone: result },
+          ]);
+          void speakIfEnabled(result.message);
+        }
         return;
       }
       if (isNo(text)) {
         setPendingSoundIntent(null);
-        setMessages([...baseMessages, { role: "assistant", content: "Okay, cancelled." }]);
+        const reply = "Okay, cancelled.";
+        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        void speakIfEnabled(reply);
         return;
       }
-      // Anything else clears the pending and continues as normal chat.
       setPendingSoundIntent(null);
     }
 
-    // Slice 5 — memory-aware fallback. If the user is asking for a generic
-    // bedtime intent and we know a favorite sound, offer it once per
-    // session instead of the generic wind-down preset. Confirmation only —
-    // never auto-acts.
-    try {
-      const parsed = parseIntent(text);
-      const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
-      const wantsBedtime = parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
-      if (
-        memoryOn &&
-        !memoryOfferUsed &&
-        wantsBedtime &&
-        favoriteSlug
-      ) {
-        const track = TRACKS.find((t) => t.slug === favoriteSlug);
-        if (track) {
-          const offer: Intent = { kind: "play_track", slug: track.slug, label: track.label };
-          setPendingSoundIntent(offer);
-          setMemoryOfferUsed(true);
-          setMessages([
-            ...baseMessages,
-            {
-              role: "assistant",
-              content: `You usually use ${track.label} before bed. Want me to start it?`,
-            },
-          ]);
+    // Slice 8 — action-first routing. Parse intent; if it maps to a known action
+    // and suggestions are enabled, propose it (never auto-execute when
+    // requireActionConfirmation is on).
+    if (localPrefs.actionSuggestionsEnabled) {
+      try {
+        const parsed = parseIntent(text);
+        const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
+        const wantsBedtime =
+          parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
+
+        // Memory-aware bedtime offer (once per session).
+        if (memoryOn && !memoryOfferUsed && wantsBedtime && favoriteSlug) {
+          const track = TRACKS.find((t) => t.slug === favoriteSlug);
+          if (track) {
+            setMemoryOfferUsed(true);
+            proposeAction(
+              baseMessages,
+              { kind: "play_track", slug: track.slug, label: track.label },
+              `You usually use ${track.label} before bed. Want me to start it?`,
+            );
+            return;
+          }
+        }
+
+        const action = intentToAction(parsed.intent);
+        if (action && parsed.confidence >= 0.6) {
+          // Compound: "play rain for 30 minutes" → add timer minutes to action.
+          if (action.kind === "play_track") {
+            const m = text.match(/\bfor\s+(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i)
+              ?? text.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i);
+            if (m) {
+              const minutes = Math.max(1, Math.min(180, parseInt(m[1], 10)));
+              proposeAction(baseMessages, { ...action, minutes });
+              return;
+            }
+          }
+          // If confirmation is off AND the action is non-destructive nav, run inline; else propose.
+          if (!localPrefs.requireActionConfirmation && describeAction(action).isNavigation) {
+            const result = await executeAction(action, execCtx);
+            setMessages([
+              ...baseMessages,
+              { role: "assistant", content: result.message, action, actionDone: result },
+            ]);
+            void speakIfEnabled(result.message);
+            return;
+          }
+          proposeAction(baseMessages, action);
           return;
         }
+      } catch (err) {
+        console.warn("[companion] intent parse error", err);
       }
-    } catch {
-      /* parsing is best-effort; fall through to normal bridge */
-    }
-
-    try {
-      const bridged = await tryCompanionSoundCommand(text, execCtx);
-      if (bridged.kind === "handled") {
-        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
-        return;
-      }
-      if (bridged.kind === "confirm") {
-        setPendingSoundIntent(bridged.pendingIntent);
-        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
-        return;
-      }
-    } catch (err) {
-      // Bridge failure (e.g. mixer init) → fall through to AI chat, don't block the user.
-      console.warn("[companion] sound bridge error", err);
     }
 
     setSending(true);
@@ -313,6 +428,7 @@ function CompanionPage() {
           } catch { /* noop */ }
         }
       }
+      void speakIfEnabled(assistant);
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
@@ -406,6 +522,50 @@ function CompanionPage() {
                 />
               </div>
 
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                <p className="text-sm font-medium">Voice &amp; actions</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Mic is only used when you tap it. No background listening.
+                </p>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-voice-in" className="text-sm">Voice input</Label>
+                    <Switch
+                      id="va-voice-in"
+                      checked={localPrefs.voiceInputEnabled}
+                      onCheckedChange={(v) => updateLocal({ voiceInputEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-voice-out" className="text-sm">Voice replies</Label>
+                    <Switch
+                      id="va-voice-out"
+                      checked={localPrefs.voiceRepliesEnabled}
+                      onCheckedChange={(v) => updateLocal({ voiceRepliesEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-actions" className="text-sm">Action suggestions</Label>
+                    <Switch
+                      id="va-actions"
+                      checked={localPrefs.actionSuggestionsEnabled}
+                      onCheckedChange={(v) => updateLocal({ actionSuggestionsEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-confirm" className="text-sm">Always confirm before acting</Label>
+                    <Switch
+                      id="va-confirm"
+                      checked={localPrefs.requireActionConfirmation}
+                      onCheckedChange={(v) => updateLocal({ requireActionConfirmation: v })}
+                    />
+                  </div>
+                  <Link to="/settings/companion" className="block text-xs text-primary underline">
+                    More voice &amp; quiet-hours settings →
+                  </Link>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Privacy</p>
                 <p className="mt-1">
@@ -448,7 +608,11 @@ function CompanionPage() {
 
       {/* Slice 7 — Smart Day & Evening Intelligence: time-of-day brief */}
       {signedIn === true && (
-        <DailyBrief prefs={prefs ?? null} signedIn={true} forcedPeriod={forcedMorning() ? "morning" : undefined} />
+        <DailyBrief
+          prefs={prefs ?? null}
+          signedIn={true}
+          forcedPeriod={search.period ?? (forcedMorning() ? "morning" : undefined)}
+        />
       )}
 
 
@@ -489,7 +653,7 @@ function CompanionPage() {
           </p>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
             <div
               className={cn(
                 "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
@@ -500,31 +664,54 @@ function CompanionPage() {
             >
               {m.content || (sending && i === messages.length - 1 ? "…" : "")}
             </div>
+            {m.role === "assistant" && m.action && (
+              <div className="w-full max-w-[85%]">
+                <ActionCard
+                  action={m.action}
+                  busy={actionBusy === i}
+                  done={m.actionDone ?? null}
+                  onConfirm={() => confirmAction(i)}
+                  onCancel={() => cancelAction(i)}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Voice-response placeholder badge */}
+      {/* Voice-replies status badge */}
       {companionOn && (
         <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary/60" />
-          Voice replies coming next — for now, replies appear in chat.
+          {localPrefs.voiceRepliesEnabled ? (
+            <>
+              <Volume2 className="h-3 w-3 text-primary" />
+              Voice replies on
+              {inQuietHours(localPrefs.quietHours) ? " — muted during quiet hours" : ""}
+            </>
+          ) : (
+            <>
+              <VolumeX className="h-3 w-3" />
+              Voice replies off — replies appear in chat
+            </>
+          )}
         </div>
       )}
 
       {/* Composer */}
       <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
-        <Button
-          type="button"
-          variant={micState === "listening" ? "default" : "outline"}
-          size="icon"
-          className="h-11 w-11 shrink-0"
-          aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
-          disabled={!companionOn || transcribing || sending}
-          onClick={handleMicTap}
-        >
-          {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-        </Button>
+        {localPrefs.voiceInputEnabled && (
+          <Button
+            type="button"
+            variant={micState === "listening" ? "default" : "outline"}
+            size="icon"
+            className="h-11 w-11 shrink-0"
+            aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
+            disabled={!companionOn || transcribing || sending}
+            onClick={handleMicTap}
+          >
+            {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+          </Button>
+        )}
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -547,6 +734,8 @@ function CompanionPage() {
       {micState === "listening" && (
         <p className="mt-1 text-center text-[11px] text-muted-foreground">Listening… tap mic to stop</p>
       )}
+
+      <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
     </main>
   );
 }
