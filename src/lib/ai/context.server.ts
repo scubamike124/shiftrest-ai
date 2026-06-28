@@ -128,6 +128,8 @@ export async function buildSystemPrompt(opts: {
   expand?: boolean;
 }): Promise<string> {
   const surface = opts.surface ?? "text";
+  const { languageDirective } = await import("@/lib/ai/prompts.server");
+  const langPrefix = languageDirective(opts.profile.language, opts.profile.accent);
 
   // For the voice surface we REPLACE the writing personality entirely with
   // PILOT_VOICE_SYSTEM — markdown chat rules would leak into spoken output.
@@ -135,12 +137,12 @@ export async function buildSystemPrompt(opts: {
   if (surface === "voice" && opts.intent === "coach") {
     const { PILOT_VOICE_SYSTEM } = await import("@/lib/ai/prompts.server");
     const named = PILOT_VOICE_SYSTEM.replace(/\bPilot\b/g, opts.profile.name || "Pilot");
-    prompt = named;
+    prompt = langPrefix + named;
     if (opts.expand) {
       prompt += `\n\nThis turn the user explicitly asked for more depth — you may give a fuller answer (still spoken, still no markdown, up to ~6 sentences).`;
     }
   } else {
-    prompt = renderPersonality(opts.profile);
+    prompt = langPrefix + renderPersonality(opts.profile);
     if (opts.intent === "coach") {
       prompt += `\n\nCHAT FORMATTING (when you respond to the user in chat):
 - Lead with a single short sentence that directly answers the question (≤ 25 words).
@@ -151,6 +153,7 @@ export async function buildSystemPrompt(opts: {
 - Never use emoji unless the user used them first. Never use exclamation marks.`;
     }
   }
+
 
 
   const isVoiceCoach = surface === "voice" && opts.intent === "coach";
