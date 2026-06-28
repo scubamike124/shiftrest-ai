@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Mic, Phone, MessageCircle, Loader2, Settings2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { PilotOrb, type OrbState } from "@/components/PilotOrb";
+import { type OrbState } from "@/components/PilotOrb";
+import { CompanionAvatarFace, avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { expandForSpeech } from "@/lib/voice-rewriter";
 import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-history";
@@ -618,7 +619,12 @@ function PilotPage() {
             }
             className="outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full"
           >
-            <PilotOrb state={orbDisplayState} level={mic.level} />
+            <CompanionAvatarFace
+              state={orbDisplayState}
+              level={mic.level}
+              size="lg"
+              label={avatarStateLabel(orbDisplayState)}
+            />
           </button>
 
           <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">

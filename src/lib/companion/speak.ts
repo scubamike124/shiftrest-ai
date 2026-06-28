@@ -19,6 +19,72 @@ let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
 let lastReqId = 0;
 
+// ── Amplitude-based lip-sync ──────────────────────────────────────────────
+// One shared AudioContext + AnalyserNode. We re-use a MediaElementSource per
+// audio element (each element can only be source'd once). RAF dispatches a
+// `companion:audio-level` CustomEvent with { rms } the Avatar listens for.
+let levelCtx: AudioContext | null = null;
+let levelAnalyser: AnalyserNode | null = null;
+let levelRaf = 0;
+const sourcedAudios = new WeakSet<HTMLAudioElement>();
+
+function emitLevel(rms: number) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("companion:audio-level", { detail: { rms } }));
+}
+
+function startLevelMeter(audio: HTMLAudioElement) {
+  if (typeof window === "undefined") return;
+  try {
+    const AC: typeof AudioContext | undefined =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return;
+    if (!levelCtx) levelCtx = new AC();
+    if (levelCtx.state === "suspended") levelCtx.resume().catch(() => undefined);
+    if (!levelAnalyser) {
+      levelAnalyser = levelCtx.createAnalyser();
+      levelAnalyser.fftSize = 512;
+      levelAnalyser.smoothingTimeConstant = 0.6;
+      levelAnalyser.connect(levelCtx.destination);
+    }
+    if (!sourcedAudios.has(audio)) {
+      const src = levelCtx.createMediaElementSource(audio);
+      src.connect(levelAnalyser);
+      sourcedAudios.add(audio);
+    }
+    const analyser = levelAnalyser;
+    const buf = new Uint8Array(analyser.fftSize);
+    if (levelRaf) cancelAnimationFrame(levelRaf);
+    const tick = () => {
+      if (currentAudio !== audio || audio.paused || audio.ended) {
+        emitLevel(0);
+        levelRaf = 0;
+        return;
+      }
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128;
+        sum += v * v;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      emitLevel(rms);
+      levelRaf = requestAnimationFrame(tick);
+    };
+    levelRaf = requestAnimationFrame(tick);
+  } catch {
+    /* lip-sync is best-effort; silently drop on failure */
+  }
+}
+
+function stopLevelMeter() {
+  if (levelRaf) {
+    cancelAnimationFrame(levelRaf);
+    levelRaf = 0;
+  }
+  emitLevel(0);
+}
+
 export type SpeakOptions = {
   /** Optional voice id from server-side prefs (forwarded to /api/tts). */
   voice?: string | null;
@@ -38,6 +104,7 @@ export function stopSpeaking(): void {
     currentUrl = null;
   }
   currentAudio = null;
+  stopLevelMeter();
 }
 
 export async function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
@@ -100,9 +167,14 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
         currentUrl = null;
         currentAudio = null;
       }
+      stopLevelMeter();
+    };
+    audio.onpause = () => {
+      if (currentAudio === audio) stopLevelMeter();
     };
     track({ event: "voice_played", chars: t.length });
     await audio.play().catch(() => undefined);
+    startLevelMeter(audio);
   } catch {
     track({ event: "voice_skipped", reason: "tts_error" });
   }

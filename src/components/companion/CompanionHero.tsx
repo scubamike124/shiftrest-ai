@@ -4,7 +4,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Sparkles, X, Settings2, BellOff, WifiOff } from "lucide-react";
+import { X, Settings2, BellOff, WifiOff } from "lucide-react";
+import { CompanionAvatarFace } from "@/components/companion/Avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
@@ -130,24 +131,15 @@ export function CompanionHero() {
       data-testid="companion-hero"
     >
       <div className="flex items-stretch gap-4 p-4 sm:p-5">
-        {/* Orb */}
-        <div
-          aria-hidden
-          className={cn(
-            "relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl sm:h-20 sm:w-20",
-            "bg-gradient-to-br",
-            view.halo,
-          )}
-        >
-          <div className="absolute inset-1 rounded-2xl border border-white/10 bg-[conic-gradient(from_180deg,hsl(var(--primary)),hsl(280_85%_65%),hsl(190_90%_60%),hsl(var(--primary)))] opacity-80" />
-          <div className="absolute inset-3 rounded-xl bg-background/70 backdrop-blur-md" />
-          <Sparkles className="relative h-5 w-5 text-primary sm:h-6 sm:w-6" />
-          {view.state === "morning_brief" || view.state === "afternoon_check" || view.state === "evening_wind" ? (
+        {/* Avatar */}
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl sm:h-20 sm:w-20">
+          <CompanionAvatarFace state="idle" size="md" />
+          {(view.state === "morning_brief" || view.state === "afternoon_check" || view.state === "evening_wind") && (
             <span className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
             </span>
-          ) : null}
+          )}
         </div>
 
         {/* Body */}
