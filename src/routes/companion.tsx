@@ -23,14 +23,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { MorningBrief } from "@/components/morning/MorningBrief";
+import { DailyBrief } from "@/components/companion/DailyBrief";
 
-/** Show Morning Brief during morning hours (04:00–11:59 local) or when ?brief=1. */
-function shouldShowBrief(): boolean {
+/** Force-show the morning brief on the companion screen when ?brief=1. */
+function forcedMorning(): boolean {
   if (typeof window === "undefined") return false;
-  if (new URLSearchParams(window.location.search).get("brief") === "1") return true;
-  const h = new Date().getHours();
-  return h >= 4 && h < 12;
+  return new URLSearchParams(window.location.search).get("brief") === "1";
 }
 
 export const Route = createFileRoute("/companion")({
