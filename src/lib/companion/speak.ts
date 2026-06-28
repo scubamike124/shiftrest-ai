@@ -167,9 +167,14 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
         currentUrl = null;
         currentAudio = null;
       }
+      stopLevelMeter();
+    };
+    audio.onpause = () => {
+      if (currentAudio === audio) stopLevelMeter();
     };
     track({ event: "voice_played", chars: t.length });
     await audio.play().catch(() => undefined);
+    startLevelMeter(audio);
   } catch {
     track({ event: "voice_skipped", reason: "tts_error" });
   }
