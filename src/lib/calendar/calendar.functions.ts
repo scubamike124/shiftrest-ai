@@ -268,7 +268,7 @@ export const getCalendarAgenda = createServerFn({ method: "GET" })
     const agenda = buildAgenda(
       enriched.map((e) => ({
         uid: e.uid,
-        summary: e.title,
+        title: e.title,
         location: e.location,
         startISO: e.startISO,
         endISO: e.endISO,
