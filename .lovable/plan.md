@@ -1,104 +1,65 @@
-# Home Experience Redesign — AI Companion as Centerpiece
+## Goal
 
-## Investigation Summary
+Make the public landing page (`/`) immediately sell RestPilot as a **visible AI sleep assistant**, using the same premium portrait avatar from the dashboard. No existing content removed — only added/restructured.
 
-Current state:
-- `src/routes/dashboard.tsx` (987 lines) is the active home — uses `CompanionHero` plus a long stack of cards (`AIBriefCard`, `RightNowCard`, `SmartAlarmCard`, `LastNightStrip`, `MultiDayPlan`, `TomorrowPreviewCard`, `DailyReviewCard`, `PatternAlerts`, `DecisionCenterCard`, `AIActivityFeed`, etc.).
-- `src/routes/index.tsx` is a separate marketing/landing surface.
-- Existing avatar work: `src/components/companion/Avatar.tsx` (portrait-hybrid premium avatar), `src/components/CompanionAvatar.tsx` (small chip), `CompanionHero`, `PilotOrb`.
-- Bottom navigation lives in `src/components/BottomNav.tsx`.
-- All feature cards already exist — this is purely presentation/layout.
+## Changes
 
-## Goals
+### 1. Hero — swap right-side visual for the Companion
 
-1. AI Companion = visible centerpiece, persistent, one tap away.
-2. Reorganize existing cards into a premium glass bento grid.
-3. Zero feature removal — every current card keeps its data + behavior.
+In `src/routes/index.tsx > HeroStack`:
+- Keep the existing Sleep-window / circadian dial card, but **shrink it and move it to a secondary floating tile** (bottom-left of the stack).
+- The primary visual becomes a new **CompanionHeroCard**:
+  - Large `CompanionAvatarFace` (size `lg`, aura on) inside a glass card matching the new bento style (`glass-card`, soft purple/blue glow).
+  - Eyebrow: "Your AI Sleep Companion · live".
+  - Headline (display font): "Meet Aura."
+  - Sub: "Tap to talk. She plans tonight's sleep, calms you down after shift, runs sounds, sets your smart alarm, and checks in all day."
+  - Pulsing "Tap to talk" pill linking to `/companion` (or `/auth` if signed out, with `?next=/companion`).
+  - Three micro-chips under the avatar: "Sleep sounds", "Smart alarm", "Wind-down".
+- Add a small "AI Companion" eyebrow chip to the headline column so the H1 narrative ties to the avatar.
 
-## Implementation Plan
+### 2. New section — "Meet your Companion" (full bento panel)
 
-### 1. Persistent Corner Avatar (new)
-- New component `src/components/companion/CompanionDock.tsx`:
-  - Small animated avatar (reuse `Avatar` at `sm` size) inside a glowing glass pill.
-  - Fixed top-right, safe-area aware, z-50, always visible on authenticated routes.
-  - Subtle pulse when Companion has a new brief or proactive whisper.
-  - Tap → navigates to `/companion` (full premium avatar experience already shipped).
-- Mount inside `src/routes/__root.tsx` (or an authenticated layout wrapper) so it persists across `/dashboard`, `/sleep`, `/plan`, `/health`, etc.
-- Hide on `/companion`, `/auth`, `/onboarding`, marketing `index`, and legal routes via pathname check.
+Insert immediately after `LogoTicker`, before `DayInLifeSection`, gated behind the same `showBelowFold`:
 
-### 2. Dashboard Redesign (`src/routes/dashboard.tsx`)
-Replace the current vertical scroll with a structured bento grid. Keep all data hooks and queries — only the JSX layout changes.
+`<CompanionShowcaseSection />` — premium glass bento with:
+- Left: oversized `CompanionAvatarFace` (lg, aura) on a dark glass card with soft indigo/violet glow, mirroring the dashboard `CompanionHero` styling. Caption: "Tap the avatar anywhere in the app to open your Companion."
+- Right: 2×3 bento grid of capability cards (glass + icon + 1-line copy):
+  - Wind-down after shift
+  - Sleep sounds & mixes
+  - Smart alarm
+  - Nightly guidance & check-ins
+  - Routines & reminders
+  - Personal memory (private to you)
+- Primary CTA: "Meet your Companion" → `ctaHref`; secondary: "See how memory works" → `/memory` (anchor only if signed in, else marketing copy).
 
-Section order (mobile-first, single column, expanding to 2-col at `sm:`):
+### 3. Reuse, do not duplicate
 
-```text
-┌──────────────────────────────────────────┐
-│ Greeting + date           [avatar chip]  │  ← Hero strip
-├──────────────────────────────────────────┤
-│  AI Morning/Evening Brief (full width)   │  ← AIBriefCard, hero treatment
-├──────────────────┬───────────────────────┤
-│ Sleep Score      │ Recovery / Readiness  │  ← LastNightStrip + WearableCard
-├──────────────────┴───────────────────────┤
-│ Right Now AI Coach (full width, accent)  │  ← RightNowCard
-├──────────────────┬───────────────────────┤
-│ Smart Alarm      │ Sleep Sounds          │  ← SmartAlarmCard + new SleepSoundsCard
-├──────────────────┴───────────────────────┤
-│ Daily Schedule (full width)              │  ← shift list + MultiDayPlan
-├──────────────────┬───────────────────────┤
-│ Weather          │ Traffic               │  ← weather/* + traffic/*
-├──────────────────┼───────────────────────┤
-│ Calendar         │ Hydration             │
-├──────────────────┴───────────────────────┤
-│ Sleep Streak (full width)                │
-├──────────────────────────────────────────┤
-│ Quick Actions (chip grid)                │  ← deep links to /sleep, /plan, /pilot…
-└──────────────────────────────────────────┘
-```
+- Use the existing `CompanionAvatarFace` from `src/components/companion/Avatar.tsx` (already premium portrait + lip-sync engine). No new avatar art.
+- Use existing CSS tokens from the bento redesign (`glass-card`, `glass-card-accent`, `dock-glow`, `card-eyebrow`, `card-title`) — already in `src/styles.css`.
+- All other landing sections (`DayInLifeSection`, `SmartAlarmSection`, `DashboardSection`, `Testimonials`, `PricingPreview`, `CtaBand`) stay **unchanged**.
 
-- Greeting strip replaces existing `CompanionHero` (move that experience into the new `/companion` flow only; greeting is text + time + tiny inline avatar — the persistent dock handles avatar access).
-- Add light wrappers as needed: `SleepSoundsCard`, `HydrationCard`, `SleepStreakCard`, `QuickActionsCard` — composed from existing data/utilities (no new business logic).
-- Preserve: offline hydration, `CompanionIntroSheet` first-launch flow, all mutations (add/edit/delete shift), employer logic.
+### 4. Mobile-first polish
 
-### 3. Visual Language (tokens, not per-component hardcodes)
-Update `src/styles.css`:
-- Add tokens: `--glass-bg`, `--glass-border`, `--glow-primary`, `--glow-secondary`, `--shadow-premium`.
-- Purple/blue glow gradient: `linear-gradient(135deg, oklch(0.62 0.19 280), oklch(0.65 0.17 240))`.
-- Add `@utility glass-card` (rounded-3xl, backdrop-blur-xl, layered border + inner highlight + soft shadow).
-- Add `@utility glow-accent` for primary cards.
-- Typography: keep current font stack but tighten heading scale; add `tracking-tight` to card titles.
+- On `< sm`, CompanionHeroCard stacks above the dial tile (avatar first, full-width, 240px).
+- Showcase section becomes single column; capability bento becomes a 2-col grid on mobile, 3-col on `lg`.
+- Reduced-motion respected (avatar already does this).
 
-### 4. Reusable Card Shell
-- `src/components/home/HomeCard.tsx`: standard glass shell with optional icon, title, accent, action slot. All dashboard cards render their existing content inside this shell for visual consistency.
+### 5. SEO
 
-### 5. Files Changed / Added
+Update hero `<head>` meta to mention the Companion:
+- Title: "RestPilot AI — Your AI Sleep Companion for Shift Workers"
+- Description and og:description rewritten to lead with "Meet Aura, your always-on AI sleep companion…".
 
-Added:
-- `src/components/companion/CompanionDock.tsx`
-- `src/components/home/HomeCard.tsx`
-- `src/components/home/SleepSoundsCard.tsx`
-- `src/components/home/HydrationCard.tsx`
-- `src/components/home/SleepStreakCard.tsx`
-- `src/components/home/QuickActionsCard.tsx`
-- `src/components/home/GreetingHeader.tsx`
+## Files touched
 
-Modified:
-- `src/routes/__root.tsx` — mount `CompanionDock` with route-aware visibility.
-- `src/routes/dashboard.tsx` — replace JSX layout only; keep all queries/mutations.
-- `src/styles.css` — glass + glow tokens, utilities.
+- `src/routes/index.tsx` — replace `HeroStack`, add `CompanionShowcaseSection`, update `<head>` meta, add `CompanionHeroCard` component.
 
-Untouched:
-- All data libs (`lib/insights`, `lib/sleep-engine`, wearables, prefs, offline snapshot).
-- `/companion`, `/pilot`, `/sleep`, `/plan`, etc.
-- `BottomNav`, auth, Supabase wiring.
+## Files NOT touched
 
-### 6. Out of Scope
-- No new backend, schema, or AI logic.
-- No changes to Companion conversation, voice, lip-sync, or memory.
-- Traffic card uses existing component only if data is wired; otherwise shows a clean "coming soon" inside the same glass shell.
+- All other landing sections, pricing, footer, auth flow, dashboard, Companion route, avatar component itself.
 
-### 7. Verification
-- Manual: viewport 375×598 — grid collapses to single column, dock visible top-right, every existing feature reachable.
-- Build passes (typecheck via tsgo on changed files).
-- `/companion` tap from dock loads the premium animated avatar shipped last slice.
+## Acceptance
 
-Approve and I'll implement.
+- Above the fold on mobile: the premium avatar is visible with a clear "Tap to talk" CTA.
+- A visitor scrolling once sees a dedicated Companion section explaining sleep, calming, sounds, alarm, routines, reminders, nightly guidance.
+- Pricing, day-in-life, smart alarm, testimonials all still render as before.
