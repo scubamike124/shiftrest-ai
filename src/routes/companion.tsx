@@ -429,6 +429,7 @@ function CompanionPage() {
           } catch { /* noop */ }
         }
       }
+      void speakIfEnabled(assistant);
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
