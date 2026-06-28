@@ -137,15 +137,3 @@ export function MorningBrief({
 function isBriefCardId(s: string): s is BriefCardId {
   return ["sleep", "alarm", "weather", "longclock", "departure", "tip", "motivation"].includes(s);
 }
-
-// useServerFn is from @tanstack/react-start, not @tanstack/react-query.
-// Re-export shim avoids importing both names in a single line.
-function useServerFnSafe() {
-  // dynamic require keeps SSR happy
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { useServerFn } = require("@tanstack/react-start") as typeof import("@tanstack/react-start");
-  return useServerFn(getMorningBrief);
-}
-
-// keep `useRQ` import used (avoids tree-shake warnings during dev)
-void useRQ;
