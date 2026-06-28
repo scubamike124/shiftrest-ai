@@ -219,6 +219,63 @@ function CompanionPage() {
     });
   }
 
+  // Slice 8 — assistant message helper that also speaks (TTS) when enabled.
+  async function speakIfEnabled(text: string) {
+    if (!localPrefs.voiceRepliesEnabled) return;
+    if (inQuietHours(localPrefs.quietHours)) return;
+    if (!text.trim()) return;
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const resp = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ text, voice: prefs?.voiceId }),
+      });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      ttsAudioRef.current?.pause();
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play().catch(() => undefined);
+    } catch {
+      /* TTS is best-effort */
+    }
+  }
+
+  // Slice 8 — confirm/cancel buttons on an action card.
+  async function confirmAction(messageIndex: number) {
+    const msg = messages[messageIndex];
+    if (!msg?.action) return;
+    setActionBusy(messageIndex);
+    try {
+      const result = await executeAction(msg.action, execCtx);
+      setMessages((cur) =>
+        cur.map((m, i) => (i === messageIndex ? { ...m, actionDone: result } : m)),
+      );
+      void speakIfEnabled(result.message);
+    } finally {
+      setActionBusy(null);
+    }
+  }
+  function cancelAction(messageIndex: number) {
+    setMessages((cur) =>
+      cur.map((m, i) =>
+        i === messageIndex ? { ...m, actionDone: { ok: false, message: "Cancelled." } } : m,
+      ),
+    );
+  }
+
+  /** Push an assistant message that proposes an action (with confirmation card). */
+  function proposeAction(base: Msg[], action: CompanionAction, leading?: string) {
+    const d = describeAction(action);
+    const content = leading ?? d.title;
+    setMessages([...base, { role: "assistant", content, action, actionDone: null }]);
+    void speakIfEnabled(content);
+  }
+
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
     const text = input.trim();
@@ -227,72 +284,83 @@ function CompanionPage() {
     setMessages(baseMessages);
     setInput("");
 
-    // Slice 4 — sleep-sound bridge. Intercept before hitting /api/ai so
-    // we never bill tokens for a deterministic local action, and reuse
-    // the same mixer + executor that /sleep uses.
+    // Pending text-based yes/no fallback (kept for accessibility & voice flows).
     if (pendingSoundIntent) {
       if (isYes(text)) {
-        const reply = await executePending(pendingSoundIntent, execCtx);
+        const action = intentToAction(pendingSoundIntent);
         setPendingSoundIntent(null);
-        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        if (action) {
+          const result = await executeAction(action, execCtx);
+          setMessages([
+            ...baseMessages,
+            { role: "assistant", content: result.message, action, actionDone: result },
+          ]);
+          void speakIfEnabled(result.message);
+        }
         return;
       }
       if (isNo(text)) {
         setPendingSoundIntent(null);
-        setMessages([...baseMessages, { role: "assistant", content: "Okay, cancelled." }]);
+        const reply = "Okay, cancelled.";
+        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        void speakIfEnabled(reply);
         return;
       }
-      // Anything else clears the pending and continues as normal chat.
       setPendingSoundIntent(null);
     }
 
-    // Slice 5 — memory-aware fallback. If the user is asking for a generic
-    // bedtime intent and we know a favorite sound, offer it once per
-    // session instead of the generic wind-down preset. Confirmation only —
-    // never auto-acts.
-    try {
-      const parsed = parseIntent(text);
-      const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
-      const wantsBedtime = parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
-      if (
-        memoryOn &&
-        !memoryOfferUsed &&
-        wantsBedtime &&
-        favoriteSlug
-      ) {
-        const track = TRACKS.find((t) => t.slug === favoriteSlug);
-        if (track) {
-          const offer: Intent = { kind: "play_track", slug: track.slug, label: track.label };
-          setPendingSoundIntent(offer);
-          setMemoryOfferUsed(true);
-          setMessages([
-            ...baseMessages,
-            {
-              role: "assistant",
-              content: `You usually use ${track.label} before bed. Want me to start it?`,
-            },
-          ]);
+    // Slice 8 — action-first routing. Parse intent; if it maps to a known action
+    // and suggestions are enabled, propose it (never auto-execute when
+    // requireActionConfirmation is on).
+    if (localPrefs.actionSuggestionsEnabled) {
+      try {
+        const parsed = parseIntent(text);
+        const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
+        const wantsBedtime =
+          parsed.intent.kind === "sleep_mode" || parsed.intent.kind === "goodnight";
+
+        // Memory-aware bedtime offer (once per session).
+        if (memoryOn && !memoryOfferUsed && wantsBedtime && favoriteSlug) {
+          const track = TRACKS.find((t) => t.slug === favoriteSlug);
+          if (track) {
+            setMemoryOfferUsed(true);
+            proposeAction(
+              baseMessages,
+              { kind: "play_track", slug: track.slug, label: track.label },
+              `You usually use ${track.label} before bed. Want me to start it?`,
+            );
+            return;
+          }
+        }
+
+        const action = intentToAction(parsed.intent);
+        if (action && parsed.confidence >= 0.6) {
+          // Compound: "play rain for 30 minutes" → add timer minutes to action.
+          if (action.kind === "play_track") {
+            const m = text.match(/\bfor\s+(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i)
+              ?? text.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i);
+            if (m) {
+              const minutes = Math.max(1, Math.min(180, parseInt(m[1], 10)));
+              proposeAction(baseMessages, { ...action, minutes });
+              return;
+            }
+          }
+          // If confirmation is off AND the action is non-destructive nav, run inline; else propose.
+          if (!localPrefs.requireActionConfirmation && describeAction(action).isNavigation) {
+            const result = await executeAction(action, execCtx);
+            setMessages([
+              ...baseMessages,
+              { role: "assistant", content: result.message, action, actionDone: result },
+            ]);
+            void speakIfEnabled(result.message);
+            return;
+          }
+          proposeAction(baseMessages, action);
           return;
         }
+      } catch (err) {
+        console.warn("[companion] intent parse error", err);
       }
-    } catch {
-      /* parsing is best-effort; fall through to normal bridge */
-    }
-
-    try {
-      const bridged = await tryCompanionSoundCommand(text, execCtx);
-      if (bridged.kind === "handled") {
-        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
-        return;
-      }
-      if (bridged.kind === "confirm") {
-        setPendingSoundIntent(bridged.pendingIntent);
-        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
-        return;
-      }
-    } catch (err) {
-      // Bridge failure (e.g. mixer init) → fall through to AI chat, don't block the user.
-      console.warn("[companion] sound bridge error", err);
     }
 
     setSending(true);
