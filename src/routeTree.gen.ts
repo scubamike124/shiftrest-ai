@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
+import { Route as SleepRouteImport } from './routes/sleep'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -68,6 +69,11 @@ const TermsRoute = TermsRouteImport.update({
 const SwapRoute = SwapRouteImport.update({
   id: '/swap',
   path: '/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SleepRoute = SleepRouteImport.update({
+  id: '/sleep',
+  path: '/sleep',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareRoute = ShareRouteImport.update({
@@ -334,6 +340,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sleep': typeof SleepRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -385,6 +392,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sleep': typeof SleepRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -438,6 +446,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sleep': typeof SleepRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -492,6 +501,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sleep'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -543,6 +553,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sleep'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -595,6 +606,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sleep'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -648,6 +660,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SafetyRoute: typeof SafetyRoute
   ShareRoute: typeof ShareRoute
+  SleepRoute: typeof SleepRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
   ApiAiRoute: typeof ApiAiRoute
@@ -679,6 +692,13 @@ declare module '@tanstack/react-router' {
       path: '/swap'
       fullPath: '/swap'
       preLoaderRoute: typeof SwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sleep': {
+      id: '/sleep'
+      path: '/sleep'
+      fullPath: '/sleep'
+      preLoaderRoute: typeof SleepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share': {
@@ -1080,6 +1100,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SafetyRoute: SafetyRoute,
   ShareRoute: ShareRoute,
+  SleepRoute: SleepRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
   ApiAiRoute: ApiAiRoute,

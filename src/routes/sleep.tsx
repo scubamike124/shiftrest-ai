@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { TRACKS, PRESETS, type SoundTrack } from "@/lib/sounds/catalog";
 import { mixer } from "@/lib/sounds/mixer";
 import { listMixes, saveMix, deleteMix, toggleFavorite } from "@/lib/sounds/mixes";
@@ -32,7 +32,10 @@ const TIMERS = [15, 30, 45, 60, 90] as const;
 function useMixerSnapshot() {
   // Force re-render whenever the mixer updates.
   const [, setTick] = useState(0);
-  useEffect(() => mixer.subscribe(() => setTick((t) => t + 1)), []);
+  useEffect(() => {
+    const unsub = mixer.subscribe(() => setTick((t) => t + 1));
+    return () => { unsub(); };
+  }, []);
 }
 
 function TrackCard({ track }: { track: SoundTrack }) {
