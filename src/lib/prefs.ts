@@ -42,6 +42,13 @@ export type Prefs = {
   travelModeEnabled: boolean;
   /** Opt-in calendar travel detection (future). Default OFF. */
   calendarTravelDetect: boolean;
+  // ─── Voice personalization ──────────────────────────────────────────
+  voiceId: string;                       // openai voice id (sage, nova, etc.)
+  voiceLanguage: string;                 // BCP-47 (en-US, es-MX, ja-JP …)
+  voiceAccent: string | null;            // optional accent override
+  voicePersonality: string;              // calm | friendly | professional | …
+  voiceSpeed: number;                    // 0.7 – 1.4
+  voiceInstructions: string | null;      // optional raw style override
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -69,6 +76,12 @@ export const DEFAULT_PREFS: Prefs = {
   offlineEnabled: true,
   travelModeEnabled: true,
   calendarTravelDetect: false,
+  voiceId: "sage",
+  voiceLanguage: "en-US",
+  voiceAccent: null,
+  voicePersonality: "calm",
+  voiceSpeed: 1.0,
+  voiceInstructions: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
