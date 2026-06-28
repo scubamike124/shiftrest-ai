@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square } from "lucide-react";
@@ -7,6 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
+import {
+  tryCompanionSoundCommand,
+  executePending,
+  isYes,
+  isNo,
+} from "@/lib/voice/companion-sound-bridge";
+import type { Intent } from "@/lib/voice/intent-router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
