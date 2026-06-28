@@ -384,7 +384,7 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
       }
       case "set_volume": {
         const level = Math.max(0, Math.min(1, a.level));
-        mixer.setVolume(a.slug, level);
+        mixer.setTrackVolume(a.slug, level);
         return done(`${a.label} volume set to ${Math.round(level * 100)}%.`);
       }
       case "wind_down":
