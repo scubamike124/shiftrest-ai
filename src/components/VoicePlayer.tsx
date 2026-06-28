@@ -6,10 +6,11 @@ import {
   Square,
   Loader2,
   Volume2,
-  Sparkles,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { expandForSpeech, VOICES, type VoiceId } from "@/lib/voice-rewriter";
+import { expandForSpeech } from "@/lib/voice-rewriter";
+import { supabase } from "@/integrations/supabase/client";
 
 type Props = {
   // Returns the raw plan text. We call /api/brief to rewrite it, then /api/tts.
@@ -21,7 +22,6 @@ const SPEEDS = [0.75, 1.0, 1.25, 1.5] as const;
 type Speed = (typeof SPEEDS)[number];
 
 const SPEED_KEY = "rp.voice.speed";
-const VOICE_KEY = "rp.voice.voiceId";
 
 function fmtTime(s: number) {
   if (!isFinite(s) || s < 0) s = 0;
@@ -39,15 +39,11 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState<Speed>(1.0);
-  const [voice, setVoice] = useState<VoiceId>("sage");
-  const [showSettings, setShowSettings] = useState(false);
 
-  // Hydrate prefs
+  // Hydrate prefs (speed only — voice is now profile-driven from /profile).
   useEffect(() => {
     const s = Number(localStorage.getItem(SPEED_KEY));
     if (SPEEDS.includes(s as Speed)) setSpeed(s as Speed);
-    const v = localStorage.getItem(VOICE_KEY) as VoiceId | null;
-    if (v && VOICES.some((x) => x.id === v)) setVoice(v);
   }, []);
 
   useEffect(() => {
