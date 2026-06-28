@@ -55,6 +55,12 @@ function rowToPrefs(r: PrefsRow): Prefs {
     offlineEnabled: true,
     travelModeEnabled: true,
     calendarTravelDetect: false,
+    voiceId: "sage",
+    voiceLanguage: "en-US",
+    voiceAccent: null,
+    voicePersonality: "calm",
+    voiceSpeed: 1.0,
+    voiceInstructions: null,
   };
 }
 
