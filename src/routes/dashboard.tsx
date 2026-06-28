@@ -325,8 +325,9 @@ function Dashboard() {
 
       <OfflineBanner userId={userId} />
 
-
-
+      {/* Slice 11 — Companion home entry: calm, contextual hero + first-launch intro. */}
+      <CompanionHero />
+      <CompanionIntroSheet />
 
       {/* ★ AI HERO — Right Now */}
       <RightNowCard
