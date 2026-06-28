@@ -330,6 +330,92 @@ export type Database = {
           },
         ]
       }
+      automation_runs: {
+        Row: {
+          automation_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          status: string
+          steps_resolved: Json
+          trigger_source: string
+          user_id: string
+        }
+        Insert: {
+          automation_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          status: string
+          steps_resolved?: Json
+          trigger_source?: string
+          user_id: string
+        }
+        Update: {
+          automation_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          status?: string
+          steps_resolved?: Json
+          trigger_source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automations: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          kind: string
+          metadata: Json
+          name: string
+          require_confirmation: boolean
+          respect_quiet_hours: boolean
+          steps: Json
+          trigger: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind: string
+          metadata?: Json
+          name: string
+          require_confirmation?: boolean
+          respect_quiet_hours?: boolean
+          steps?: Json
+          trigger?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind?: string
+          metadata?: Json
+          name?: string
+          require_confirmation?: boolean
+          respect_quiet_hours?: boolean
+          steps?: Json
+          trigger?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       calendar_feeds: {
         Row: {
           active: boolean
@@ -852,6 +938,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      smart_devices: {
+        Row: {
+          capabilities: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          kind: string
+          label: string
+          metadata: Json
+          room: string | null
+          sensitive: boolean
+          updated_at: string
+          user_id: string
+          vendor: string
+        }
+        Insert: {
+          capabilities?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind: string
+          label: string
+          metadata?: Json
+          room?: string | null
+          sensitive?: boolean
+          updated_at?: string
+          user_id: string
+          vendor?: string
+        }
+        Update: {
+          capabilities?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          kind?: string
+          label?: string
+          metadata?: Json
+          room?: string | null
+          sensitive?: boolean
+          updated_at?: string
+          user_id?: string
+          vendor?: string
+        }
+        Relationships: []
       }
       sound_mixes: {
         Row: {
