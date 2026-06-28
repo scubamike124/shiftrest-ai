@@ -72,12 +72,12 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
   },
   {
     id: "travel",
-    name: "Travel Intelligence",
-    summary: "Flight status, gate changes, and traffic before appointments.",
+    name: "Traffic Intelligence",
+    summary: "Drive times, unusual delays, and 'leave earlier' warnings for Home and Work.",
     details:
-      "Read-only flight lookups and traffic estimates against your saved commute baseline. No destructive actions.",
-    builtin: false,
-    available: false,
+      "Saves Home, Work, and custom destinations. Estimates current drive time, learns your normal baseline, and surfaces unusual delays plus alternative routes. Read-only — Reelo never starts navigation for you.",
+    builtin: true,
+    available: true,
     risk: "safe",
     group: "intelligence",
   },

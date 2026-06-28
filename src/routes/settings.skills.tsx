@@ -36,6 +36,7 @@ import {
 } from "@/lib/companion/skills/connections";
 import type { SkillDescriptor } from "@/lib/companion/skills/types";
 import { WeatherLocationCard } from "@/components/weather/WeatherLocationCard";
+import { TrafficDestinationsCard } from "@/components/traffic/TrafficDestinationsCard";
 
 export const Route = createFileRoute("/settings/skills")({
   head: () => ({
@@ -210,6 +211,9 @@ function SkillsSettings() {
                   />
                   {skill.id === "weather_alerts" && skill.status !== "coming_soon" && (
                     <WeatherLocationCard flagOn={flagOn} onSaved={() => void refresh()} />
+                  )}
+                  {skill.id === "travel" && skill.status !== "coming_soon" && (
+                    <TrafficDestinationsCard flagOn={flagOn} onSaved={() => void refresh()} />
                   )}
                 </div>
               ))}

@@ -833,6 +833,45 @@ export type Database = {
         }
         Relationships: []
       }
+      traffic_destinations: {
+        Row: {
+          address: string | null
+          baseline_min: number | null
+          created_at: string
+          id: string
+          kind: string
+          label: string
+          lat: number
+          lon: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          baseline_min?: number | null
+          created_at?: string
+          id?: string
+          kind: string
+          label: string
+          lat: number
+          lon: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          baseline_min?: number | null
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          lat?: number
+          lon?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
           arrive_utc: string
