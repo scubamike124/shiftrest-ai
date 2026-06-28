@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VoiceId } from "@/lib/voice-rewriter";
+import { supabase } from "@/lib/supabase";
 
 export type TtsState = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
 type Options = {
+  /** Optional explicit voice override. When omitted, the user's saved voice profile is used. */
   voice?: VoiceId | string;
   /** If true, also pipes the text through /api/brief to humanize it before TTS. */
   rewrite?: boolean;
@@ -21,7 +23,7 @@ type Options = {
  * `playPrepared()` to start playback from a fresh tap (no re-fetch).
  */
 export function useTtsPlayer(opts: Options = {}) {
-  const { voice = "sage", rewrite = false } = opts;
+  const { voice, rewrite = false } = opts;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const [state, setState] = useState<TtsState>("idle");
