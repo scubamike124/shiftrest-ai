@@ -13,7 +13,9 @@ import {
   isYes,
   isNo,
 } from "@/lib/voice/companion-sound-bridge";
-import type { Intent } from "@/lib/voice/intent-router";
+import { parseIntent, type Intent } from "@/lib/voice/intent-router";
+import { TRACKS } from "@/lib/sounds/catalog";
+import { fetchCompanionHints, listPendingProposals } from "@/lib/memory-proposals";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
