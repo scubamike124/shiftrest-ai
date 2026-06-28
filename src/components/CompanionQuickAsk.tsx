@@ -57,9 +57,9 @@ export function CompanionQuickAsk() {
         <button
           type="button"
           aria-label="Ask Companion"
-          className="mt-1 hidden h-10 items-center gap-1.5 rounded-full border border-primary/30 bg-background/60 px-3 text-xs font-medium text-foreground hover:bg-primary/10 sm:inline-flex lg:h-12"
+          className="mt-1 hidden min-h-11 min-w-11 items-center gap-1.5 rounded-full border border-primary/30 bg-background/60 px-3 text-xs font-medium text-foreground hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:inline-flex lg:h-12"
         >
-          <MessageCircle className="h-3.5 w-3.5 text-primary" />
+          <MessageCircle className="h-3.5 w-3.5 text-primary" aria-hidden />
           Ask
         </button>
       </PopoverTrigger>
