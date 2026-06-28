@@ -1,12 +1,28 @@
 /**
- * Deterministic intent parser for /sleep voice commands.
+ * Deterministic intent parser for Companion voice commands.
  *
  * Pure / side-effect free so it can be unit-tested and reused. The router
  * NEVER guesses — every supported intent has a strict pattern and a high
  * confidence. Ambiguous phrases return `{ kind: "unknown", alternates }`
  * so the UI can ask for confirmation rather than firing the wrong action.
+ *
+ * Phase 7 extends the original /sleep grammar with cross-skill commands
+ * (Quiet Mode, agenda, weather, traffic, reminders, tasks, settings).
  */
 import { TRACKS } from "@/lib/sounds/catalog";
+
+export type OpenRouteTarget =
+  | "/events"
+  | "/sleep"
+  | "/companion"
+  | "/plan"
+  | "/memory"
+  | "/inbox"
+  | "/automations"
+  | "/smart-home"
+  | "/dashboard"
+  | "/settings/companion"
+  | "/settings/skills";
 
 export type Intent =
   | { kind: "play_track"; slug: string; label: string }
@@ -17,6 +33,14 @@ export type Intent =
   | { kind: "sleep_mode" }
   | { kind: "breathing" }
   | { kind: "goodnight" }
+  // Phase 7 — cross-skill
+  | { kind: "quiet_mode"; on: boolean }
+  | { kind: "show_agenda"; when: "today" | "tomorrow" }
+  | { kind: "check_weather"; when: "today" | "tomorrow" }
+  | { kind: "check_traffic" }
+  | { kind: "add_reminder"; text: string }
+  | { kind: "complete_task"; text: string }
+  | { kind: "open_route"; to: OpenRouteTarget; label: string }
   | { kind: "cancel" }
   | { kind: "unknown"; alternates?: string[] };
 
@@ -60,7 +84,7 @@ function normalize(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[^\p{Letter}\p{Number}\s:]/gu, " ")
+    .replace(/[^\p{Letter}\p{Number}\s:']/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -74,12 +98,10 @@ function resolveTrack(phrase: string): { slug: string; label: string } | null {
   const aliasKeys = Object.keys(TRACK_ALIASES).sort((a, b) => b.length - a.length);
 
   for (const c of candidates) {
-    // 1. Exact alias.
     if (TRACK_ALIASES[c]) {
       const t = TRACKS.find((x) => x.slug === TRACK_ALIASES[c]);
       if (t) return { slug: t.slug, label: t.label };
     }
-    // 2. Longest-substring alias match.
     for (const k of aliasKeys) {
       const re = new RegExp(`\\b${k.replace(/\s+/g, "\\s+")}\\b`);
       if (re.test(c)) {
@@ -87,7 +109,6 @@ function resolveTrack(phrase: string): { slug: string; label: string } | null {
         if (t) return { slug: t.slug, label: t.label };
       }
     }
-    // 3. Direct label match.
     for (const t of TRACKS) {
       if (c === t.label.toLowerCase()) return { slug: t.slug, label: t.label };
     }
@@ -110,12 +131,45 @@ const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.
 const RE_WAKE =
   /\bwake\s+(?:me\s+)?(?:up\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
 
-const RE_SLEEP_MODE = /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode)\s*$/i;
+const RE_SLEEP_MODE =
+  /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode|bedtime(?:\s+routine)?)\s*$/i;
 
 const RE_BREATHING =
   /^(?:start\s+)?(?:breathing(?:\s+exercise)?|breath(?:ing)?(?:\s+work)?|breathe|box\s+breathing|4\s*7\s*8|four\s+seven\s+eight)\s*$/i;
 
 const RE_GOODNIGHT = /^(?:good\s*night|goodnight|night\s+night|tuck\s+me\s+in)\s*$/i;
+
+// Phase 7 — Quiet Mode
+const RE_QUIET_ON =
+  /^(?:please\s+)?(?:turn\s+on|enable|start|activate|switch\s+on)\s+(?:quiet\s+mode|do\s+not\s+disturb|dnd)\s*$/i;
+const RE_QUIET_OFF =
+  /^(?:please\s+)?(?:turn\s+off|disable|stop|deactivate|switch\s+off|end)\s+(?:quiet\s+mode|do\s+not\s+disturb|dnd)\s*$/i;
+
+// Agenda / schedule
+const RE_AGENDA =
+  /^(?:show|what(?:'s|\s+is)|tell\s+me)\s+(?:me\s+)?(?:my\s+|the\s+)?(?:agenda|schedule|calendar|plan|events?)\s*(?:for\s+)?(today|tomorrow|tonight)?\s*$/i;
+const RE_AGENDA_SHORT =
+  /^(?:tomorrow'?s?|today'?s?)\s+(?:agenda|schedule|plan|events?)\s*$/i;
+
+// Weather
+const RE_WEATHER =
+  /^(?:check\s+|what(?:'s|\s+is)\s+|how(?:'s|\s+is)\s+|show\s+(?:me\s+)?)?(?:the\s+)?weather(?:\s+(today|tomorrow|tonight))?\s*$/i;
+
+// Traffic
+const RE_TRAFFIC =
+  /^(?:check\s+|what(?:'s|\s+is)\s+|how(?:'s|\s+is)\s+|show\s+(?:me\s+)?)?(?:the\s+)?traffic\s*$/i;
+
+// Reminders / tasks
+const RE_REMINDER =
+  /^(?:please\s+)?(?:add\s+(?:a\s+)?reminder(?:\s+to)?|remind\s+me\s+to|create\s+(?:a\s+)?reminder(?:\s+to)?)\s+(.+?)\s*$/i;
+const RE_COMPLETE =
+  /^(?:please\s+)?(?:mark|check\s+off|complete|finish)\s+(?:the\s+|my\s+)?(?:task\s+|reminder\s+)?(.+?)\s+(?:as\s+)?(?:complete|completed|done|finished)\s*$/i;
+
+// Open settings / pages
+const RE_OPEN_SETTINGS =
+  /^(?:open|go\s+to|show)\s+(?:my\s+|the\s+)?(.+?)\s+settings?\s*$/i;
+const RE_OPEN_PAGE =
+  /^(?:open|go\s+to|show)\s+(?:my\s+|the\s+)?(inbox|memory|automations?|routines?|smart\s*home|dashboard|sleep|companion|events?|plan)\s*$/i;
 
 const RE_PLAY =
   /^(?:please\s+)?(?:play|start|put\s+on|i\s+(?:want|need|would\s+like))\s+(.+?)\s*$/i;
@@ -128,14 +182,30 @@ export function parseIntent(input: string): ParsedIntent {
   if (!text) return { intent: { kind: "unknown" }, confidence: 0, raw };
 
   if (RE_CANCEL.test(text)) return { intent: { kind: "cancel" }, confidence: 1, raw };
-
   if (RE_GOODNIGHT.test(text)) return { intent: { kind: "goodnight" }, confidence: 1, raw };
 
+  if (RE_QUIET_ON.test(text)) return { intent: { kind: "quiet_mode", on: true }, confidence: 1, raw };
+  if (RE_QUIET_OFF.test(text)) return { intent: { kind: "quiet_mode", on: false }, confidence: 1, raw };
+
   if (RE_SLEEP_MODE.test(text)) return { intent: { kind: "sleep_mode" }, confidence: 1, raw };
-
   if (RE_BREATHING.test(text)) return { intent: { kind: "breathing" }, confidence: 1, raw };
-
   if (RE_STOP.test(text)) return { intent: { kind: "stop_all" }, confidence: 1, raw };
+
+  const mAgenda = text.match(RE_AGENDA) ?? text.match(RE_AGENDA_SHORT);
+  if (mAgenda) {
+    const w = (mAgenda[1] ?? (RE_AGENDA_SHORT.test(text) && /tomorrow/.test(text) ? "tomorrow" : "today")).toLowerCase();
+    const when = w.startsWith("tomorrow") ? "tomorrow" : "today";
+    return { intent: { kind: "show_agenda", when }, confidence: 0.95, raw };
+  }
+
+  const mWeather = text.match(RE_WEATHER);
+  if (mWeather) {
+    const w = (mWeather[1] ?? "today").toLowerCase();
+    const when = w.startsWith("tomorrow") ? "tomorrow" : "today";
+    return { intent: { kind: "check_weather", when }, confidence: 0.9, raw };
+  }
+
+  if (RE_TRAFFIC.test(text)) return { intent: { kind: "check_traffic" }, confidence: 0.95, raw };
 
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
@@ -161,13 +231,43 @@ export function parseIntent(input: string): ParsedIntent {
     return { intent: { kind: "wake_at", hour, minute }, confidence: 0.9, raw };
   }
 
+  // Complete must match BEFORE reminder (it contains "remind" sometimes).
+  const mDone = text.match(RE_COMPLETE);
+  if (mDone) {
+    const t = mDone[1]?.trim();
+    if (t) return { intent: { kind: "complete_task", text: t }, confidence: 0.85, raw };
+  }
+
+  const mRem = text.match(RE_REMINDER);
+  if (mRem) {
+    const t = mRem[1]?.trim();
+    if (t) return { intent: { kind: "add_reminder", text: t }, confidence: 0.9, raw };
+  }
+
+  const mPage = text.match(RE_OPEN_PAGE);
+  if (mPage) {
+    const slug = mPage[1].replace(/\s+/g, "").toLowerCase();
+    const route = mapPageToRoute(slug);
+    if (route) return { intent: { kind: "open_route", to: route.to, label: route.label }, confidence: 0.95, raw };
+  }
+
+  const mSet = text.match(RE_OPEN_SETTINGS);
+  if (mSet) {
+    const slug = mSet[1].trim().toLowerCase();
+    if (/companion|voice|brief|morning|evening/.test(slug)) {
+      return { intent: { kind: "open_route", to: "/settings/companion", label: "Companion settings" }, confidence: 0.9, raw };
+    }
+    if (/skill|integration|connection/.test(slug)) {
+      return { intent: { kind: "open_route", to: "/settings/skills", label: "Skills" }, confidence: 0.9, raw };
+    }
+  }
+
   // Play <track>
   const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
     const t = resolveTrack(phrase);
     if (t) return { intent: { kind: "play_track", slug: t.slug, label: t.label }, confidence: 0.95, raw };
-    // Unrecognized track — propose alternates instead of guessing.
     return {
       intent: { kind: "unknown", alternates: suggestTracks(phrase) },
       confidence: 0.3,
@@ -187,6 +287,35 @@ export function parseIntent(input: string): ParsedIntent {
 function clamp(n: number, lo: number, hi: number): number {
   if (Number.isNaN(n)) return lo;
   return Math.max(lo, Math.min(hi, n));
+}
+
+function mapPageToRoute(slug: string): { to: OpenRouteTarget; label: string } | null {
+  switch (slug) {
+    case "inbox":
+      return { to: "/inbox", label: "Inbox" };
+    case "memory":
+      return { to: "/memory", label: "My Memory" };
+    case "automation":
+    case "automations":
+    case "routine":
+    case "routines":
+      return { to: "/automations", label: "Routines" };
+    case "smarthome":
+      return { to: "/smart-home", label: "Smart Home" };
+    case "dashboard":
+      return { to: "/dashboard", label: "Dashboard" };
+    case "sleep":
+      return { to: "/sleep", label: "Sleep" };
+    case "companion":
+      return { to: "/companion", label: "Companion" };
+    case "event":
+    case "events":
+      return { to: "/events", label: "Events" };
+    case "plan":
+      return { to: "/plan", label: "Plan" };
+    default:
+      return null;
+  }
 }
 
 function suggestTracks(phrase: string): string[] {
