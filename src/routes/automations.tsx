@@ -278,8 +278,30 @@ function AutomationsPage() {
         </Card>
       )}
 
+      <NLRoutineBuilder
+        busy={addBlank.isPending}
+        onSave={async (draft) => {
+          try {
+            await upsert({
+              data: {
+                name: draft.name,
+                kind: draft.kind,
+                trigger: draft.trigger,
+                steps: draft.steps,
+                requireConfirmation: true,
+                respectQuietHours: true,
+              },
+            });
+            qc.invalidateQueries({ queryKey: ["automations"] });
+            toast.success(`Saved "${draft.name}"`);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Could not save routine");
+          }
+        }}
+      />
+
       <Card className="flex flex-col gap-2 p-4" aria-label="Add routine">
-        <p className="text-sm font-semibold">New routine</p>
+        <p className="text-sm font-semibold">Or start from scratch</p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             value={newName}
