@@ -2,6 +2,32 @@
  * Shared AI prompt strings used by /api/ai, /api/brief, and Pilot.
  * Server-only.
  */
+import { LANGUAGE_OPTIONS } from "@/lib/voice/profile";
+
+/**
+ * Build a top-of-prompt directive that forces the LLM to think and reply in
+ * the user's chosen language end-to-end. Used by Pilot (voice + text), the
+ * Coach chat, every JSON intent, and the Voice Briefing rewrite.
+ *
+ * Returns "" for English so we don't waste tokens on the default.
+ */
+export function languageDirective(code: string | null | undefined, accent?: string | null): string {
+  const lang = (code || "en-US").trim();
+  if (lang.toLowerCase().startsWith("en")) return "";
+  const label = LANGUAGE_OPTIONS.find((l) => l.code === lang)?.label ?? lang;
+  const accentLine = accent ? ` Use a ${accent} accent and regional vocabulary where natural.` : "";
+  return `LANGUAGE (HIGHEST PRIORITY — overrides every other instruction below):
+- The user has set their language to ${label} (${lang}).
+- Think, plan, and write your ENTIRE response in ${label}.
+- Do NOT answer in English first and translate. Do NOT include any English version.
+- Every field of every JSON response must be in ${label} — including headlines, action titles, details, rationales, impact strings, and any free-text.
+- Spoken output (TTS) will be in ${label}; never mix languages mid-sentence.
+- Localize units, dates, times, and idioms naturally for ${label} speakers.${accentLine}
+
+`;
+}
+
+
 
 export const BRIEF_SYSTEM = `You are RestPilot AI's recovery coach narrating a personalized voice briefing for a shift worker.
 
