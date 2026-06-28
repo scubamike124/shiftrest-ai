@@ -22,6 +22,8 @@ export type Prefs = {
   assistantMode: AssistantMode;
   /** Opt-in for long-term memory. Default OFF — privacy-first. */
   memoryEnabled: boolean;
+  /** When true, the AI will not propose new memories from observed patterns. Default OFF. */
+  memoryLearningPaused: boolean;
   /** Predictive insights: patterns, tomorrow preview, daily review. Default ON. */
   predictiveEnabled: boolean;
   /** Tomorrow preview card on the dashboard. Default ON. */
