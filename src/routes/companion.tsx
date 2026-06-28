@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square } from "lucide-react";
+import { Mic, Send, Settings2, Sparkles, Shield, Loader2, Square, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
@@ -9,7 +9,6 @@ import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import {
   tryCompanionSoundCommand,
-  executePending,
   isYes,
   isNo,
 } from "@/lib/voice/companion-sound-bridge";
@@ -24,6 +23,16 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { DailyBrief } from "@/components/companion/DailyBrief";
+import { ActionCard } from "@/components/companion/ActionCard";
+import {
+  describeAction,
+  executeAction,
+  intentToAction,
+  type CompanionAction,
+} from "@/lib/companion/actions";
+import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
+import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
+import { inQuietHours } from "@/lib/companion/quiet-hours";
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
