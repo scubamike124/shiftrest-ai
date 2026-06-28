@@ -149,23 +149,25 @@ function AuthPage() {
       </p>
 
       <div className="mt-8 flex flex-col gap-3">
-        {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
-        <button
-          onClick={() => handleOAuth("google")}
-          disabled={loading}
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-60"
-        >
-          <GoogleGlyph /> Continue with Google
-        </button>
         {isInIframe && (
-          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
             <span>
-              Google sign-in completes on the published site. In the Lovable editor preview, use email/password to sign in.
+              <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google sign-in does not work inside the Lovable editor preview. Please use <strong>email &amp; password</strong> below to test. Google works normally on the published site.
             </span>
           </div>
         )}
+        {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
+        <button
+          onClick={() => handleOAuth("google")}
+          disabled={loading || isInIframe}
+          title={isInIframe ? "Google sign-in is disabled in the editor preview. Use email/password." : undefined}
+          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
+        </button>
       </div>
+
 
       <div className="my-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
