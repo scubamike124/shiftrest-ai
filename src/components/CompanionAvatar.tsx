@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
+import { track } from "@/lib/companion/analytics";
 
 function isPeriodFresh(): boolean {
   if (typeof window === "undefined") return false;
