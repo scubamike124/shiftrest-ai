@@ -152,10 +152,48 @@ function CompanionPage() {
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+
+    // Slice 4 — sleep-sound bridge. Intercept before hitting /api/ai so
+    // we never bill tokens for a deterministic local action, and reuse
+    // the same mixer + executor that /sleep uses.
+    if (pendingSoundIntent) {
+      if (isYes(text)) {
+        const reply = await executePending(pendingSoundIntent, execCtx);
+        setPendingSoundIntent(null);
+        setMessages([...baseMessages, { role: "assistant", content: reply }]);
+        return;
+      }
+      if (isNo(text)) {
+        setPendingSoundIntent(null);
+        setMessages([...baseMessages, { role: "assistant", content: "Okay, cancelled." }]);
+        return;
+      }
+      // Anything else clears the pending and continues as normal chat.
+      setPendingSoundIntent(null);
+    }
+
+    try {
+      const bridged = await tryCompanionSoundCommand(text, execCtx);
+      if (bridged.kind === "handled") {
+        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
+        return;
+      }
+      if (bridged.kind === "confirm") {
+        setPendingSoundIntent(bridged.pendingIntent);
+        setMessages([...baseMessages, { role: "assistant", content: bridged.assistant }]);
+        return;
+      }
+    } catch (err) {
+      // Bridge failure (e.g. mixer init) → fall through to AI chat, don't block the user.
+      console.warn("[companion] sound bridge error", err);
+    }
+
     setSending(true);
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
+
+
 
     try {
       const { data: sess } = await supabase.auth.getSession();
