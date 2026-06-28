@@ -169,6 +169,7 @@ function InboxPage() {
           </Label>
           <Input
             id="inbox-title"
+            ref={titleInputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Reply to landlord about lease renewal by Friday"
