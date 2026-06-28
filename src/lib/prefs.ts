@@ -183,6 +183,12 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.tomorrowPreviewEnabled !== undefined) out.tomorrow_preview_enabled = p.tomorrowPreviewEnabled;
   if (p.dailyReviewEnabled !== undefined) out.daily_review_enabled = p.dailyReviewEnabled;
   if (p.feedbackLearningEnabled !== undefined) out.feedback_learning_enabled = p.feedbackLearningEnabled;
+  if (p.voiceId !== undefined) out.voice_id = p.voiceId;
+  if (p.voiceLanguage !== undefined) out.voice_language = p.voiceLanguage;
+  if (p.voiceAccent !== undefined) out.voice_accent = p.voiceAccent;
+  if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
+  if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
+  if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
   return out;
 }
 
