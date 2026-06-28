@@ -117,6 +117,7 @@ function SleepPage() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [mixName, setMixName] = useState("");
   const [timer, setTimer] = useState<number | null>(null);
+  const [breathingOpen, setBreathingOpen] = useState(false);
   const masterRef = useRef(mixer.masterVolume);
 
   useEffect(() => {
