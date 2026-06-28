@@ -69,7 +69,6 @@ const EVENING_LABELS: Record<EveningCardId, string> = {
   windDown: "Wind-down reminder",
 };
 
-type AnyId = BriefCardId | AfternoonCardId | EveningCardId;
 function move<T extends string>(arr: T[], id: T, dir: -1 | 1): T[] {
   const i = arr.indexOf(id);
   if (i < 0) return arr;
