@@ -190,6 +190,8 @@ function SleepPage() {
         </p>
       </header>
 
+      <VoiceCommandButton signedIn={Boolean(signedIn)} onBreathing={() => setBreathingOpen(true)} />
+
       {/* Presets */}
       <section className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
