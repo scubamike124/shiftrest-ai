@@ -122,7 +122,19 @@ function InboxPage() {
     [itemsQ.data],
   );
 
+  // Voice deep-link: ?complete=... shows matching candidates and requires user confirmation.
+  const completeQuery = search.complete?.trim() ?? "";
+  const completeCandidates = useMemo(() => {
+    if (!completeQuery) return [];
+    const needle = completeQuery.toLowerCase();
+    return open.filter((i) => i.title.toLowerCase().includes(needle)).slice(0, 5);
+  }, [open, completeQuery]);
+
+  const dismissComplete = () =>
+    void navigate({ search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, complete: undefined }), replace: true });
+
   const canSubmit = title.trim().length > 0 && !createMut.isPending;
+
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 pb-24 pt-6">
