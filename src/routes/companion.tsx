@@ -446,9 +446,9 @@ function CompanionPage() {
         </Link>
       )}
 
-      {/* Slice 6 — Smart Morning Intelligence: visible mornings or when ?brief=1 */}
-      {signedIn === true && shouldShowBrief() && (
-        <MorningBrief prefs={prefs ?? null} signedIn={true} />
+      {/* Slice 7 — Smart Day & Evening Intelligence: time-of-day brief */}
+      {signedIn === true && (
+        <DailyBrief prefs={prefs ?? null} signedIn={true} forcedPeriod={forcedMorning() ? "morning" : undefined} />
       )}
 
 
