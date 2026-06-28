@@ -78,6 +78,7 @@ export async function chatStream(opts: {
   model?: string;
   messages: ChatMsg[];
   temperature?: number;
+  maxTokens?: number;
 }): Promise<Response> {
   const res = await fetch(GATEWAY_URL, {
     method: "POST",
@@ -89,9 +90,11 @@ export async function chatStream(opts: {
       model: opts.model ?? DEFAULT_CHAT_MODEL,
       messages: opts.messages,
       temperature: opts.temperature,
+      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
       stream: true,
     }),
   });
   if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
   return res;
 }
+
