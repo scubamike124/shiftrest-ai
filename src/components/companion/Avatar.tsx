@@ -338,7 +338,7 @@ export function CompanionAvatarFace({
       )}
 
       {/* expression is reserved for future micro-adjustments (e.g. brow tilt overlays) */}
-      {expression === "__noop__" ? null : null}
+      {void expression}
     </div>
   );
 }
