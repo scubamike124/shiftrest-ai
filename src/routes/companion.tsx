@@ -522,6 +522,50 @@ function CompanionPage() {
                 />
               </div>
 
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                <p className="text-sm font-medium">Voice &amp; actions</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Mic is only used when you tap it. No background listening.
+                </p>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-voice-in" className="text-sm">Voice input</Label>
+                    <Switch
+                      id="va-voice-in"
+                      checked={localPrefs.voiceInputEnabled}
+                      onCheckedChange={(v) => updateLocal({ voiceInputEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-voice-out" className="text-sm">Voice replies</Label>
+                    <Switch
+                      id="va-voice-out"
+                      checked={localPrefs.voiceRepliesEnabled}
+                      onCheckedChange={(v) => updateLocal({ voiceRepliesEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-actions" className="text-sm">Action suggestions</Label>
+                    <Switch
+                      id="va-actions"
+                      checked={localPrefs.actionSuggestionsEnabled}
+                      onCheckedChange={(v) => updateLocal({ actionSuggestionsEnabled: v })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="va-confirm" className="text-sm">Always confirm before acting</Label>
+                    <Switch
+                      id="va-confirm"
+                      checked={localPrefs.requireActionConfirmation}
+                      onCheckedChange={(v) => updateLocal({ requireActionConfirmation: v })}
+                    />
+                  </div>
+                  <Link to="/settings/companion" className="block text-xs text-primary underline">
+                    More voice &amp; quiet-hours settings →
+                  </Link>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">Privacy</p>
                 <p className="mt-1">
