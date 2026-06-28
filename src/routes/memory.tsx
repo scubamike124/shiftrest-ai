@@ -154,9 +154,50 @@ function MemoryPage() {
     staleTime: 15_000,
   });
 
+  const suggestionsQ = useQuery<RoutineSuggestion[]>({
+    queryKey: ["routine-suggestions", "pending"],
+    queryFn: listPendingRoutineSuggestions,
+    enabled: Boolean(enabled),
+    staleTime: 15_000,
+  });
+
+  const scanFn = useServerFn(scanForRoutines);
+  const scanMut = useMutation({
+    mutationFn: () => scanFn({ data: undefined }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      const n = (res as { suggestions_created?: number } | undefined)?.suggestions_created ?? 0;
+      toast.success(n > 0 ? `Found ${n} new routine${n === 1 ? "" : "s"}` : "No new routines yet");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Scan failed"),
+  });
+
+  const acceptSugMut = useMutation({
+    mutationFn: (id: string) => acceptRoutineSuggestion(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("Saved as a routine");
+    },
+  });
+  const dismissSugMut = useMutation({
+    mutationFn: (id: string) => dismissRoutineSuggestion(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("Dismissed");
+    },
+  });
+  const snoozeSugMut = useMutation({
+    mutationFn: (id: string) => snoozeRoutineSuggestion(id, 7),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("I'll ask again in a week");
+    },
+  });
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["ai-memory"] });
     qc.invalidateQueries({ queryKey: ["memory-proposals"] });
+    qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
     qc.invalidateQueries({ queryKey: ["companion-hints"] });
   };
 
