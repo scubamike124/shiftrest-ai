@@ -68,6 +68,7 @@ function Landing() {
       <LogoTicker />
       {showBelowFold && (
         <>
+          <CompanionShowcaseSection ctaHref={ctaHref} />
           <DayInLifeSection />
           <SmartAlarmSection />
           <DashboardSection />
