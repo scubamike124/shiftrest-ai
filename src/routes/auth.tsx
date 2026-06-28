@@ -53,6 +53,11 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  useEffect(() => {
+    setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
