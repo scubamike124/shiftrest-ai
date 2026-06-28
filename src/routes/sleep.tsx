@@ -352,6 +352,8 @@ function SleepPage() {
           </div>
         </section>
       )}
+
+      <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
     </div>
   );
 }
