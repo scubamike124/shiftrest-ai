@@ -159,11 +159,11 @@ async function detectSoundHabits(
   }> | null) ?? [];
 
   // Favorite track
-  const trackMode = modeOf(
-    [...trackCounts.entries()].flatMap(([id, n]) => Array(n).fill(id)),
+  const trackMode = modeOf<string>(
+    [...trackCounts.entries()].flatMap(([id, n]) => Array<string>(n).fill(id)),
   );
   if (trackMode && trackMode.count >= 4) {
-    const label = trackMode.value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const label = trackMode.value.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
     out.push({
       category: "favorite_sounds",
       content: `Usually listens to ${label}`,
