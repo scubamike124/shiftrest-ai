@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Moon, Mail, Lock } from "lucide-react";
+import { Moon, Mail, Lock, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
@@ -53,6 +53,11 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  useEffect(() => {
+    setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -152,6 +157,14 @@ function AuthPage() {
         >
           <GoogleGlyph /> Continue with Google
         </button>
+        {isInIframe && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <span>
+              Google sign-in completes on the published site. In the Lovable editor preview, use email/password to sign in.
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="my-6 flex items-center gap-3">
