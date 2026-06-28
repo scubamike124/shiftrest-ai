@@ -699,17 +699,19 @@ function CompanionPage() {
 
       {/* Composer */}
       <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
-        <Button
-          type="button"
-          variant={micState === "listening" ? "default" : "outline"}
-          size="icon"
-          className="h-11 w-11 shrink-0"
-          aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
-          disabled={!companionOn || transcribing || sending}
-          onClick={handleMicTap}
-        >
-          {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-        </Button>
+        {localPrefs.voiceInputEnabled && (
+          <Button
+            type="button"
+            variant={micState === "listening" ? "default" : "outline"}
+            size="icon"
+            className="h-11 w-11 shrink-0"
+            aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
+            disabled={!companionOn || transcribing || sending}
+            onClick={handleMicTap}
+          >
+            {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+          </Button>
+        )}
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -732,6 +734,8 @@ function CompanionPage() {
       {micState === "listening" && (
         <p className="mt-1 text-center text-[11px] text-muted-foreground">Listening… tap mic to stop</p>
       )}
+
+      <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
     </main>
   );
 }
