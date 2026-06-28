@@ -35,6 +35,8 @@ export type DeviceVendor =
   | "matter"
   | "other";
 
+import type { JsonObject } from "../json";
+
 export interface SmartDevice {
   id: string;
   label: string;
@@ -44,7 +46,7 @@ export interface SmartDevice {
   capabilities: DeviceCapabilities;
   sensitive: boolean;
   enabled: boolean;
-  metadata: Record<string, unknown>;
+  metadata: JsonObject;
   createdAt: string;
   updatedAt: string;
 }

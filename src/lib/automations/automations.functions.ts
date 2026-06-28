@@ -64,7 +64,7 @@ const upsertSchema = z.object({
   enabled: z.boolean().optional(),
   requireConfirmation: z.boolean().optional(),
   respectQuietHours: z.boolean().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 type AutomationRow = {
@@ -81,6 +81,8 @@ type AutomationRow = {
   updated_at: string;
 };
 
+import type { JsonObject } from "../json";
+
 function toAutomation(r: AutomationRow): Automation {
   return {
     id: r.id,
@@ -91,7 +93,7 @@ function toAutomation(r: AutomationRow): Automation {
     enabled: r.enabled,
     requireConfirmation: r.require_confirmation,
     respectQuietHours: r.respect_quiet_hours,
-    metadata: (r.metadata ?? {}) as Record<string, unknown>,
+    metadata: (r.metadata ?? {}) as JsonObject,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };

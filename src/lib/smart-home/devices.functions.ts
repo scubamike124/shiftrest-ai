@@ -51,7 +51,7 @@ const upsertSchema = z.object({
   capabilities: z.record(z.string(), z.boolean()).optional(),
   sensitive: z.boolean().optional(),
   enabled: z.boolean().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 type DeviceRow = {
@@ -68,6 +68,8 @@ type DeviceRow = {
   updated_at: string;
 };
 
+import type { JsonObject } from "../json";
+
 function toDevice(row: DeviceRow): SmartDevice {
   return {
     id: row.id,
@@ -78,7 +80,7 @@ function toDevice(row: DeviceRow): SmartDevice {
     capabilities: (row.capabilities ?? {}) as DeviceCapabilities,
     sensitive: row.sensitive,
     enabled: row.enabled,
-    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    metadata: (row.metadata ?? {}) as JsonObject,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

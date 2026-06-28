@@ -33,6 +33,8 @@ export type AutomationStep =
   | { type: "wait"; seconds: number }
   | { type: "say"; text: string };
 
+import type { JsonObject } from "../json";
+
 export interface Automation {
   id: string;
   name: string;
@@ -42,7 +44,7 @@ export interface Automation {
   enabled: boolean;
   requireConfirmation: boolean;
   respectQuietHours: boolean;
-  metadata: Record<string, unknown>;
+  metadata: JsonObject;
   createdAt: string;
   updatedAt: string;
 }
