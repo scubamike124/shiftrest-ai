@@ -843,6 +843,13 @@ export type Database = {
           tz_auto: boolean
           updated_at: string
           user_id: string
+          voice_accent: string | null
+          voice_id: string
+          voice_instructions: string | null
+          voice_language: string
+          voice_personality: string
+          voice_provider: string
+          voice_speed: number
           wind_down_min: number
         }
         Insert: {
@@ -875,6 +882,13 @@ export type Database = {
           tz_auto?: boolean
           updated_at?: string
           user_id: string
+          voice_accent?: string | null
+          voice_id?: string
+          voice_instructions?: string | null
+          voice_language?: string
+          voice_personality?: string
+          voice_provider?: string
+          voice_speed?: number
           wind_down_min?: number
         }
         Update: {
@@ -907,6 +921,13 @@ export type Database = {
           tz_auto?: boolean
           updated_at?: string
           user_id?: string
+          voice_accent?: string | null
+          voice_id?: string
+          voice_instructions?: string | null
+          voice_language?: string
+          voice_personality?: string
+          voice_provider?: string
+          voice_speed?: number
           wind_down_min?: number
         }
         Relationships: []

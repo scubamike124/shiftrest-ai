@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VoiceId } from "@/lib/voice-rewriter";
+import { supabase } from "@/integrations/supabase/client";
 
 export type TtsState = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
 type Options = {
+  /** Optional explicit voice override. When omitted, the user's saved voice profile is used. */
   voice?: VoiceId | string;
   /** If true, also pipes the text through /api/brief to humanize it before TTS. */
   rewrite?: boolean;
@@ -21,7 +23,7 @@ type Options = {
  * `playPrepared()` to start playback from a fresh tap (no re-fetch).
  */
 export function useTtsPlayer(opts: Options = {}) {
-  const { voice = "sage", rewrite = false } = opts;
+  const { voice, rewrite = false } = opts;
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const [state, setState] = useState<TtsState>("idle");
@@ -132,10 +134,17 @@ export function useTtsPlayer(opts: Options = {}) {
           speakText = briefData.script;
         }
 
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        const ttsBody: Record<string, unknown> = { text: speakText.slice(0, 4000) };
+        if (voice) ttsBody.voice = voice;
         const ttsRes = await fetch("/api/tts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: speakText.slice(0, 4000), voice }),
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(ttsBody),
         });
         const ttsType = ttsRes.headers.get("content-type") || "";
         if (!ttsRes.ok || ttsType.includes("application/json")) {

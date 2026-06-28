@@ -8,7 +8,7 @@ import { DISCLAIMER, fetchShifts } from "@/lib/shifts";
 import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { useTtsPlayer } from "@/lib/voice/useTtsPlayer";
-import { expandForSpeech, type VoiceId, VOICES } from "@/lib/voice-rewriter";
+import { expandForSpeech } from "@/lib/voice-rewriter";
 import { computeInsights } from "@/lib/insights";
 import { fetchCoachHistory, saveCoachMessage } from "@/lib/coach-history";
 import { useServerFn } from "@tanstack/react-start";
@@ -119,22 +119,18 @@ function Coach() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Voice settings — match the Voice Briefing voice pref, plus a Coach-level
-  // toggle so the user can mute auto-spoken replies without losing per-bubble
-  // replay buttons.
-  const [voice, setVoice] = useState<VoiceId>("sage");
+  // Voice settings — voice/personality/speed/name are configured on /profile.
+  // The Coach exposes only an on/off toggle for auto-spoken replies.
   const [voiceOn, setVoiceOn] = useState(true);
   useEffect(() => {
     try {
-      const v = localStorage.getItem("rp.voice.voiceId") as VoiceId | null;
-      if (v && VOICES.some((x) => x.id === v)) setVoice(v);
       const on = localStorage.getItem("rp.coach.voice");
       if (on !== null) setVoiceOn(on === "1");
     } catch {
       /* no-op */
     }
   }, []);
-  const tts = useTtsPlayer({ voice });
+  const tts = useTtsPlayer();
   const lastSpokenRef = useRef<string>("");
 
   function toggleVoice() {

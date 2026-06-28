@@ -76,7 +76,7 @@ function PilotPage() {
   const [orbState, setOrbState] = useState<OrbState>("idle");
   const [busy, setBusy] = useState(false);
   const mic = useMicRecorder();
-  const tts = useTtsPlayer({ voice: "sage" });
+  const tts = useTtsPlayer();
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   // Reflect TTS state into the orb (when not actively listening/thinking).

@@ -6,10 +6,11 @@ import {
   Square,
   Loader2,
   Volume2,
-  Sparkles,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { expandForSpeech, VOICES, type VoiceId } from "@/lib/voice-rewriter";
+import { expandForSpeech } from "@/lib/voice-rewriter";
+import { supabase } from "@/integrations/supabase/client";
 
 type Props = {
   // Returns the raw plan text. We call /api/brief to rewrite it, then /api/tts.
@@ -21,7 +22,6 @@ const SPEEDS = [0.75, 1.0, 1.25, 1.5] as const;
 type Speed = (typeof SPEEDS)[number];
 
 const SPEED_KEY = "rp.voice.speed";
-const VOICE_KEY = "rp.voice.voiceId";
 
 function fmtTime(s: number) {
   if (!isFinite(s) || s < 0) s = 0;
@@ -39,15 +39,11 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState<Speed>(1.0);
-  const [voice, setVoice] = useState<VoiceId>("sage");
-  const [showSettings, setShowSettings] = useState(false);
 
-  // Hydrate prefs
+  // Hydrate prefs (speed only — voice is now profile-driven from /profile).
   useEffect(() => {
     const s = Number(localStorage.getItem(SPEED_KEY));
     if (SPEEDS.includes(s as Speed)) setSpeed(s as Speed);
-    const v = localStorage.getItem(VOICE_KEY) as VoiceId | null;
-    if (v && VOICES.some((x) => x.id === v)) setVoice(v);
   }, []);
 
   useEffect(() => {
@@ -128,11 +124,16 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       }
       const spoken = expandForSpeech(script);
 
-      // 2. Synthesize speech
+      // 2. Synthesize speech (server resolves voice profile from /profile).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
       const ttsRes = await fetch("/api/tts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: spoken, voice }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: spoken }),
       });
       const ttsType = ttsRes.headers.get("content-type") || "";
       if (!ttsRes.ok || ttsType.includes("application/json")) {
@@ -239,13 +240,6 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     setSpeed(next);
   }
 
-  function pickVoice(v: VoiceId) {
-    setVoice(v);
-    localStorage.setItem(VOICE_KEY, v);
-    setShowSettings(false);
-    toast.success(`Voice set to ${VOICES.find((x) => x.id === v)?.label}`);
-  }
-
   return (
     <div className={`rounded-2xl border border-border bg-card ${className ?? ""}`}>
       {!ready && !loading && (
@@ -294,13 +288,6 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
             >
               {speed}×
             </button>
-            <button
-              onClick={() => setShowSettings((s) => !s)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground active:scale-95"
-              aria-label="Voice options"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
           </div>
 
           <div>
@@ -320,33 +307,15 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
             </div>
           </div>
 
-          {showSettings && (
-            <div className="flex flex-col gap-1 rounded-xl border border-border bg-secondary/40 p-2">
-              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Voice
-              </p>
-              {VOICES.map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => pickVoice(v.id)}
-                  className={`flex items-center justify-between rounded-lg px-2 py-2 text-left text-xs ${
-                    voice === v.id ? "bg-primary/15 text-primary" : "text-foreground"
-                  }`}
-                >
-                  <span className="font-semibold">{v.label}</span>
-                  <span className="text-[11px] text-muted-foreground">{v.tone}</span>
-                </button>
-              ))}
-              <button
-                onClick={generateAndPlay}
-                className="mt-1 rounded-lg bg-primary px-2 py-2 text-xs font-semibold text-primary-foreground"
-              >
-                Regenerate with selected voice
-              </button>
-            </div>
-          )}
+          <Link
+            to="/profile"
+            className="self-end text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Change Pilot voice
+          </Link>
         </div>
       )}
     </div>
   );
 }
+

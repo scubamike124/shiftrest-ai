@@ -42,6 +42,13 @@ export type Prefs = {
   travelModeEnabled: boolean;
   /** Opt-in calendar travel detection (future). Default OFF. */
   calendarTravelDetect: boolean;
+  // ─── Voice personalization ──────────────────────────────────────────
+  voiceId: string;                       // openai voice id (sage, nova, etc.)
+  voiceLanguage: string;                 // BCP-47 (en-US, es-MX, ja-JP …)
+  voiceAccent: string | null;            // optional accent override
+  voicePersonality: string;              // calm | friendly | professional | …
+  voiceSpeed: number;                    // 0.7 – 1.4
+  voiceInstructions: string | null;      // optional raw style override
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -69,6 +76,12 @@ export const DEFAULT_PREFS: Prefs = {
   offlineEnabled: true,
   travelModeEnabled: true,
   calendarTravelDetect: false,
+  voiceId: "sage",
+  voiceLanguage: "en-US",
+  voiceAccent: null,
+  voicePersonality: "calm",
+  voiceSpeed: 1.0,
+  voiceInstructions: null,
 };
 
 // Legacy localStorage keys (read once for migration, then removed).
@@ -104,6 +117,12 @@ type Row = {
   offline_enabled?: boolean | null;
   travel_mode_enabled?: boolean | null;
   calendar_travel_detect?: boolean | null;
+  voice_id?: string | null;
+  voice_language?: string | null;
+  voice_accent?: string | null;
+  voice_personality?: string | null;
+  voice_speed?: number | string | null;
+  voice_instructions?: string | null;
 };
 
 function rowToPrefs(r: Row): Prefs {
@@ -134,6 +153,12 @@ function rowToPrefs(r: Row): Prefs {
     offlineEnabled: r.offline_enabled ?? true,
     travelModeEnabled: r.travel_mode_enabled ?? true,
     calendarTravelDetect: r.calendar_travel_detect ?? false,
+    voiceId: r.voice_id || "sage",
+    voiceLanguage: r.voice_language || "en-US",
+    voiceAccent: r.voice_accent ?? null,
+    voicePersonality: r.voice_personality || "calm",
+    voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
+    voiceInstructions: r.voice_instructions ?? null,
   };
 }
 
@@ -158,6 +183,12 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.tomorrowPreviewEnabled !== undefined) out.tomorrow_preview_enabled = p.tomorrowPreviewEnabled;
   if (p.dailyReviewEnabled !== undefined) out.daily_review_enabled = p.dailyReviewEnabled;
   if (p.feedbackLearningEnabled !== undefined) out.feedback_learning_enabled = p.feedbackLearningEnabled;
+  if (p.voiceId !== undefined) out.voice_id = p.voiceId;
+  if (p.voiceLanguage !== undefined) out.voice_language = p.voiceLanguage;
+  if (p.voiceAccent !== undefined) out.voice_accent = p.voiceAccent;
+  if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
+  if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
+  if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
   return out;
 }
 
@@ -179,7 +210,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions",
     )
     .eq("user_id", uid)
     .maybeSingle();
