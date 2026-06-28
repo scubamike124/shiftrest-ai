@@ -39,6 +39,7 @@ import {
 import { WeatherAlertsCard } from "@/components/weather/WeatherAlertsCard";
 import { TrafficCard } from "@/components/traffic/TrafficCard";
 import { AgendaCard } from "@/components/calendar/AgendaCard";
+import { PersonalPlanCard } from "@/components/personal/PersonalPlanCard";
 
 function CardSkeleton() {
   return (
@@ -232,6 +233,7 @@ export function DailyBrief({
         <WeatherAlertsCard period="morning" signedIn={signedIn} />
         <TrafficCard period="morning" signedIn={signedIn} />
         <AgendaCard period="morning" signedIn={signedIn} />
+        <PersonalPlanCard period="morning" signedIn={signedIn} />
         <MorningBrief prefs={prefs} signedIn={signedIn} />
       </>
     );
@@ -246,6 +248,7 @@ export function DailyBrief({
       <WeatherAlertsCard period={period} signedIn={signedIn} />
       <TrafficCard period={period} signedIn={signedIn} />
       <AgendaCard period={period} signedIn={signedIn} />
+      <PersonalPlanCard period={period} signedIn={signedIn} />
       {period === "afternoon" ? (
         afternoonQ.isLoading && !afternoonQ.data ? (
           <CardSkeleton />

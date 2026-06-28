@@ -657,6 +657,65 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_items: {
+        Row: {
+          created_at: string
+          due_at: string | null
+          followup_of: string | null
+          id: string
+          kind: string
+          metadata: Json
+          notes: string | null
+          priority: number
+          remind_at: string | null
+          source: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_at?: string | null
+          followup_of?: string | null
+          id?: string
+          kind: string
+          metadata?: Json
+          notes?: string | null
+          priority?: number
+          remind_at?: string | null
+          source?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_at?: string | null
+          followup_of?: string | null
+          id?: string
+          kind?: string
+          metadata?: Json
+          notes?: string | null
+          priority?: number
+          remind_at?: string | null
+          source?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_items_followup_of_fkey"
+            columns: ["followup_of"]
+            isOneToOne: false
+            referencedRelation: "personal_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
