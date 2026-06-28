@@ -166,18 +166,48 @@ type Row = {
   voice_personality?: string | null;
   voice_speed?: number | string | null;
   voice_instructions?: string | null;
-  brief_layout?: { order?: string[]; hidden?: string[] } | null;
+  brief_layout?:
+    | { order?: string[]; hidden?: string[] }
+    | {
+        morning?: { order?: string[]; hidden?: string[] };
+        afternoon?: { order?: string[]; hidden?: string[] };
+        evening?: { order?: string[]; hidden?: string[] };
+      }
+    | null;
+  brief_enabled?: { morning?: boolean; afternoon?: boolean; evening?: boolean } | null;
   home_address?: string | null;
   work_address?: string | null;
   commute_minutes_baseline?: number | null;
 };
 
+type LayoutPart = { order?: string[]; hidden?: string[] };
+function pickLayout(part: LayoutPart | undefined, fallback: { order: string[]; hidden: string[] }) {
+  if (part && Array.isArray(part.order)) {
+    return { order: part.order, hidden: Array.isArray(part.hidden) ? part.hidden : [] };
+  }
+  return fallback;
+}
+
 function rowToPrefs(r: Row): Prefs {
   const cw = r.cycle_weeks ?? 1;
   const mode = (r.assistant_mode ?? "coach") as AssistantMode;
-  const layout = r.brief_layout && Array.isArray(r.brief_layout.order)
-    ? { order: r.brief_layout.order, hidden: r.brief_layout.hidden ?? [] }
-    : DEFAULT_BRIEF_LAYOUT;
+  const bl = r.brief_layout as
+    | (LayoutPart & { morning?: LayoutPart; afternoon?: LayoutPart; evening?: LayoutPart })
+    | null
+    | undefined;
+  // Back-compat: old shape was flat { order, hidden } (morning only).
+  const nested = bl && (bl.morning || bl.afternoon || bl.evening);
+  const morning = nested
+    ? pickLayout(bl?.morning, DEFAULT_BRIEF_LAYOUT)
+    : pickLayout(bl ?? undefined, DEFAULT_BRIEF_LAYOUT);
+  const afternoon = pickLayout(bl?.afternoon, DEFAULT_AFTERNOON_LAYOUT);
+  const evening = pickLayout(bl?.evening, DEFAULT_EVENING_LAYOUT);
+  const be = r.brief_enabled ?? {};
+  const briefEnabled = {
+    morning: be.morning ?? true,
+    afternoon: be.afternoon ?? true,
+    evening: be.evening ?? true,
+  };
   return {
     windDownMin: r.wind_down_min,
     sleepHours: Number(r.sleep_hours),
@@ -210,7 +240,10 @@ function rowToPrefs(r: Row): Prefs {
     voicePersonality: r.voice_personality || "calm",
     voiceSpeed: r.voice_speed != null ? Math.min(1.4, Math.max(0.7, Number(r.voice_speed))) : 1.0,
     voiceInstructions: r.voice_instructions ?? null,
-    briefLayout: layout,
+    briefLayout: morning,
+    afternoonLayout: afternoon,
+    eveningLayout: evening,
+    briefEnabled,
     homeAddress: r.home_address ?? null,
     workAddress: r.work_address ?? null,
     commuteMinutesBaseline: r.commute_minutes_baseline ?? null,
