@@ -55,7 +55,7 @@ export function CompanionAvatar() {
       )}
       data-testid="companion-avatar"
     >
-      <Sparkles className="h-4 w-4 text-primary lg:h-5 lg:w-5" aria-hidden />
+      <CompanionAvatarFace state="idle" size="sm" aura={false} />
       {pulse && (
         <span aria-hidden className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none" />
