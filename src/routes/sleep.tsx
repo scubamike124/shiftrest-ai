@@ -12,6 +12,8 @@ import { TRACKS, PRESETS, type SoundTrack } from "@/lib/sounds/catalog";
 import { mixer } from "@/lib/sounds/mixer";
 import { listMixes, saveMix, deleteMix, toggleFavorite } from "@/lib/sounds/mixes";
 import { supabase } from "@/integrations/supabase/client";
+import { VoiceCommandButton } from "@/components/sleep/VoiceCommandButton";
+import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 
 export const Route = createFileRoute("/sleep")({
   component: SleepPage,
