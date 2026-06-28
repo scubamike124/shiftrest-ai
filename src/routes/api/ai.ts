@@ -331,12 +331,18 @@ export const Route = createFileRoute("/api/ai")({
 
           if (body.intent === "brief") {
             if (!body.plan) return jsonError(400, "plan required");
+            const briefProfile = userId
+              ? await loadAssistantProfile(admin, userId)
+              : DEFAULT_ASSISTANT_PROFILE;
+            const briefSystem =
+              languageDirective(briefProfile.language, briefProfile.accent) + BRIEF_SYSTEM;
             const result = await chatJSON({
               messages: [
-                { role: "system", content: BRIEF_SYSTEM },
+                { role: "system", content: briefSystem },
                 { role: "user", content: body.plan },
               ],
             });
+
             if (userId) {
               await logAIRequest(admin, {
                 user_id: userId,
