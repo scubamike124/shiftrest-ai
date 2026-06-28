@@ -25,7 +25,16 @@ export type CompanionEvent =
   | { event: "memory_explainer_viewed"; surface: "intro-sheet" | "memory-page" }
   | { event: "prompt_dismissed"; key: string }
   | { event: "prompt_accepted"; key: string }
-  | { event: "companion_settings_opened"; from: "hero" | "intro" | "header" };
+  | { event: "companion_settings_opened"; from: "hero" | "intro" | "header" }
+  // Slice 12 — Companion Skills foundation
+  | { event: "skills_flag_toggled"; on: boolean }
+  | { event: "skill_viewed"; skill: string }
+  | { event: "skill_connect_started"; skill: string }
+  | { event: "skill_connect_completed"; skill: string }
+  | { event: "skill_connect_failed"; skill: string; reason?: string }
+  | { event: "skill_disconnected"; skill: string }
+  | { event: "skill_status_changed"; skill: string; status: "connected" | "disabled" | "disconnected" }
+  | { event: "skill_invoked"; skill: string; action: string };
 
 export function track(evt: CompanionEvent): void {
   if (typeof window === "undefined") return;
