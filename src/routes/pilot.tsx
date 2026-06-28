@@ -619,7 +619,12 @@ function PilotPage() {
             }
             className="outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full"
           >
-            <PilotOrb state={orbDisplayState} level={mic.level} />
+            <CompanionAvatarFace
+              state={orbDisplayState}
+              level={mic.level}
+              size="lg"
+              label={avatarStateLabel(orbDisplayState)}
+            />
           </button>
 
           <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
