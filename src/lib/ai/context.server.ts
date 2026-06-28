@@ -150,17 +150,19 @@ export async function buildSystemPrompt(opts: {
   }
 
 
+  const isVoiceCoach = surface === "voice" && opts.intent === "coach";
+
   if (opts.userId && opts.profile.memoryEnabled) {
     const mems = await fetchRelevantMemories(
       opts.admin,
       opts.userId,
-      opts.intent === "coach" ? 25 : 12,
+      isVoiceCoach ? 5 : opts.intent === "coach" ? 25 : 12,
       opts.intent ?? "coach",
     );
     prompt += formatMemoryBlock(mems);
   }
 
-  if (opts.userId) {
+  if (opts.userId && !isVoiceCoach) {
     try {
       const [patterns, feedback, prev] = await Promise.all([
         fetchActivePatterns(opts.admin, opts.userId, 5),
@@ -175,15 +177,27 @@ export async function buildSystemPrompt(opts: {
     } catch (e) {
       console.warn("context predictive blocks failed", e);
     }
+  } else if (opts.userId && isVoiceCoach) {
+    // Voice surface: keep only top patterns at high severity, compact line.
+    try {
+      const patterns = await fetchActivePatterns(opts.admin, opts.userId, 3);
+      const hot = patterns.filter((p) => p.severity >= 3);
+      if (hot.length) {
+        prompt += `\n\nActive issues you've noticed: ${hot
+          .map((p) => PATTERN_LABEL[p.pattern_key] ?? p.pattern_key)
+          .join("; ")}.`;
+      }
+    } catch { /* ignore */ }
   }
 
-  if (opts.userId) {
+  if (opts.userId && !isVoiceCoach) {
     try {
       prompt += await formatTzBlock(opts.admin, opts.userId);
     } catch (e) {
       console.warn("context tz block failed", e);
     }
   }
+
 
   if (opts.liveContext) {
     prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
