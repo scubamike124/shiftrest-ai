@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CompanionAvatar } from "@/components/CompanionAvatar";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X, Sparkles, Moon, MessageSquare, CalendarClock, Sun } from "lucide-react";
