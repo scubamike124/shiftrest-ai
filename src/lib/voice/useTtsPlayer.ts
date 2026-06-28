@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VoiceId } from "@/lib/voice-rewriter";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 export type TtsState = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
