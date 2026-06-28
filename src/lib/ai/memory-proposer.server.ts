@@ -312,23 +312,41 @@ async function persistProposals(
   return written;
 }
 
+function consentKeyFor(p: Proposal): "bedtime" | "wake" | "sounds" | null {
+  if (p.dedupe_key === "sleep:bedtime") return "bedtime";
+  if (p.dedupe_key === "sleep:wake") return "wake";
+  if (p.dedupe_key.startsWith("sound:")) return "sounds";
+  if (p.dedupe_key.startsWith("alarm:")) return "sounds";
+  if (p.dedupe_key === "routine:sleep_mode") return "sounds";
+  return null;
+}
+
 export async function runMemoryProposer(
   admin: AdminClient,
   userId: string,
   sleepHours: number,
 ): Promise<number> {
-  // Respect pause flag + memory consent.
+  // Respect pause flag + memory consent + per-category learning consents.
   const { data: prefs } = await admin
     .from("user_prefs")
-    .select("memory_enabled, memory_learning_paused")
+    .select("memory_enabled, memory_learning_paused, learning_consents")
     .eq("user_id", userId)
     .maybeSingle();
-  const p = prefs as { memory_enabled: boolean | null; memory_learning_paused: boolean | null } | null;
+  const p = prefs as {
+    memory_enabled: boolean | null;
+    memory_learning_paused: boolean | null;
+    learning_consents: Record<string, boolean> | null;
+  } | null;
   if (!p?.memory_enabled || p.memory_learning_paused) return 0;
+  const consents = p.learning_consents ?? {};
 
-  const found = [
+  const candidates = [
     ...(await detectSleepWindows(admin, userId, sleepHours)),
     ...(await detectSoundHabits(admin, userId)),
   ];
+  const found = candidates.filter((c) => {
+    const key = consentKeyFor(c);
+    return key ? consents[key] === true : false;
+  });
   return persistProposals(admin, userId, found);
 }
