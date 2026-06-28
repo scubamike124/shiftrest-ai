@@ -1,201 +1,197 @@
-# Slice 12 — Companion Skills & Integrations (Investigation + Plan)
+# Phase 9 — Launch Readiness Audit
 
-This is an **investigation-only** plan. Nothing ships until you approve. The objective is to evolve the Companion from "tells you things" to "does things for you" — without breaking the safety, privacy, a11y, quiet-hours, offline, analytics, and Action History contracts established in Slices 8–11.
+Investigation-only. No code changes pending your approval.
 
----
+## 1. Full Feature Checklist
 
-## 1. Architecture review (what's already in place)
+| Area | Status | Notes |
+|---|---|---|
+| AI Companion (`/companion`) | ✅ Built | Avatar, streaming chat, memory consent, voice in/out |
+| Sleep Sounds (`/sleep`) | ✅ Built | Web Audio synth mixer, presets, timer |
+| Voice Commands | ✅ Built | Intent router covers play/stop/timer/save/alarm/breathing/quiet/agenda/weather/traffic/inbox |
+| NL Automation Builder | ✅ Built | `/automations` parses free-text, preview-confirm flow |
+| Weather Intelligence | ✅ Built | Alerts card in Daily Brief |
+| Traffic Intelligence | ✅ Built | OSRM + learned baselines, destinations card |
+| Calendar Intelligence | ✅ Built | RFC 5545 read-only feeds, "Leave earlier" hints |
+| Personal Intelligence | ✅ Built | `/inbox`, PersonalPlanCard, priority detection |
+| Smart Home Registry | ✅ Built | `/smart-home`, private device list |
+| Sleep Automation | ✅ Built | Sound presets + ambient timer |
+| Quiet Mode | ✅ Built | Mutes TTS + non-urgent notifications |
+| AI Memory + Proposals | ✅ Built | `/memory`, confirm-before-save, export/delete |
+| Routine Suggestions | ✅ Built | Cross-skill suggester, consent toggles |
+| Health & Wearables (`/health`) | ✅ Built | Fitbit + Oura; trends + planned providers |
+| Inbox `?add=` / `?complete=` | ✅ Hardened | Prefill only; confirm to complete |
+| Payments | ✅ Built | Stripe live + sandbox, webhook, portal |
+| Legal pages | ⚠️ Built but `/legal/*` reports 404 on edge — needs republish verification |
+| Onboarding + Consent | ✅ Built | Modal + signup checkbox |
+| Dashboard / CompanionHero | ✅ Built | Briefs (morning/afternoon/evening) |
+| Mobile PWA | ✅ Built | Manifest, SW, offline snapshot |
+| Accessibility baseline | ✅ axe clean on public surface | Authed surface unsampled |
+| Analytics | ✅ `analytics.ts` events; `ai_log`, `notification_log` audit tables |
+| Security/RLS | ✅ Phase 1 hardening migration applied |
 
-The good news: the foundation we built in Slices 8–10 is the right shape for everything in Slice 12.
+## 2. User-Flow Test Plan (Authenticated)
 
-- **Typed action registry** — `src/lib/companion/actions.ts` already defines a discriminated `CompanionAction` union with `describeAction`, `executeAction(ctx)`, `isDestructive`, and a runtime `ALLOWED_OPEN_ROUTES` allow-list. Every new skill = new variants in this union + new cases in those three functions. No parallel system.
-- **Confirmation UX** — `ActionCard.tsx` already renders Approve / Reject, supports `destructive`, `unavailable`, and recovery CTAs.
-- **History + retry** — `action-history.ts` records every attempt (queued / executing / completed / failed) per device.
-- **Narration** — `narration.ts` produces TTS-friendly outcome strings, routed through `speak.ts` which honors quiet hours, mute, and cancel-prior policy.
-- **Analytics** — `analytics.ts` emits `action_started` / `action_completed` etc.; we just add new event variants.
-- **Offline + auth gates** — `executeAction` already short-circuits with `offline`, `unauthenticated`, `unavailable` error kinds. We reuse this exact pattern.
-- **Memory** — `ai_memory` + `ai_memory_proposals` + `/memory` already implement permission-based memory with explicit Approve/Reject, pinning, importance, deletion, and a pause/resume control.
+1. Signup → consent checkbox → email verify → onboarding → dashboard
+2. Google OAuth via Lovable broker → dashboard
+3. Dashboard renders correct brief for time window
+4. Companion: text + voice command "play rain", "set timer 30 min", "goodnight"
+5. Sleep: load preset, save mix, breathing overlay
+6. Memory: receive a proposal → accept → appears in Memory page; pause learning
+7. Routine Suggestions: accept → automation created → runs and logs
+8. NL Routine: "every weekday at 10pm dim lights and play rain" → preview → save
+9. Quiet Mode toggle: TTS muted, non-urgent notifications deferred
+10. Inbox: `?add=Pick up groceries` prefills; `?complete=groceries` requires confirm
+11. Calendar feed add → AgendaCard shows next event + "Leave earlier" hint
+12. Traffic destination add → baseline learns → alert when slower
+13. Weather alert card renders with location
+14. Smart Home: add device → toggle from automation
+15. Wearable: connect Fitbit/Oura → `/health` shows trends
+16. Paywall: open as logged-in user → sandbox checkout → portal cancel → webhook updates row
+17. Profile: export data, delete AI memory, delete account
+18. Offline: airplane mode → cached plan + OfflineBanner; reconnect
 
-What's missing for Slice 12: **per-skill capability providers** (smart-home, calendar, travel, comms, weather), a way to detect/configure which are connected, and a small expansion of the memory-proposal pipeline so it can propose **routines** (multi-step) and not just single facts.
+## 3. Mobile QA Checklist
 
----
+- iOS Safari 17+: PWA install, push permission, Smart Alarm screen, voice mic
+- Android Chrome: PWA install, push delivery, voice mic
+- iPad Safari: dashboard split layout, long clock
+- Touch targets ≥ 44px (audit `size="icon"` buttons)
+- No horizontal scroll at 360px
+- Safe-area insets for notch/home-indicator
+- Audio autoplay policy: confirm user-gesture gate before synth starts
 
-## 2. Files impacted
+## 4. Accessibility Checklist
 
-### New files (skill providers + UI)
+- Single `<main>` per route (regressed once on legal — re-verify)
+- Icon-only buttons have `aria-label` (sweep `BottomNav`, `VoiceCommandButton`, `PilotOrb`)
+- Form labels associated on `/auth`, `/inbox`, `/automations`
+- Color contrast: re-run after `--indigo-glow` brighten
+- Focus traps in `BreathingOverlay`, `CompanionIntroSheet`, `RecommendationDetailSheet`
+- `aria-live` on streaming companion replies and toast region
+- Keyboard path through onboarding + paywall
 
-```text
-src/lib/companion/skills/
-  registry.ts                 // capability discovery + feature flags
-  smart-home/
-    index.ts                  // typed actions + executor
-    providers/
-      homeassistant.ts        // HA REST API client (server-only)
-      stub.ts                 // safe no-op until user connects HA
-  calendar/
-    index.ts                  // create/move/delete event actions
-    google.functions.ts       // server fns (Google Calendar via OAuth)
-    ics.ts                    // read-only ICS feed fallback
-  travel/
-    index.ts                  // flight/hotel/trip actions
-    flight.functions.ts       // AeroDataBox/AviationStack via connector
-    traffic.ts                // reuse Open-Meteo + existing /commute baseline
-  comms/
-    index.ts                  // draft/send email + SMS + call actions
-    email.functions.ts        // Lovable Emails (drafts only by default)
-    sms.functions.ts          // Twilio via connector (send = destructive)
-  weather/
-    alerts.ts                 // rain/heat/wind/AQ thresholds + clothing
-    alerts.functions.ts       // server fn calling Open-Meteo air-quality
-src/components/companion/skills/
-  ConnectSkillCard.tsx        // "Connect Google Calendar" etc.
-  AgendaCard.tsx              // today's agenda inline in chat
-  WeatherAlertCard.tsx        // rain/heat/AQ warning chip
-  TripCountdownCard.tsx
-src/routes/settings.skills.tsx // central on/off + connection mgmt
-```
+## 5. Security / RLS Review
 
-### Modified
+- Re-run `supabase--linter` immediately pre-publish; expect 2 known advisories only
+- Verify RLS on all 32 public tables (spot: `ai_log`, `notification_log`, `wearable_connections`, `personal_items`, `companion_routines`, `smart_devices`, `traffic_destinations`, `calendar_feeds`, `routine_suggestions`, `automation_runs`)
+- Verify GRANTs match policies (no accidental `anon` on user-scoped tables)
+- `requireSupabaseAuth` on every user-data server fn; admin client only in `.server.ts` or dynamic-imported in handlers
+- Webhook signature verification: Stripe (`verifyWebhook`), cron endpoints under `/api/public/*`
+- Rate limiting on `/api/coach`, `/api/ai`, `/api/tts` — currently only token-budget cap (gap)
+- Secrets: no service role in client bundle (grep `SUPABASE_SERVICE_ROLE_KEY` in `dist/`)
 
-- `src/lib/companion/actions.ts` — extend `CompanionAction` union with new kinds; mark every destructive/security-sensitive one in `isDestructive`; route execution to the new skill modules.
-- `src/lib/companion/narration.ts` — add cases for new action kinds.
-- `src/lib/companion/analytics.ts` — add `skill_invoked`, `skill_connect_started`, `skill_connect_completed`.
-- `src/lib/companion/action-history.ts` — no schema change; new kinds inherit automatically.
-- `src/routes/api/ai.ts` — extend system prompt with the new tool catalog so the LLM proposes the right actions.
-- `src/routes/companion.tsx` — render new inline cards (Agenda, Weather Alert, Trip Countdown) when assistant emits them.
-- `src/routes/settings.companion.tsx` — link out to `/settings/skills`.
-- `src/lib/ai/memory-proposer.server.ts` — extend to propose multi-step **routines** (e.g. "every weekday 22:00 → lights dim + thermostat 68 + wind-down"), still gated by Approve/Reject.
-- `src/lib/companion/quiet-hours.ts` — used as-is; new skills must call `inQuietHours()` before any audible side effect.
+## 6. Privacy Review
 
-### Database (one migration)
+- Memory: confirm-before-save honored end-to-end
+- Export (`exportAccountFn`) returns all user-owned tables
+- Delete account purges across all tables + cancels Stripe sub
+- Wearable disconnect deletes readings (per retention table)
+- Consent banner persists across sessions; cookie categories enforced
+- AI memory does not learn sensitive health categories (verify extractor allowlist)
+- Calendar/Smart Home/Personal Items all private to user; no shared views
 
-```sql
--- Per-user skill connections (OAuth tokens / config)
-create table public.companion_skills(
-  user_id uuid not null references auth.users(id) on delete cascade,
-  skill text not null,              -- 'google_calendar' | 'homeassistant' | 'twilio' | ...
-  status text not null default 'connected',
-  config jsonb not null default '{}'::jsonb,
-  secrets_ref text,                 -- name of vault secret, never the raw token
-  connected_at timestamptz not null default now(),
-  primary key (user_id, skill)
-);
-grant select, insert, update, delete on public.companion_skills to authenticated;
-grant all on public.companion_skills to service_role;
-alter table public.companion_skills enable row level security;
-create policy "own skills" on public.companion_skills
-  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+## 7. Analytics Verification Plan
 
--- Learned routines (Slice 12 memory expansion). One row per proposed/approved routine.
-create table public.companion_routines(
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  name text not null,
-  trigger jsonb not null,           -- {kind:'time', at:'22:00', days:[1..5]} | {kind:'event', ...}
-  steps jsonb not null,             -- [{action:'play_track', ...}, ...]
-  status text not null default 'proposed', -- proposed | active | paused
-  reason text,                      -- "I noticed you start wind-down at ~22:00 on weekdays"
-  approved_at timestamptz,
-  created_at timestamptz not null default now()
-);
-grant select, insert, update, delete on public.companion_routines to authenticated;
-grant all on public.companion_routines to service_role;
-alter table public.companion_routines enable row level security;
-create policy "own routines" on public.companion_routines
-  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
-```
+- Trace each `analytics.track(...)` call site to event taxonomy
+- Confirm `ai_log` rows written for every AI surface (coach, brief, narration, recommendations)
+- Confirm `notification_log` rows for every push send
+- Confirm `legal_acceptances` for signup + each consent change
+- Spot-check `user_events` for companion intents and automation runs
 
----
+## 8. Known Risks
 
-## 3. New APIs / services
+- **`/legal/*` 404 on production edge** (carried from prior pass) — must republish + verify with `curl -I`
+- **Authenticated E2E not run in sandbox** — `LOVABLE_BROWSER_AUTH_STATUS=signed_out`
+- **Live Stripe charge never executed** — pending owner approval
+- **WebKit/Firefox headless** not pre-installed — Chromium-only coverage
+- **Push delivery on iOS Safari + Android Chrome** not verified on real device
+- **No edge-layer rate limiting** on `/api/coach|ai|tts` beyond 24h token cap
+- **Native wearables** (Apple Health, Garmin, WHOOP, Health Connect) still "coming soon"
+- **Voice STT** depends on browser SpeechRecognition; Safari iOS partial support
+- **NL Routine Builder** is pattern-based; ambiguous phrases may produce empty step list (silent)
+- **Smart Home registry has no real device control** — registry only, no actuation outside automations
 
-| Skill | Integration | Auth model | Notes |
-| --- | --- | --- | --- |
-| Smart Home | Home Assistant REST (`/api/services/<domain>/<service>`) | Per-user long-lived token, stored in Lovable secret per user (`HA_TOKEN_<uid-hash>`) | Stub provider ships first; HA optional. Future: Matter via native shell. |
-| Calendar (read+write) | Google Calendar via standard connector OR per-user OAuth | Per-user OAuth (each user grants own calendar) | The workspace Google Calendar connector is dev-only; production requires per-user OAuth. ICS read-only fallback works with zero setup. |
-| Travel — flights | AeroDataBox or AviationStack via API key | App-level secret (`FLIGHTS_API_KEY`) | Read-only; no destructive ops. |
-| Travel — traffic | Open-Meteo + existing commute baseline | No key | Already in repo. |
-| Comms — email | Lovable Emails (built-in) | None new | Drafts only by default; **Send** is destructive. |
-| Comms — SMS / Calls | Twilio standard connector | App-level | Send/call are destructive; numbers must be user-verified. |
-| Weather alerts | Open-Meteo Air-Quality + Forecast | No key | Pure server fn; no new dependency. |
+## 9. Bugs Found (static review this pass)
 
-We will **not** add any direct provider SDKs to client code. Every external call is wrapped in a `createServerFn`/server route, secrets stay server-side.
+- None new beyond inherited blockers above. No `TODO`/`FIXME` markers in `src/`.
+- Inherited: `/legal/*` 404; `region` axe moderate on footer microcopy; perf 70/65 mobile on `/` and `/paywall` (aurora CLS + Stripe iframe).
 
----
+## 10. Recommended Fixes (to schedule)
 
-## 4. Security considerations
+Pre-launch (blocking):
+1. Republish; `curl -I` every `/legal/*` route; if still 404, inspect Worker logs
+2. Owner signs into preview → re-run authed Playwright E2E sweep
+3. Owner runs $1 live Stripe charge end-to-end + portal cancel
+4. Real-device pass: iPhone Safari, Android Chrome, iPad
+5. Re-run Lighthouse mobile on `/` and `/paywall` post-fixes (target ≥ 90)
+6. Run `supabase--linter` immediately before publish
 
-- **Destructive set expands**: `delete_calendar_event`, `send_email`, `send_sms`, `place_call`, `unlock_door`, `open_garage`, `set_thermostat` (when delta > 4°), `tv_power_off`. Every one returns `true` from `isDestructive` and forces the ActionCard confirmation even if "Always Confirm" is off.
-- **Allow-list pattern reused** for every external surface: route allow-list (already in `actions.ts`), HA entity allow-list per user, recipient allow-list for SMS/calls (only numbers the user has saved + verified), domain allow-list for email "from".
-- **Webhook & token storage**: OAuth tokens and HA tokens are stored via `add_secret` (per-user named secret), never in the database in plain text; the DB only stores a `secrets_ref` name.
-- **Voice spoofing**: no skill executes from voice alone — voice → text → `ActionCard` → tap Confirm. We never auto-execute voice intents for destructive actions.
-- **Rate limiting** per skill per user (in `executeAction` wrapper) to prevent runaway loops (e.g. AI proposing 30 SMS sends).
-- **Audit trail**: every destructive action additionally writes to `ai_log` with `intent='companion_action'` and the redacted payload (recipient, subject hash — not message body).
-- **Input validation**: Zod schemas on every server fn (phone E.164, email RFC, HA entity IDs `^[a-z_]+\.[a-z0-9_]+$`).
+Pre-launch (non-blocking but recommended):
+7. Add edge token-bucket rate limit to `/api/coach`, `/api/ai`, `/api/tts`
+8. Surface NL Builder "couldn't parse" state instead of empty preview
+9. Sweep icon-only buttons for `aria-label`
+10. Defer Stripe.js until paywall mount; preload aurora hero layer
 
----
+Post-launch:
+- Apple Health / Garmin / WHOOP / Health Connect wrappers
+- WebKit + Firefox headless coverage in CI
+- Smart Home real-device control (Matter / HomeKit / Google Home)
+- Voice STT fallback for Safari iOS via `/api/stt`
+- Custom domain
+- Color-contrast audit on authed surfaces
+- A/B test paywall tiers
 
-## 5. Privacy implications
+## 11. Launch Blockers
 
-- **Memory remains opt-in.** No skill auto-enables memory. Skill usage is logged to Action History (device-local) but only contributes a memory **proposal** if the user has memory ON.
-- **Routine learning** writes to `companion_routines` with `status='proposed'` only. Nothing runs until the user taps Approve in `/memory` (new "Routines" tab).
-- **Each suggestion shows "why"** — we already have `WhyButton` in `src/components/ai/trust/`. Routine cards reuse it.
-- **One-tap edit/delete** on every routine and learned fact.
-- **Data minimization**: travel/flight queries send only the flight number; email drafts never leave the device until the user taps Send; SMS bodies are not logged.
-- **Quiet hours** apply to: any TTS narration, any push notification a skill might fire (weather alerts especially), and any non-emergency smart-home action that produces audible/visible effect (TV on). They do **not** block safety-relevant alerts (smoke, severe-weather) — though we ship none of those in Slice 12.
+1. `/legal/*` edge 404
+2. Authed E2E regression
+3. Live Stripe verification
+4. Real-device cross-browser pass
 
----
+## 12. Nice-to-Have Post-Launch
 
-## 6. Rollback strategy
+Rate limiting · native wearables · cross-browser CI · domain · NL builder UX polish · Smart Home actuation · Pilot voice expansion · referral/sharing · in-app changelog · A/B paywall
 
-The whole slice is behind a single feature flag `companion.skills.v1` resolved from `user_prefs.feature_flags` (already JSONB). Default off in prod.
+## 13. Rollback Plan
 
-- Per-skill kill-switches in `companion_skills.status` (`disabled`) — disables the action variants from being proposed and executed without code changes.
-- Database migration is additive (two new tables, no alters). Rollback = `drop table` if needed, no data loss elsewhere.
-- New action kinds are additive on the union; old clients fall through to a "coming soon" branch (already supported in `describeAction`).
-- The legacy `intentToAction` voice-router path is unchanged, so existing voice commands keep working if we revert the chat layer.
+- Frontend: revert to previous publish via project history → "Update" republish
+- Backend (DB): no destructive migrations queued; if a Phase 9 migration ships, include `DOWN` SQL and snapshot row counts before apply. Lovable Cloud daily backups + PITR available
+- Stripe: webhook endpoint is idempotent; pause webhook delivery from Stripe dashboard if cascading failures
+- Push: clear `push_subscriptions` rows for affected users; clients re-subscribe on next visit
+- Communication: status note via in-app banner (`OfflineBanner`-style component) + email via Lovable Email
 
----
+## 14. Launch-Readiness Score
 
-## 7. Recommended implementation order
+**ALMOST READY**
 
-Each step is independently shippable, typecheck-clean, and behind the feature flag.
+- Code, security, accessibility baseline, and SEO/Best-Practices all meet bar
+- Four manual gates remain (legal 404 republish, authed E2E, live Stripe, real-device)
+- No known data-loss, auth-bypass, or privilege-escalation risks
 
-1. **Foundation** — feature flag, `companion_skills` + `companion_routines` migration, `skills/registry.ts`, `/settings/skills` stub, analytics events.
-2. **Weather Intelligence** — pure server fn, no external auth, lowest risk. Adds `WeatherAlertCard` + clothing suggestion. Proves the cards pipeline.
-3. **Calendar Intelligence (read)** — ICS feed read-only + today's agenda card. No OAuth yet.
-4. **Calendar Intelligence (write)** — Google OAuth per user; create/move/delete events. Delete is destructive.
-5. **Travel Intelligence** — flight status + trip countdown + traffic-before-appointments. Read-only.
-6. **Smart Home (HA)** — connection flow + entity picker + lights/fans/thermostat/TV. Locks/garage gated behind extra "Sensitive devices" toggle defaulting OFF.
-7. **Communication Actions** — email/SMS drafts first; send + call gated by "Always Confirm" override AND per-action confirmation.
-8. **Memory Expansion — Routines** — extend `memory-proposer.server.ts` to surface multi-step routine proposals, wire `/memory` Routines tab, scheduler that runs approved routines (reuses existing pg_cron + notify pipeline).
-9. **Polish & QA** — a11y sweep, offline behavior verification for each skill, narration cases, history retry coverage, Playwright happy-path per skill, docs update under `docs/launch/`.
+## 15. Must Fix Before Launch
 
----
+1. `/legal/*` 404 — republish + verify
+2. Owner-driven authed E2E pass
+3. Live Stripe $1 test + portal cancel
+4. iOS Safari + Android Chrome real-device pass (PWA install + push)
+5. `supabase--linter` clean run immediately pre-publish
 
-## 8. Risk assessment
+## 16. Can Wait Until After Launch
 
-| Risk | Likelihood | Mitigation |
-| --- | --- | --- |
-| Per-user OAuth (Google Calendar) needs developer setup users may not finish | Medium | Ship ICS read-only fallback; show clear "Connect" CTA but never block other skills. |
-| Home Assistant tokens leak via client bundle | Low | All HA calls go through server fns; token stored per-user in vault secret; never echoed in narration or logs. |
-| LLM proposes destructive action with wrong params (wrong recipient) | Medium | Every destructive action shows full payload preview in ActionCard before Confirm; recipient allow-list for SMS/email; max-1 destructive per turn. |
-| Routine auto-runs cause user confusion | Medium | Routines only fire after explicit Approve; first 3 runs send a "Routine ran" notification with one-tap Pause. |
-| Skill catalog bloats LLM context | Medium | `skills/registry.ts` only exposes connected skills' tools in the system prompt; not the full catalog. |
-| Twilio costs runaway | Low | Rate limit (5 sends / user / day default), and Twilio not enabled unless user connects it. |
+Edge rate-limit · native wearable wrappers · WebKit/Firefox CI · Stripe.js deferral · NL builder UX · Smart Home actuation · custom domain · contrast audit on authed surfaces
 
----
+## 17. Estimated Risk Level
 
-## 9. Deliverables checklist (when approved)
+**LOW–MEDIUM**
 
-- TypeScript clean (`tsgo`).
-- New migration applied with GRANTs + RLS verified.
-- Every new action: described, narrated, history-recorded, analytics-tracked, quiet-hours-respected, offline-aware.
-- Every destructive action: forces confirmation, shows payload preview, writes to `ai_log`.
-- A11y: 44px tap targets, `aria-live` for new cards, keyboard focus on confirm.
-- Mobile: tested at 375px; bottom-sheet variants for any new modal.
-- Docs: `docs/companion-skills-launch.md` with per-skill QA matrix + rollback steps.
+- Low: data integrity, auth, RLS, privacy controls
+- Medium: legal pages SEO indexing if 404 persists; payments until live charge verified; iOS push until real-device confirmed
+
+## 18. Final Recommendation
+
+**Hold public announcement.** Proceed to the four manual gates above; soft-launch / beta is safe today on the preview URL. Once the four blockers clear, ship.
 
 ---
 
-**Awaiting your approval before any code changes.** Once approved, I'll start with step 1 (Foundation) and ship each step as its own typecheck-clean increment.
+Awaiting approval to proceed with the pre-launch fix pass (legal republish verification, optional rate-limit + NL builder polish, axe sweep, Lighthouse re-run).
