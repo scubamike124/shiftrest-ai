@@ -33,6 +33,7 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
+import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
 import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
@@ -183,6 +184,11 @@ const LegalIndexRoute = LegalIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => LegalRoute,
+} as any)
+const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
+  id: '/settings/skills',
+  path: '/settings/skills',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsMorningRoute = SettingsMorningRouteImport.update({
   id: '/settings/morning',
@@ -386,6 +392,7 @@ export interface FileRoutesByFullPath {
   '/legal/trademark': typeof LegalTrademarkRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
@@ -441,6 +448,7 @@ export interface FileRoutesByTo {
   '/legal/trademark': typeof LegalTrademarkRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
@@ -498,6 +506,7 @@ export interface FileRoutesById {
   '/legal/trademark': typeof LegalTrademarkRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
@@ -556,6 +565,7 @@ export interface FileRouteTypes {
     | '/legal/trademark'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/skills'
     | '/legal/'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
@@ -611,6 +621,7 @@ export interface FileRouteTypes {
     | '/legal/trademark'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/skills'
     | '/legal'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
@@ -667,6 +678,7 @@ export interface FileRouteTypes {
     | '/legal/trademark'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/skills'
     | '/legal/'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
@@ -709,6 +721,7 @@ export interface RootRouteChildren {
   ApiTtsRoute: typeof ApiTtsRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
+  SettingsSkillsRoute: typeof SettingsSkillsRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
@@ -886,6 +899,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/legal/'
       preLoaderRoute: typeof LegalIndexRouteImport
       parentRoute: typeof LegalRoute
+    }
+    '/settings/skills': {
+      id: '/settings/skills'
+      path: '/settings/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/settings/morning': {
       id: '/settings/morning'
@@ -1173,6 +1193,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsRoute: ApiTtsRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
+  SettingsSkillsRoute: SettingsSkillsRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
