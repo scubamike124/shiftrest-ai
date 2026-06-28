@@ -17,7 +17,10 @@ export type AssistantProfile = {
   name: string;
   mode: AssistantMode;
   memoryEnabled: boolean;
+  language: string;     // BCP-47, e.g. "es-MX". Defaults to "en-US".
+  accent: string | null;
 };
+
 
 const BASE_PERSONALITY = `You are {{NAME}} — a warm, sharp recovery and circadian-rhythm guide for shift workers (nurses, EMTs, pilots, factory crews, hospitality, security).
 
