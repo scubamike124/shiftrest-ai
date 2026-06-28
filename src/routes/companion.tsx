@@ -323,12 +323,11 @@ function CompanionPage() {
         const action = intentToAction(pendingSoundIntent);
         setPendingSoundIntent(null);
         if (action) {
-          const result = await executeAction(action, execCtx);
+          const result = await runAction(action);
           setMessages([
             ...baseMessages,
             { role: "assistant", content: result.message, action, actionDone: result },
           ]);
-          void speakIfEnabled(result.message);
         }
         return;
       }
