@@ -576,32 +576,7 @@ function Dashboard() {
 }
 
 
-function QuickLink({
-  to,
-  icon: Icon,
-  title,
-  desc,
-}: {
-  to: string;
-  icon: typeof Sun;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition hover:border-primary/40 hover:bg-secondary active:scale-[0.99]"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-secondary text-primary transition group-hover:border-primary/40">
-        <Icon className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{title}</p>
-        <p className="truncate text-xs text-muted-foreground">{desc}</p>
-      </div>
-    </Link>
-  );
-}
+
 
 
 
