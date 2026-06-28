@@ -44,7 +44,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     details:
       "Reelo watches your local forecast and air quality and surfaces a clothing suggestion plus heads-up alerts. Pure read-only; no account needed.",
     builtin: true,
-    available: false,
+    available: true,
     risk: "safe",
     group: "intelligence",
   },
