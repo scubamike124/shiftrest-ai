@@ -23,12 +23,16 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { cn } from "@/lib/utils";
 import { DailyBrief } from "@/components/companion/DailyBrief";
 import { ActionCard } from "@/components/companion/ActionCard";
+import { ActionHistorySheet } from "@/components/companion/ActionHistorySheet";
 import {
   describeAction,
   executeAction,
   intentToAction,
+  isDestructive,
   type CompanionAction,
 } from "@/lib/companion/actions";
+import { recordHistory } from "@/lib/companion/action-history";
+import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
