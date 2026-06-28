@@ -26,6 +26,7 @@ import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as HealthRouteImport } from './routes/health'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
@@ -151,6 +152,11 @@ const LegalRoute = LegalRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -372,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
@@ -432,6 +439,7 @@ export interface FileRoutesByTo {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
@@ -492,6 +500,7 @@ export interface FileRoutesById {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
@@ -554,6 +563,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/health'
     | '/inbox'
     | '/legal'
     | '/memory'
@@ -614,6 +624,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/health'
     | '/inbox'
     | '/memory'
     | '/paywall'
@@ -673,6 +684,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/health'
     | '/inbox'
     | '/legal'
     | '/memory'
@@ -734,6 +746,7 @@ export interface RootRouteChildren {
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
+  HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
@@ -888,6 +901,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -1230,6 +1250,7 @@ const rootRouteChildren: RootRouteChildren = {
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
+  HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,

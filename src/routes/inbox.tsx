@@ -1,12 +1,14 @@
 // Phase 4 — Personal Intelligence inbox. Quick-add + list + complete/snooze.
 // Mounted at /inbox. Mobile-first. Read & suggest only.
 
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Check, Clock, Inbox, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +25,13 @@ import {
 import { priorityLabel, type PersonalItem, type ItemKind } from "@/lib/personal/intel";
 import { track } from "@/lib/companion/analytics";
 
+const searchSchema = z.object({
+  add: fallback(z.string().trim().max(280).optional(), undefined),
+  complete: fallback(z.string().trim().max(280).optional(), undefined),
+});
+
 export const Route = createFileRoute("/inbox")({
+  validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
       { title: "Inbox | RestPilot AI" },
@@ -46,6 +54,8 @@ function InboxPage() {
   const setStatus = useServerFn(setPersonalItemStatus);
   const del = useServerFn(deletePersonalItem);
   const qc = useQueryClient();
+  const navigate = useNavigate({ from: "/inbox" });
+  const search = Route.useSearch();
 
   const itemsQ = useQuery({
     queryKey: ["personal-items"],
@@ -55,6 +65,23 @@ function InboxPage() {
 
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<ItemKind>("task");
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice deep-link: ?add=... prefills the form. Save is still required.
+  const appliedAddRef = useRef<string | null>(null);
+  useEffect(() => {
+    const v = search.add?.trim();
+    if (v && appliedAddRef.current !== v) {
+      appliedAddRef.current = v;
+      setTitle(v);
+      setKind("task");
+      // Defer focus until after paint so the input exists.
+      requestAnimationFrame(() => titleInputRef.current?.focus());
+      // Clear the query so a refresh doesn't re-apply it.
+      void navigate({ search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, add: undefined }), replace: true });
+    }
+  }, [search.add, navigate]);
+
 
   const createMut = useMutation({
     mutationFn: () => upsert({ data: { title: title.trim(), kind } }),
@@ -95,7 +122,19 @@ function InboxPage() {
     [itemsQ.data],
   );
 
+  // Voice deep-link: ?complete=... shows matching candidates and requires user confirmation.
+  const completeQuery = search.complete?.trim() ?? "";
+  const completeCandidates = useMemo(() => {
+    if (!completeQuery) return [];
+    const needle = completeQuery.toLowerCase();
+    return open.filter((i) => i.title.toLowerCase().includes(needle)).slice(0, 5);
+  }, [open, completeQuery]);
+
+  const dismissComplete = () =>
+    void navigate({ search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, complete: undefined }), replace: true });
+
   const canSubmit = title.trim().length > 0 && !createMut.isPending;
+
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 pb-24 pt-6">
@@ -117,6 +156,55 @@ function InboxPage() {
         </div>
       </header>
 
+      {completeQuery && (
+        <Card className="border-primary/40 bg-primary/5 p-4">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium">
+                Mark as done: <span className="text-primary">"{completeQuery}"</span>?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Confirm which task to complete. Nothing is changed until you tap one.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={dismissComplete}
+              aria-label="Dismiss"
+              className="inline-flex h-8 w-8 min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {completeCandidates.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No open items match. Try a different phrase or add one above.
+              </p>
+            ) : (
+              completeCandidates.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    statusMut.mutate({ id: c.id, status: "done" });
+                    dismissComplete();
+                    toast.success(`Marked "${c.title}" as done.`);
+                  }}
+                  className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-left text-sm hover:border-primary/60"
+                >
+                  <span className="truncate">{c.title}</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-primary">
+                    <Check className="h-3.5 w-3.5" /> Complete
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
+
       <Card className="p-4">
         <form
           onSubmit={(e) => {
@@ -130,6 +218,7 @@ function InboxPage() {
           </Label>
           <Input
             id="inbox-title"
+            ref={titleInputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Reply to landlord about lease renewal by Friday"

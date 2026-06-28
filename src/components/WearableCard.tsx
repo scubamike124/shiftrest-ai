@@ -181,7 +181,15 @@ export function WearableCard() {
           Apple Health and Whoop ship with the upcoming iOS app.
         </p>
       </div>
-    <div className="mt-3 flex justify-end"><SafetyNote /></div>
+    <div className="mt-3 flex items-center justify-between gap-2">
+      <a
+        href="/health"
+        className="inline-flex min-h-11 items-center gap-1 rounded-md border border-border/60 px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/60"
+      >
+        View health trends →
+      </a>
+      <SafetyNote />
+    </div>
     </section>
   );
 }
