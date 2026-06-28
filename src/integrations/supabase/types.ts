@@ -354,6 +354,75 @@ export type Database = {
         }
         Relationships: []
       }
+      companion_routines: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          id: string
+          name: string
+          reason: string | null
+          status: string
+          steps: Json
+          trigger: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          reason?: string | null
+          status?: string
+          steps: Json
+          trigger: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          reason?: string | null
+          status?: string
+          steps?: Json
+          trigger?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      companion_skills: {
+        Row: {
+          config: Json
+          connected_at: string
+          secrets_ref: string | null
+          skill: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          connected_at?: string
+          secrets_ref?: string | null
+          skill: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          connected_at?: string
+          secrets_ref?: string | null
+          skill?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       employers: {
         Row: {
           archived_at: string | null

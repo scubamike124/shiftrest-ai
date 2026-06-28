@@ -231,6 +231,22 @@ function CompanionSettings() {
         </div>
       </header>
 
+      <Link
+        to="/settings/skills"
+        className="group flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:bg-muted/40"
+      >
+        <div>
+          <p className="text-sm font-semibold">Companion Skills</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Weather, calendar, travel, smart home, comms, and learned routines.
+          </p>
+        </div>
+        <span className="text-xs font-medium text-primary transition-transform group-hover:translate-x-0.5">
+          Manage →
+        </span>
+      </Link>
+
+
       <Card className="p-4">
         <h2 className="text-sm font-semibold">Briefings</h2>
         <p className="mt-1 text-xs text-muted-foreground">
