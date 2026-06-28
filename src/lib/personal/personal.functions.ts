@@ -184,8 +184,9 @@ export const getDailyPlan = createServerFn({ method: "POST" })
         data: { period: data.period },
         context,
       } as never);
-      if (Array.isArray(agendaDTO?.events)) {
-        agenda = agendaDTO.events.slice(0, 5).map((e: { summary: string; startISO: string; allDay?: boolean }) => ({
+      const items = agendaDTO?.agenda?.items;
+      if (Array.isArray(items)) {
+        agenda = items.slice(0, 5).map((e) => ({
           summary: e.summary,
           startISO: e.startISO,
           allDay: e.allDay,
