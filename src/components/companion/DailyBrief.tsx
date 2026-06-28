@@ -39,6 +39,7 @@ import {
 import { WeatherAlertsCard } from "@/components/weather/WeatherAlertsCard";
 import { TrafficCard } from "@/components/traffic/TrafficCard";
 import { AgendaCard } from "@/components/calendar/AgendaCard";
+import { PersonalPlanCard } from "@/components/personal/PersonalPlanCard";
 
 function CardSkeleton() {
   return (

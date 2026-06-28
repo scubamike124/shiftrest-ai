@@ -35,7 +35,8 @@ export type CompanionEvent =
   | { event: "skill_disconnected"; skill: string }
   | { event: "skill_status_changed"; skill: string; status: "connected" | "disabled" | "disconnected" }
   | { event: "skill_invoked"; skill: string; action: string }
-  | { event: "calendar_agenda_viewed"; period: "morning" | "afternoon" | "evening"; count: number };
+  | { event: "calendar_agenda_viewed"; period: "morning" | "afternoon" | "evening"; count: number }
+  | { event: "personal_plan_viewed"; period: "morning" | "afternoon" | "evening"; topCount: number };
 
 export function track(evt: CompanionEvent): void {
   if (typeof window === "undefined") return;
