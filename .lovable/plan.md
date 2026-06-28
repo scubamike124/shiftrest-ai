@@ -1,84 +1,132 @@
-# Pilot AI Personalization — Plan
 
-## Goal
-Give every user a settings surface to fully personalize their Pilot companion, with selections that persist across devices and apply to **every** voice surface (Pilot, Voice Briefings, Coach TTS).
+# Pilot AI Polish Pass — Pre-Launch Plan
 
-## Provider decision (important — please confirm)
+Goal: Pilot should feel like a calm friend on the phone, not a chatbot reading a report. Six priorities, each mapped to concrete changes. Nothing ships until every Acceptance Criterion passes.
 
-The current TTS provider is **Lovable AI Gateway → `openai/gpt-4o-mini-tts`**. It is fast, already wired, and free of extra connector setup, but it has real limits relative to your spec:
+---
 
-- **Voices:** ~9 fixed voices (alloy, ash, ballad, coral, echo, sage, shimmer, verse, nova). They cover male / female / neutral tones but are not labeled by accent. Language is auto-detected from the input text; there is no "British English" vs "American English" toggle at the voice level — the same voice speaks whatever language you send it.
-- **Accents:** not selectable as a first-class control. We can *steer* tone via the `instructions` field ("Speak with a calm British accent") but quality varies and is not guaranteed.
-- **Personality / speed:** fully supported via `instructions` + `speed` (0.7–1.2).
+## Priority 1 — Response Speed (1–3s perceived start)
 
-To deliver the spec **literally** (true British/Australian/Mexican voices, dozens of named voices per language, voice library previews), we need to add **ElevenLabs** as a second provider. ElevenLabs has the named multi-accent voice catalog, 29-language support, and a `speed` control, and an `elevenlabs` standard connector already exists.
+### Where the 7–8s comes from today
+- STT: full recording uploaded after user stops → Whisper round-trip (~1–2s).
+- LLM: `/api/ai` streams tokens, but Pilot waits for the *entire* reply before calling TTS.
+- TTS: one big request for the whole answer (~2–4s before first audio byte).
+- Net effect: user hears nothing until LLM + TTS both finish.
 
-**Recommendation — two-tier rollout:**
+### Fixes
+1. **Sentence-streamed TTS.** As tokens arrive in `pilot.tsx`, buffer until we hit a sentence boundary (`. ! ? \n`) or ~60 chars, then fire `/api/tts` for that chunk and enqueue the resulting MP3 in a tiny audio queue. Subsequent sentences play back-to-back with no gap. First audible word arrives ~1.5–2s after the user finishes speaking.
+2. **Filler audio while we think.** The moment STT returns, immediately play one of 6 pre-generated MP3s ("Let me think about that…", "One sec…", "Looking at that now…", "Hmm, good question…", "Okay…", "Got it — one moment."). Cached in `public/audio/fillers/` so they ship in the PWA shell and play instantly. Filler is interrupted as soon as the first real sentence is ready.
+3. **Audio queue + barge-in.** New `useTtsQueue()` (extracted from `useTtsPlayer`) handles ordered playback, cancellation on barge-in, and "playing" state transitions for the orb.
+4. **Cache common Q&A.** Add a small server-side LRU keyed by `sha256(normalized_question + user_id_or_anon)` for non-personal questions (e.g. "what is sleep debt?", "should I nap before a night shift?"). Hits return cached `text + audio_url` instantly. TTL 24h, max 200 entries per process. Skip cache for anything that references user state.
+5. **STT speedup.** Switch `/api/stt` to send the audio blob with `Content-Type: audio/webm` directly (no base64 round-trip if any). Confirm we're already using fastest Whisper variant.
+6. **Shorter prompt → faster first token.** New `PILOT_VOICE_SYSTEM` (see P2) is ~40% shorter than COACH_VOICE; less context = faster TTFB from Gemini.
 
-- **Tier 1 (this ship, no new connectors):** Ship the full settings UI now against OpenAI TTS. Voice = 9 curated options labeled by tone/gender. Language = auto. Accent = steered via instructions (clearly labeled "best effort"). Personality, speed, name, previews, persistence, global application — all real.
-- **Tier 2 (follow-up, behind ElevenLabs connector):** Swap the voice catalog to ElevenLabs' named multi-accent voices, add explicit language + accent dropdowns backed by their voice library, keep the same settings UI. This is a provider swap inside `/api/tts`, not a UI rewrite.
+### Target timings after fix
+- Filler audio playing: < 800ms after mic stop.
+- First real sentence audible: < 2.5s after mic stop.
+- Full answer: streams continuously, no silent gaps.
 
-If you want Tier 2 in this ship, I'll add a step to link the ElevenLabs connector first. **Please confirm Tier 1 now / Tier 1+2 now / Tier 2 only.** The rest of the plan assumes Tier 1 with Tier 2 wiring stubbed.
+---
 
-## What we'll build
+## Priority 2 — Make Pilot Sound Human
 
-### 1. Schema (one migration)
-Add to `public.user_prefs`:
-- `voice_id text` (default `'sage'`)
-- `voice_provider text` (default `'openai'`, future `'elevenlabs'`)
-- `voice_language text` (default `'en-US'`, BCP-47)
-- `voice_accent text null` (free-form label, optional)
-- `voice_personality text` (default `'calm'` — calm | friendly | professional | motivational | companion | coach | energetic)
-- `voice_speed numeric` (default `1.0`, clamped 0.7–1.2)
-- `voice_instructions text null` (computed server-side from personality, stored for transparency)
+### Voice contract for spoken intent
+New `PILOT_VOICE_SYSTEM` in `src/lib/ai/prompts.server.ts`, used only by `intent: "coach"` (visual cards keep COACH_VOICE):
 
-No new table. `assistant_name` already exists and becomes the "Pilot Name" field.
+```
+You are Pilot, the user's personal sleep & energy companion.
+You're talking out loud, not writing a document.
+- No markdown. No headings. No bullet lists. No bold. No numbered steps.
+- Speak in 2–4 short sentences, ~20–40 seconds when read aloud.
+- Sound like a calm friend or coach. Contractions, natural rhythm.
+- If you need more info to answer well, ASK ONE question instead of guessing.
+- Offer to go deeper at the end ("Want me to walk through it?") only when relevant.
+- Never say "As an AI". Never say "Here are some recommendations".
+```
 
-### 2. Server: unified voice config
-- New `src/lib/voice/profile.server.ts` — loads `user_prefs` voice fields, returns a normalized `VoiceProfile`.
-- `src/routes/api/tts.ts` rewrite: accepts `{ text, userId? }`, loads the profile, applies `voice`, `speed`, and a personality-derived `instructions` string. Backward-compatible with current `{ text, voice }` callers.
-- New `src/routes/api/tts/preview.ts` — same as `/api/tts` but takes ad-hoc overrides (so the settings UI can preview a voice/speed/personality before saving). Short sample text per language.
+### Post-processing safety net
+In `pilot.tsx`, run final text through `stripMd()` already in place AND a new `humanize()`:
+- Strip `**`, `__`, `#`, leading `- `, `1. `, table pipes.
+- Collapse multi-newlines to single space for TTS only (keep newlines in transcript).
+- Drop trailing `Note:` / `Disclaimer:` paragraphs longer than 120 chars.
 
-### 3. Client: settings surface
-- New `src/components/voice/VoiceSettings.tsx`:
-  - Pilot Name (reuses `assistant_name`).
-  - Voice picker grid (gender/tone label per voice, tap to preview, "Use this voice" to save).
-  - Language dropdown (all locales currently in any RestPilot string + the list above).
-  - Accent dropdown (filtered by language; "Best effort" badge on Tier 1).
-  - Personality chips.
-  - Speed slider (Slow 0.85 / Normal 1.0 / Fast 1.15) — also a fine slider.
-  - Live "Preview" button per change.
-- Mount in **Profile → Assistant** (alongside `AssistantSettings.tsx`) and add a "Voice & Personality" entry-point card on `/pilot`.
+Transcript on screen renders the lightly-formatted version; TTS gets the fully-flattened version.
 
-### 4. Global application
-- `useTtsPlayer`, `VoicePlayer`, `AIBriefCard`, Coach TTS, and `/pilot` all stop hard-coding `voice: "sage"`. They call `/api/tts` with no voice override; the server resolves from the profile.
-- Remove the legacy `rp.voice.voiceId` / `rp.voice.speed` `localStorage` keys; migrate once into prefs on first load if present.
+---
 
-### 5. Persistence + sync
-- Writes go through a new server fn `updateVoicePrefs` (auth-protected) that upserts `user_prefs`.
-- Same React Query invalidation pattern as existing `user_prefs` consumers, so other tabs / devices pick it up.
+## Priority 3 — Conversation Quality (ask, don't dump)
 
-### 6. Acceptance verification
-- Playwright: change voice + speed + personality + name on `/profile`, refresh, log out / in, confirm values persist; trigger Voice Briefing on `/dashboard` and assert outbound `/api/tts` POST carries no `voice` override and the server picks the saved one.
-- Manual matrix: iPhone Safari, Android Chrome, desktop Chrome.
+1. Add to `PILOT_VOICE_SYSTEM`:
+   - "If the user's first message lacks key context (wake time, last shift, how they feel, caffeine, sleep hours), ask ONE clarifying question before giving advice. Pick the most useful one."
+2. Seed examples in the system prompt with 3 short dialogues showing the ask-first pattern.
+3. Soft cap: if model output > 600 chars on the first turn of a topic, the post-processor truncates at the last sentence boundary before 600 and appends "Want the full breakdown?" — but only when no question mark exists in the response.
 
-## Out of scope (call out to user)
-- True per-language native voices for every locale (needs Tier 2 / ElevenLabs).
-- STT language selection — Whisper auto-detects today; we can add a forced-language hint to `/api/stt` in a follow-up if you want.
-- Voice cloning / custom uploaded voices.
+---
 
-## Risks
-- Accent fidelity on Tier 1 is steered, not native. UI will label these clearly so we don't oversell.
-- Speed extremes (<0.85 or >1.15) on `gpt-4o-mini-tts` degrade naturalness; we clamp.
-- iOS Safari still needs a user gesture for preview playback — reuse the existing gesture-arm pattern from `useTtsPlayer`.
+## Priority 4 — Voice Personalization Discovery
 
-## Deliverables checklist
-- [ ] Migration adds voice fields to `user_prefs`
-- [ ] `/api/tts` resolves from profile; `/api/tts/preview` accepts overrides
-- [ ] `VoiceSettings.tsx` mounted on Profile + entry on Pilot
-- [ ] All TTS callers drop hard-coded voice
-- [ ] Legacy localStorage migrated then removed
-- [ ] Playwright persistence + cross-surface check passes
-- [ ] Tier 2 (ElevenLabs) ticket filed if not shipping now
+Settings already exist in `/profile` → Voice Settings (built last turn). Make them easier to find:
 
-**Please confirm: Tier 1 only, Tier 1 + Tier 2, or Tier 2 only?** Then I'll execute.
+1. **In Pilot UI**: add a small "Voice & personality" link beneath the orb that deep-links to `/profile#voice-settings`.
+2. **First-run nudge**: if `user_prefs.voice_id` is null on Pilot's first open, show a one-line dismissible chip "Tap to pick Pilot's voice →".
+3. **Voice Settings audit**: confirm Male/Female grouping, accent dropdown (American, British, Australian, Canadian, Irish, South African), speed slider 0.7–1.3, Pilot name field, and 6 personality presets (Calm, Friendly, Professional, Motivational, Energetic, Companion) are all present with working previews. Add any missing accents.
+4. Anchor `id="voice-settings"` on the section so the deep link scrolls to it.
+
+---
+
+## Priority 5 — Companion Personality (real memory)
+
+The `ai_memory` + ranking engine already exists. Wire it into Pilot's opening turn and ongoing context:
+
+1. **Arrival line.** On Pilot route mount, server fn `getPilotGreeting()` builds a one-liner using:
+   - Last conversation timestamp ("Welcome back" / "Good morning" / "How was the night shift?").
+   - Top-ranked memory ("Last time you mentioned an early shift Thursday — that's today.").
+   - Latest sleep delta vs. baseline ("You got an hour more than yesterday — nice.").
+   Shown as a soft text bubble above the orb. Tap to hear it spoken.
+2. **Context injection.** `buildSystemPrompt({ intent: "coach" })` already pulls memory; verify top 5 ranked memories + last 3 user turns are included. Add `lastSeenAt` and `currentLocalTime` so Pilot can greet correctly.
+3. **Natural recall language.** Add to prompt: "When recalling a memory, say it the way a friend would — 'Last week you said…', 'You mentioned…' — never 'According to my records'."
+
+---
+
+## Priority 6 — Reduce Information Overload
+
+Covered by P2 + P3, plus:
+1. Default `max_tokens` for `intent: "coach"` lowered from current default → 220.
+2. Server-side check: if response > 4 sentences and user didn't ask "explain" / "details" / "walk me through", trim to first 3 sentences + "Want more on that?".
+3. UI: add small "Tell me more" chip after each Pilot reply that re-sends the same context with `{ expand: true }`, which raises `max_tokens` and removes the brevity instruction for that turn.
+
+---
+
+## Technical Details
+
+### Files touched
+- `src/routes/pilot.tsx` — sentence-streamed TTS, filler trigger, "Tell me more" chip, voice-settings link, arrival bubble.
+- `src/routes/api/ai.ts` — new `PILOT_VOICE_SYSTEM`, `expand` flag, response-length cap, cache lookup hook.
+- `src/lib/ai/prompts.server.ts` — export `PILOT_VOICE_SYSTEM`, `humanize()` helper.
+- `src/lib/voice/useTtsPlayer.ts` → split into `useTtsQueue.ts` (ordered playback) + thin compat wrapper for existing callers (`VoicePlayer`, `coach.tsx`).
+- `src/lib/voice/fillers.ts` — list of filler MP3 URLs + random picker.
+- `public/audio/fillers/*.mp3` — 6 pre-generated clips (generated once via the existing tts skill, committed as static assets).
+- `src/lib/ai/qa-cache.server.ts` — tiny in-memory LRU for cached Q&A.
+- `src/lib/pilot/greeting.functions.ts` — `getPilotGreeting()` server fn using ranked memory.
+- `src/components/voice/VoiceSettings.tsx` — add `id="voice-settings"`, confirm accent list completeness.
+
+### Out of scope
+- No schema changes. Memory tables already exist.
+- No new paid models. Same `google/gemini-3-flash-preview` + `openai/gpt-4o-mini-tts`.
+- No native iOS work.
+
+---
+
+## Acceptance Criteria (must all pass before "Launch Ready")
+1. Filler audio plays within 800ms of mic stop; first real sentence within 2.5s.
+2. Zero markdown (`*`, `#`, `-`, `1.`) in any Pilot spoken text across 10 sample prompts.
+3. Average spoken reply 20–40s; long answers gated behind "Tell me more".
+4. Cold-start question without context produces a clarifying question, not advice.
+5. Voice, accent, speed, name, personality all changeable from `/profile`; "Voice & personality" link from Pilot reaches them in one tap.
+6. On second visit, Pilot greets with a memory-grounded line referencing a prior turn or recent sleep.
+7. Barge-in stops both filler and main audio cleanly; no overlapping playback.
+8. Manual QA on iPhone Safari + Desktop Chrome confirms no regressions in transcript, mic, or settings.
+
+---
+
+Approve and I'll start with **Priority 1 (speed + filler + sentence streaming)** since it unlocks the rest.
