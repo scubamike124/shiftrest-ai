@@ -145,6 +145,7 @@ const ALLOWED_OPEN_ROUTES: ReadonlySet<string> = new Set([
   "/plan",
   "/memory",
   "/settings/companion",
+  "/settings/skills",
   "/dashboard",
 ]);
 
