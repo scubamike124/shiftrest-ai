@@ -130,3 +130,35 @@ export const getWearableSummary = createServerFn({ method: "GET" })
         : null,
     };
   });
+
+// Phase 8 — read-only listing of recent nights for trend cards.
+export const listWearableReadings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { days?: number } | undefined) =>
+    z.object({ days: z.number().int().min(1).max(90).default(30) }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const since = new Date(Date.now() - data.days * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const { data: rows, error } = await context.supabase
+      .from("wearable_readings")
+      .select("*")
+      .eq("user_id", context.userId)
+      .gte("date", since)
+      .order("date", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((r) => ({
+      provider: r.provider as WearableProvider,
+      date: r.date,
+      sleepStart: r.sleep_start,
+      sleepEnd: r.sleep_end,
+      sleepDurationMin: r.sleep_duration_min,
+      sleepEfficiency: r.sleep_efficiency != null ? Number(r.sleep_efficiency) : null,
+      deepMin: r.deep_min,
+      remMin: r.rem_min,
+      lightMin: r.light_min,
+      hrvMs: r.hrv_ms != null ? Number(r.hrv_ms) : null,
+      restingHr: r.resting_hr,
+    }));
+  });
