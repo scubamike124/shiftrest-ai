@@ -308,8 +308,9 @@ function Dashboard() {
   return (
     <main className="mx-auto flex w-full min-w-0 max-w-6xl flex-col px-5 pt-8 pb-12 [padding-left:max(1.25rem,env(safe-area-inset-left))] [padding-right:max(1.25rem,env(safe-area-inset-right))] lg:px-10 lg:pt-12">
       {/* Personalized arrival — greeting + what the AI already did today */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-start gap-3">
         <ArrivalHero dateLabel={dateLabel} />
+        <CompanionQuickAsk />
         <CompanionAvatar />
         <Link
           to="/profile"
