@@ -34,16 +34,17 @@ const VALID_PERSONALITIES = new Set<PersonalityKey>([
 ]);
 
 async function loadUserVoiceProfile(authHeader: string | null): Promise<VoiceProfile> {
-  if (!authHeader?.startsWith("Bearer ")) return DEFAULT_VOICE_PROFILE;
+  if (!authHeader) return DEFAULT_VOICE_PROFILE;
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token) return DEFAULT_VOICE_PROFILE;
   const url = process.env.SUPABASE_URL;
-  const anon = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !anon) return DEFAULT_VOICE_PROFILE;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return DEFAULT_VOICE_PROFILE;
   try {
-    const supa = createClient(url, anon, {
-      global: { headers: { Authorization: authHeader } },
+    const supa = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: userRes } = await supa.auth.getUser();
+    const { data: userRes } = await supa.auth.getUser(token);
     const uid = userRes?.user?.id;
     if (!uid) return DEFAULT_VOICE_PROFILE;
     const { data } = await supa
