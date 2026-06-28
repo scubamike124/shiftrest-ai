@@ -91,6 +91,17 @@ function CompanionPage() {
   const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1200 });
   const [transcribing, setTranscribing] = useState(false);
 
+  // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
+  const navigate = useNavigate();
+  const [pendingSoundIntent, setPendingSoundIntent] = useState<Intent | null>(null);
+  const execCtx = {
+    signedIn: signedIn === true,
+    navigate: (to: string, search?: Record<string, string>) => {
+      navigate({ to, search: search ?? undefined } as never).catch(() => undefined);
+    },
+    openBreathing: () => undefined,
+  };
+
   useEffect(() => {
     if (micState === "listening") setOrbState("listening");
     else if (sending) setOrbState("thinking");
