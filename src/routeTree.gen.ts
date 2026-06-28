@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
+import { Route as SmartHomeRouteImport } from './routes/smart-home'
 import { Route as SleepRouteImport } from './routes/sleep'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as SafetyRouteImport } from './routes/safety'
@@ -31,6 +32,7 @@ import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CoachRouteImport } from './routes/coach'
+import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
@@ -74,6 +76,11 @@ const TermsRoute = TermsRouteImport.update({
 const SwapRoute = SwapRouteImport.update({
   id: '/swap',
   path: '/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SmartHomeRoute = SmartHomeRouteImport.update({
+  id: '/smart-home',
+  path: '/smart-home',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SleepRoute = SleepRouteImport.update({
@@ -174,6 +181,11 @@ const CompanionRoute = CompanionRouteImport.update({
 const CoachRoute = CoachRouteImport.update({
   id: '/coach',
   path: '/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -353,6 +365,7 @@ const ApiPublicWearablesFitbitCallbackRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
@@ -373,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/sleep': typeof SleepRoute
+  '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -411,6 +425,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
@@ -430,6 +445,7 @@ export interface FileRoutesByTo {
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/sleep': typeof SleepRoute
+  '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -469,6 +485,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
   '/dashboard': typeof DashboardRoute
@@ -489,6 +506,7 @@ export interface FileRoutesById {
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
   '/sleep': typeof SleepRoute
+  '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
   '/api/ai': typeof ApiAiRoute
@@ -529,6 +547,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/automations'
     | '/coach'
     | '/companion'
     | '/dashboard'
@@ -549,6 +568,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/share'
     | '/sleep'
+    | '/smart-home'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -587,6 +607,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/automations'
     | '/coach'
     | '/companion'
     | '/dashboard'
@@ -606,6 +627,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/share'
     | '/sleep'
+    | '/smart-home'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -644,6 +666,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/auth'
+    | '/automations'
     | '/coach'
     | '/companion'
     | '/dashboard'
@@ -664,6 +687,7 @@ export interface FileRouteTypes {
     | '/safety'
     | '/share'
     | '/sleep'
+    | '/smart-home'
     | '/swap'
     | '/terms'
     | '/api/ai'
@@ -703,6 +727,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
+  AutomationsRoute: typeof AutomationsRoute
   CoachRoute: typeof CoachRoute
   CompanionRoute: typeof CompanionRoute
   DashboardRoute: typeof DashboardRoute
@@ -723,6 +748,7 @@ export interface RootRouteChildren {
   SafetyRoute: typeof SafetyRoute
   ShareRoute: typeof ShareRoute
   SleepRoute: typeof SleepRoute
+  SmartHomeRoute: typeof SmartHomeRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
   ApiAiRoute: typeof ApiAiRoute
@@ -757,6 +783,13 @@ declare module '@tanstack/react-router' {
       path: '/swap'
       fullPath: '/swap'
       preLoaderRoute: typeof SwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/smart-home': {
+      id: '/smart-home'
+      path: '/smart-home'
+      fullPath: '/smart-home'
+      preLoaderRoute: typeof SmartHomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sleep': {
@@ -897,6 +930,13 @@ declare module '@tanstack/react-router' {
       path: '/coach'
       fullPath: '/coach'
       preLoaderRoute: typeof CoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -1183,6 +1223,7 @@ const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
+  AutomationsRoute: AutomationsRoute,
   CoachRoute: CoachRoute,
   CompanionRoute: CompanionRoute,
   DashboardRoute: DashboardRoute,
@@ -1203,6 +1244,7 @@ const rootRouteChildren: RootRouteChildren = {
   SafetyRoute: SafetyRoute,
   ShareRoute: ShareRoute,
   SleepRoute: SleepRoute,
+  SmartHomeRoute: SmartHomeRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
   ApiAiRoute: ApiAiRoute,

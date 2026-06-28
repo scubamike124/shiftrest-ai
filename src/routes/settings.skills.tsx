@@ -38,6 +38,7 @@ import type { SkillDescriptor } from "@/lib/companion/skills/types";
 import { WeatherLocationCard } from "@/components/weather/WeatherLocationCard";
 import { TrafficDestinationsCard } from "@/components/traffic/TrafficDestinationsCard";
 import { CalendarFeedsCard } from "@/components/calendar/CalendarFeedsCard";
+import { QuietModeCard } from "@/components/companion/QuietModeCard";
 
 export const Route = createFileRoute("/settings/skills")({
   head: () => ({
@@ -218,6 +219,33 @@ function SkillsSettings() {
                   )}
                   {skill.id === "calendar_read" && skill.status !== "coming_soon" && (
                     <CalendarFeedsCard flagOn={flagOn} onSaved={() => void refresh()} />
+                  )}
+                  {skill.id === "smart_home" && skill.status !== "coming_soon" && (
+                    <Link
+                      to="/smart-home"
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-border/60 px-3 text-xs font-medium hover:bg-accent"
+                    >
+                      Manage devices →
+                    </Link>
+                  )}
+                  {skill.id === "automations" && skill.status !== "coming_soon" && (
+                    <Link
+                      to="/automations"
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-border/60 px-3 text-xs font-medium hover:bg-accent"
+                    >
+                      Open routines →
+                    </Link>
+                  )}
+                  {skill.id === "sleep_sounds" && skill.status !== "coming_soon" && (
+                    <Link
+                      to="/sleep"
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-border/60 px-3 text-xs font-medium hover:bg-accent"
+                    >
+                      Open sleep mixer →
+                    </Link>
+                  )}
+                  {skill.id === "quiet_mode" && skill.status !== "coming_soon" && (
+                    <QuietModeCard />
                   )}
                 </div>
               ))}
