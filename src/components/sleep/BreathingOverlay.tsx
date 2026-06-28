@@ -12,9 +12,9 @@ const PHASES = [
 ] as const;
 
 export function BreathingOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [phaseIdx, setPhaseIdx] = useState(0);
-  const [remaining, setRemaining] = useState(PHASES[0].seconds);
-  const [cycle, setCycle] = useState(0);
+  const [phaseIdx, setPhaseIdx] = useState<number>(0);
+  const [remaining, setRemaining] = useState<number>(PHASES[0].seconds);
+  const [cycle, setCycle] = useState<number>(0);
 
   useEffect(() => {
     if (!open) return;
