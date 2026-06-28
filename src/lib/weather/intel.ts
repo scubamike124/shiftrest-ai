@@ -158,7 +158,7 @@ export function deriveWeatherAlerts(input: WeatherIntelInput): WeatherAlert[] {
       periods: ["morning", "afternoon", "evening"],
     });
   }
-  if (isFog(hourly.weatherCode.slice(0, 4))) {
+  if (hourly.weatherCode.slice(0, 4).some(isFog)) {
     out.push({
       id: "fog",
       severity: "info",
