@@ -1,163 +1,201 @@
+# Slice 12 — Companion Skills & Integrations (Investigation + Plan)
 
-# Slice 11 — AI Companion Avatar Home Integration
+This is an **investigation-only** plan. Nothing ships until you approve. The objective is to evolve the Companion from "tells you things" to "does things for you" — without breaking the safety, privacy, a11y, quiet-hours, offline, analytics, and Action History contracts established in Slices 8–11.
 
-Investigation-first. No code until approved. Backward compatible — every existing card, route, and prefs key stays intact.
+---
 
-## 1. Investigation Report
+## 1. Architecture review (what's already in place)
 
-### 1.1 Current companion entry points
-- `src/components/CompanionAvatar.tsx` — 44×44 sparkle chip in the dashboard header row, links to `/companion`, pulses when the current brief period is unseen (`brief:seen` event + `lastSeenKey()`).
-- `src/components/CompanionQuickAsk.tsx` — period-aware "Ask" popover next to the avatar; hidden below `sm:` (mobile users currently see no quick-ask).
-- `src/components/CompanionWhisper.tsx` — proactive insight card lower in the feed.
-- `src/components/PilotOrb.tsx` — voice orb used inside `/pilot` and `/companion`.
-- Bottom nav has `/pilot` (Mic) but no direct Companion tab; sidebar route surface exposes `/companion` via `AppSidebar`.
+The good news: the foundation we built in Slices 8–10 is the right shape for everything in Slice 12.
 
-### 1.2 Dashboard header today (`src/routes/dashboard.tsx` lines 309–322)
-```
-grid-cols-[minmax(0,1fr)_auto_auto_auto]
-  ArrivalHero | CompanionQuickAsk (sm+) | CompanionAvatar (44px) | Profile (40px)
-```
-On a 375 px viewport the avatar reads as a tiny accent next to the profile dot — not a "central assistant". Mockup direction calls for a calm, prominent hero presence under the greeting.
+- **Typed action registry** — `src/lib/companion/actions.ts` already defines a discriminated `CompanionAction` union with `describeAction`, `executeAction(ctx)`, `isDestructive`, and a runtime `ALLOWED_OPEN_ROUTES` allow-list. Every new skill = new variants in this union + new cases in those three functions. No parallel system.
+- **Confirmation UX** — `ActionCard.tsx` already renders Approve / Reject, supports `destructive`, `unavailable`, and recovery CTAs.
+- **History + retry** — `action-history.ts` records every attempt (queued / executing / completed / failed) per device.
+- **Narration** — `narration.ts` produces TTS-friendly outcome strings, routed through `speak.ts` which honors quiet hours, mute, and cancel-prior policy.
+- **Analytics** — `analytics.ts` emits `action_started` / `action_completed` etc.; we just add new event variants.
+- **Offline + auth gates** — `executeAction` already short-circuits with `offline`, `unauthenticated`, `unavailable` error kinds. We reuse this exact pattern.
+- **Memory** — `ai_memory` + `ai_memory_proposals` + `/memory` already implement permission-based memory with explicit Approve/Reject, pinning, importance, deletion, and a pause/resume control.
 
-### 1.3 Brief / period plumbing
-- `src/lib/companion/brief-window.ts` already exposes `currentBriefPeriod()`, `periodAnchor()`, `lastSeenKey()`, and dispatches `brief:seen`.
-- `MorningBrief` / `DailyBrief` already mark periods seen, so a new hero avatar can subscribe to the same signal with no new state machinery.
+What's missing for Slice 12: **per-skill capability providers** (smart-home, calendar, travel, comms, weather), a way to detect/configure which are connected, and a small expansion of the memory-proposal pipeline so it can propose **routines** (multi-step) and not just single facts.
 
-### 1.4 First-launch / onboarding
-- `src/components/Onboarding.tsx` runs once (gated by `prefs.onboarded`). It covers consent, AI disclaimer, safety. There is **no** companion-specific intro and **no** memory explanation surfaced at launch.
-- Memory consent today lives only inside `/companion` and `/memory`.
+---
 
-### 1.5 Prefs / settings
-- `src/lib/prefs.ts` has `companionMode`, `companionName`, `memoryConsent`, `voiceId`, etc.
-- `src/lib/companion/voice-action-prefs.ts` stores per-device local prefs (voice replies, quiet hours, confirm).
-- `src/routes/settings.companion.tsx` is the single source of truth for editable companion settings.
-- No `companionIntroSeen` flag exists yet — we need one (local-only, additive, non-destructive).
+## 2. Files impacted
 
-### 1.6 Analytics
-- `src/lib/companion/analytics.ts` `track()` already exists. New events fit the existing union — additive only.
-
-### 1.7 Accessibility / mobile observations
-- Header grid has four columns at 375 px → tight; on iPhone SE the `Ask` chip is hidden, leaving only the 44 px sparkle.
-- `CompanionAvatar` uses 44 px target, good. Profile chip is 40 px — already below standard but out of scope.
-- Reduced-motion: pulse uses `motion-reduce:animate-none` ✓.
-- No `aria-live` announcement when a new brief becomes available.
-
-### 1.8 Risks / regressions to avoid
-- Don't remove the existing `CompanionAvatar` chip — sidebar/desktop layout still relies on it implicitly via dashboard header. We will **keep it as a compact secondary** and add a new `CompanionHero` block beneath the header on mobile + at hero position on desktop.
-- Don't reflow `RightNowCard` order — it must remain the first content card on dashboard. Hero avatar goes **above** RightNow but **below** the greeting row.
-- Don't gate first-launch intro on prefs we'd have to migrate; use a local-storage flag plus an optional server-persisted echo when convenient.
-
-## 2. Visual Placement Plan
+### New files (skill providers + UI)
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ ArrivalHero (greeting + date)        [Ask] [✦] [👤]    │  ← unchanged header
-├─────────────────────────────────────────────────────────┤
-│  ┌───────────────────────────────────────────────────┐  │
-│  │  CompanionHero (NEW)                              │  │
-│  │  ◉  "Good evening, Casey."                        │  │
-│  │     Evening wind-down brief is ready.             │  │
-│  │     [Open Companion]  [Not now]                   │  │
-│  └───────────────────────────────────────────────────┘  │
-├─────────────────────────────────────────────────────────┤
-│  RightNowCard                                           │
-│  DecisionCenter / Activity / Whisper …  (unchanged)     │
-└─────────────────────────────────────────────────────────┘
+src/lib/companion/skills/
+  registry.ts                 // capability discovery + feature flags
+  smart-home/
+    index.ts                  // typed actions + executor
+    providers/
+      homeassistant.ts        // HA REST API client (server-only)
+      stub.ts                 // safe no-op until user connects HA
+  calendar/
+    index.ts                  // create/move/delete event actions
+    google.functions.ts       // server fns (Google Calendar via OAuth)
+    ics.ts                    // read-only ICS feed fallback
+  travel/
+    index.ts                  // flight/hotel/trip actions
+    flight.functions.ts       // AeroDataBox/AviationStack via connector
+    traffic.ts                // reuse Open-Meteo + existing /commute baseline
+  comms/
+    index.ts                  // draft/send email + SMS + call actions
+    email.functions.ts        // Lovable Emails (drafts only by default)
+    sms.functions.ts          // Twilio via connector (send = destructive)
+  weather/
+    alerts.ts                 // rain/heat/wind/AQ thresholds + clothing
+    alerts.functions.ts       // server fn calling Open-Meteo air-quality
+src/components/companion/skills/
+  ConnectSkillCard.tsx        // "Connect Google Calendar" etc.
+  AgendaCard.tsx              // today's agenda inline in chat
+  WeatherAlertCard.tsx        // rain/heat/AQ warning chip
+  TripCountdownCard.tsx
+src/routes/settings.skills.tsx // central on/off + connection mgmt
 ```
 
-- Mobile: full-width card, ~120 px tall, single CTA + dismiss.
-- Tablet (`sm:`): same card, two-column body (avatar | text + CTAs).
-- Desktop (`lg:`): same card, slightly larger orb, secondary "Settings" link inline.
-- Avatar visual: reuses `PilotOrb` at calm idle, color state from period; never auto-plays audio.
-- Header `CompanionAvatar` stays as a quick secondary jump (no duplicate intent — header is "tap to open", hero is "tap to engage with context").
+### Modified
 
-## 3. Avatar States
+- `src/lib/companion/actions.ts` — extend `CompanionAction` union with new kinds; mark every destructive/security-sensitive one in `isDestructive`; route execution to the new skill modules.
+- `src/lib/companion/narration.ts` — add cases for new action kinds.
+- `src/lib/companion/analytics.ts` — add `skill_invoked`, `skill_connect_started`, `skill_connect_completed`.
+- `src/lib/companion/action-history.ts` — no schema change; new kinds inherit automatically.
+- `src/routes/api/ai.ts` — extend system prompt with the new tool catalog so the LLM proposes the right actions.
+- `src/routes/companion.tsx` — render new inline cards (Agenda, Weather Alert, Trip Countdown) when assistant emits them.
+- `src/routes/settings.companion.tsx` — link out to `/settings/skills`.
+- `src/lib/ai/memory-proposer.server.ts` — extend to propose multi-step **routines** (e.g. "every weekday 22:00 → lights dim + thermostat 68 + wind-down"), still gated by Approve/Reject.
+- `src/lib/companion/quiet-hours.ts` — used as-is; new skills must call `inQuietHours()` before any audible side effect.
 
-Single `state` prop drives orb tint + label:
+### Database (one migration)
 
-| State | Trigger | Visual | Copy |
-|---|---|---|---|
-| idle | no fresh brief, no pending action | soft indigo | "I'm here when you need me." |
-| greeting | first view in a period | gentle pulse | "Good {morning/afternoon/evening}, {name}." |
-| morning_brief | period=morning & unseen | warm amber halo | "Your morning brief is ready." |
-| afternoon_check | period=afternoon & unseen | sky halo | "Quick afternoon check-in?" |
-| evening_wind | period=evening & unseen | violet halo | "Want to start your wind-down?" |
-| action_pending | `companion:action-pending` event | primary ring | "An action needs your confirmation." |
-| voice_muted | local pref voiceReplies=off | mute glyph | (no voice copy) |
-| quiet_hours | `inQuietHours()` true | dim 60% opacity, no pulse | "Quiet hours — I'll stay quiet." |
-| offline | `useOnline()` false | gray ring | "Offline — limited help available." |
+```sql
+-- Per-user skill connections (OAuth tokens / config)
+create table public.companion_skills(
+  user_id uuid not null references auth.users(id) on delete cascade,
+  skill text not null,              -- 'google_calendar' | 'homeassistant' | 'twilio' | ...
+  status text not null default 'connected',
+  config jsonb not null default '{}'::jsonb,
+  secrets_ref text,                 -- name of vault secret, never the raw token
+  connected_at timestamptz not null default now(),
+  primary key (user_id, skill)
+);
+grant select, insert, update, delete on public.companion_skills to authenticated;
+grant all on public.companion_skills to service_role;
+alter table public.companion_skills enable row level security;
+create policy "own skills" on public.companion_skills
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-All states honor `prefers-reduced-motion`.
+-- Learned routines (Slice 12 memory expansion). One row per proposed/approved routine.
+create table public.companion_routines(
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  trigger jsonb not null,           -- {kind:'time', at:'22:00', days:[1..5]} | {kind:'event', ...}
+  steps jsonb not null,             -- [{action:'play_track', ...}, ...]
+  status text not null default 'proposed', -- proposed | active | paused
+  reason text,                      -- "I noticed you start wind-down at ~22:00 on weekdays"
+  approved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+grant select, insert, update, delete on public.companion_routines to authenticated;
+grant all on public.companion_routines to service_role;
+alter table public.companion_routines enable row level security;
+create policy "own routines" on public.companion_routines
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
 
-## 4. First-Launch Companion Intro
+---
 
-New component `CompanionIntroSheet` (bottom sheet on mobile, dialog on ≥sm):
-- Trigger: `companionIntroSeen` flag missing in `localStorage` AND user is on `/dashboard` AND `prefs.onboarded === true` (so it never overlaps the legal onboarding).
-- 3 short slides (≤3 taps):
-  1. Meet your Companion — what it can help with (sleep, sounds, alarms, briefs).
-  2. Memory is optional — off by default; you can review/edit/delete anytime. Link to `/memory`.
-  3. Voice & actions — voice replies optional; destructive actions always confirm. Link to `/settings/companion`.
-- Single primary CTA "Got it" sets flag + fires `track({event:"settings_changed",surface:"companion-sheet"})` and a new analytics event (see §8).
-- Skippable via close button (still marks seen — non-coercive).
+## 3. New APIs / services
 
-## 5. Home Screen Proactive Prompts
+| Skill | Integration | Auth model | Notes |
+| --- | --- | --- | --- |
+| Smart Home | Home Assistant REST (`/api/services/<domain>/<service>`) | Per-user long-lived token, stored in Lovable secret per user (`HA_TOKEN_<uid-hash>`) | Stub provider ships first; HA optional. Future: Matter via native shell. |
+| Calendar (read+write) | Google Calendar via standard connector OR per-user OAuth | Per-user OAuth (each user grants own calendar) | The workspace Google Calendar connector is dev-only; production requires per-user OAuth. ICS read-only fallback works with zero setup. |
+| Travel — flights | AeroDataBox or AviationStack via API key | App-level secret (`FLIGHTS_API_KEY`) | Read-only; no destructive ops. |
+| Travel — traffic | Open-Meteo + existing commute baseline | No key | Already in repo. |
+| Comms — email | Lovable Emails (built-in) | None new | Drafts only by default; **Send** is destructive. |
+| Comms — SMS / Calls | Twilio standard connector | App-level | Send/call are destructive; numbers must be user-verified. |
+| Weather alerts | Open-Meteo Air-Quality + Forecast | No key | Pure server fn; no new dependency. |
 
-`CompanionHero` reads three signals to choose at most **one** prompt at a time:
-1. `currentBriefPeriod()` + unseen → "{Period} brief is ready."
-2. `prefs.windDownEnabled` + within wind-down window → "Want to start your wind-down?"
-3. Memory hint (`fetchCompanionHints`) → "Would you like rain sounds for 20 minutes?"
+We will **not** add any direct provider SDKs to client code. Every external call is wrapped in a `createServerFn`/server route, secrets stay server-side.
 
-Dismiss button stores `{key, ts}` in `localStorage` for 6 hours so we never re-nag the same prompt. Quiet hours suppresses any voice — copy remains visible but muted glyph shown.
+---
 
-## 6. Files Affected
+## 4. Security considerations
 
-New:
-- `src/components/companion/CompanionHero.tsx`
-- `src/components/companion/CompanionIntroSheet.tsx`
-- `src/lib/companion/hero-state.ts` (pure resolver: signals → state + copy + cta)
-- `src/lib/companion/intro-flag.ts` (localStorage get/set, SSR-safe)
+- **Destructive set expands**: `delete_calendar_event`, `send_email`, `send_sms`, `place_call`, `unlock_door`, `open_garage`, `set_thermostat` (when delta > 4°), `tv_power_off`. Every one returns `true` from `isDestructive` and forces the ActionCard confirmation even if "Always Confirm" is off.
+- **Allow-list pattern reused** for every external surface: route allow-list (already in `actions.ts`), HA entity allow-list per user, recipient allow-list for SMS/calls (only numbers the user has saved + verified), domain allow-list for email "from".
+- **Webhook & token storage**: OAuth tokens and HA tokens are stored via `add_secret` (per-user named secret), never in the database in plain text; the DB only stores a `secrets_ref` name.
+- **Voice spoofing**: no skill executes from voice alone — voice → text → `ActionCard` → tap Confirm. We never auto-execute voice intents for destructive actions.
+- **Rate limiting** per skill per user (in `executeAction` wrapper) to prevent runaway loops (e.g. AI proposing 30 SMS sends).
+- **Audit trail**: every destructive action additionally writes to `ai_log` with `intent='companion_action'` and the redacted payload (recipient, subject hash — not message body).
+- **Input validation**: Zod schemas on every server fn (phone E.164, email RFC, HA entity IDs `^[a-z_]+\.[a-z0-9_]+$`).
 
-Edited (small, additive):
-- `src/routes/dashboard.tsx` — mount `<CompanionHero />` above `RightNowCard`; mount `<CompanionIntroSheet />` once.
-- `src/lib/companion/analytics.ts` — extend union with `avatar_viewed`, `avatar_tapped`, `companion_opened_from_dashboard`, `intro_viewed`, `intro_completed`, `memory_explainer_viewed`, `prompt_dismissed`, `prompt_accepted`, `companion_settings_opened`.
-- `src/components/CompanionAvatar.tsx` — emit `avatar_tapped` on click + `aria-live` polite announcement when state changes (no visual change).
-- `src/components/memory/HowMemoryWorks.tsx` — used inside intro sheet step 2; verify wording matches §"AI Memory Explanation" (no copy changes outside that file).
+---
 
-Not touched: existing brief components, `/companion` route, sidebar, BottomNav, onboarding legal flow.
+## 5. Privacy implications
 
-## 7. Implementation Plan (after approval)
+- **Memory remains opt-in.** No skill auto-enables memory. Skill usage is logged to Action History (device-local) but only contributes a memory **proposal** if the user has memory ON.
+- **Routine learning** writes to `companion_routines` with `status='proposed'` only. Nothing runs until the user taps Approve in `/memory` (new "Routines" tab).
+- **Each suggestion shows "why"** — we already have `WhyButton` in `src/components/ai/trust/`. Routine cards reuse it.
+- **One-tap edit/delete** on every routine and learned fact.
+- **Data minimization**: travel/flight queries send only the flight number; email drafts never leave the device until the user taps Send; SMS bodies are not logged.
+- **Quiet hours** apply to: any TTS narration, any push notification a skill might fire (weather alerts especially), and any non-emergency smart-home action that produces audible/visible effect (TV on). They do **not** block safety-relevant alerts (smoke, severe-weather) — though we ship none of those in Slice 12.
 
-1. Add analytics union additions + `intro-flag.ts` + `hero-state.ts` (pure, unit-friendly).
-2. Build `CompanionHero` (PilotOrb at state, copy, CTA → `/companion`, dismiss).
-3. Build `CompanionIntroSheet` (3 steps, reuses `HowMemoryWorks`).
-4. Mount both in `src/routes/dashboard.tsx`.
-5. Wire `aria-live` region inside hero for state transitions.
-6. Verify typecheck + manual viewport sweep (375 / 768 / 1280).
+---
 
-## 8. Mobile QA Checklist
-- 375×667 (iPhone SE), 390×844 (iPhone 14), 414×896, 768, 1024, 1440.
-- No horizontal scroll; safe-area insets respected.
-- Hero card ≥ 44 px tap targets; CTA and dismiss reachable one-handed.
-- Intro sheet animates from bottom on mobile, centers on desktop.
-- No layout shift when state transitions (reserve min-height).
-- Pulse disabled under `prefers-reduced-motion`.
+## 6. Rollback strategy
 
-## 9. Accessibility Checklist
-- Hero is a `<section aria-labelledby>` with named heading.
-- Orb image `aria-hidden`; CTA buttons have visible labels.
-- State changes announced via `aria-live="polite"`.
-- Intro sheet uses shadcn `Sheet`/`Dialog` (focus trap + ESC handled).
-- Focus returns to hero CTA after intro dismiss.
-- Keyboard: Tab order → Hero CTA → Dismiss → next card.
-- Contrast ≥ 4.5:1 verified against `--background`.
+The whole slice is behind a single feature flag `companion.skills.v1` resolved from `user_prefs.feature_flags` (already JSONB). Default off in prod.
 
-## 10. Rollback Plan
-- All additions are net-new files plus four lines in `dashboard.tsx`. Rollback = revert that JSX block + delete the new files. Prefs/db untouched. localStorage flag is forward-compatible.
+- Per-skill kill-switches in `companion_skills.status` (`disabled`) — disables the action variants from being proposed and executed without code changes.
+- Database migration is additive (two new tables, no alters). Rollback = `drop table` if needed, no data loss elsewhere.
+- New action kinds are additive on the union; old clients fall through to a "coming soon" branch (already supported in `describeAction`).
+- The legacy `intentToAction` voice-router path is unchanged, so existing voice commands keep working if we revert the chat layer.
 
-## 11. Safety
-- No auto-execution; CTAs only navigate.
-- Memory remains off unless user toggles in `/companion` or `/memory`.
-- Voice replies remain gated by existing `voice-action-prefs` and quiet hours.
-- Destructive actions are not surfaced from the hero.
+---
 
-Awaiting approval to implement.
+## 7. Recommended implementation order
+
+Each step is independently shippable, typecheck-clean, and behind the feature flag.
+
+1. **Foundation** — feature flag, `companion_skills` + `companion_routines` migration, `skills/registry.ts`, `/settings/skills` stub, analytics events.
+2. **Weather Intelligence** — pure server fn, no external auth, lowest risk. Adds `WeatherAlertCard` + clothing suggestion. Proves the cards pipeline.
+3. **Calendar Intelligence (read)** — ICS feed read-only + today's agenda card. No OAuth yet.
+4. **Calendar Intelligence (write)** — Google OAuth per user; create/move/delete events. Delete is destructive.
+5. **Travel Intelligence** — flight status + trip countdown + traffic-before-appointments. Read-only.
+6. **Smart Home (HA)** — connection flow + entity picker + lights/fans/thermostat/TV. Locks/garage gated behind extra "Sensitive devices" toggle defaulting OFF.
+7. **Communication Actions** — email/SMS drafts first; send + call gated by "Always Confirm" override AND per-action confirmation.
+8. **Memory Expansion — Routines** — extend `memory-proposer.server.ts` to surface multi-step routine proposals, wire `/memory` Routines tab, scheduler that runs approved routines (reuses existing pg_cron + notify pipeline).
+9. **Polish & QA** — a11y sweep, offline behavior verification for each skill, narration cases, history retry coverage, Playwright happy-path per skill, docs update under `docs/launch/`.
+
+---
+
+## 8. Risk assessment
+
+| Risk | Likelihood | Mitigation |
+| --- | --- | --- |
+| Per-user OAuth (Google Calendar) needs developer setup users may not finish | Medium | Ship ICS read-only fallback; show clear "Connect" CTA but never block other skills. |
+| Home Assistant tokens leak via client bundle | Low | All HA calls go through server fns; token stored per-user in vault secret; never echoed in narration or logs. |
+| LLM proposes destructive action with wrong params (wrong recipient) | Medium | Every destructive action shows full payload preview in ActionCard before Confirm; recipient allow-list for SMS/email; max-1 destructive per turn. |
+| Routine auto-runs cause user confusion | Medium | Routines only fire after explicit Approve; first 3 runs send a "Routine ran" notification with one-tap Pause. |
+| Skill catalog bloats LLM context | Medium | `skills/registry.ts` only exposes connected skills' tools in the system prompt; not the full catalog. |
+| Twilio costs runaway | Low | Rate limit (5 sends / user / day default), and Twilio not enabled unless user connects it. |
+
+---
+
+## 9. Deliverables checklist (when approved)
+
+- TypeScript clean (`tsgo`).
+- New migration applied with GRANTs + RLS verified.
+- Every new action: described, narrated, history-recorded, analytics-tracked, quiet-hours-respected, offline-aware.
+- Every destructive action: forces confirmation, shows payload preview, writes to `ai_log`.
+- A11y: 44px tap targets, `aria-live` for new cards, keyboard focus on confirm.
+- Mobile: tested at 375px; bottom-sheet variants for any new modal.
+- Docs: `docs/companion-skills-launch.md` with per-skill QA matrix + rollback steps.
+
+---
+
+**Awaiting your approval before any code changes.** Once approved, I'll start with step 1 (Foundation) and ship each step as its own typecheck-clean increment.
