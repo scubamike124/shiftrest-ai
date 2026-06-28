@@ -663,10 +663,6 @@ function PilotPage() {
             <Button size="sm" variant="outline" className="mt-3" onClick={() => void tellMeMore()}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Tell me more
             </Button>
-          {canExpand && (
-            <Button size="sm" variant="outline" className="mt-3" onClick={() => void tellMeMore()}>
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Tell me more
-            </Button>
           )}
 
           {/* Always-visible discoverability chip for voice personalization. */}
