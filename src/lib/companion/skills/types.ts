@@ -126,6 +126,17 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     risk: "safe",
     group: "intelligence",
   },
+  {
+    id: "personal_intel",
+    name: "Personal Intelligence",
+    summary: "Tasks, reminders, email notes, and follow-ups — woven into your daily plan.",
+    details:
+      "A private inbox for tasks, reminders, and email follow-ups. Reelo detects priority, surfaces overdue items, suggests follow-ups for things sitting too long, and combines Calendar, Weather, and Traffic so you know when to leave earlier or wind down sooner. Read-only — Reelo never sends or deletes anything for you.",
+    builtin: true,
+    available: true,
+    risk: "safe",
+    group: "productivity",
+  },
 ] as const;
 
 export function getSkill(id: SkillId): SkillDescriptor | undefined {
