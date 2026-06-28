@@ -347,11 +347,12 @@ function PilotPage() {
             speakBuffer = rest;
             for (const c of chunks) {
               if (!firstSentenceFired) {
-                // First real sentence — cut the filler and play this immediately.
-                cancelAllAudio();
+                // First real sentence — cut the filler audio only (do NOT abort LLM).
+                flushQueuedAudio();
                 cancelledRef.current = false;
                 firstSentenceFired = true;
               }
+
               void enqueueSpeak(c);
             }
           } catch {
