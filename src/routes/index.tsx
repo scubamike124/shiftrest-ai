@@ -95,24 +95,24 @@ function Hero({ ctaHref }: { ctaHref: string }) {
       <div className="pointer-events-none absolute right-0 top-40 -z-10 h-[400px] w-[400px] rounded-full bg-indigo-glow/20 blur-[120px]" />
 
       <div className="mx-auto w-full max-w-7xl px-5 pt-20 pb-20 lg:px-10 lg:pt-28 lg:pb-24">
-        <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-secondary/40 px-3 py-1 text-xs font-medium text-indigo-glow backdrop-blur-sm">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-glow" />
-              The AI rest platform · live
+              Meet Aura · your AI Sleep Companion
             </span>
             <h1
               className="mt-6 text-5xl leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              An AI that plans your{" "}
-              <span className="italic text-indigo-glow">rest</span> the way
-              pilots plan a flight.
+              A real AI{" "}
+              <span className="italic text-indigo-glow">companion</span> for
+              the people who sleep when the world wakes.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              RestPilot models your shifts, sleep debt, light, caffeine,
-              commute, and recovery — and turns it into a plan you can actually
-              follow. Built for the people who work when the world sleeps.
+              Tap the avatar to talk. Aura plans tonight's sleep, calms you
+              down after shift, runs sleep sounds, sets your smart alarm, and
+              checks in all day — built around your real rotation.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -124,10 +124,11 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <a
-                href="#live-coach"
+                href="#meet-aura"
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-6 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition hover:bg-card"
               >
-                Watch the AI work
+                <Mic className="h-4 w-4 text-indigo-glow" />
+                Meet your Companion
               </a>
             </div>
 
@@ -139,7 +140,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
           </div>
 
           <div className="relative mx-auto w-full max-w-lg">
-            <HeroStack />
+            <HeroStack ctaHref={ctaHref} />
           </div>
         </div>
       </div>
@@ -156,45 +157,71 @@ function Trust({ icon: Icon, label }: { icon: typeof Shield; label: string }) {
   );
 }
 
-function HeroStack() {
+function HeroStack({ ctaHref }: { ctaHref: string }) {
   return (
     <div className="relative aspect-[5/6] w-full">
-      {/* Dial card */}
-      <div className="absolute inset-0 rounded-[36px] border border-primary/20 bg-card/50 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-              Tonight · Tue
-            </p>
-            <p
-              className="mt-1 text-2xl"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              Sleep window 8:40 AM
-            </p>
+      {/* Primary: Companion glass card */}
+      <Link
+        to={ctaHref}
+        aria-label="Open your AI Companion"
+        className="group absolute inset-0 flex flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8"
+        style={{
+          background:
+            "radial-gradient(120% 80% at 50% 0%, oklch(0.32 0.14 280 / 0.55), transparent 60%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
+        }}
+      >
+        {/* glow ring behind avatar */}
+        <div className="pointer-events-none absolute left-1/2 top-[18%] -z-10 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo/40 blur-3xl" />
+
+        <div className="flex flex-col items-center pt-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-glow">
+            Your AI Sleep Companion · live
+          </p>
+          <p
+            className="mt-2 text-3xl sm:text-4xl"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Meet Aura.
+          </p>
+        </div>
+
+        <div className="relative">
+          <CompanionAvatarFace state="idle" size="lg" aura label="Tap to talk" />
+        </div>
+
+        <div className="flex w-full flex-col items-center gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-background/60 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur-md transition group-hover:scale-[1.02]">
+            <Mic className="h-4 w-4 text-indigo-glow" />
+            Tap to talk
+            <span className="pulse-dot ml-1 h-1.5 w-1.5 rounded-full bg-indigo-glow" />
+          </span>
+          <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Sleep sounds</span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Smart alarm</span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Wind-down</span>
           </div>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/30 bg-secondary">
-            <Moon className="h-4 w-4 text-indigo-glow" />
+        </div>
+      </Link>
+
+      {/* Floating tonight tile (bottom-right) */}
+      <div className="absolute -right-3 -bottom-3 w-[58%] max-w-[260px] rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y">
+        <div className="flex items-center justify-between">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+            Tonight · Tue
+          </p>
+          <span className="flex h-6 w-6 items-center justify-center rounded-full border border-primary/30 bg-secondary">
+            <Moon className="h-3 w-3 text-indigo-glow" />
           </span>
         </div>
-
-        <div className="relative mx-auto mt-2 aspect-square w-full max-w-[260px]">
+        <p
+          className="mt-1 text-base leading-tight"
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          Sleep window 8:40 AM
+        </p>
+        <div className="relative mx-auto mt-1 aspect-square w-full max-w-[140px]">
           <CircadianDial />
         </div>
-      </div>
-
-      {/* AI chat floating bubble */}
-      <div className="absolute -right-3 -bottom-2 w-[78%] rounded-2xl border border-primary/30 bg-background/90 p-4 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y">
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
-          <span className="pulse-dot inline-block h-1.5 w-1.5 rounded-full bg-indigo-glow" />
-          RestPilot AI
-        </div>
-        <p className="mt-2 text-sm leading-snug text-foreground/90">
-          You're on night #3 tomorrow. Last caffeine by{" "}
-          <span className="font-semibold text-indigo-glow">1:00 AM</span>,
-          blackout at 7:15 AM, wake 4:20 PM.
-          <span className="caret" />
-        </p>
       </div>
     </div>
   );
