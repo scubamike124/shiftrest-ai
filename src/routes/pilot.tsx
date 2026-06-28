@@ -271,6 +271,8 @@ function PilotPage() {
       setOrbState("thinking");
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
+      const ac = new AbortController();
+      llmAbortRef.current = ac;
       const resp = await fetch("/api/ai", {
         method: "POST",
         headers: {
@@ -282,7 +284,9 @@ function PilotPage() {
           messages: baseMessages,
           surface: "voice",
         }),
+        signal: ac.signal,
       });
+
 
       if (!resp.ok || !resp.body) {
         streamingRef.current = false;
