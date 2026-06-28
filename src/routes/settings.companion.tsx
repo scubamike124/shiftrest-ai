@@ -22,6 +22,11 @@ import {
 } from "@/lib/prefs";
 import type { BriefCardId } from "@/lib/morning/types";
 import type { AfternoonCardId, EveningCardId } from "@/lib/companion/types";
+import {
+  loadLocalPrefs,
+  saveLocalPrefs,
+  type CompanionLocalPrefs,
+} from "@/lib/companion/voice-action-prefs";
 
 export const Route = createFileRoute("/settings/companion")({
   head: () => ({
