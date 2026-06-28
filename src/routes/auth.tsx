@@ -157,6 +157,14 @@ function AuthPage() {
         >
           <GoogleGlyph /> Continue with Google
         </button>
+        {isInIframe && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <span>
+              Google sign-in completes on the published site. In the Lovable editor preview, use email/password to sign in.
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="my-6 flex items-center gap-3">
