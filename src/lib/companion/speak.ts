@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { inQuietHours } from "./quiet-hours";
 import { loadLocalPrefs } from "./voice-action-prefs";
 import { track } from "./analytics";
+import { isQuietModeOn } from "@/lib/quiet-mode";
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
@@ -51,7 +52,7 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
     track({ event: "voice_skipped", reason: "disabled" });
     return;
   }
-  if (inQuietHours(prefs.quietHours)) {
+  if (inQuietHours(prefs.quietHours) || isQuietModeOn()) {
     track({ event: "voice_skipped", reason: "quiet_hours" });
     return;
   }

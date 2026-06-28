@@ -10,7 +10,10 @@ export type SkillId =
   | "comms_email"
   | "comms_sms"
   | "routines"
-  | "personal_intel";
+  | "personal_intel"
+  | "sleep_sounds"
+  | "automations"
+  | "quiet_mode";
 
 export type SkillStatus = "connected" | "disabled" | "disconnected" | "coming_soon";
 
@@ -85,11 +88,11 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
   {
     id: "smart_home",
     name: "Smart Home",
-    summary: "Lights, thermostat, fans, TV — and optional locks and garage.",
+    summary: "Register lights, plugs, thermostats, speakers, coffee makers, and bedroom devices.",
     details:
-      "Connects to Home Assistant via a per-user token. Sensitive devices (locks, garage door) are gated behind an extra toggle that defaults off.",
-    builtin: false,
-    available: false,
+      "A private registry of your devices, organized by room and vendor (Alexa, Google Home, HomeKit, Matter, SmartThings, Home Assistant, or manual). Routines reference these devices safely. Sensitive devices (locks, garage) always require an extra confirmation tap. Device control is permission-based — no integration runs until you explicitly authorize it.",
+    builtin: true,
+    available: true,
     risk: "sensitive",
     group: "home",
   },
@@ -136,6 +139,39 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     available: true,
     risk: "safe",
     group: "productivity",
+  },
+  {
+    id: "sleep_sounds",
+    name: "Sleep Sounds",
+    summary: "White noise, rain, ocean, forest, fireplace, fan, ambient music, and timers.",
+    details:
+      "A built-in mixer with synthesizer-based and curated soundscapes plus a sleep timer. Plays locally on this device — no streaming, no account, no data leaves the app. Voice commands like 'Play rain' and 'Sleep timer 30' route here.",
+    builtin: true,
+    available: true,
+    risk: "safe",
+    group: "home",
+  },
+  {
+    id: "automations",
+    name: "Routines & Automations",
+    summary: "Bedtime, wake-up, goodnight, and morning multi-step routines you control.",
+    details:
+      "Build and run multi-step routines that combine smart devices, sleep sounds, Quiet Mode, and short spoken cues. Every routine asks before running by default, respects Quiet Hours, and is logged to your Automation History. Sensitive devices always require an extra confirmation tap.",
+    builtin: true,
+    available: true,
+    risk: "sensitive",
+    group: "home",
+  },
+  {
+    id: "quiet_mode",
+    name: "Quiet Mode",
+    summary: "Mute the Companion voice and pause non-urgent nudges with one tap.",
+    details:
+      "Turns off Companion voice replies and skips non-urgent notifications until you turn it off. Defers to your operating system's Do Not Disturb / Focus — Reelo never overrides OS privacy restrictions.",
+    builtin: true,
+    available: true,
+    risk: "safe",
+    group: "home",
   },
 ] as const;
 
