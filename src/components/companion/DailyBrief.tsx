@@ -229,6 +229,7 @@ export function DailyBrief({
     return (
       <>
         <WeatherAlertsCard period="morning" signedIn={signedIn} />
+        <TrafficCard period="morning" signedIn={signedIn} />
         <MorningBrief prefs={prefs} signedIn={signedIn} />
       </>
     );
