@@ -224,6 +224,10 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
   if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
   if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
+  if (p.briefLayout !== undefined) out.brief_layout = p.briefLayout;
+  if (p.homeAddress !== undefined) out.home_address = p.homeAddress;
+  if (p.workAddress !== undefined) out.work_address = p.workAddress;
+  if (p.commuteMinutesBaseline !== undefined) out.commute_minutes_baseline = p.commuteMinutesBaseline;
   return out;
 }
 
@@ -245,7 +249,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, home_address, work_address, commute_minutes_baseline",
     )
     .eq("user_id", uid)
     .maybeSingle();
