@@ -58,6 +58,7 @@ import { planAutomation, STARTER_ROUTINES } from "@/lib/automations/engine";
 import { isQuietModeOn, setQuietMode } from "@/lib/quiet-mode";
 import { speak } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
+import { NLRoutineBuilder } from "@/components/automations/NLRoutineBuilder";
 
 export const Route = createFileRoute("/automations")({
   head: () => ({
