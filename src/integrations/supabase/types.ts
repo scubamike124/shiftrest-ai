@@ -330,6 +330,45 @@ export type Database = {
           },
         ]
       }
+      calendar_feeds: {
+        Row: {
+          active: boolean
+          color: string | null
+          created_at: string
+          ics_url: string
+          id: string
+          label: string
+          last_error: string | null
+          last_sync_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          color?: string | null
+          created_at?: string
+          ics_url: string
+          id?: string
+          label: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          color?: string | null
+          created_at?: string
+          ics_url?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       coach_messages: {
         Row: {
           content: string
