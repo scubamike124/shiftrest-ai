@@ -608,7 +608,11 @@ function CompanionPage() {
 
       {/* Slice 7 — Smart Day & Evening Intelligence: time-of-day brief */}
       {signedIn === true && (
-        <DailyBrief prefs={prefs ?? null} signedIn={true} forcedPeriod={forcedMorning() ? "morning" : undefined} />
+        <DailyBrief
+          prefs={prefs ?? null}
+          signedIn={true}
+          forcedPeriod={search.period ?? (forcedMorning() ? "morning" : undefined)}
+        />
       )}
 
 
