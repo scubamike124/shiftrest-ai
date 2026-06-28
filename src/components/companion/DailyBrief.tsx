@@ -242,6 +242,7 @@ export function DailyBrief({
       data-testid={`daily-brief-${period}`}
     >
       <WeatherAlertsCard period={period} signedIn={signedIn} />
+      <TrafficCard period={period} signedIn={signedIn} />
       {period === "afternoon" ? (
         afternoonQ.isLoading && !afternoonQ.data ? (
           <CardSkeleton />
