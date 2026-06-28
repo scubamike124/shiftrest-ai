@@ -4,18 +4,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Brain,
-  Pin,
-  PinOff,
-  Plus,
   Trash2,
   Download,
   AlertTriangle,
-  Search,
-  ShieldCheck,
   Clock,
   ArrowLeft,
+  Pencil,
+  Pin,
+  PinOff,
+  PauseCircle,
+  PlayCircle,
+  Plus,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   listMemories,
   addMemory,
@@ -28,37 +30,65 @@ import {
   type AIMemory,
   type MemoryCategory,
 } from "@/lib/ai-memory";
-import { listPatterns, mutePattern, deletePattern, PATTERN_LABELS } from "@/lib/ai-feedback";
+import {
+  listPendingProposals,
+  acceptProposal,
+  declineProposal,
+  getLearningPaused,
+  setLearningPaused,
+  type MemoryProposal,
+} from "@/lib/memory-proposals";
+import { ProposalCard } from "@/components/memory/ProposalCard";
+import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
 
 export const Route = createFileRoute("/memory")({
   head: () => ({
     meta: [
-      { title: "Memory — RestPilot AI" },
+      { title: "My Memory — RestPilot AI" },
       {
         name: "description",
         content:
-          "Manage what RestPilot remembers about you. View, edit, delete, or export your long-term memories — fully under your control.",
+          "Everything RestPilot remembers about you, on one timeline. Review, edit, delete, pause learning, or export — fully under your control.",
       },
     ],
   }),
   component: MemoryPage,
 });
 
-const CATEGORIES: ("all" | MemoryCategory)[] = [
-  "all",
-  "general",
-  "schedule",
-  "health",
-  "preferences",
-  "employer",
-  "recovery",
-  "caffeine",
-  "family",
-  "goals",
+// Sleep-domain categories first, then existing ones.
+const CATEGORY_SECTIONS: { key: MemoryCategory; label: string }[] = [
+  { key: "sleep_habits", label: "Sleep Habits" },
+  { key: "alarm_prefs", label: "Alarm Preferences" },
+  { key: "favorite_sounds", label: "Favorite Sounds" },
+  { key: "daily_routine", label: "Daily Routine" },
+  { key: "companion_prefs", label: "Companion Preferences" },
+  { key: "schedule", label: "Schedule" },
+  { key: "preferences", label: "Preferences" },
+  { key: "health", label: "Health" },
+  { key: "recovery", label: "Recovery" },
+  { key: "caffeine", label: "Caffeine" },
+  { key: "employer", label: "Employer" },
+  { key: "family", label: "Family" },
+  { key: "goals", label: "Goals" },
+  { key: "general", label: "Other" },
 ];
 
-function relativeTime(iso: string | null): string | null {
-  if (!iso) return null;
+const SECTION_KEYS = CATEGORY_SECTIONS.map((s) => s.key);
+
+const ADD_CATEGORIES: MemoryCategory[] = [
+  "sleep_habits",
+  "alarm_prefs",
+  "favorite_sounds",
+  "daily_routine",
+  "companion_prefs",
+  "preferences",
+  "schedule",
+  "health",
+  "general",
+];
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
   const d = Math.floor(diff / 86_400_000);
   if (d <= 0) {
@@ -73,96 +103,99 @@ function relativeTime(iso: string | null): string | null {
   return `${Math.floor(d / 365)}y ago`;
 }
 
-function expiresLabel(iso: string | null): string | null {
-  if (!iso) return null;
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return "expired";
-  const d = Math.ceil(diff / 86_400_000);
-  return `expires in ${d}d`;
+function whyLabel(m: AIMemory): string {
+  switch (m.source) {
+    case "derived":
+      return "Learned from your patterns";
+    case "manual":
+      return "You added this";
+    case "onboarding":
+      return "From onboarding";
+    case "chat":
+    default:
+      return "From a conversation";
+  }
 }
 
 function MemoryPage() {
   const qc = useQueryClient();
   const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"all" | MemoryCategory>("all");
-  const [pinnedOnly, setPinnedOnly] = useState(false);
-  const [newContent, setNewContent] = useState("");
-  const [newCategory, setNewCategory] = useState<MemoryCategory>("general");
-  const [newImportance, setNewImportance] = useState(3);
+  const [paused, setPaused] = useState<boolean>(false);
   const [confirmWipe, setConfirmWipe] = useState(false);
 
   useEffect(() => {
     void getMemoryEnabled().then(setEnabled);
+    void getLearningPaused().then(setPaused);
   }, []);
 
-  const filters = useMemo(
-    () => ({ query, category, pinnedOnly }),
-    [query, category, pinnedOnly],
-  );
-
-  const { data: memories = [] as AIMemory[], isLoading } = useQuery<AIMemory[]>({
-    queryKey: ["ai-memory", filters],
-    queryFn: () => listMemories(filters),
+  const memQ = useQuery<AIMemory[]>({
+    queryKey: ["ai-memory", "all"],
+    queryFn: () => listMemories({ category: "all" }),
     enabled: Boolean(enabled),
     staleTime: 15_000,
   });
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["ai-memory"] });
-
-  const toggleMut = useMutation({
-    mutationFn: async (next: boolean) => {
-      await setMemoryEnabled(next);
-      return next;
-    },
-    onSuccess: (next) => {
-      setEnabled(next);
-      toast.success(next ? "Memory turned on" : "Memory turned off");
-      refresh();
-    },
-    onError: () => toast.error("Could not update memory setting"),
+  const proposalsQ = useQuery<MemoryProposal[]>({
+    queryKey: ["memory-proposals", "pending"],
+    queryFn: listPendingProposals,
+    enabled: Boolean(enabled),
+    staleTime: 15_000,
   });
 
-  const addMut = useMutation({
-    mutationFn: async () => {
-      const trimmed = newContent.trim();
-      if (trimmed.length < 4) throw new Error("Memory must be at least 4 characters.");
-      return addMemory(trimmed, newCategory, newImportance);
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["ai-memory"] });
+    qc.invalidateQueries({ queryKey: ["memory-proposals"] });
+    qc.invalidateQueries({ queryKey: ["companion-hints"] });
+  };
+
+  const enableMut = useMutation({
+    mutationFn: (v: boolean) => setMemoryEnabled(v),
+    onSuccess: (_d, v) => {
+      setEnabled(v);
+      toast.success(v ? "Memory turned on" : "Memory turned off");
+      refresh();
     },
+    onError: () => toast.error("Could not update memory"),
+  });
+
+  const pauseMut = useMutation({
+    mutationFn: (v: boolean) => setLearningPaused(v),
+    onSuccess: (_d, v) => {
+      setPaused(v);
+      toast.success(v ? "Learning paused" : "Learning resumed");
+    },
+    onError: () => toast.error("Could not change learning state"),
+  });
+
+  const acceptMut = useMutation({
+    mutationFn: (p: MemoryProposal) => acceptProposal(p),
     onSuccess: () => {
-      setNewContent("");
-      setNewImportance(3);
       refresh();
-      toast.success("Memory added");
+      toast.success("Saved to memory");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not add memory"),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save"),
+  });
+  const declineMut = useMutation({
+    mutationFn: (id: string) => declineProposal(id),
+    onSuccess: () => {
+      refresh();
+      toast.success("Skipped");
+    },
   });
 
-  const pinMut = useMutation({
-    mutationFn: (m: AIMemory) => updateMemory(m.id, { pinned: !m.pinned }),
-    onSuccess: refresh,
-  });
-
-  const importanceMut = useMutation({
-    mutationFn: ({ id, importance }: { id: string; importance: number }) =>
-      updateMemory(id, { importance }),
-    onSuccess: refresh,
-  });
-
-  const deleteMut = useMutation({
+  const delMut = useMutation({
     mutationFn: (id: string) => deleteMemory(id),
     onSuccess: () => {
       refresh();
-      toast.success("Memory removed");
+      toast.success("Forgotten");
     },
   });
-
   const wipeMut = useMutation({
     mutationFn: () => wipeAllMemories(),
-    onSuccess: (count) => {
+    onSuccess: (n) => {
       setConfirmWipe(false);
       refresh();
-      toast.success(count === 0 ? "Nothing to wipe" : `Wiped ${count} memories`);
+      toast.success(n === 0 ? "Nothing to wipe" : `Wiped ${n} memories`);
     },
   });
 
@@ -177,8 +210,19 @@ function MemoryPage() {
     URL.revokeObjectURL(url);
   }
 
+  const grouped = useMemo(() => {
+    const map = new Map<MemoryCategory, AIMemory[]>();
+    for (const m of memQ.data ?? []) {
+      const key = (SECTION_KEYS as string[]).includes(m.category) ? m.category : ("general" as MemoryCategory);
+      const arr = map.get(key) ?? [];
+      arr.push(m);
+      map.set(key, arr);
+    }
+    return map;
+  }, [memQ.data]);
+
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-10">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-10">
       <Link
         to="/profile"
         className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
@@ -187,338 +231,304 @@ function MemoryPage() {
       </Link>
 
       {/* Header */}
-      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+      <header className="rounded-2xl border border-border bg-card p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <Brain className="h-3.5 w-3.5" /> Long-term memory
+              <Brain className="h-3.5 w-3.5" /> My Memory
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-              Your memory, your rules
+              Everything I remember
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              RestPilot only remembers things when you let it. Turn it off any
-              time and everything stops being saved. You can delete or export
-              what's here whenever you want.
+              Nothing is hidden. Memory is off by default and only grows when you say yes.
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <Switch
               checked={Boolean(enabled)}
-              disabled={enabled === null || toggleMut.isPending}
-              onCheckedChange={(v) => toggleMut.mutate(v)}
+              disabled={enabled === null || enableMut.isPending}
+              onCheckedChange={(v) => enableMut.mutate(v)}
+              aria-label="Memory on/off"
             />
             <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {enabled ? "On" : "Off"}
             </span>
           </div>
         </div>
-      </div>
 
-      {/* Privacy card */}
-      <div className="mt-4 rounded-2xl border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground sm:p-5">
-        <div className="flex items-center gap-2 text-foreground">
-          <ShieldCheck className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">What we save — and what we don't</span>
-        </div>
-        <ul className="mt-2 grid gap-1.5 text-[13px] leading-relaxed">
-          <li>
-            <span className="font-medium text-foreground">We save</span> durable
-            facts you tell the coach: your schedule, role, recovery habits,
-            caffeine preferences, goals.
-          </li>
-          <li>
-            <span className="font-medium text-foreground">We don't save</span>{" "}
-            today's mood, transient symptoms, medical diagnoses, or anything
-            we're guessing at.
-          </li>
-          <li>
-            Memories live only in your account, scoped to you, and never shared
-            with other users. See the{" "}
-            <Link to="/privacy" className="underline">
-              privacy policy
-            </Link>{" "}
-            for full details.
-          </li>
-        </ul>
-      </div>
-
-      {/* Detected patterns — predictive layer transparency */}
-      <PatternsPanel />
-
-
-      {enabled === false ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/30 p-6 text-center text-sm text-muted-foreground">
-          Memory is off. Turn it on above and the coach will quietly remember
-          durable facts about your life so its advice stays consistent.
-        </div>
-      ) : (
-        <>
-          {/* Search + filters */}
-          <div className="mt-6 space-y-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search memories…"
-                className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-3 text-sm"
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${
-                    category === c
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPinnedOnly((v) => !v)}
-                className={`ml-auto inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition ${
-                  pinnedOnly
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-card text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Pin className="h-3 w-3" /> Pinned only
-              </button>
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="mt-4">
-            {isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading memories…</div>
-            ) : memories.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground">
-                <Brain className="mb-1 h-4 w-4" />
-                {query || category !== "all" || pinnedOnly
-                  ? "No memories match these filters."
-                  : "Nothing remembered yet. As you chat with the coach, durable facts about your life will land here. You can also add your own below."}
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {memories.map((m) => (
-                  <li
-                    key={m.id}
-                    className="rounded-2xl border border-border bg-card p-3.5 text-sm"
-                  >
-                    <p className="leading-snug">{m.content}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 capitalize">
-                        {m.category}
-                      </span>
-                      <span>• {m.source}</span>
-                      {m.useCount > 0 && (
-                        <span>• used {m.useCount}×</span>
-                      )}
-                      {relativeTime(m.lastReferencedAt) && (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {relativeTime(m.lastReferencedAt)}
-                        </span>
-                      )}
-                      {expiresLabel(m.expiresAt) && (
-                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600 dark:text-amber-400">
-                          {expiresLabel(m.expiresAt)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-3 flex items-center gap-1.5">
-                      <div className="flex items-center gap-0.5">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            title={`Set importance ${i}`}
-                            onClick={() =>
-                              importanceMut.mutate({ id: m.id, importance: i })
-                            }
-                            className={`h-2 w-2 rounded-full transition ${
-                              i <= m.importance
-                                ? "bg-primary"
-                                : "bg-muted hover:bg-muted-foreground/40"
-                            }`}
-                          />
-                        ))}
-                        <span className="ml-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                          Importance
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => pinMut.mutate(m)}
-                        className="ml-auto rounded p-1.5 text-muted-foreground hover:bg-muted"
-                        title={m.pinned ? "Unpin" : "Pin so the AI always sees this"}
-                      >
-                        {m.pinned ? (
-                          <Pin className="h-4 w-4 text-primary" />
-                        ) : (
-                          <PinOff className="h-4 w-4" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteMut.mutate(m.id)}
-                        className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Add */}
-          <div className="mt-6 rounded-2xl border border-border bg-card p-4 space-y-3">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Add a memory yourself
-            </label>
-            <textarea
-              value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
-              placeholder='e.g. "Works night shifts at Mercy Hospital, 3 on / 4 off"'
-              rows={2}
-              maxLength={280}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value as MemoryCategory)}
-                className="rounded-lg border border-border bg-background px-2 py-2 text-xs capitalize"
-              >
-                {CATEGORIES.filter((c) => c !== "all").map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <div className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1.5">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Importance
-                </span>
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setNewImportance(i)}
-                    className={`h-2 w-2 rounded-full ${
-                      i <= newImportance ? "bg-primary" : "bg-muted"
-                    }`}
-                  />
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => addMut.mutate()}
-                disabled={addMut.isPending || newContent.trim().length < 4}
-                className="ml-auto inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add
-              </button>
-            </div>
-          </div>
-
-          {/* Footer actions */}
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={handleExport}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-semibold"
+        {enabled && (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={paused ? "default" : "outline"}
+              onClick={() => pauseMut.mutate(!paused)}
+              disabled={pauseMut.isPending}
+              className="gap-1.5"
             >
-              <Download className="h-3.5 w-3.5" /> Export JSON
-            </button>
+              {paused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
+              {paused ? "Resume learning" : "Pause learning"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5">
+              <Download className="h-4 w-4" /> Export
+            </Button>
             {confirmWipe ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs">
+              <span className="inline-flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/5 px-3 py-1 text-xs">
                 <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-                <span>Wipe everything?</span>
+                Delete everything?
                 <button
                   type="button"
                   onClick={() => wipeMut.mutate()}
                   disabled={wipeMut.isPending}
-                  className="rounded bg-destructive px-2 py-1 font-semibold text-destructive-foreground"
+                  className="rounded bg-destructive px-2 py-0.5 font-semibold text-destructive-foreground"
                 >
-                  Yes, wipe
+                  Yes
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmWipe(false)}
-                  className="rounded px-2 py-1 text-muted-foreground"
+                  className="rounded px-2 py-0.5 text-muted-foreground"
                 >
                   Cancel
                 </button>
-              </div>
+              </span>
             ) : (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => setConfirmWipe(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive"
+                className="gap-1.5 text-destructive hover:text-destructive"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Wipe all memories
-              </button>
+                <Trash2 className="h-4 w-4" /> Delete all
+              </Button>
             )}
           </div>
+        )}
+      </header>
+
+      <HowMemoryWorks />
+
+      {enabled === false ? (
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/30 p-6 text-center text-sm text-muted-foreground">
+          Memory is off. When you turn it on, RestPilot will quietly watch for repeated
+          patterns and ask before saving anything.
+        </div>
+      ) : (
+        <>
+          {/* Pending proposals */}
+          {(proposalsQ.data?.length ?? 0) > 0 && (
+            <section className="mt-6 space-y-3">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Things I'd like to remember
+              </h2>
+              {(proposalsQ.data ?? []).map((p) => (
+                <ProposalCard
+                  key={p.id}
+                  proposal={p}
+                  busy={acceptMut.isPending || declineMut.isPending}
+                  onAccept={() => acceptMut.mutate(p)}
+                  onDecline={() => declineMut.mutate(p.id)}
+                />
+              ))}
+            </section>
+          )}
+
+          {/* Timeline */}
+          <section className="mt-6 space-y-6">
+            {CATEGORY_SECTIONS.map((s) => {
+              const items = grouped.get(s.key);
+              if (!items || items.length === 0) return null;
+              return (
+                <div key={s.key}>
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {s.label}
+                  </h2>
+                  <ul className="space-y-2">
+                    {items.map((m) => (
+                      <MemoryRow
+                        key={m.id}
+                        memory={m}
+                        onSave={(content) =>
+                          updateMemory(m.id, { content }).then(refresh).catch(() => undefined)
+                        }
+                        onPin={() =>
+                          updateMemory(m.id, { pinned: !m.pinned }).then(refresh).catch(() => undefined)
+                        }
+                        onDelete={() => delMut.mutate(m.id)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+            {(memQ.data?.length ?? 0) === 0 && (
+              <div className="rounded-2xl border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground">
+                Nothing remembered yet. As you use RestPilot, I'll watch for patterns and
+                ask before saving anything.
+              </div>
+            )}
+          </section>
+
+          {/* Manual add */}
+          <AddMemoryCard
+            onAdded={() => {
+              refresh();
+              toast.success("Memory added");
+            }}
+          />
         </>
       )}
     </div>
   );
 }
 
-function PatternsPanel() {
-  const qc = useQueryClient();
-  const { data: patterns = [], isLoading } = useQuery({
-    queryKey: ["ai-patterns"],
-    queryFn: listPatterns,
-    staleTime: 60_000,
-  });
-  if (isLoading || patterns.length === 0) return null;
+function MemoryRow({
+  memory,
+  onSave,
+  onPin,
+  onDelete,
+}: {
+  memory: AIMemory;
+  onSave: (content: string) => void;
+  onPin: () => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(memory.content);
+  const confPct = Math.round((memory.importance / 5) * 100);
   return (
-    <section className="mt-4 rounded-2xl border border-border bg-card/60 p-4 sm:p-5">
-      <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-semibold">Patterns the coach has noticed</h2>
+    <li className="rounded-2xl border border-border bg-card p-3.5 text-sm">
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            rows={2}
+            maxLength={280}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                onSave(value.trim());
+                setEditing(false);
+              }}
+              disabled={value.trim().length < 4}
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setValue(memory.content);
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="leading-snug">{memory.content}</p>
+      )}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          Learned {relativeTime(memory.createdAt)}
+        </span>
+        <span>· {whyLabel(memory)}</span>
+        <span className="rounded-full bg-muted px-1.5 py-0.5">Importance {confPct}%</span>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        These are signals detected from your shifts and wearable data. Mute or delete any pattern you don't want the coach to weigh.
-      </p>
-      <ul className="mt-3 space-y-2">
-        {patterns.map((p) => {
-          const meta = PATTERN_LABELS[p.patternKey] ?? { title: p.patternKey, tone: "indigo" };
-          return (
-            <li key={p.id} className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{meta.title}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  Severity {p.severity}/5 · seen {p.occurrences}× · last {new Date(p.lastSeenAt).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex gap-1">
-                <button
-                  onClick={async () => { await mutePattern(p.id, 30); toast.success("Muted 30 days"); qc.invalidateQueries({ queryKey: ["ai-patterns"] }); }}
-                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-secondary"
-                >Mute 30d</button>
-                <button
-                  onClick={async () => { await deletePattern(p.id); toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["ai-patterns"] }); }}
-                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
-                >Delete</button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      {!editing && (
+        <div className="mt-3 flex items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={onPin}
+            title={memory.pinned ? "Unpin" : "Pin"}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+          >
+            {memory.pinned ? <Pin className="h-4 w-4 text-primary" /> : <PinOff className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title="Edit"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Forget this"
+            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function AddMemoryCard({ onAdded }: { onAdded: () => void }) {
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState<MemoryCategory>("preferences");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    const trimmed = content.trim();
+    if (trimmed.length < 4) return;
+    setBusy(true);
+    try {
+      const result = await addMemory(trimmed, category, 3);
+      if (!result) {
+        toast.error("Sign in required");
+        return;
+      }
+      setContent("");
+      onAdded();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        Add a memory yourself
+      </h2>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder='e.g. "I prefer Ocean sounds when I travel"'
+        rows={2}
+        maxLength={280}
+        className="mt-3 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as MemoryCategory)}
+          className="rounded-lg border border-border bg-background px-2 py-2 text-xs"
+        >
+          {ADD_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_SECTIONS.find((s) => s.key === c)?.label ?? c}
+            </option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          className="ml-auto gap-1.5"
+          onClick={submit}
+          disabled={busy || content.trim().length < 4}
+        >
+          <Plus className="h-3.5 w-3.5" /> Add memory
+        </Button>
+      </div>
     </section>
   );
 }
