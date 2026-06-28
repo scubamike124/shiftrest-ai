@@ -1,12 +1,14 @@
 // Phase 4 — Personal Intelligence inbox. Quick-add + list + complete/snooze.
 // Mounted at /inbox. Mobile-first. Read & suggest only.
 
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Check, Clock, Inbox, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { zodValidator, fallback } from "@tanstack/zod-adapter";
+import { z } from "zod";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +25,13 @@ import {
 import { priorityLabel, type PersonalItem, type ItemKind } from "@/lib/personal/intel";
 import { track } from "@/lib/companion/analytics";
 
+const searchSchema = z.object({
+  add: fallback(z.string().trim().max(280).optional(), undefined),
+  complete: fallback(z.string().trim().max(280).optional(), undefined),
+});
+
 export const Route = createFileRoute("/inbox")({
+  validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
       { title: "Inbox | RestPilot AI" },
