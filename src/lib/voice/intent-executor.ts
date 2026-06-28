@@ -117,7 +117,9 @@ export async function executeIntent(
       return {
         ok: true,
         message: intent.on ? "Quiet Mode on." : "Quiet Mode off.",
-        undo: () => setQuietMode(was, "manual"),
+        undo: () => {
+          setQuietMode(was, "manual");
+        },
       };
     }
 
