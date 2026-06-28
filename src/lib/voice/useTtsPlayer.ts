@@ -134,10 +134,17 @@ export function useTtsPlayer(opts: Options = {}) {
           speakText = briefData.script;
         }
 
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        const ttsBody: Record<string, unknown> = { text: speakText.slice(0, 4000) };
+        if (voice) ttsBody.voice = voice;
         const ttsRes = await fetch("/api/tts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: speakText.slice(0, 4000), voice }),
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(ttsBody),
         });
         const ttsType = ttsRes.headers.get("content-type") || "";
         if (!ttsRes.ok || ttsType.includes("application/json")) {
