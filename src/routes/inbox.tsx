@@ -156,6 +156,55 @@ function InboxPage() {
         </div>
       </header>
 
+      {completeQuery && (
+        <Card className="border-primary/40 bg-primary/5 p-4">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium">
+                Mark as done: <span className="text-primary">"{completeQuery}"</span>?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Confirm which task to complete. Nothing is changed until you tap one.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={dismissComplete}
+              aria-label="Dismiss"
+              className="inline-flex h-8 w-8 min-h-11 min-w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {completeCandidates.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No open items match. Try a different phrase or add one above.
+              </p>
+            ) : (
+              completeCandidates.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => {
+                    statusMut.mutate({ id: c.id, status: "done" });
+                    dismissComplete();
+                    toast.success(`Marked "${c.title}" as done.`);
+                  }}
+                  className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-border/60 bg-background px-3 py-2 text-left text-sm hover:border-primary/60"
+                >
+                  <span className="truncate">{c.title}</span>
+                  <span className="inline-flex items-center gap-1 text-xs text-primary">
+                    <Check className="h-3.5 w-3.5" /> Complete
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
+
       <Card className="p-4">
         <form
           onSubmit={(e) => {
