@@ -367,7 +367,8 @@ function PilotPage() {
       // Flush any trailing un-spoken text.
       const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
       for (const c of tail) {
-        if (!firstSentenceFired) { cancelAllAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+        if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+
         void enqueueSpeak(c);
       }
 
