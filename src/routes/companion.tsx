@@ -609,14 +609,31 @@ function CompanionPage() {
 
       {/* Avatar + greeting */}
       <section className="flex flex-col items-center gap-3 pb-4 pt-2">
-        <PilotOrb state={orbState} level={level} className="w-40 sm:w-48" />
-        <div className="text-center">
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+              '[data-companion-composer] textarea, [data-companion-composer] input',
+            );
+            el?.focus();
+          }}
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label={avatarStateLabel(orbState)}
+        >
+          <CompanionAvatarFace
+            state={orbState}
+            level={level}
+            size="lg"
+            label={avatarStateLabel(orbState)}
+          />
+        </button>
+        <div className="mt-4 text-center">
           <p className="text-base font-medium">
             Hi {firstName(prefs ?? ({} as Prefs), sessionEmail)}, I&apos;m {aiName}.
           </p>
           <p className="text-xs text-muted-foreground">
             {companionOn
-              ? "Talk or type — I&apos;m here when you need me."
+              ? "Talk or type — I'm here when you need me."
               : "Turn on Companion Mode to start chatting."}
           </p>
         </div>
