@@ -173,3 +173,78 @@
   100% { transform: translateX(-50%); }
 }
 .ticker-track { animation: ticker 30s linear infinite; }
+
+/* ===== Home Experience — premium glass surfaces ===== */
+:root {
+  --glass-bg: linear-gradient(
+    155deg,
+    oklch(0.22 0.06 275 / 0.72) 0%,
+    oklch(0.18 0.05 275 / 0.55) 60%,
+    oklch(0.16 0.04 275 / 0.7) 100%
+  );
+  --glass-border: oklch(0.65 0.18 275 / 0.22);
+  --glass-highlight: oklch(0.95 0.04 275 / 0.08);
+  --glow-primary: 0 0 0 1px oklch(0.65 0.18 275 / 0.18),
+    0 24px 60px -28px oklch(0.45 0.22 275 / 0.55),
+    0 6px 18px -10px oklch(0.05 0.02 275 / 0.6);
+  --glow-accent: 0 0 0 1px oklch(0.78 0.16 75 / 0.28),
+    0 24px 60px -28px oklch(0.78 0.16 75 / 0.45);
+}
+
+@utility glass-card {
+  position: relative;
+  border-radius: 28px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glow-primary);
+  backdrop-filter: blur(18px) saturate(140%);
+  overflow: hidden;
+  isolation: isolate;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, var(--glass-highlight), transparent 35%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@utility glass-card-accent {
+  background:
+    radial-gradient(ellipse at top left, oklch(0.56 0.22 275 / 0.35), transparent 60%),
+    radial-gradient(ellipse at bottom right, oklch(0.65 0.17 240 / 0.28), transparent 65%),
+    var(--glass-bg);
+  border-color: oklch(0.65 0.18 275 / 0.38);
+  box-shadow:
+    0 0 0 1px oklch(0.65 0.18 275 / 0.3),
+    0 30px 70px -20px oklch(0.45 0.22 275 / 0.55);
+}
+
+@utility card-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 0.95rem;
+  color: var(--foreground);
+}
+
+@utility card-eyebrow {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--indigo-glow);
+}
+
+@keyframes dock-glow {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.65 0.18 275 / 0.55), 0 12px 32px -10px oklch(0.45 0.22 275 / 0.6); }
+  50% { box-shadow: 0 0 0 8px oklch(0.65 0.18 275 / 0), 0 18px 40px -10px oklch(0.45 0.22 275 / 0.75); }
+}
+.dock-glow { animation: dock-glow 3.4s ease-in-out infinite; }
+
