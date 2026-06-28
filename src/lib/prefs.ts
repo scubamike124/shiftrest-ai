@@ -278,7 +278,18 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.voicePersonality !== undefined) out.voice_personality = p.voicePersonality;
   if (p.voiceSpeed !== undefined) out.voice_speed = Math.min(1.4, Math.max(0.7, p.voiceSpeed));
   if (p.voiceInstructions !== undefined) out.voice_instructions = p.voiceInstructions;
-  if (p.briefLayout !== undefined) out.brief_layout = p.briefLayout;
+  if (
+    p.briefLayout !== undefined ||
+    p.afternoonLayout !== undefined ||
+    p.eveningLayout !== undefined
+  ) {
+    out.brief_layout = {
+      morning: p.briefLayout ?? DEFAULT_BRIEF_LAYOUT,
+      afternoon: p.afternoonLayout ?? DEFAULT_AFTERNOON_LAYOUT,
+      evening: p.eveningLayout ?? DEFAULT_EVENING_LAYOUT,
+    };
+  }
+  if (p.briefEnabled !== undefined) out.brief_enabled = p.briefEnabled;
   if (p.homeAddress !== undefined) out.home_address = p.homeAddress;
   if (p.workAddress !== undefined) out.work_address = p.workAddress;
   if (p.commuteMinutesBaseline !== undefined) out.commute_minutes_baseline = p.commuteMinutesBaseline;
