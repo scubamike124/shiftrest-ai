@@ -1,142 +1,163 @@
-## Slice 10 — Final QA, Hardening & Launch Readiness
 
-Investigation-only. No code will be written until you approve.
+# Slice 11 — AI Companion Avatar Home Integration
 
-### 1. Investigation summary
+Investigation-first. No code until approved. Backward compatible — every existing card, route, and prefs key stays intact.
 
-I audited the AI Companion surface against the Slice 1–9 deliverables:
+## 1. Investigation Report
 
-- Conversation + voice: `src/routes/companion.tsx` (780 lines), `useMicRecorder`, `useTtsPlayer`, `/api/tts`, `/api/ai` (streaming).
-- Voice/action prefs: `src/lib/companion/voice-action-prefs.ts`, `quiet-hours.ts`.
-- Intent + sound bridge: `src/lib/voice/intent-router.ts`, `intent-executor.ts`, `companion-sound-bridge.ts`.
-- Action layer: `actions.ts`, `narration.ts`, `action-history.ts`, `components/companion/ActionCard.tsx`, `ActionHistorySheet.tsx`.
-- Briefs: `morning-brief.functions.ts`, `afternoon-brief.functions.ts`, `evening-brief.functions.ts`, `MorningBrief.tsx`, `DailyBrief.tsx`, `brief-window.ts`.
-- Dashboard integration: `CompanionAvatar.tsx`, `CompanionQuickAsk.tsx`.
-- Memory: `/memory`, `ai_memory_proposals`, `memory-proposer.server.ts`.
-- Settings: `/settings/companion`, `/settings/morning`.
+### 1.1 Current companion entry points
+- `src/components/CompanionAvatar.tsx` — 44×44 sparkle chip in the dashboard header row, links to `/companion`, pulses when the current brief period is unseen (`brief:seen` event + `lastSeenKey()`).
+- `src/components/CompanionQuickAsk.tsx` — period-aware "Ask" popover next to the avatar; hidden below `sm:` (mobile users currently see no quick-ask).
+- `src/components/CompanionWhisper.tsx` — proactive insight card lower in the feed.
+- `src/components/PilotOrb.tsx` — voice orb used inside `/pilot` and `/companion`.
+- Bottom nav has `/pilot` (Mic) but no direct Companion tab; sidebar route surface exposes `/companion` via `AppSidebar`.
 
-### 2. Findings (gaps to fix in Slice 10)
+### 1.2 Dashboard header today (`src/routes/dashboard.tsx` lines 309–322)
+```
+grid-cols-[minmax(0,1fr)_auto_auto_auto]
+  ArrivalHero | CompanionQuickAsk (sm+) | CompanionAvatar (44px) | Profile (40px)
+```
+On a 375 px viewport the avatar reads as a tiny accent next to the profile dot — not a "central assistant". Mockup direction calls for a calm, prominent hero presence under the greeting.
 
-**A. Analytics — missing.** No `track()` / `reportLovableError` calls exist anywhere under `src/lib/companion` or `components/companion`. None of the events the spec lists (brief opened, action started/completed/failed, voice played/muted, memory created/removed, settings changed) are emitted.
+### 1.3 Brief / period plumbing
+- `src/lib/companion/brief-window.ts` already exposes `currentBriefPeriod()`, `periodAnchor()`, `lastSeenKey()`, and dispatches `brief:seen`.
+- `MorningBrief` / `DailyBrief` already mark periods seen, so a new hero avatar can subscribe to the same signal with no new state machinery.
 
-**B. Voice timing.** TTS auto-reply in `companion.tsx` schedules narration after each completed action and after assistant streamed replies. Two paths can fire near-simultaneously (assistant final reply + action completion narration); there's no single TTS queue/lock guaranteeing serial playback. Risk of overlap.
+### 1.4 First-launch / onboarding
+- `src/components/Onboarding.tsx` runs once (gated by `prefs.onboarded`). It covers consent, AI disclaimer, safety. There is **no** companion-specific intro and **no** memory explanation surfaced at launch.
+- Memory consent today lives only inside `/companion` and `/memory`.
 
-**C. Quiet-hours / muted gate.** Quiet-hours and `voiceRepliesEnabled` are checked at the call site but in a couple of branches (action narration on retry from history sheet) the gate is bypassed. Needs centralization in a `speak()` helper.
+### 1.5 Prefs / settings
+- `src/lib/prefs.ts` has `companionMode`, `companionName`, `memoryConsent`, `voiceId`, etc.
+- `src/lib/companion/voice-action-prefs.ts` stores per-device local prefs (voice replies, quiet hours, confirm).
+- `src/routes/settings.companion.tsx` is the single source of truth for editable companion settings.
+- No `companionIntroSeen` flag exists yet — we need one (local-only, additive, non-destructive).
 
-**D. Action retry from history.** `ActionHistorySheet` re-dispatches via `runAction`, but does not pass the original `ActionContext` (navigate, openBreathing) — retry of `start_breathing` or any navigation action will no-op silently.
+### 1.6 Analytics
+- `src/lib/companion/analytics.ts` `track()` already exists. New events fit the existing union — additive only.
 
-**E. Destructive override.** Confirmed for `delete_alarm`, `forget_memory`; `clear_timer`, `stop_all`, `delete_event` paths should be re-checked against the "destructive always confirms" rule.
+### 1.7 Accessibility / mobile observations
+- Header grid has four columns at 375 px → tight; on iPhone SE the `Ask` chip is hidden, leaving only the 44 px sparkle.
+- `CompanionAvatar` uses 44 px target, good. Profile chip is 40 px — already below standard but out of scope.
+- Reduced-motion: pulse uses `motion-reduce:animate-none` ✓.
+- No `aria-live` announcement when a new brief becomes available.
 
-**F. Offline + permission UX.** `actions.ts` returns `fail("offline", …)` and `fail("unauthenticated", …)` with recovery actions, but `ActionCard` only renders recovery for the post-execution state, not when the executor pre-fails synchronously inside `runAction` — the recovery CTA can be hidden behind a toast.
+### 1.8 Risks / regressions to avoid
+- Don't remove the existing `CompanionAvatar` chip — sidebar/desktop layout still relies on it implicitly via dashboard header. We will **keep it as a compact secondary** and add a new `CompanionHero` block beneath the header on mobile + at hero position on desktop.
+- Don't reflow `RightNowCard` order — it must remain the first content card on dashboard. Hero avatar goes **above** RightNow but **below** the greeting row.
+- Don't gate first-launch intro on prefs we'd have to migrate; use a local-storage flag plus an optional server-persisted echo when convenient.
 
-**G. Empty / loading / error states.** Companion chat shows a streaming spinner but no skeleton on first mount; `ActionHistorySheet` shows raw "No history yet" but no illustration or guidance; Brief cards have skeletons but no retry CTA on fetch failure.
-
-**H. Accessibility.**
-- `ActionCard` confirm/cancel buttons present, but the card itself does not move focus when it appears — screen readers may miss it. Needs `aria-live="polite"` on the chat transcript region (currently on card only) and focus management on first render of a pending action.
-- `CompanionQuickAsk` popover trigger is 36×36 (`size="icon"`), below the 44×44 target on mobile.
-- Mic button is keyboard-reachable but uses `onPointerDown` for hold-to-talk with no keyboard equivalent (Space to toggle).
-- History sheet retry buttons are <11 tap height in places.
-- Reduced-motion: `animate-spin` is wrapped with `motion-reduce:animate-none` in some spots, missing in `CompanionAvatar` pulse and ActionCard executing state.
-
-**I. Performance.**
-- `DailyBrief` and `MorningBrief` both subscribe to `companion:brief-refresh` but recompute the full brief on every event — debounce + drop in-flight duplicates.
-- `companion.tsx` re-renders on every TTS tick because `ttsState` lives in component state; can be moved into a ref + selector.
-- Action history reads `localStorage` synchronously in render.
-
-**J. Security.**
-- Deep-link executor accepts `open_route` with arbitrary `href`. Needs an allow-list of internal routes; reject external URLs.
-- `runAction` from URL params (`?prompt=…`) is fine but does not validate `?period` against the known enum.
-- Memory write actions correctly call `addMemory` which is RLS-scoped; verified.
-
-**K. Mobile.** Bottom-sheet `ActionHistorySheet` uses `side="right"` — on phone portrait this consumes 100vw and clips the header close button at small widths. Should be `side="bottom"` ≤ md.
-
-### 3. Implementation plan (after approval)
-
-**P1 — Analytics layer (new, single file)**
-- `src/lib/companion/analytics.ts`: thin `track(event, props)` wrapper using `window.__lovableEvents` if present, plus a typed `CompanionEvent` union. Emit from: `DailyBrief`/`MorningBrief` mount (brief_opened), `runAction` lifecycle (action_started/completed/failed/cancelled), `speak()` helper (voice_played/voice_skipped), memory add/delete (memory_created/removed), `/settings/companion` save (settings_changed), error boundary + `fail()` (error_encountered).
-
-**P2 — Centralized voice gate**
-- New `src/lib/companion/speak.ts`: single `speak(text, { source })` that checks `voiceRepliesEnabled`, `inQuietHours()`, current TTS state, and serializes via an internal queue (cancel-prior policy for narration, queue policy for assistant replies).
-- Replace direct `ttsPlayer.play()` calls in `companion.tsx` and history retry path.
-
-**P3 — Action layer hardening**
-- Persist `ActionContext` adapter (navigate + openBreathing) at module scope of `companion.tsx`, exposed via a small `getActionContext()` so `ActionHistorySheet` retry uses the live router/navigate.
-- Re-classify destructive: add `destructive: true` to `clear_timer`, `stop_all`, alarm bulk ops.
-- Render inline recovery card inside chat transcript when `runAction` pre-fails, not just via toast.
-
-**P4 — A11y pass**
-- Bump `CompanionQuickAsk` trigger to `min-h-11 min-w-11`.
-- Add Space/Enter keyboard handler to mic button for press-to-toggle.
-- Move focus to ActionCard primary button on mount; restore focus after resolve.
-- `aria-live="polite"` on chat transcript wrapper, `aria-busy` while streaming.
-- Add `motion-reduce:animate-none` to `CompanionAvatar` pulse and ActionCard spinner.
-
-**P5 — Performance**
-- Debounce brief refresh listener (250ms trailing) + abort-controller on in-flight `getMorningBrief`/Afternoon/Evening.
-- Memoize action history list; subscribe via `useSyncExternalStore` instead of `useEffect` + state.
-
-**P6 — Security**
-- `open_route` action: validate `href` against `ALLOWED_ROUTES` set; reject otherwise with `fail("forbidden", …)`.
-- Validate `?period` param in `companion.tsx` against `["morning","afternoon","evening"]`.
-
-**P7 — Mobile polish**
-- `ActionHistorySheet`: `side={isMobile ? "bottom" : "right"}` with `h-[85dvh]` on bottom.
-- Verify `h-dvh` everywhere in companion route (currently uses `h-screen` in chat container).
-
-**P8 — Empty/loading/error states**
-- Companion chat first-mount skeleton (avatar + 2 message placeholders).
-- ActionHistorySheet empty state with icon + "Actions you confirm will appear here".
-- Brief cards: retry CTA on fetch error.
-
-**P9 — Documentation (under `docs/launch/companion/`)**
-- `architecture.md` — surface map + data flow diagram (ASCII).
-- `qa-checklist.md` — every test from the spec with pass/fail column.
-- `performance.md` — measurement results (Lighthouse mobile on `/companion`, `/dashboard`, brief refresh wall-clock).
-- `accessibility.md` — axe results + manual screen-reader notes.
-- `analytics.md` — event taxonomy.
-- `rollback.md` — feature-flag strategy (env `VITE_COMPANION_ENABLED` defaults true; flip to false to hide avatar + `/companion` route).
-- `launch-readiness.md` — go/no-go.
-
-### 4. Files affected
+## 2. Visual Placement Plan
 
 ```text
-new:
-  src/lib/companion/analytics.ts
-  src/lib/companion/speak.ts
-  docs/launch/companion/{architecture,qa-checklist,performance,accessibility,analytics,rollback,launch-readiness}.md
-
-edit:
-  src/routes/companion.tsx          (voice gate, focus mgmt, h-dvh, ?period validation, analytics)
-  src/lib/companion/actions.ts      (destructive flags, open_route allow-list, analytics on fail)
-  src/lib/companion/action-history.ts (useSyncExternalStore export)
-  src/components/companion/ActionCard.tsx       (motion-reduce, focus on mount, inline recovery)
-  src/components/companion/ActionHistorySheet.tsx (responsive side, empty state, retry uses live ctx)
-  src/components/companion/DailyBrief.tsx       (debounce, abort, retry CTA, brief_opened track)
-  src/components/morning/MorningBrief.tsx       (same)
-  src/components/CompanionQuickAsk.tsx          (44×44 target)
-  src/components/CompanionAvatar.tsx            (motion-reduce)
-  src/routes/settings.companion.tsx             (settings_changed track on save)
+┌─────────────────────────────────────────────────────────┐
+│ ArrivalHero (greeting + date)        [Ask] [✦] [👤]    │  ← unchanged header
+├─────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  CompanionHero (NEW)                              │  │
+│  │  ◉  "Good evening, Casey."                        │  │
+│  │     Evening wind-down brief is ready.             │  │
+│  │     [Open Companion]  [Not now]                   │  │
+│  └───────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────┤
+│  RightNowCard                                           │
+│  DecisionCenter / Activity / Whisper …  (unchanged)     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 5. QA matrix (executed during implementation)
+- Mobile: full-width card, ~120 px tall, single CTA + dismiss.
+- Tablet (`sm:`): same card, two-column body (avatar | text + CTAs).
+- Desktop (`lg:`): same card, slightly larger orb, secondary "Settings" link inline.
+- Avatar visual: reuses `PilotOrb` at calm idle, color state from period; never auto-plays audio.
+- Header `CompanionAvatar` stays as a quick secondary jump (no duplicate intent — header is "tap to open", hero is "tap to engage with context").
 
-Will be tracked in `docs/launch/companion/qa-checklist.md`, covering every flow from your spec (conversation, voice on/off, quiet hours, memory on/off, Always Confirm on/off, action execute/retry/cancel, all three briefs, deep links, offline, network failure, permission failure, empty/loading/error/recovery). Each row gets a result + screenshot reference.
+## 3. Avatar States
 
-### 6. Risk & rollback
+Single `state` prop drives orb tint + label:
 
-- Risk: analytics wrapper could double-fire if both global SDK and direct `track()` are present — mitigated by single-entry helper.
-- Risk: focus-on-mount in ActionCard could steal focus from composer mid-type — only steal when card enters `pending-confirm` and composer is not focused.
-- Rollback: set `VITE_COMPANION_ENABLED=false`; `__root.tsx` / dashboard / route gate read it and hide avatar + redirect `/companion` → `/dashboard`. Existing data untouched.
+| State | Trigger | Visual | Copy |
+|---|---|---|---|
+| idle | no fresh brief, no pending action | soft indigo | "I'm here when you need me." |
+| greeting | first view in a period | gentle pulse | "Good {morning/afternoon/evening}, {name}." |
+| morning_brief | period=morning & unseen | warm amber halo | "Your morning brief is ready." |
+| afternoon_check | period=afternoon & unseen | sky halo | "Quick afternoon check-in?" |
+| evening_wind | period=evening & unseen | violet halo | "Want to start your wind-down?" |
+| action_pending | `companion:action-pending` event | primary ring | "An action needs your confirmation." |
+| voice_muted | local pref voiceReplies=off | mute glyph | (no voice copy) |
+| quiet_hours | `inQuietHours()` true | dim 60% opacity, no pulse | "Quiet hours — I'll stay quiet." |
+| offline | `useOnline()` false | gray ring | "Offline — limited help available." |
 
-### 7. Launch readiness gate (must all be green)
+All states honor `prefers-reduced-motion`.
 
-1. Typecheck clean.
-2. No new Supabase linter warnings.
-3. Lighthouse mobile ≥ 90 on `/companion` and `/dashboard`.
-4. axe-core: 0 critical, 0 serious on `/companion`, `/settings/companion`, `/dashboard`.
-5. QA checklist: 100% pass.
-6. Manual run of: signup → companion onboarding → confirm one action of each kind → retry a failed action → toggle voice off → verify silence → toggle quiet hours → verify silence → delete a memory (destructive confirm) → sign out.
+## 4. First-Launch Companion Intro
 
----
+New component `CompanionIntroSheet` (bottom sheet on mobile, dialog on ≥sm):
+- Trigger: `companionIntroSeen` flag missing in `localStorage` AND user is on `/dashboard` AND `prefs.onboarded === true` (so it never overlaps the legal onboarding).
+- 3 short slides (≤3 taps):
+  1. Meet your Companion — what it can help with (sleep, sounds, alarms, briefs).
+  2. Memory is optional — off by default; you can review/edit/delete anytime. Link to `/memory`.
+  3. Voice & actions — voice replies optional; destructive actions always confirm. Link to `/settings/companion`.
+- Single primary CTA "Got it" sets flag + fires `track({event:"settings_changed",surface:"companion-sheet"})` and a new analytics event (see §8).
+- Skippable via close button (still marks seen — non-coercive).
 
-Reply **"approved"** to proceed with implementation, or tell me what to change.
+## 5. Home Screen Proactive Prompts
+
+`CompanionHero` reads three signals to choose at most **one** prompt at a time:
+1. `currentBriefPeriod()` + unseen → "{Period} brief is ready."
+2. `prefs.windDownEnabled` + within wind-down window → "Want to start your wind-down?"
+3. Memory hint (`fetchCompanionHints`) → "Would you like rain sounds for 20 minutes?"
+
+Dismiss button stores `{key, ts}` in `localStorage` for 6 hours so we never re-nag the same prompt. Quiet hours suppresses any voice — copy remains visible but muted glyph shown.
+
+## 6. Files Affected
+
+New:
+- `src/components/companion/CompanionHero.tsx`
+- `src/components/companion/CompanionIntroSheet.tsx`
+- `src/lib/companion/hero-state.ts` (pure resolver: signals → state + copy + cta)
+- `src/lib/companion/intro-flag.ts` (localStorage get/set, SSR-safe)
+
+Edited (small, additive):
+- `src/routes/dashboard.tsx` — mount `<CompanionHero />` above `RightNowCard`; mount `<CompanionIntroSheet />` once.
+- `src/lib/companion/analytics.ts` — extend union with `avatar_viewed`, `avatar_tapped`, `companion_opened_from_dashboard`, `intro_viewed`, `intro_completed`, `memory_explainer_viewed`, `prompt_dismissed`, `prompt_accepted`, `companion_settings_opened`.
+- `src/components/CompanionAvatar.tsx` — emit `avatar_tapped` on click + `aria-live` polite announcement when state changes (no visual change).
+- `src/components/memory/HowMemoryWorks.tsx` — used inside intro sheet step 2; verify wording matches §"AI Memory Explanation" (no copy changes outside that file).
+
+Not touched: existing brief components, `/companion` route, sidebar, BottomNav, onboarding legal flow.
+
+## 7. Implementation Plan (after approval)
+
+1. Add analytics union additions + `intro-flag.ts` + `hero-state.ts` (pure, unit-friendly).
+2. Build `CompanionHero` (PilotOrb at state, copy, CTA → `/companion`, dismiss).
+3. Build `CompanionIntroSheet` (3 steps, reuses `HowMemoryWorks`).
+4. Mount both in `src/routes/dashboard.tsx`.
+5. Wire `aria-live` region inside hero for state transitions.
+6. Verify typecheck + manual viewport sweep (375 / 768 / 1280).
+
+## 8. Mobile QA Checklist
+- 375×667 (iPhone SE), 390×844 (iPhone 14), 414×896, 768, 1024, 1440.
+- No horizontal scroll; safe-area insets respected.
+- Hero card ≥ 44 px tap targets; CTA and dismiss reachable one-handed.
+- Intro sheet animates from bottom on mobile, centers on desktop.
+- No layout shift when state transitions (reserve min-height).
+- Pulse disabled under `prefers-reduced-motion`.
+
+## 9. Accessibility Checklist
+- Hero is a `<section aria-labelledby>` with named heading.
+- Orb image `aria-hidden`; CTA buttons have visible labels.
+- State changes announced via `aria-live="polite"`.
+- Intro sheet uses shadcn `Sheet`/`Dialog` (focus trap + ESC handled).
+- Focus returns to hero CTA after intro dismiss.
+- Keyboard: Tab order → Hero CTA → Dismiss → next card.
+- Contrast ≥ 4.5:1 verified against `--background`.
+
+## 10. Rollback Plan
+- All additions are net-new files plus four lines in `dashboard.tsx`. Rollback = revert that JSX block + delete the new files. Prefs/db untouched. localStorage flag is forward-compatible.
+
+## 11. Safety
+- No auto-execution; CTAs only navigate.
+- Memory remains off unless user toggles in `/companion` or `/memory`.
+- Voice replies remain gated by existing `voice-action-prefs` and quiet hours.
+- Destructive actions are not surfaced from the hero.
+
+Awaiting approval to implement.
