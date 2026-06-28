@@ -124,11 +124,16 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       }
       const spoken = expandForSpeech(script);
 
-      // 2. Synthesize speech
+      // 2. Synthesize speech (server resolves voice profile from /profile).
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
       const ttsRes = await fetch("/api/tts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: spoken, voice }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: spoken }),
       });
       const ttsType = ttsRes.headers.get("content-type") || "";
       if (!ttsRes.ok || ttsType.includes("application/json")) {
