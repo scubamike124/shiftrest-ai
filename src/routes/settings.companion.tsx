@@ -328,5 +328,3 @@ function toggle<T>(s: Set<T>, id: T): Set<T> {
   else next.add(id);
   return next;
 }
-// Silence unused type import (AnyId) — kept for future per-card analytics.
-type _Keep = AnyId;
