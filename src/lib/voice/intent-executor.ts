@@ -1,14 +1,17 @@
 /**
- * Side-effect executor for parsed /sleep voice intents. All mutations go
- * through the existing `mixer` API — no direct AudioContext access — so we
+ * Side-effect executor for parsed Companion voice intents. All sound mutations
+ * go through the existing `mixer` API — no direct AudioContext access — so we
  * never bypass the safety in mixer.ts (fade-outs, teardown order).
  *
- * Returns a small ExecutionResult the UI uses for the toast.
+ * Phase 7 extends the executor to handle cross-skill commands by routing
+ * navigation-style intents through the supplied `navigate` callback and Quiet
+ * Mode through the global app-layer toggle.
  */
 import type { Intent } from "./intent-router";
 import { mixer } from "@/lib/sounds/mixer";
 import { TRACK_BY_SLUG, PRESETS } from "@/lib/sounds/catalog";
 import { saveMix as saveMixDb } from "@/lib/sounds/mixes";
+import { setQuietMode, isQuietModeOn } from "@/lib/quiet-mode";
 
 export type ExecutionResult = {
   ok: boolean;
@@ -82,8 +85,6 @@ export async function executeIntent(
     case "wake_at": {
       const hh = String(intent.hour).padStart(2, "0");
       const mm = String(intent.minute).padStart(2, "0");
-      // Pass through query string so SmartAlarmCard can prefill in a later slice;
-      // for now we navigate and toast the time so nothing fires automatically.
       ctx.navigate("/events", { wake: `${hh}:${mm}` });
       return { ok: true, message: `Opening Smart Alarm for ${hh}:${mm}.` };
     }
@@ -108,6 +109,50 @@ export async function executeIntent(
       return { ok: true, message: "Starting 4-7-8 breathing." };
     }
 
+    // ───── Phase 7 — cross-skill ─────
+
+    case "quiet_mode": {
+      const was = isQuietModeOn();
+      setQuietMode(intent.on, "manual");
+      return {
+        ok: true,
+        message: intent.on ? "Quiet Mode on." : "Quiet Mode off.",
+        undo: () => {
+          setQuietMode(was, "manual");
+        },
+      };
+    }
+
+    case "show_agenda": {
+      ctx.navigate("/plan", intent.when === "tomorrow" ? { when: "tomorrow" } : {});
+      return { ok: true, message: `Opening ${intent.when}'s agenda.` };
+    }
+
+    case "check_weather": {
+      ctx.navigate("/dashboard", intent.when === "tomorrow" ? { focus: "weather-tomorrow" } : { focus: "weather" });
+      return { ok: true, message: `Checking ${intent.when}'s weather.` };
+    }
+
+    case "check_traffic": {
+      ctx.navigate("/dashboard", { focus: "traffic" });
+      return { ok: true, message: "Checking traffic." };
+    }
+
+    case "add_reminder": {
+      ctx.navigate("/inbox", { add: intent.text });
+      return { ok: true, message: `Opening Inbox to add: "${intent.text}".` };
+    }
+
+    case "complete_task": {
+      ctx.navigate("/inbox", { complete: intent.text });
+      return { ok: true, message: `Opening Inbox to mark "${intent.text}" complete.` };
+    }
+
+    case "open_route": {
+      ctx.navigate(intent.to);
+      return { ok: true, message: `Opening ${intent.label}.` };
+    }
+
     case "cancel":
       return { ok: true, message: "Cancelled." };
 
@@ -115,7 +160,7 @@ export async function executeIntent(
       if (intent.alternates && intent.alternates.length) {
         return { ok: false, message: `Did you mean ${intent.alternates.slice(0, 3).join(", ")}?` };
       }
-      return { ok: false, message: "Sorry, I didn't catch that. Try 'play rain' or 'goodnight'." };
+      return { ok: false, message: "Sorry, I didn't catch that. Try 'play rain', 'turn on quiet mode', or 'goodnight'." };
     }
   }
 }
