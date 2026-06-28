@@ -441,8 +441,8 @@ function CompanionPage() {
       )}
 
       {/* Slice 6 — Smart Morning Intelligence: visible mornings or when ?brief=1 */}
-      {signedIn && shouldShowBrief() && (
-        <MorningBrief prefs={prefs ?? null} signedIn={signedIn} />
+      {signedIn === true && shouldShowBrief() && (
+        <MorningBrief prefs={prefs ?? null} signedIn={true} />
       )}
 
 
