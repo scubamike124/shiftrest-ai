@@ -54,6 +54,8 @@ function InboxPage() {
   const setStatus = useServerFn(setPersonalItemStatus);
   const del = useServerFn(deletePersonalItem);
   const qc = useQueryClient();
+  const navigate = useNavigate({ from: "/inbox" });
+  const search = Route.useSearch();
 
   const itemsQ = useQuery({
     queryKey: ["personal-items"],
@@ -63,6 +65,23 @@ function InboxPage() {
 
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<ItemKind>("task");
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice deep-link: ?add=... prefills the form. Save is still required.
+  const appliedAddRef = useRef<string | null>(null);
+  useEffect(() => {
+    const v = search.add?.trim();
+    if (v && appliedAddRef.current !== v) {
+      appliedAddRef.current = v;
+      setTitle(v);
+      setKind("task");
+      // Defer focus until after paint so the input exists.
+      requestAnimationFrame(() => titleInputRef.current?.focus());
+      // Clear the query so a refresh doesn't re-apply it.
+      void navigate({ search: (prev) => ({ ...prev, add: undefined }), replace: true });
+    }
+  }, [search.add, navigate]);
+
 
   const createMut = useMutation({
     mutationFn: () => upsert({ data: { title: title.trim(), kind } }),
