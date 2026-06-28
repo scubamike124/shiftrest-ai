@@ -542,7 +542,7 @@ function PilotPage() {
     streamingRef.current = false;
     const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
     for (const c of tail) {
-      if (!firstSentenceFired) { cancelAllAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+      if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
       void enqueueSpeak(c);
     }
     if (signedIn && assistant.trim()) saveCoachMessage("assistant", assistant.trim()).catch(() => {});
