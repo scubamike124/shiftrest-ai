@@ -368,7 +368,45 @@ function MemoryPage() {
         </div>
       ) : (
         <>
-          {/* Pending proposals */}
+          <LearningConsentsCard disabled={paused} />
+
+          {/* Cross-skill routine suggestions */}
+          <section className="mt-6 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Suggested routines
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={scanMut.isPending}
+                onClick={() => scanMut.mutate()}
+                className="gap-1.5"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {scanMut.isPending ? "Scanning…" : "Scan now"}
+              </Button>
+            </div>
+            {(suggestionsQ.data?.length ?? 0) === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border bg-card/30 p-4 text-xs text-muted-foreground">
+                No suggestions yet. I'll combine the categories you allowed (above) and
+                propose helpful routines — you always approve or reject each one.
+              </p>
+            ) : (
+              (suggestionsQ.data ?? []).map((s) => (
+                <RoutineSuggestionCard
+                  key={s.id}
+                  suggestion={s}
+                  busy={acceptSugMut.isPending || dismissSugMut.isPending || snoozeSugMut.isPending}
+                  onAccept={() => acceptSugMut.mutate(s.id)}
+                  onDismiss={() => dismissSugMut.mutate(s.id)}
+                  onSnooze={() => snoozeSugMut.mutate(s.id)}
+                />
+              ))
+            )}
+          </section>
+
+          {/* Pending memory proposals */}
           {(proposalsQ.data?.length ?? 0) > 0 && (
             <section className="mt-6 space-y-3">
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
