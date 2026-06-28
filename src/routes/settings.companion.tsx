@@ -286,6 +286,9 @@ function CompanionSettings() {
         />
       </Card>
 
+      <VoiceActionsCard />
+
+
       <Card className="flex flex-col gap-3 p-4">
         <h2 className="text-sm font-semibold">Commute (optional)</h2>
         <p className="text-xs text-muted-foreground">
