@@ -11,6 +11,7 @@ import {
   type DailyPlanOutput,
 } from "./intel";
 
+type SafeMeta = Record<string, string | number | boolean | null>;
 type Row = {
   id: string;
   kind: string;
@@ -26,6 +27,16 @@ type Row = {
   created_at: string;
   updated_at: string;
 };
+function sanitizeMeta(m: Record<string, unknown> | null | undefined): SafeMeta {
+  const out: SafeMeta = {};
+  if (!m) return out;
+  for (const [k, v] of Object.entries(m)) {
+    if (v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      out[k] = v;
+    }
+  }
+  return out;
+}
 
 function rowToItem(r: Row): PersonalItem {
   const kind = (["task", "reminder", "email_note", "followup"] as const).includes(r.kind as never)

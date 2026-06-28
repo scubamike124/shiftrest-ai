@@ -16,7 +16,7 @@ export interface PersonalItem {
   priority: 1 | 2 | 3 | 4; // 1 = highest
   status: ItemStatus;
   followupOf: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, string | number | boolean | null>;
   createdAt: string;
   updatedAt: string;
 }
