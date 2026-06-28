@@ -23,6 +23,15 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MorningBrief } from "@/components/morning/MorningBrief";
+
+/** Show Morning Brief during morning hours (04:00–11:59 local) or when ?brief=1. */
+function shouldShowBrief(): boolean {
+  if (typeof window === "undefined") return false;
+  if (new URLSearchParams(window.location.search).get("brief") === "1") return true;
+  const h = new Date().getHours();
+  return h >= 4 && h < 12;
+}
 
 export const Route = createFileRoute("/companion")({
   head: () => ({
@@ -438,6 +447,12 @@ function CompanionPage() {
             : `${pendingProposalCount} things to remember →`}
         </Link>
       )}
+
+      {/* Slice 6 — Smart Morning Intelligence: visible mornings or when ?brief=1 */}
+      {signedIn === true && shouldShowBrief() && (
+        <MorningBrief prefs={prefs ?? null} signedIn={true} />
+      )}
+
 
       {/* Companion off — gentle CTA */}
       {!companionOn && (
