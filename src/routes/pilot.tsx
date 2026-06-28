@@ -280,19 +280,31 @@ function PilotPage() {
       const token = sess.session?.access_token;
       const ac = new AbortController();
       llmAbortRef.current = ac;
-      const resp = await fetch("/api/ai", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          intent: "coach",
-          messages: baseMessages,
-          surface: "voice",
-        }),
-        signal: ac.signal,
-      });
+      let resp: Response;
+      try {
+        resp = await fetch("/api/ai", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            intent: "coach",
+            messages: baseMessages,
+            surface: "voice",
+          }),
+          signal: ac.signal,
+        });
+      } catch (e) {
+        // Aborted via barge-in is expected — bail quietly.
+        streamingRef.current = false;
+        if ((e as Error)?.name !== "AbortError") {
+          toast.error("Pilot is unavailable.");
+        }
+        setOrbState("idle");
+        return;
+      }
+
 
 
       if (!resp.ok || !resp.body) {
