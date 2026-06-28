@@ -40,6 +40,18 @@ import {
 } from "@/lib/memory-proposals";
 import { ProposalCard } from "@/components/memory/ProposalCard";
 import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
+import { LearningConsentsCard } from "@/components/memory/LearningConsentsCard";
+import { RoutineSuggestionCard } from "@/components/memory/RoutineSuggestionCard";
+import {
+  listPendingRoutineSuggestions,
+  acceptRoutineSuggestion,
+  dismissRoutineSuggestion,
+  snoozeRoutineSuggestion,
+  type RoutineSuggestion,
+} from "@/lib/memory/suggestions";
+import { scanForRoutines } from "@/lib/memory/suggestions.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/memory")({
   head: () => ({
@@ -142,9 +154,50 @@ function MemoryPage() {
     staleTime: 15_000,
   });
 
+  const suggestionsQ = useQuery<RoutineSuggestion[]>({
+    queryKey: ["routine-suggestions", "pending"],
+    queryFn: listPendingRoutineSuggestions,
+    enabled: Boolean(enabled),
+    staleTime: 15_000,
+  });
+
+  const scanFn = useServerFn(scanForRoutines);
+  const scanMut = useMutation({
+    mutationFn: () => scanFn({ data: undefined }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      const n = (res as { suggestions_created?: number } | undefined)?.suggestions_created ?? 0;
+      toast.success(n > 0 ? `Found ${n} new routine${n === 1 ? "" : "s"}` : "No new routines yet");
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Scan failed"),
+  });
+
+  const acceptSugMut = useMutation({
+    mutationFn: (id: string) => acceptRoutineSuggestion(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("Saved as a routine");
+    },
+  });
+  const dismissSugMut = useMutation({
+    mutationFn: (id: string) => dismissRoutineSuggestion(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("Dismissed");
+    },
+  });
+  const snoozeSugMut = useMutation({
+    mutationFn: (id: string) => snoozeRoutineSuggestion(id, 7),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
+      toast.success("I'll ask again in a week");
+    },
+  });
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["ai-memory"] });
     qc.invalidateQueries({ queryKey: ["memory-proposals"] });
+    qc.invalidateQueries({ queryKey: ["routine-suggestions"] });
     qc.invalidateQueries({ queryKey: ["companion-hints"] });
   };
 
@@ -315,7 +368,45 @@ function MemoryPage() {
         </div>
       ) : (
         <>
-          {/* Pending proposals */}
+          <LearningConsentsCard disabled={paused} />
+
+          {/* Cross-skill routine suggestions */}
+          <section className="mt-6 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Suggested routines
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={scanMut.isPending}
+                onClick={() => scanMut.mutate()}
+                className="gap-1.5"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {scanMut.isPending ? "Scanning…" : "Scan now"}
+              </Button>
+            </div>
+            {(suggestionsQ.data?.length ?? 0) === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border bg-card/30 p-4 text-xs text-muted-foreground">
+                No suggestions yet. I'll combine the categories you allowed (above) and
+                propose helpful routines — you always approve or reject each one.
+              </p>
+            ) : (
+              (suggestionsQ.data ?? []).map((s) => (
+                <RoutineSuggestionCard
+                  key={s.id}
+                  suggestion={s}
+                  busy={acceptSugMut.isPending || dismissSugMut.isPending || snoozeSugMut.isPending}
+                  onAccept={() => acceptSugMut.mutate(s.id)}
+                  onDismiss={() => dismissSugMut.mutate(s.id)}
+                  onSnooze={() => snoozeSugMut.mutate(s.id)}
+                />
+              ))
+            )}
+          </section>
+
+          {/* Pending memory proposals */}
           {(proposalsQ.data?.length ?? 0) > 0 && (
             <section className="mt-6 space-y-3">
               <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">

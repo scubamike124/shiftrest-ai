@@ -26,6 +26,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
 
         const { runPatternDetection } = await import("@/lib/ai/patterns.server");
         const { runMemoryProposer } = await import("@/lib/ai/memory-proposer.server");
+        const { runCrossSkillSuggester } = await import("@/lib/memory/cross-skill-suggester.server");
 
         // 1) Pull all opted-in users.
         const { data: users } = await admin
@@ -57,6 +58,13 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
             proposed += await runMemoryProposer(admin, u.user_id, Number(u.sleep_hours ?? 8));
           } catch (e) {
             console.warn("memory proposer failed", u.user_id, e);
+          }
+
+          // Phase 6 — Cross-skill routine suggestions.
+          try {
+            await runCrossSkillSuggester(admin, u.user_id);
+          } catch (e) {
+            console.warn("cross-skill suggester failed", u.user_id, e);
           }
 
           if (!u.feedback_learning_enabled) continue;

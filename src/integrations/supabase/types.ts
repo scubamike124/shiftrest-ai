@@ -874,6 +874,60 @@ export type Database = {
         }
         Relationships: []
       }
+      routine_suggestions: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          dedupe_key: string
+          first_seen_at: string
+          id: string
+          kind: string
+          last_seen_at: string
+          proposed_steps: Json
+          reason: string
+          signals: Json
+          snoozed_until: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          dedupe_key: string
+          first_seen_at?: string
+          id?: string
+          kind: string
+          last_seen_at?: string
+          proposed_steps?: Json
+          reason: string
+          signals?: Json
+          snoozed_until?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          dedupe_key?: string
+          first_seen_at?: string
+          id?: string
+          kind?: string
+          last_seen_at?: string
+          proposed_steps?: Json
+          reason?: string
+          signals?: Json
+          snoozed_until?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       shifts: {
         Row: {
           created_at: string
@@ -1249,6 +1303,7 @@ export type Database = {
           home_address: string | null
           home_tz: string | null
           lat: number
+          learning_consents: Json
           location_label: string
           lon: number
           low_light: boolean
@@ -1294,6 +1349,7 @@ export type Database = {
           home_address?: string | null
           home_tz?: string | null
           lat?: number
+          learning_consents?: Json
           location_label?: string
           lon?: number
           low_light?: boolean
@@ -1339,6 +1395,7 @@ export type Database = {
           home_address?: string | null
           home_tz?: string | null
           lat?: number
+          learning_consents?: Json
           location_label?: string
           lon?: number
           low_light?: boolean
