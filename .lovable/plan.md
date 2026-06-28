@@ -1,78 +1,104 @@
-## Goal
+# Home Experience Redesign — AI Companion as Centerpiece
 
-Swap the placeholder SVG face inside `CompanionAvatarFace` for a premium portrait-style character matching the reference image — calm, warm, modern — without touching the Companion engine (voice, state machine, lip-sync analyzer, audio events, integration points).
+## Investigation Summary
 
-## Investigation Findings
+Current state:
+- `src/routes/dashboard.tsx` (987 lines) is the active home — uses `CompanionHero` plus a long stack of cards (`AIBriefCard`, `RightNowCard`, `SmartAlarmCard`, `LastNightStrip`, `MultiDayPlan`, `TomorrowPreviewCard`, `DailyReviewCard`, `PatternAlerts`, `DecisionCenterCard`, `AIActivityFeed`, etc.).
+- `src/routes/index.tsx` is a separate marketing/landing surface.
+- Existing avatar work: `src/components/companion/Avatar.tsx` (portrait-hybrid premium avatar), `src/components/CompanionAvatar.tsx` (small chip), `CompanionHero`, `PilotOrb`.
+- Bottom navigation lives in `src/components/BottomNav.tsx`.
+- All feature cards already exist — this is purely presentation/layout.
 
-- `src/components/companion/Avatar.tsx` is the **only** visual layer. Everything else (speak.ts analyzer → `companion:audio-level` events, state machine, intent router, dashboard/Pilot/Companion mounts) is decoupled and stays untouched.
-- The component already exposes the right inputs (`state`, `level`, `size`, `expression`) and consumes the audio-level CustomEvent — we just need to re-render the visual using a portrait image plus a layered overlay rig instead of drawing geometric eyes/mouth.
-- True per-feature rigging (rigging eyes/mouth on a photo) at SVG quality requires either Rive/Lottie or pre-rendered frame sets. The user approved Option A (SVG) for Phase 1, so we keep that constraint and use a **hybrid portrait approach**: a single portrait base image + lightweight overlays positioned over the face for blink, mouth, breath, aura, glow.
+## Goals
 
-## Approach — "Portrait Hybrid"
+1. AI Companion = visible centerpiece, persistent, one tap away.
+2. Reorganize existing cards into a premium glass bento grid.
+3. Zero feature removal — every current card keeps its data + behavior.
 
-Three stacked layers inside the existing component (same props, same events):
+## Implementation Plan
 
-1. **Base portrait (PNG, transparent bg)** — premium AI-generated character matching reference (warm, friendly woman, soft studio lighting, deep indigo background bleed). Generated via `imagegen` at premium tier in two crops:
-   - `companion-portrait.png` (head + shoulders, for `md`/`lg`).
-   - `companion-portrait-bust.png` round-cropped (for `sm` dashboard chip).
-2. **Animation rig overlay (SVG, absolute-positioned)** — invisible by default; activates per state:
-   - **Blink:** two thin eyelid shapes color-matched to skin tone, scale-Y from 0→1 on blink tick (existing blink loop already in place).
-   - **Mouth (speaking):** a subtle dark ellipse over the mouth region whose `ry` is driven by `audioLevel` (existing analyzer). Soft blur + low opacity so it reads as the lips parting, not a cartoon mouth.
-   - **Breath:** existing `companion-breath` keyframe scales the wrapper ±1.5%.
-   - **Head sway:** existing `companion-bob` keyframe + a slow sinusoidal `translateX` (≤1px) for natural micro-movement.
-   - **Eye glance (thinking):** a 2px horizontal translate on a tiny highlight overlay positioned on each iris (no full eye redraw — just shifts the catchlight).
-3. **Aura / glow ring** — keep existing radial aura; tint per state (idle = primary, listening = primary pulse, thinking = violet pulse, speaking = cyan glow synced to `audioLevel`).
+### 1. Persistent Corner Avatar (new)
+- New component `src/components/companion/CompanionDock.tsx`:
+  - Small animated avatar (reuse `Avatar` at `sm` size) inside a glowing glass pill.
+  - Fixed top-right, safe-area aware, z-50, always visible on authenticated routes.
+  - Subtle pulse when Companion has a new brief or proactive whisper.
+  - Tap → navigates to `/companion` (full premium avatar experience already shipped).
+- Mount inside `src/routes/__root.tsx` (or an authenticated layout wrapper) so it persists across `/dashboard`, `/sleep`, `/plan`, `/health`, etc.
+- Hide on `/companion`, `/auth`, `/onboarding`, marketing `index`, and legal routes via pathname check.
 
-Reduced-motion: portrait stays static, only blink runs (matches current behavior).
-Tab hidden: pause RAF + blink loop (already implemented).
+### 2. Dashboard Redesign (`src/routes/dashboard.tsx`)
+Replace the current vertical scroll with a structured bento grid. Keep all data hooks and queries — only the JSX layout changes.
 
-## Asset Generation
+Section order (mobile-first, single column, expanding to 2-col at `sm:`):
 
-Use `imagegen` premium tier with `transparent_background: true`:
-- Prompt anchored to reference: friendly young adult, soft natural smile, large warm eyes, gentle studio key light, deep indigo rim light, painterly-realistic (Pixar-meets-portrait), front-facing, neutral expression, no logos/text, on a clean background.
-- Generate two variants and pick best:
-  - `src/assets/companion-portrait.png` — 1024×1024 head & shoulders.
-  - `src/assets/companion-portrait-sm.png` — 512×512 tighter round crop.
+```text
+┌──────────────────────────────────────────┐
+│ Greeting + date           [avatar chip]  │  ← Hero strip
+├──────────────────────────────────────────┤
+│  AI Morning/Evening Brief (full width)   │  ← AIBriefCard, hero treatment
+├──────────────────┬───────────────────────┤
+│ Sleep Score      │ Recovery / Readiness  │  ← LastNightStrip + WearableCard
+├──────────────────┴───────────────────────┤
+│ Right Now AI Coach (full width, accent)  │  ← RightNowCard
+├──────────────────┬───────────────────────┤
+│ Smart Alarm      │ Sleep Sounds          │  ← SmartAlarmCard + new SleepSoundsCard
+├──────────────────┴───────────────────────┤
+│ Daily Schedule (full width)              │  ← shift list + MultiDayPlan
+├──────────────────┬───────────────────────┤
+│ Weather          │ Traffic               │  ← weather/* + traffic/*
+├──────────────────┼───────────────────────┤
+│ Calendar         │ Hydration             │
+├──────────────────┴───────────────────────┤
+│ Sleep Streak (full width)                │
+├──────────────────────────────────────────┤
+│ Quick Actions (chip grid)                │  ← deep links to /sleep, /plan, /pilot…
+└──────────────────────────────────────────┘
+```
 
-## File Changes
+- Greeting strip replaces existing `CompanionHero` (move that experience into the new `/companion` flow only; greeting is text + time + tiny inline avatar — the persistent dock handles avatar access).
+- Add light wrappers as needed: `SleepSoundsCard`, `HydrationCard`, `SleepStreakCard`, `QuickActionsCard` — composed from existing data/utilities (no new business logic).
+- Preserve: offline hydration, `CompanionIntroSheet` first-launch flow, all mutations (add/edit/delete shift), employer logic.
 
-**Edit only:**
-- `src/components/companion/Avatar.tsx` — replace SVG face geometry (head/brows/eyes/pupils/mouth path) with `<img>` portrait + overlay rig. Keep all props, hooks, event listeners, keyframes, aura logic, and exports (`CompanionAvatarFace`, `avatarStateLabel`) identical so all call sites continue working.
+### 3. Visual Language (tokens, not per-component hardcodes)
+Update `src/styles.css`:
+- Add tokens: `--glass-bg`, `--glass-border`, `--glow-primary`, `--glow-secondary`, `--shadow-premium`.
+- Purple/blue glow gradient: `linear-gradient(135deg, oklch(0.62 0.19 280), oklch(0.65 0.17 240))`.
+- Add `@utility glass-card` (rounded-3xl, backdrop-blur-xl, layered border + inner highlight + soft shadow).
+- Add `@utility glow-accent` for primary cards.
+- Typography: keep current font stack but tighten heading scale; add `tracking-tight` to card titles.
 
-**Add:**
-- `src/assets/companion-portrait.png` (generated).
-- `src/assets/companion-portrait-sm.png` (generated).
+### 4. Reusable Card Shell
+- `src/components/home/HomeCard.tsx`: standard glass shell with optional icon, title, accent, action slot. All dashboard cards render their existing content inside this shell for visual consistency.
 
-**Untouched (confirmed):**
-- `src/lib/companion/speak.ts` (analyzer + events)
-- `src/lib/companion/intent-router.ts`, `intent-executor.ts`, `companion-sound-bridge.ts`
-- `src/routes/companion.tsx`, `src/routes/pilot.tsx`
-- `src/components/CompanionAvatar.tsx` (dashboard chip — automatically picks up new portrait via the small variant)
-- `src/components/companion/CompanionHero.tsx`
-- State machine, action layer, history, narration
+### 5. Files Changed / Added
 
-## Animation Mapping (unchanged contracts)
+Added:
+- `src/components/companion/CompanionDock.tsx`
+- `src/components/home/HomeCard.tsx`
+- `src/components/home/SleepSoundsCard.tsx`
+- `src/components/home/HydrationCard.tsx`
+- `src/components/home/SleepStreakCard.tsx`
+- `src/components/home/QuickActionsCard.tsx`
+- `src/components/home/GreetingHeader.tsx`
 
-| State      | Visual                                                                 |
-|------------|-----------------------------------------------------------------------|
-| idle       | portrait + soft breath + gentle bob + primary aura at 60%            |
-| listening  | aura pulse scales with `level`; subtle catchlight brighten           |
-| thinking   | violet aura pulse + tiny eye-glance offset + thinking dots (kept)    |
-| speaking   | mouth overlay `ry` driven by `companion:audio-level` rms; cyan glow  |
+Modified:
+- `src/routes/__root.tsx` — mount `CompanionDock` with route-aware visibility.
+- `src/routes/dashboard.tsx` — replace JSX layout only; keep all queries/mutations.
+- `src/styles.css` — glass + glow tokens, utilities.
 
-## Risks & Mitigations
+Untouched:
+- All data libs (`lib/insights`, `lib/sleep-engine`, wearables, prefs, offline snapshot).
+- `/companion`, `/pilot`, `/sleep`, `/plan`, etc.
+- `BottomNav`, auth, Supabase wiring.
 
-- **Mouth overlay looking pasted-on:** keep it small, blurred, low-opacity, and clipped within a soft mask; lip-sync reads as motion not shape. If it still feels off after one pass, fall back to a pure brightness/scale pulse on the lower-face region (no shape).
-- **Asset weight:** portrait PNG ≤ ~400KB; use 1024 max and serve same asset for `md`/`lg`. Small variant only for the 40px chip.
-- **Reduced motion / SSR:** existing guards already cover both; image renders fine in both paths.
+### 6. Out of Scope
+- No new backend, schema, or AI logic.
+- No changes to Companion conversation, voice, lip-sync, or memory.
+- Traffic card uses existing component only if data is wired; otherwise shows a clean "coming soon" inside the same glass shell.
 
-## Acceptance
+### 7. Verification
+- Manual: viewport 375×598 — grid collapses to single column, dock visible top-right, every existing feature reachable.
+- Build passes (typecheck via tsgo on changed files).
+- `/companion` tap from dock loads the premium animated avatar shipped last slice.
 
-- Reference-quality portrait visible on `/`, `/companion`, `/pilot`, dashboard chip, and CompanionHero.
-- Blink, breath, head sway run at idle.
-- Mouth overlay reacts to live TTS audio while speaking.
-- Aura color/scale changes per state.
-- All existing voice / intent / action flows still work — no engine code modified.
-- Typecheck clean.
-
-Reply **approved** to proceed.
+Approve and I'll implement.
