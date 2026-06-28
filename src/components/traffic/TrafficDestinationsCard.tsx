@@ -166,7 +166,7 @@ export function TrafficDestinationsCard({
       setBusyId(d.id);
       try {
         await remove({ data: { id: d.id } });
-        track({ event: "skill_disconnected", skill: "travel", action: `destination_${d.kind}` });
+        track({ event: "skill_disconnected", skill: "travel" });
         await refresh();
       } catch {
         toast.error("Could not remove. Please try again.");
