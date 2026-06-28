@@ -37,6 +37,7 @@ import {
   WindDownCard,
 } from "./EveningCards";
 import { WeatherAlertsCard } from "@/components/weather/WeatherAlertsCard";
+import { TrafficCard } from "@/components/traffic/TrafficCard";
 
 function CardSkeleton() {
   return (
