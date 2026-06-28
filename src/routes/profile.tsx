@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
+import { VoiceSettings } from "@/components/voice/VoiceSettings";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -564,6 +565,8 @@ function Profile() {
       </section>
 
       <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
+
+      <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
       <WearableCard />
 
