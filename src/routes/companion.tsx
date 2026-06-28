@@ -500,7 +500,9 @@ function CompanionPage() {
           <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Companion</p>
           <h1 className="text-xl font-semibold leading-tight">{aiName}</h1>
         </div>
-        <Sheet>
+        <div className="flex items-center gap-1">
+          <ActionHistorySheet onRetry={handleRetry} />
+          <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Companion settings">
               <Settings2 className="h-5 w-5" />
