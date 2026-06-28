@@ -1354,3 +1354,90 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
+/* ============================================================ MEET AURA */
+
+function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
+  const skills: { icon: typeof Moon; title: string; body: string }[] = [
+    { icon: Heart, title: "Wind-down after shift", body: "Decompress with paced breathing and a calm voice that knows your night." },
+    { icon: Waves, title: "Sleep sounds & mixes", body: "Rain, jet, ocean — start by voice, save your perfect mix." },
+    { icon: BellRing, title: "Smart alarm", body: "Wakes you in your lightest cycle inside the window you choose." },
+    { icon: MessageCircle, title: "Nightly guidance", body: "Checks in before bed and again at wake — never preachy." },
+    { icon: Repeat, title: "Routines & reminders", body: "‘Goodnight’ runs your full wind-down. One word, one tap." },
+    { icon: Lock, title: "Private memory", body: "Yours alone. View it, export it, wipe it — anytime." },
+  ];
+  return (
+    <section id="meet-aura" className="relative py-24 lg:py-32">
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 opacity-70"
+        style={{ background: "var(--gradient-hero)" }}
+      />
+      <div className="pointer-events-none absolute left-1/2 top-1/3 -z-10 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-indigo/25 blur-[140px]" />
+
+      <div className="mx-auto w-full max-w-7xl px-5 lg:px-10">
+        <div className="mx-auto max-w-2xl text-center">
+          <Eyebrow>The companion</Eyebrow>
+          <h2 className="mt-3 text-4xl leading-tight tracking-tight lg:text-5xl">
+            A real AI sleep assistant. <em className="not-italic text-indigo-glow">Always one tap away.</em>
+          </h2>
+          <p className="mt-5 text-base leading-relaxed text-muted-foreground">
+            Aura lives in the corner of every screen. Tap to talk — by voice or text — for sleep, sounds, alarms, recovery, and nightly check-ins built around your real shifts.
+          </p>
+        </div>
+
+        <div className="mt-14 grid items-stretch gap-5 lg:grid-cols-[1.05fr_1.4fr]">
+          {/* Avatar showcase */}
+          <div
+            className="relative flex flex-col items-center justify-center overflow-hidden rounded-[32px] border border-white/10 p-8 text-center shadow-[var(--shadow-card)] backdrop-blur-xl lg:p-12"
+            style={{
+              background:
+                "radial-gradient(120% 90% at 50% 10%, oklch(0.34 0.16 280 / 0.55), transparent 65%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
+            }}
+          >
+            <div className="pointer-events-none absolute left-1/2 top-1/3 -z-10 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo-glow/30 blur-3xl" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-glow">
+              Tap the avatar — anywhere in the app
+            </p>
+            <div className="my-8">
+              <CompanionAvatarFace state="idle" size="lg" aura />
+            </div>
+            <p
+              className="text-2xl leading-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              "Goodnight. Want me to start your wind-down?"
+            </p>
+            <p className="mt-3 max-w-xs text-sm text-muted-foreground">
+              Voice or text. Streaming, premium, and tuned to how you actually sleep.
+            </p>
+            <Link
+              to={ctaHref}
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-background/60 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur-md transition hover:bg-background/80"
+            >
+              <Mic className="h-4 w-4 text-indigo-glow" />
+              Meet your Companion
+            </Link>
+          </div>
+
+          {/* Capability bento */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+            {skills.map((s) => (
+              <div
+                key={s.title}
+                className="group relative overflow-hidden rounded-[22px] border border-white/10 bg-card/60 p-5 backdrop-blur-xl transition hover:border-primary/40"
+              >
+                <span className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-indigo/15 blur-2xl transition group-hover:bg-indigo/25" />
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-secondary/60">
+                  <s.icon className="h-4 w-4 text-indigo-glow" />
+                </span>
+                <p className="mt-3 text-sm font-semibold text-foreground">{s.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
