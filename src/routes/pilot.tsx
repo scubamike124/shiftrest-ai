@@ -590,9 +590,10 @@ function PilotPage() {
             </Button>
             <Button asChild variant="ghost" size="sm">
               <Link to="/profile" hash="voice-settings">
-                <Settings2 className="mr-1.5 h-4 w-4" /> Voice
+                <Settings2 className="mr-1.5 h-4 w-4" /> Customize
               </Link>
             </Button>
+
           </div>
         </header>
 
