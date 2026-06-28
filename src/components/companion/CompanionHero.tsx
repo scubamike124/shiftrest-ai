@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Sparkles, X, Settings2, BellOff, WifiOff } from "lucide-react";
+import { X, Settings2, BellOff, WifiOff } from "lucide-react";
 import { CompanionAvatarFace } from "@/components/companion/Avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
