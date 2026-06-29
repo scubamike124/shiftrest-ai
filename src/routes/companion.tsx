@@ -383,13 +383,18 @@ function CompanionPage() {
   // - pointerup after threshold = release-to-send (stops recording)
   const holdStartRef = useRef<number>(0);
   const heldRef = useRef(false);
+  const pointerStartedRecordingRef = useRef(false);
   const HOLD_THRESHOLD_MS = 350;
   function handleMicPointerDown() {
     if (!companionOn || transcribing || sending) return;
     holdStartRef.current = performance.now();
     heldRef.current = false;
+    pointerStartedRecordingRef.current = false;
     // If currently idle, start capture eagerly so audio begins under the gesture.
-    if (micState === "idle") void handleMicTap();
+    if (micState === "idle") {
+      pointerStartedRecordingRef.current = true;
+      void handleMicTap();
+    }
   }
   function handleMicPointerUp() {
     if (holdStartRef.current === 0) return;
@@ -402,6 +407,12 @@ function CompanionPage() {
     // Otherwise let the click handler toggle (tap behavior).
   }
   function handleMicClick() {
+    // Pointer-down already started this tap/hold gesture. Do not let the
+    // follow-up click immediately stop the recorder, especially on mobile.
+    if (pointerStartedRecordingRef.current) {
+      pointerStartedRecordingRef.current = false;
+      return;
+    }
     // Suppress the synthetic click that follows a hold-release.
     if (heldRef.current) {
       heldRef.current = false;
