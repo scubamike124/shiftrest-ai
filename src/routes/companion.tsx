@@ -143,6 +143,11 @@ function CompanionPage() {
   const aiName = prefs?.assistantName?.trim() || "RestPilot";
   const memoryOn = Boolean(prefs?.memoryEnabled);
 
+  // Hydration-safe flag: time-aware greeting renders only after mount.
+  const [mountedGreeting, setMountedGreeting] = useState(false);
+  useEffect(() => { setMountedGreeting(true); }, []);
+
+
   const savePref = useMutation({
     mutationFn: (p: Partial<Prefs>) => savePrefs(p),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["prefs"] }),
@@ -1225,7 +1230,13 @@ function CompanionPage() {
 
         <div className="mt-4 text-center">
           {(() => {
-            const g = timeGreeting(firstName(prefs ?? ({} as Prefs), sessionEmail));
+            const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+            // mountedGreeting is set in a useEffect below — server and first
+            // client render show a time-neutral greeting so hydration matches;
+            // the time-aware one appears one frame later.
+            const g = mountedGreeting
+              ? timeGreeting(name)
+              : { hi: `Hi, ${name}.`, sub: "" };
             return (
               <>
                 <p className="text-base font-medium">{g.hi}</p>
@@ -1236,6 +1247,7 @@ function CompanionPage() {
             );
           })()}
         </div>
+
 
       </section>
 
@@ -1491,8 +1503,10 @@ function CompanionPage() {
         voiceStatus={voiceStatus}
         orbState={orbState}
         greetShown={greetedRef.current}
+        companionMode={localPrefs.companionMode ?? "normal"}
         onReset={handleHardReset}
       />
+
     </main>
   );
 }

@@ -164,6 +164,8 @@ export function CompanionAvatarFace({
   const visemeSeqRef = useRef<VisemeKey[]>(["REST"]);
   const visemeStartRef = useRef<number>(0);
   const visemeRateRef = useRef<number>(14); // visemes per second
+  const lastVisemeRef = useRef<VisemeKey>("REST");
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -341,15 +343,24 @@ export function CompanionAvatarFace({
 
       // ── viseme target: walk the sequence by time ──
       let target: VisemeShape = { ...VISEMES.REST };
+      let activeViseme: VisemeKey = "REST";
       if (s === "speaking" && visemeSeqRef.current.length > 0) {
         const elapsed = (now - visemeStartRef.current) / 1000;
         const idx = Math.floor(elapsed * visemeRateRef.current);
         const seq = visemeSeqRef.current;
-        const key = seq[Math.min(idx, seq.length - 1)] ?? "REST";
-        target = { ...VISEMES[key] };
+        activeViseme = seq[Math.min(idx, seq.length - 1)] ?? "REST";
+        target = { ...VISEMES[activeViseme] };
+      }
+      // Emit viseme change for the QA HUD (throttled to actual changes).
+      if (activeViseme !== lastVisemeRef.current) {
+        lastVisemeRef.current = activeViseme;
+        window.dispatchEvent(
+          new CustomEvent("companion:viseme", { detail: { key: activeViseme } }),
+        );
       }
       // Blend toward target shape (slow LP for natural transitions).
       shapeLP = blendVisemes(shapeLP, target, 0.22);
+
 
       // Combine viseme openness with live amplitude.
       const ampOpen = s === "speaking" ? gamma : 0;

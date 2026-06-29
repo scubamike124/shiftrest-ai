@@ -25,8 +25,10 @@ export type DebugHUDProps = {
   voiceStatus?: string;
   orbState?: string;
   greetShown?: boolean;
+  companionMode?: string;
   onReset?: () => void;
 };
+
 
 type StepRow = { step: DebugStep; at: number; info?: string };
 
@@ -36,6 +38,13 @@ export function DebugHUD(props: DebugHUDProps) {
   const [permission, setPermission] = useState<string>("unknown");
   const [steps, setSteps] = useState<StepRow[]>([]);
   const [ttsCtx, setTtsCtx] = useState<string>("?");
+  // QA-pass additions
+  const [fps, setFps] = useState(0);
+  const [heap, setHeap] = useState<string>("—");
+  const [viseme, setViseme] = useState<string>("REST");
+  const [emotion, setEmotion] = useState<string>("—");
+  const [acState, setAcState] = useState<string>("—");
+  const [micTrack, setMicTrack] = useState<string>("—");
   const [auth, setAuth] = useState<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>(
     { hasSession: false, hasToken: false, userId: null, source: "—" },
   );
@@ -45,6 +54,7 @@ export function DebugHUD(props: DebugHUDProps) {
   });
   const lastTapRef = useRef<number>(0);
   const [, force] = useState(0);
+
 
   // Toggle with Cmd/Ctrl+Shift+D
   useEffect(() => {
@@ -169,7 +179,86 @@ export function DebugHUD(props: DebugHUDProps) {
     return () => window.clearInterval(id);
   }, [enabled]);
 
+  // ── QA pass: FPS meter (rAF-counted, 1s window) ──────────────────────
+  useEffect(() => {
+    if (!enabled) return;
+    let frames = 0;
+    let last = performance.now();
+    let raf = 0;
+    const tick = () => {
+      frames++;
+      const now = performance.now();
+      if (now - last >= 1000) {
+        setFps(Math.round((frames * 1000) / (now - last)));
+        frames = 0;
+        last = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [enabled]);
+
+  // ── QA pass: JS heap (Chrome-only, otherwise n/a) ────────────────────
+  useEffect(() => {
+    if (!enabled) return;
+    const id = window.setInterval(() => {
+      const mem = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+      if (mem?.usedJSHeapSize) {
+        setHeap(`${(mem.usedJSHeapSize / 1048576).toFixed(1)} MB`);
+      } else {
+        setHeap("n/a");
+      }
+    }, 1500);
+    return () => window.clearInterval(id);
+  }, [enabled]);
+
+  // ── QA pass: viseme + emotion subscriptions ──────────────────────────
+  useEffect(() => {
+    if (!enabled) return;
+    const onV = (e: Event) => setViseme((e as CustomEvent<{ key: string }>).detail?.key ?? "REST");
+    const onE = (e: Event) => setEmotion((e as CustomEvent<{ emotion: string }>).detail?.emotion ?? "—");
+    window.addEventListener("companion:viseme", onV as EventListener);
+    window.addEventListener("companion:emotion", onE as EventListener);
+    return () => {
+      window.removeEventListener("companion:viseme", onV as EventListener);
+      window.removeEventListener("companion:emotion", onE as EventListener);
+    };
+  }, [enabled]);
+
+  // ── QA pass: live mic-track state probe ──────────────────────────────
+  useEffect(() => {
+    if (!enabled) return;
+    const id = window.setInterval(async () => {
+      try {
+        const devs = await navigator.mediaDevices?.enumerateDevices?.();
+        const hasMic = devs?.some((d) => d.kind === "audioinput" && d.label);
+        // Without exporting a stream handle, we approximate from props.micState.
+        setMicTrack(hasMic ? props.micState ?? "ready" : "no-device");
+      } catch { setMicTrack("err"); }
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [enabled, props.micState]);
+
+  // ── QA pass: try to read the live AudioContext state by listening to
+  //    speak.ts level events — if events fire, the context is running. ─
+  useEffect(() => {
+    if (!enabled) return;
+    let last = 0;
+    const bump = () => { last = performance.now(); };
+    window.addEventListener("companion:audio-level", bump);
+    const id = window.setInterval(() => {
+      const age = performance.now() - last;
+      setAcState(last === 0 ? "idle" : age < 1500 ? "running" : "suspended/idle");
+    }, 1000);
+    return () => {
+      window.removeEventListener("companion:audio-level", bump);
+      window.clearInterval(id);
+    };
+  }, [enabled]);
+
   if (!enabled) return null;
+
 
   const lastTapAgo = lastTapRef.current ? `${Math.round((Date.now() - lastTapRef.current) / 100) / 10}s` : "—";
 
@@ -210,14 +299,22 @@ export function DebugHUD(props: DebugHUDProps) {
         {row("companionOn", props.companionOn ?? "—")}
         {row("prefsLoaded", props.prefsLoaded ?? "—")}
         {row("micPerm", permission)}
+        {row("micTrack", micTrack)}
         {row("micState", props.micState ?? "—")}
         {row("voiceStatus", props.voiceStatus ?? "—")}
         {row("orbState", props.orbState ?? "—")}
         {row("audioLevel", audioLevel.toFixed(2))}
+        {row("audioCtx", acState)}
         {row("ttsCtx", ttsCtx)}
+        {row("viseme", viseme)}
+        {row("emotion", emotion)}
+        {row("mode", props.companionMode ?? "normal")}
+        {row("fps", fps || "—")}
+        {row("heap", heap)}
         {row("greetShown", props.greetShown ?? "—")}
         {row("lastTap", lastTapAgo)}
       </div>
+
 
       <div className="mt-2 max-h-[140px] overflow-y-auto rounded bg-white/5 p-1">
         {steps.length === 0 ? (
