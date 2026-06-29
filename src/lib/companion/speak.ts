@@ -1,13 +1,18 @@
-// Slice 10 — Centralized voice gate.
+// Centralized Companion TTS gate.
 //
-// Every Companion TTS playback funnels through speak(). It enforces:
+// Every Companion TTS playback funnels through speak() / speakQueued().
+// They enforce:
 //   1. voiceRepliesEnabled (per-device pref)
 //   2. quietHours (per-device pref)
-//   3. cancel-prior policy — a newer request supersedes any in-flight one so
-//      narration never overlaps assistant replies.
+//   3. cancel-prior policy — a newer turn supersedes any in-flight one.
 //
-// Pure best-effort — TTS failures never throw. Analytics events are emitted
-// for each gate decision so we can measure voice usage.
+// Audio pipeline (built ONCE, never rewired):
+//   <audio>  →  MediaElementSource  →  Gain (loudness boost)
+//                                    →  DynamicsCompressor (soft limit)
+//                                    →  destination + Analyser (lip-sync)
+//
+// All chunks of every turn (greeting AND replies) share this exact
+// pipeline, so perceived loudness is identical across the session.
 
 import { supabase } from "@/integrations/supabase/client";
 import { inQuietHours } from "./quiet-hours";
@@ -21,18 +26,15 @@ let lastReqId = 0;
 let primedAudio: HTMLAudioElement | null = null;
 
 const SILENT_WAV =
-  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 /**
  * Best-effort iOS/Safari audio unlock. Call synchronously inside a user tap
  * before the async STT → AI → TTS chain so the later assistant reply can play.
- * Text still renders if the browser refuses playback.
  */
 export function prepareVoicePlayback(): void {
   if (typeof window === "undefined") return;
   try {
-    // Prime the WebAudio graph (gain + compressor + analyser) inside the
-    // user gesture so the very first reply is loud and lip-syncs.
     ensureAudioGraph();
     if (levelCtx && levelCtx.state === "suspended") {
       levelCtx.resume().catch(() => undefined);
@@ -41,14 +43,17 @@ export function prepareVoicePlayback(): void {
       primedAudio = new Audio();
       primedAudio.preload = "auto";
       primedAudio.setAttribute("playsinline", "true");
+      primedAudio.crossOrigin = "anonymous";
     }
+    // Wire the primed element into the graph ONCE under the gesture so the
+    // very first reply already routes through Gain → Compressor.
+    wireElementIntoGraph(primedAudio);
     const audio = primedAudio;
     audio.src = SILENT_WAV;
     audio.volume = 0;
     void audio
       .play()
       .then(() => {
-        // Do not interrupt real TTS if the async prime resolves late.
         if (audio.src === SILENT_WAV || audio.currentSrc === SILENT_WAV) {
           audio.pause();
           audio.currentTime = 0;
@@ -64,8 +69,6 @@ export function prepareVoicePlayback(): void {
 }
 
 // ── Voice status events ────────────────────────────────────────────────
-// Companion UI listens on `companion:voice-status` for "started" | "ended"
-// | "failed" | "skipped" so it can render Speaking/failed indicators.
 type VoiceStatus = "started" | "ended" | "failed" | "skipped";
 function emitStatus(status: VoiceStatus, reason?: string) {
   if (typeof window === "undefined") return;
@@ -73,37 +76,28 @@ function emitStatus(status: VoiceStatus, reason?: string) {
     new CustomEvent("companion:voice-status", { detail: { status, reason } }),
   );
 }
-/** Fired once after the current speak() (or queued turn) fully completes. */
 function emitTurnEnded() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("companion:turn-ended"));
 }
 
 // ── Sequential turn queue ──────────────────────────────────────────────
-// `speakQueued()` plays chunks one after another within the same logical
-// "turn" (one assistant reply). `beginSpeakTurn()` cancels the prior turn
-// and starts a fresh queue. This lets the caller speak the first sentence
-// as soon as it streams in, then enqueue the remainder when streaming
-// completes — without overlapping or cutting itself off.
 let turnId = 0;
 type QueueItem = { text: string; opts: SpeakOptions; turn: number };
 const queue: QueueItem[] = [];
 let draining = false;
 
 
-// ── Amplitude-based lip-sync + loudness boost ────────────────────────────
-// Shared AudioContext with a Gain (loudness boost) + Compressor (keeps it
-// clean) feeding both the destination and an Analyser for the avatar's
-// mouth amplitude. Each <audio> element can only be source'd once, so we
-// remember which ones we've wired with a WeakSet.
+// ── Audio graph (built ONCE, never re-wired) ─────────────────────────
 let levelCtx: AudioContext | null = null;
 let levelAnalyser: AnalyserNode | null = null;
 let levelGain: GainNode | null = null;
 let levelCompressor: DynamicsCompressorNode | null = null;
+let graphWired = false;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
-const VOICE_GAIN = 1.85; // perceived loudness boost over raw element volume
+const VOICE_GAIN = 2.2;
 
 function ensureAudioGraph(): boolean {
   if (typeof window === "undefined") return false;
@@ -119,30 +113,43 @@ function ensureAudioGraph(): boolean {
     }
     if (!levelCompressor) {
       levelCompressor = levelCtx.createDynamicsCompressor();
-      // Tame the louder gain so peaks stay clean instead of clipping.
       try {
-        levelCompressor.threshold.value = -18;
-        levelCompressor.knee.value = 24;
-        levelCompressor.ratio.value = 3;
-        levelCompressor.attack.value = 0.004;
-        levelCompressor.release.value = 0.18;
-      } catch { /* property assignment varies across browsers */ }
+        // Softer compressor — only catches true peaks, no pumping.
+        levelCompressor.threshold.value = -12;
+        levelCompressor.knee.value = 18;
+        levelCompressor.ratio.value = 2;
+        levelCompressor.attack.value = 0.006;
+        levelCompressor.release.value = 0.22;
+      } catch { /* noop */ }
     }
     if (!levelAnalyser) {
       levelAnalyser = levelCtx.createAnalyser();
-      levelAnalyser.fftSize = 512;
-      levelAnalyser.smoothingTimeConstant = 0.55;
+      levelAnalyser.fftSize = 256;
+      levelAnalyser.smoothingTimeConstant = 0.25;
     }
-    // Wire: source → gain → compressor → destination
-    //                              ↘ analyser
-    try { levelGain.disconnect(); } catch { /* noop */ }
-    levelGain.connect(levelCompressor);
-    try { levelCompressor.disconnect(); } catch { /* noop */ }
-    levelCompressor.connect(levelCtx.destination);
-    levelCompressor.connect(levelAnalyser);
+    if (!graphWired) {
+      // Wire once. Subsequent calls are no-ops so we never tear down the
+      // graph mid-playback (which caused pumping / quieter replies).
+      levelGain.connect(levelCompressor);
+      levelCompressor.connect(levelCtx.destination);
+      levelCompressor.connect(levelAnalyser);
+      graphWired = true;
+    }
     return true;
   } catch {
     return false;
+  }
+}
+
+function wireElementIntoGraph(audio: HTMLAudioElement): void {
+  if (!ensureAudioGraph() || !levelCtx || !levelGain) return;
+  if (sourcedAudios.has(audio)) return;
+  try {
+    const src = levelCtx.createMediaElementSource(audio);
+    src.connect(levelGain);
+    sourcedAudios.add(audio);
+  } catch {
+    /* element may already be sourced in another context — best effort */
   }
 }
 
@@ -152,39 +159,28 @@ function emitLevel(rms: number) {
 }
 
 function startLevelMeter(audio: HTMLAudioElement) {
-  if (typeof window === "undefined") return;
-  if (!ensureAudioGraph() || !levelCtx || !levelAnalyser || !levelGain) return;
-  try {
-    if (!sourcedAudios.has(audio)) {
-      const src = levelCtx.createMediaElementSource(audio);
-      src.connect(levelGain);
-      sourcedAudios.add(audio);
+  if (typeof window === "undefined" || !levelAnalyser) return;
+  const analyser = levelAnalyser;
+  const buf = new Uint8Array(analyser.fftSize);
+  if (levelRaf) cancelAnimationFrame(levelRaf);
+  const tick = () => {
+    if (currentAudio !== audio || audio.paused || audio.ended) {
+      emitLevel(0);
+      levelRaf = 0;
+      return;
     }
-    const analyser = levelAnalyser;
-    const buf = new Uint8Array(analyser.fftSize);
-    if (levelRaf) cancelAnimationFrame(levelRaf);
-    const tick = () => {
-      if (currentAudio !== audio || audio.paused || audio.ended) {
-        emitLevel(0);
-        levelRaf = 0;
-        return;
-      }
-      analyser.getByteTimeDomainData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) {
-        const v = (buf[i] - 128) / 128;
-        sum += v * v;
-      }
-      const rms = Math.sqrt(sum / buf.length);
-      emitLevel(rms);
-      levelRaf = requestAnimationFrame(tick);
-    };
+    analyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const v = (buf[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / buf.length);
+    emitLevel(rms);
     levelRaf = requestAnimationFrame(tick);
-  } catch {
-    /* lip-sync is best-effort; silently drop on failure */
-  }
+  };
+  levelRaf = requestAnimationFrame(tick);
 }
-
 
 function stopLevelMeter() {
   if (levelRaf) {
@@ -195,15 +191,13 @@ function stopLevelMeter() {
 }
 
 export type SpeakOptions = {
-  /** Optional voice id from server-side prefs (forwarded to /api/tts). */
   voice?: string | null;
-  /** Used by analytics + future per-source routing. */
   source?: "assistant_reply" | "action_narration" | "manual";
 };
 
 export function stopSpeaking(): void {
-  lastReqId += 1; // invalidate any pending fetch
-  turnId += 1; // invalidate queued turn
+  lastReqId += 1;
+  turnId += 1;
   queue.length = 0;
   try {
     currentAudio?.pause();
@@ -219,16 +213,11 @@ export function stopSpeaking(): void {
   emitStatus("ended");
 }
 
-/** Begin a new assistant-reply turn; cancels prior speech & clears queue. */
 export function beginSpeakTurn(): number {
   stopSpeaking();
   return ++turnId;
 }
 
-/**
- * Single-shot speak (cancel-prior). Use for narration, replay, action
- * confirmations — anything that is one self-contained utterance.
- */
 export async function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
   if (typeof window === "undefined") return;
   const t = text?.trim();
@@ -262,10 +251,6 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
   emitTurnEnded();
 }
 
-/**
- * Append a chunk to the current turn's queue. If no turn is active, one
- * is started implicitly. Chunks play sequentially without overlap.
- */
 export function speakQueued(text: string, opts: SpeakOptions = {}): void {
   if (typeof window === "undefined") return;
   const t = text?.trim();
@@ -289,9 +274,7 @@ async function drainQueue(): Promise<void> {
   try {
     while (queue.length > 0) {
       const next = queue.shift()!;
-      if (next.turn !== turnId) continue; // stale
-      // Re-check gates at playback time (quiet hours may have started,
-      // or the user may have toggled voice replies off mid-turn).
+      if (next.turn !== turnId) continue;
       const prefs = loadLocalPrefs();
       if (!prefs.voiceRepliesEnabled) {
         emitStatus("skipped", "disabled");
@@ -314,7 +297,6 @@ async function drainQueue(): Promise<void> {
   }
 }
 
-/** Internal: fetch + play a single utterance; resolves when audio ends. */
 async function playOnce(
   text: string,
   opts: SpeakOptions,
@@ -347,11 +329,22 @@ async function playOnce(
   try { currentAudio?.pause(); } catch { /* noop */ }
   if (currentUrl) URL.revokeObjectURL(currentUrl);
 
-  const url = URL.createObjectURL(blob);
-  const audio = primedAudio ?? new Audio();
+  // Always reuse the primed element so the MediaElementSource is wired
+  // exactly once. This guarantees every utterance — greeting and every
+  // reply chunk — flows through the same Gain + Compressor.
+  ensureAudioGraph();
+  if (!primedAudio) {
+    primedAudio = new Audio();
+    primedAudio.preload = "auto";
+    primedAudio.setAttribute("playsinline", "true");
+    primedAudio.crossOrigin = "anonymous";
+  }
+  wireElementIntoGraph(primedAudio);
+  const audio = primedAudio;
   audio.preload = "auto";
   audio.setAttribute("playsinline", "true");
   audio.volume = 1;
+  const url = URL.createObjectURL(blob);
   audio.src = url;
   currentAudio = audio;
   currentUrl = url;
@@ -383,4 +376,3 @@ async function playOnce(
     });
   });
 }
-
