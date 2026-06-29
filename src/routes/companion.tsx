@@ -40,6 +40,9 @@ import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { speak, stopSpeaking } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
+import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
+
 
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
