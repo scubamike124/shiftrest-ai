@@ -316,9 +316,7 @@ export function CompanionAvatarFace({
   const browRightRef = useRef<HTMLDivElement | null>(null);
   const cheekLeftRef = useRef<HTMLDivElement | null>(null);
   const cheekRightRef = useRef<HTMLDivElement | null>(null);
-  // Mouth SVG refs
-  const upperLipRef = useRef<SVGPathElement | null>(null);
-  const lowerLipRef = useRef<SVGPathElement | null>(null);
+  // Mouth SVG refs (single soft inner-mouth shadow — no visible lip lines)
   const innerMouthRef = useRef<SVGEllipseElement | null>(null);
   const mouthGroupRef = useRef<SVGGElement | null>(null);
 
@@ -376,26 +374,17 @@ export function CompanionAvatarFace({
           `translate(0 ${-cornerLift * 0.35}) scale(${shapeLP.wide} 1)`,
         );
       }
-      if (upperLipRef.current && lowerLipRef.current && innerMouthRef.current) {
+      if (innerMouthRef.current) {
         const cy = 50;
         const gap = finalOpen * F.mouthH;
         const halfW = F.mouthW * 0.5;
-        // Upper lip: gentle bow above center.
-        const upperD = `M ${50 - halfW} ${cy - 0.3}
-                        Q 50 ${cy - 1.4 - finalOpen * 0.6} ${50 + halfW} ${cy - 0.3}`;
-        // Lower lip: deepens with openness.
-        const lowerD = `M ${50 - halfW} ${cy + 0.3 + gap}
-                        Q 50 ${cy + 1.8 + gap * 1.1} ${50 + halfW} ${cy + 0.3 + gap}`;
-        upperLipRef.current.setAttribute("d", upperD);
-        lowerLipRef.current.setAttribute("d", lowerD);
         innerMouthRef.current.setAttribute("cx", "50");
         innerMouthRef.current.setAttribute("cy", `${cy + gap * 0.55}`);
         innerMouthRef.current.setAttribute("rx", `${halfW * 0.85}`);
-        innerMouthRef.current.setAttribute("ry", `${0.4 + gap * 0.9}`);
-        innerMouthRef.current.setAttribute(
-          "opacity",
-          `${(shapeLP.inner * 0.6 + ampOpen * 0.5).toFixed(3)}`,
-        );
+        innerMouthRef.current.setAttribute("ry", `${0.35 + gap * 0.95}`);
+        // Fade entirely when mouth is closed so no rig is visible at rest.
+        const op = finalOpen < 0.04 ? 0 : Math.min(0.55, shapeLP.inner * 0.55 + ampOpen * 0.45);
+        innerMouthRef.current.setAttribute("opacity", op.toFixed(3));
       }
 
       // ── jaw drop (subtle portrait translate) ──
