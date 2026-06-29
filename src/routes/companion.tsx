@@ -140,6 +140,17 @@ function CompanionPage() {
     };
   }, []);
 
+  // If the user opened /companion while signed-out, bounce to /auth and
+  // bring them right back here once they're in. Avoids the "tap Nova → blank
+  // companion shell" dead-end.
+  const navigateForAuth = useNavigate();
+  useEffect(() => {
+    if (signedIn === false) {
+      const back = `/companion${typeof window !== "undefined" ? window.location.search : ""}`;
+      navigateForAuth({ to: "/auth", search: { return: back } as never }).catch(() => undefined);
+    }
+  }, [signedIn, navigateForAuth]);
+
   const prefsQ = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, enabled: signedIn === true });
   const prefs = prefsQ.data;
 
