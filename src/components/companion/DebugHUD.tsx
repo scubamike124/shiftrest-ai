@@ -38,6 +38,13 @@ export function DebugHUD(props: DebugHUDProps) {
   const [permission, setPermission] = useState<string>("unknown");
   const [steps, setSteps] = useState<StepRow[]>([]);
   const [ttsCtx, setTtsCtx] = useState<string>("?");
+  // QA-pass additions
+  const [fps, setFps] = useState(0);
+  const [heap, setHeap] = useState<string>("—");
+  const [viseme, setViseme] = useState<string>("REST");
+  const [emotion, setEmotion] = useState<string>("—");
+  const [acState, setAcState] = useState<string>("—");
+  const [micTrack, setMicTrack] = useState<string>("—");
   const [auth, setAuth] = useState<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>(
     { hasSession: false, hasToken: false, userId: null, source: "—" },
   );
@@ -47,6 +54,7 @@ export function DebugHUD(props: DebugHUDProps) {
   });
   const lastTapRef = useRef<number>(0);
   const [, force] = useState(0);
+
 
   // Toggle with Cmd/Ctrl+Shift+D
   useEffect(() => {
