@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
-import portraitUrl from "@/assets/companion-portrait.png";
+import { useAvatar } from "@/lib/companion/use-avatar";
 import {
   EMOTION_PRESETS,
   getEmotion,
@@ -87,6 +87,7 @@ export function CompanionAvatarFace({
 }: AvatarProps) {
   const px = SIZE_PX[size];
   const showAura = aura ?? size !== "sm";
+  const { src: portraitUrl } = useAvatar();
 
   // ── Environment ──────────────────────────────────────────────────────
   const [reduced, setReduced] = useState<boolean>(() => prefersReducedMotion());
