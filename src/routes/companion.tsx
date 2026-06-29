@@ -934,10 +934,7 @@ function CompanionPage() {
         <button
           type="button"
           onClick={() => {
-            if (!companionOn) {
-              toast.info("Turn on Companion Mode first.");
-              return;
-            }
+            emitDebug("tap", `mic=${micState}`);
             if (!localPrefs.voiceInputEnabled || micState === "denied") {
               // Voice off or mic blocked — fall back to text composer instead
               // of a silent dead-tap.
