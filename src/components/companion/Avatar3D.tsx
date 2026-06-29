@@ -155,6 +155,30 @@ function HeadModel({ url, state }: {
     brow: findMorphTarget(gltf.scene, BROW_KEYS),
   }), [gltf.scene]);
 
+  // Auto-frame: compute the model's bounding box and derive a uniform scale +
+  // offset so the head/portrait fills the round viewport regardless of the
+  // GLB's authoring units (Ready Player Me vs. gltfpack vs. custom rigs).
+  // Without this, hardcoded RPM offsets (y=-1.45) push non-RPM models out of
+  // view and we render a transparent canvas — the P0 "placeholder" bug.
+  const frame = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    // Camera fov 28° at z=0.85 → visible height ≈ 2*0.85*tan(14°) ≈ 0.424.
+    // We want the model to occupy ~0.46 world units so the face fills.
+    const targetSize = 0.46;
+    const scale = targetSize / maxDim;
+    // Re-center horizontally + depth, bias slightly upward so the eyes/face
+    // sit on the camera axis (heads are top-heavy: face is upper third).
+    const offsetX = -center.x * scale;
+    const offsetY = -center.y * scale + size.y * scale * 0.18;
+    const offsetZ = -center.z * scale;
+    return { scale, offsetX, offsetY, offsetZ };
+  }, [gltf.scene]);
+
   // Blink scheduler — drives a target value the rAF lerps toward.
   const blinkTarget = useRef(0);
   useEffect(() => {
