@@ -34,12 +34,19 @@ import {
   useTtsProvider,
   webglSupported,
 } from "@/lib/companion/renderer-pref";
+import { getCustomModelUrl, setCustomModelUrl } from "@/lib/companion/avatar-models";
 
 function RealismCard() {
   const { renderer, setRenderer } = useRenderer();
   const { provider, setProvider } = useTtsProvider();
   const { voiceId, setVoiceId } = useElevenVoice();
   const webgl = useMemo(() => webglSupported(), []);
+  const [modelUrl, setModelUrl] = useState<string>(() => getCustomModelUrl() ?? "");
+
+  function saveModelUrl(next: string) {
+    setModelUrl(next);
+    setCustomModelUrl(next.trim() || null);
+  }
 
   return (
     <Card className="p-4">
@@ -60,9 +67,31 @@ function RealismCard() {
         <Switch
           id="renderer-3d"
           checked={renderer === "3d"}
-          disabled={!webgl}
+          disabled={!webgl || !modelUrl.trim()}
           onCheckedChange={(v) => setRenderer(v ? "3d" : "2d")}
         />
+      </div>
+
+      <div className="mt-3">
+        <Label htmlFor="rpm-url" className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Ready Player Me avatar URL (.glb)
+        </Label>
+        <Input
+          id="rpm-url"
+          type="url"
+          inputMode="url"
+          placeholder="https://models.readyplayer.me/<your-id>.glb"
+          value={modelUrl}
+          onChange={(e) => saveModelUrl(e.target.value)}
+          className="mt-1.5 text-xs"
+        />
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          Create a free head at{" "}
+          <a href="https://readyplayer.me/hub/avatars" target="_blank" rel="noreferrer" className="underline">
+            readyplayer.me/hub
+          </a>
+          , then copy your avatar's .glb link here. We'll add the visemes query automatically. Leave empty to keep the 2D portrait.
+        </p>
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
