@@ -297,6 +297,39 @@ function CompanionPage() {
     await micStop();
   }
 
+  // Phase E — true hold-to-talk with tap-toggle fallback.
+  // - pointerdown remembers when the press began
+  // - pointerup within HOLD_THRESHOLD_MS = tap (handled by onClick toggle)
+  // - pointerup after threshold = release-to-send (stops recording)
+  const holdStartRef = useRef<number>(0);
+  const heldRef = useRef(false);
+  const HOLD_THRESHOLD_MS = 350;
+  function handleMicPointerDown() {
+    if (!companionOn || transcribing || sending) return;
+    holdStartRef.current = performance.now();
+    heldRef.current = false;
+    // If currently idle, start capture eagerly so audio begins under the gesture.
+    if (micState === "idle") void handleMicTap();
+  }
+  function handleMicPointerUp() {
+    if (holdStartRef.current === 0) return;
+    const dt = performance.now() - holdStartRef.current;
+    holdStartRef.current = 0;
+    if (dt >= HOLD_THRESHOLD_MS && micState === "listening") {
+      heldRef.current = true;
+      void micStop(); // release sends
+    }
+    // Otherwise let the click handler toggle (tap behavior).
+  }
+  function handleMicClick() {
+    // Suppress the synthetic click that follows a hold-release.
+    if (heldRef.current) {
+      heldRef.current = false;
+      return;
+    }
+    void handleMicTap();
+  }
+
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
   async function speakIfEnabled(text: string) {
