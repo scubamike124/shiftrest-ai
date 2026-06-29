@@ -372,6 +372,15 @@ function VoiceActionsCard() {
       <Row label="Voice replies" hint="Speak the Companion's replies aloud (uses TTS credits).">
         <Switch checked={p.voiceRepliesEnabled} onCheckedChange={(v) => update({ voiceRepliesEnabled: v })} />
       </Row>
+      <Row
+        label="Sleep Companion mode"
+        hint="Hushed voice, slower breathing, warmer light. Auto-engages from /sleep."
+      >
+        <Switch
+          checked={p.companionMode === "sleep"}
+          onCheckedChange={(v) => update({ companionMode: v ? "sleep" : "normal" })}
+        />
+      </Row>
       <Row label="Action suggestions" hint="Let the Companion propose actions like starting a sound.">
         <Switch checked={p.actionSuggestionsEnabled} onCheckedChange={(v) => update({ actionSuggestionsEnabled: v })} />
       </Row>
