@@ -804,6 +804,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          companion_avatar_id: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -815,6 +816,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          companion_avatar_id?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -826,6 +828,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          companion_avatar_id?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
