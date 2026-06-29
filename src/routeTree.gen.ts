@@ -40,6 +40,7 @@ import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
+import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
 import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
 import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
@@ -222,6 +223,11 @@ const SettingsMorningRoute = SettingsMorningRouteImport.update({
 const SettingsCompanionRoute = SettingsCompanionRouteImport.update({
   id: '/settings/companion',
   path: '/settings/companion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsAvatarRoute = SettingsAvatarRouteImport.update({
+  id: '/settings/avatar',
+  path: '/settings/avatar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
@@ -418,6 +424,7 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -478,6 +485,7 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -540,6 +548,7 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
@@ -603,6 +612,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
     | '/settings/skills'
@@ -663,6 +673,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
     | '/settings/skills'
@@ -724,6 +735,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
     | '/settings/skills'
@@ -771,6 +783,7 @@ export interface RootRouteChildren {
   ApiSttRoute: typeof ApiSttRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
@@ -999,6 +1012,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/companion'
       fullPath: '/settings/companion'
       preLoaderRoute: typeof SettingsCompanionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/avatar': {
+      id: '/settings/avatar'
+      path: '/settings/avatar'
+      fullPath: '/settings/avatar'
+      preLoaderRoute: typeof SettingsAvatarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/trademark': {
@@ -1275,6 +1295,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSttRoute: ApiSttRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
+  SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
