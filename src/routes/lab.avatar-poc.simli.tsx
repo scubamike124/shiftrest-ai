@@ -243,9 +243,23 @@ function SimliPoc() {
             <input
               value={faceId}
               onChange={(e) => setFaceId(e.target.value)}
-              disabled={status === "ready" || status === "connecting"}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              placeholder="e.g. tmp9i8bbq7c"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm"
             />
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className={faceIdValid ? "text-foreground/50" : "text-amber-400"}>
+                {faceIdValid ? "Format ok" : "Letters, digits, '-' or '_', 6–64 chars"}
+              </span>
+              <span className="text-foreground/50">
+                Active:{" "}
+                <span className="font-mono text-foreground/80">
+                  {activeFaceId ?? "—"}
+                </span>
+              </span>
+            </div>
           </label>
 
           <label className="block">
@@ -271,11 +285,19 @@ function SimliPoc() {
             />
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {status === "ready" ? (
               <>
                 <button onClick={speak} className="flex-1 rounded-lg bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400">
                   Speak
+                </button>
+                <button
+                  onClick={connect}
+                  disabled={!faceIdValid || faceId.trim() === activeFaceId}
+                  title={faceId.trim() === activeFaceId ? "Already connected with this face" : "Restart session with the face ID above"}
+                  className="rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/5 disabled:opacity-40"
+                >
+                  Reconnect with this face
                 </button>
                 <button onClick={disconnect} className="rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/5">
                   Stop
@@ -284,13 +306,14 @@ function SimliPoc() {
             ) : (
               <button
                 onClick={connect}
-                disabled={status === "connecting"}
+                disabled={status === "connecting" || !faceIdValid}
                 className="flex-1 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
               >
                 {status === "connecting" ? "Connecting…" : "Connect"}
               </button>
             )}
           </div>
+
 
           {error && (
             <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
