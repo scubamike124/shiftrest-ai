@@ -296,14 +296,14 @@ export function CompanionAvatarFace({
             />
           )}
 
-          {/* Listening: subtle catchlight brighten */}
+          {/* Listening: soft warmth on the jaw/chin, NEVER on the eyes. */}
           {state === "listening" && (
             <div
               aria-hidden
               className="absolute inset-0 pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(ellipse at 50% 32%, hsl(var(--primary) / 0.18), transparent 55%)",
+                  "radial-gradient(ellipse 55% 35% at 50% 72%, hsl(var(--primary) / 0.08), transparent 70%)",
               }}
             />
           )}
