@@ -225,12 +225,14 @@ export function CompanionAvatarFace({
     >
       <style>{`
         @keyframes companion-bob { 0%,100% { transform: translate(0,0) } 50% { transform: translate(0.4px,-1.6px) } }
-        @keyframes companion-breath { 0%,100% { transform: scale(1) } 50% { transform: scale(1.012) } }
+        @keyframes companion-sway { 0%,100% { transform: translate(-0.8px,-0.6px) rotate(-0.4deg) } 50% { transform: translate(0.9px,-1.8px) rotate(0.5deg) } }
+        @keyframes companion-breath { 0%,100% { transform: scale(1) } 50% { transform: scale(1.014) } }
         @keyframes companion-aura-pulse { 0%,100% { opacity:.55 } 50% { opacity:.95 } }
         @media (prefers-reduced-motion: reduce) {
           [data-testid="companion-avatar-face"] * { animation: none !important; }
         }
       `}</style>
+
 
       {/* Aura */}
       {showAura && (
