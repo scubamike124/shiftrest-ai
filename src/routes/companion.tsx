@@ -1010,12 +1010,10 @@ function CompanionPage() {
             aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
             aria-pressed={micState === "listening"}
             disabled={!companionOn || transcribing || sending}
-            onClick={handleMicTap}
-            onPointerLeave={() => {
-              // Slide-off-to-cancel: if the user drags off the mic while
-              // recording, treat it as a cancel.
-              if (micState === "listening") void cancelMicCapture();
-            }}
+            onClick={handleMicClick}
+            onPointerDown={handleMicPointerDown}
+            onPointerUp={handleMicPointerUp}
+            onPointerCancel={handleMicPointerUp}
           >
             {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
           </Button>
