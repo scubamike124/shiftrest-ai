@@ -53,6 +53,26 @@ function setMorph(target: { mesh: THREE.Mesh; index: number } | null, value: num
   target.mesh.morphTargetInfluences[target.index] = value;
 }
 
+const BASIS_TRANSCODER_PATH =
+  "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/libs/basis/";
+
+function configureKTX2Loader(loader: { setKTX2Loader?: (l: KTX2Loader) => void }) {
+  if (typeof window === "undefined") return;
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (!gl || !loader.setKTX2Loader) return;
+    const ktx2 = new KTX2Loader();
+    ktx2.setTranscoderPath(BASIS_TRANSCODER_PATH);
+    ktx2.detectSupport(gl);
+    loader.setKTX2Loader(ktx2);
+  } catch (err) {
+    // No KTX2 support on this device; regular GLB load will proceed or fail
+    // and the parent 2D fallback will take over.
+    console.warn("KTX2Loader setup failed; falling back to 2D portrait", err);
+  }
+}
+
 function HeadModel({ url, state }: {
   url: string;
   state: OrbState;
