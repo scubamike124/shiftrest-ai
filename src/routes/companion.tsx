@@ -41,6 +41,7 @@ import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { AvatarPickerChip } from "@/components/companion/AvatarPickerChip";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
@@ -1136,40 +1137,43 @@ function CompanionPage() {
 
       {/* Avatar + greeting */}
       <section className="flex flex-col items-center gap-3 pb-4 pt-2">
-        <button
-          type="button"
-          onClick={() => {
-            emitDebug("tap", `mic=${micState}`);
-            if (!localPrefs.voiceInputEnabled || micState === "denied") {
-              // Voice off or mic blocked — fall back to text composer instead
-              // of a silent dead-tap.
-              track({ event: "avatar_tap_to_talk", result: "fallback" });
-              const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
-                '[data-companion-composer] textarea, [data-companion-composer] input',
-              );
-              el?.focus();
-              return;
+        <div className="relative">
+          <AvatarPickerChip />
+          <button
+            type="button"
+            onClick={() => {
+              emitDebug("tap", `mic=${micState}`);
+              if (!localPrefs.voiceInputEnabled || micState === "denied") {
+                // Voice off or mic blocked — fall back to text composer instead
+                // of a silent dead-tap.
+                track({ event: "avatar_tap_to_talk", result: "fallback" });
+                const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+                  '[data-companion-composer] textarea, [data-companion-composer] input',
+                );
+                el?.focus();
+                return;
+              }
+              // Synchronous gesture chain — required for iOS Safari getUserMedia.
+              track({
+                event: "avatar_tap_to_talk",
+                result: micState === "listening" ? "stopped" : "started",
+              });
+              void handleMicTap();
+            }}
+            className="rounded-full transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={
+              micState === "listening" ? "Stop listening" : `Tap to talk — ${avatarStateLabel(orbState)}`
             }
-            // Synchronous gesture chain — required for iOS Safari getUserMedia.
-            track({
-              event: "avatar_tap_to_talk",
-              result: micState === "listening" ? "stopped" : "started",
-            });
-            void handleMicTap();
-          }}
-          className="rounded-full transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={
-            micState === "listening" ? "Stop listening" : `Tap to talk — ${avatarStateLabel(orbState)}`
-          }
-          aria-pressed={micState === "listening"}
-        >
-          <CompanionAvatarFace
-            state={orbState}
-            level={level}
-            size="lg"
-            label={micState === "listening" ? "Listening…" : "Tap to talk"}
-          />
-        </button>
+            aria-pressed={micState === "listening"}
+          >
+            <CompanionAvatarFace
+              state={orbState}
+              level={level}
+              size="lg"
+              label={micState === "listening" ? "Listening…" : "Tap to talk"}
+            />
+          </button>
+        </div>
         {/* Phase E — reserved presence slot. Fixed height prevents the
             column from reflowing when the waveform or failure pill toggle. */}
         <div className="mt-2 flex h-6 items-center justify-center">

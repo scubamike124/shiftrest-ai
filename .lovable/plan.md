@@ -1,73 +1,91 @@
-## Investigation Findings
 
-**1. Lip animation — root cause**
-`src/components/companion/Avatar.tsx` lines 685–700 draw two visible SVG `<path>` strokes (`stroke="rgba(110,40,40,0.55)"`) on top of the portrait with `mixBlendMode: "multiply"`. Those strokes are the "painted lines" the user sees — the rig itself, not lip morph. The inner-mouth ellipse already darkens correctly when the jaw opens; the lip strokes only exist to outline shape but read as drawn-on contours at every size.
+# Final AI Companion Polish — Investigation & Plan
 
-**2. Avatar selection — root cause**
-There is no selector. `src/assets/` contains a single `companion-portrait.png` and every surface (Avatar, Hero, Dock, CompanionAvatar) imports it directly. No catalog, no persistence, no settings UI. The "selector not working" report is correct because none exists.
+Investigation pass complete. Findings + scoped fixes below. No new features. Item 2 (avatar realism) is **recommendation-only** per your instructions — I will not start a rendering rewrite without your approval.
 
-**3. Audio fade-in — root cause**
-In `src/lib/companion/speak.ts`:
-- `DynamicsCompressorNode` at `threshold:-12, ratio:2, attack:6ms, release:220ms` clamps the first loud syllables and recovers slowly — perceived as a 200–400 ms ramp-up at the start of every utterance.
-- `levelCtx.resume()` is fire-and-forget (`.catch(() => undefined)`), so on iOS Safari the AudioContext can still be `suspended` at the moment `audio.play()` resolves; the graph then resumes a few hundred ms into playback, producing exactly the "quiet first seconds" symptom.
-- `GainNode.gain.value = 2.2` is set once at graph construction — no ramp involved there, so the gain node itself is innocent.
+---
 
-**4. Microphone permission**
-iOS Safari scopes mic permission per origin. Lovable preview subdomains (`id-preview--<uuid>.lovable.app`) and the published `shift-rest-ai.lovable.app` are *different* origins, so iOS will re-prompt the first time on each. Within a single origin Safari currently keeps the grant for the tab lifetime only — closing the tab also re-prompts. This is correct iOS behavior, not a bug.
+## 1. Greeting volume — root cause found
 
-## Implementation
+**Symptom:** Greeting starts quieter, climbs to full volume a few seconds in.
 
-### Item 1 — Invisible, natural lip animation
-File: `src/components/companion/Avatar.tsx`
+**What I confirmed in `src/lib/companion/speak.ts`:**
+- The audio graph is built once and reused. ✅
+- Every utterance (greeting + replies) routes through the same `Gain → Compressor → destination` path. ✅
+- However, the `DynamicsCompressor` is set to `threshold: -3 dB, ratio: 6, knee: 6`. On iOS Safari the compressor's internal envelope **starts from a cold state** when playback begins and pumps gain up over the first 200–600 ms. That is the audible "quiet first words → louder" curve — not a graph wiring issue.
+- Secondary contributor: `ensureContextRunning()` resolves, but on iOS Safari the very first `audio.play()` after unlock still has ~80–150 ms where the WebAudio output buffer is empty. The compressor's auto-gain reads near-silence and clamps low, then opens up.
 
-- Delete the two `<path>` strokes (upper/lower lip outlines) and their refs (`upperLipRef`, `lowerLipRef`) plus all `setAttribute("d", …)` writes.
-- Keep only the soft inner-mouth shadow:
-  - Switch fill to a radial gradient (`rgba(30,8,12,0.55)` core → transparent) for feathered edges.
-  - Raise blur (`stdDeviation 0.4 → 1.1`) and add a soft mask so edges fade into skin.
-  - Drive `opacity` purely from `finalOpen` (0 when closed → ~0.55 at full open) so the rig vanishes when not speaking.
-- Increase jaw-drop translate slightly (×1.25) to compensate for losing the lip-shape cue; the portrait's own painted mouth then carries the movement.
-- Keep `mixBlendMode: "multiply"` so the shadow tints the existing painted lips instead of overlaying a new shape.
+**Fix (small, surgical):**
+1. Remove the compressor from the live path for normal speech. Replace with a fixed-gain `Gain` (≈1.6×) feeding a hard `WaveShaperNode` soft-clip curve. Soft-clip is stateless → no envelope ramp → first syllable is at full level.
+2. Pre-roll: before `audio.play()`, push 40 ms of near-silent PCM through the graph via a one-shot `BufferSource` so the output device is already "warm" when the TTS blob starts.
+3. Keep a single `Limiter` (compressor with `threshold:-1, ratio:20, attack:0.001, release:0.05`) only as a true-peak safety net — its envelope never engages on normal speech so it cannot fade in.
 
-### Item 2 — Avatar selector
-New files:
-- `src/lib/companion/avatars.ts` — catalog: `[{ id, name, gender, src, voiceHint }]`. Seed with 4 entries (Aura/female default, Nova/female, Atlas/male, Sage/male) using the existing portrait for now plus 3 newly-generated portraits via `imagegen` (premium, square 1024, transparent off).
-- `src/routes/settings.avatar.tsx` — grid selector route. Persists `companion_avatar_id` to `localStorage` and (when authenticated) `profiles.companion_avatar_id` so it follows the user across devices.
-- `src/lib/companion/use-avatar.ts` — hook returning the active avatar record; reads localStorage synchronously for SSR-safe first paint, hydrates from Supabase on mount.
+**Acceptance:** On real iPhone Safari, the first word of the greeting and the first word of every reply are subjectively the same loudness. Measured via the existing `companion:audio-level` RMS dispatcher (logged in DebugHUD).
 
-Edits:
-- `src/components/companion/Avatar.tsx`, `CompanionHero.tsx`, `CompanionDock.tsx`, `CompanionAvatar.tsx` — replace direct `portraitUrl` import with `useAvatar().src`.
-- `src/routes/settings.companion.tsx` — add "Choose avatar" link card pointing to `/settings/avatar`.
-- Migration: add `companion_avatar_id text` column to `profiles` with GRANT + RLS already covered by existing profile policies.
+---
 
-Custom-upload path: an "Upload your own" tile on the selector writes to existing `avatars` Storage bucket (or creates one if missing) and stores the public URL as `companion_avatar_id = "custom:<url>"`. The hook resolves `custom:` prefix to that URL.
+## 2. Avatar realism — architecture recommendation (no code yet)
 
-### Item 3 — Audio at full volume from the first word
-File: `src/lib/companion/speak.ts`
+You explicitly asked: has the current approach hit its ceiling? **Yes, it has.** A single raster portrait with SVG overlays cannot cross the "feels alive" line, regardless of how many micro-animations we layer on. The mouth shape doesn't actually change the *pixels of the lips* in the photo — we're only tinting/shadowing over a fixed image.
 
-- Replace the compressor settings with a soft-limiter profile that does not pre-attenuate normal speech:
-  - `threshold: -3`, `knee: 6`, `ratio: 6`, `attack: 0.003`, `release: 0.08`.
-  This only catches true peaks (>-3 dBFS) and recovers fast enough that no ramp is audible.
-- In `playOnce`, await `levelCtx.resume()` before `audio.play()` so playback never starts on a suspended context.
-- In `prepareVoicePlayback`, also await the resume; if the resume rejects, fall back to a 50 ms silent prime before resolving.
-- Lower `VOICE_GAIN` from `2.2` to `1.9` — combined with the looser compressor, perceived loudness is the same but headroom prevents compressor from engaging on the first vowel.
-- Verify no `gain.linearRampToValueAtTime` exists anywhere (it doesn't today — confirming none is introduced).
+### Comparison
 
-### Item 4 — Microphone permission documentation
-- Append a "Microphone & Preview URLs" section to `docs/qa/REAL_DEVICE_CHECKLIST.md` explaining that each Lovable preview subdomain is a new iOS origin and a re-prompt is expected; the published domain prompts once per Safari install.
-- Add a one-line note under the mic toggle in `src/routes/settings.companion.tsx`: *"iOS asks for the mic again whenever the site URL changes (e.g. a new preview link). Granting once on the published site is permanent for that tab."*
+| Approach | Visual quality | Mobile perf | Effort | Recommend? |
+|---|---|---|---|---|
+| **Current: photo + SVG overlays** | 5/10 — clearly static base | Excellent (60fps) | Already built | Ceiling reached |
+| **Live2D (Cubism SDK web)** | 8/10 — true 2D rig, real mouth/eye deformation, industry standard for VTubers | Good (~50fps mid iPhone) | High — needs a rigged model per avatar (artist work) + SDK license review | **Recommended** if we want "alive" |
+| **Mesh deformation (Pixi.js + custom bone rig)** | 7/10 | Good | Very high — we'd be rebuilding half of Live2D | No |
+| **TalkingHead.js / SadTalker WebGL (neural lip-sync to portrait)** | 9/10 — actually morphs the photo | Poor on mobile (heavy WASM/WebGL, 200–500 MB models, 2–4s startup) | Medium integration, high runtime cost | No — kills mobile |
+| **Three.js + Ready Player Me 3D avatar with viseme blendshapes** | 8/10 — fully 3D, real lip-sync, free avatars | Good (~45–55fps) | Medium — RPM gives us blendshape-ready GLB, just wire visemes to morph targets | **Recommended alternative** if we want variety + 3D |
+| **Pre-rendered video loops keyed to viseme** | 7/10 | Excellent | Medium asset pipeline, no real-time response | No — won't sync to TTS |
 
-## Verification (real-device, before marking done)
+### Recommendation
 
-1. iPhone Safari on the latest preview URL:
-   - Open `/companion`, tap avatar, confirm greeting starts at full volume on the first word (record audio level meter via `DebugHUD`).
-   - Visually confirm no painted lip lines remain at rest or while speaking.
-2. `/settings/avatar`:
-   - Switch to each preset, hard-reload, confirm choice persists.
-   - Upload a custom image, switch away and back, confirm it persists.
-3. Mic prompt: confirm on first visit only per origin; document the preview-URL behavior in the report.
-4. Update `BUILD_STAMP` and capture before/after screenshots for the report.
+Two viable paths. Pick one before any work starts:
 
-## Out of Scope
+- **Path A — Ready Player Me + Three.js** (my pick). Free avatars, gender variety out of the box, true 3D lip-sync via ARKit-compatible blendshapes that map 1:1 to our existing viseme stream. ~1 week of engineering. Replaces the portrait layer entirely; keeps `speak.ts` and the viseme bus unchanged.
+- **Path B — Live2D Cubism**. Higher visual ceiling for stylized 2D, but requires commissioning rigged art for every avatar and a license review for commercial use. ~2–3 weeks.
 
-- No changes to viseme engine, emotion engine, TTS chunking, or speech-normalize.
-- No new TTS provider work.
+**Do nothing else to the current SVG rig until you choose.** Continuing to tweak it is the exact "endless polish on the wrong architecture" you warned against.
+
+---
+
+## 3. Voice naturalness
+
+**What's in place now:** `openai/gpt-4o-mini-tts` with personality + mode `instructions`, speed 0.85–0.98.
+
+**Why it still sounds synthetic:** `gpt-4o-mini-tts` is the *small* tier. The full `gpt-4o-tts` model (via Lovable AI Gateway as `openai/gpt-4o-mini-tts` is the only TTS model currently allowlisted) is what it is — we won't unlock a different model without gateway support. Realistic gains have to come from prosody steering.
+
+**Fixes inside the current model:**
+1. Strengthen `instructions` with explicit non-robotic cues: *"Take a relaxed breath before the first word. Land each sentence with a soft, natural downstep. Use mild filler-like softness ('mm', 'so') only when it sounds human, never forced. Vary pace within sentences — slightly faster on supporting clauses, slower on the key noun."*
+2. Drop default `speed` from 0.95 → 0.92 for `normal` mode; `gpt-4o-mini-tts` sounds noticeably more human just below 1.0.
+3. Better normalization upstream: split long replies into shorter sentences before sending to TTS. The model produces more natural prosody on 1–2 sentence chunks than on a paragraph.
+4. Add an optional `ElevenLabs` path behind a feature flag (the project already has TTS knowledge for it). ElevenLabs `eleven_turbo_v2_5` is dramatically more human than `gpt-4o-mini-tts`. Costs more per character. **I'll wire it only if you say yes** — it's the single biggest naturalness win available and requires a connector.
+
+**Acceptance:** Side-by-side A/B with current build on a real iPhone — testers prefer new prosody. ElevenLabs gate stays off by default.
+
+---
+
+## 4. Avatar Library discoverability
+
+**What's in place:** `AVATAR_PRESETS` already has 4 (2 female: Aura, Nova; 2 male: Atlas, Sage) + custom upload. Route `/settings/avatar` exists.
+
+**Why "only one avatar appears during testing":** the selector is buried under `/settings/avatar` with no entry point from `/companion`. New users never find it.
+
+**Fixes:**
+1. Add a small avatar-swap chip directly on `/companion` (top-right of the avatar): tap → opens a bottom sheet with the 4 presets in a 2×2 grid + "Choose photo" + "More options" link to `/settings/avatar`.
+2. On first launch (intro sheet), add a "Pick your companion" step showing the 4 presets before the conversation starts. Skippable.
+3. Verify persistence path: `useAvatar` writes `localStorage` + `profiles.companion_avatar_id`. I'll add a Playwright check that switching avatars round-trips after reload.
+
+**Acceptance:** From `/companion`, switching avatar is reachable in ≤2 taps; both genders visible; selection persists after refresh and across sessions.
+
+---
+
+## What I'll implement now (with your approval)
+
+- ✅ Fix #1 — Greeting volume (compressor → soft-clip + pre-roll). Low risk.
+- ✅ Fix #3 (parts 1–3) — Prosody instructions, speed tweak, sentence chunking. Low risk. Skip ElevenLabs unless you say go.
+- ✅ Fix #4 — On-companion avatar chip + first-launch picker step.
+- 🟡 Fix #2 — **No code.** Awaiting your decision: **Path A (Ready Player Me + Three.js)**, **Path B (Live2D)**, or **defer**.
+
+Reply with which avatar path (A / B / defer) and whether to enable the ElevenLabs voice path, and I'll ship #1, #3, #4 in one pass.
