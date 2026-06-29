@@ -4,8 +4,10 @@ import { Cookie, Settings2, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { readConsent, writeConsent, type CookieConsent } from "@/lib/legal/cookies";
 
+type Mode = "hidden" | "banner" | "pill";
+
 export function CookieBanner() {
-  const [visible, setVisible] = useState(false);
+  const [mode, setMode] = useState<Mode>("hidden");
   const [managing, setManaging] = useState(false);
   const [prefs, setPrefs] = useState({
     preferences: false,
@@ -14,31 +16,65 @@ export function CookieBanner() {
     third_party: false,
   });
 
+  // On mount: decide banner vs pill based on stored consent.
   useEffect(() => {
     const c = readConsent();
-    if (!c) setVisible(true);
-    else
+    if (!c) {
+      setMode("banner");
+    } else {
       setPrefs({
         preferences: c.preferences,
         analytics: c.analytics,
         ai_logs: c.ai_logs,
         third_party: c.third_party,
       });
+      setMode("hidden");
+    }
   }, []);
+
+  // Auto-collapse the full banner to a pill after 6s of no interaction.
+  useEffect(() => {
+    if (mode !== "banner" || managing) return;
+    const t = window.setTimeout(() => setMode("pill"), 6000);
+    return () => window.clearTimeout(t);
+  }, [mode, managing]);
 
   function save(next: Omit<CookieConsent, "necessary" | "decidedAt" | "version">) {
     writeConsent(next);
-    setVisible(false);
     setManaging(false);
+    setMode("hidden");
   }
 
-  if (!visible) return null;
+  if (mode === "hidden") return null;
 
+  // Floating pill — never blocks content. Tappable to reopen.
+  if (mode === "pill") {
+    return (
+      <button
+        type="button"
+        onClick={() => setMode("banner")}
+        aria-label="Cookie preferences"
+        className="fixed z-[70] inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-2 text-[11px] font-medium text-foreground shadow-lg backdrop-blur-md transition hover:bg-card"
+        style={{
+          left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+        }}
+      >
+        <Cookie className="h-3.5 w-3.5 text-primary" />
+        Cookies
+      </button>
+    );
+  }
+
+  // Full banner.
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[70] px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
-      <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl">
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] px-3"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+    >
+      <div className="pointer-events-auto mx-auto max-w-3xl rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl">
         {!managing ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex flex-col gap-3 pr-7 sm:flex-row sm:items-center sm:pr-9">
             <Cookie className="h-5 w-5 shrink-0 text-primary" />
             <p className="flex-1 text-xs text-muted-foreground">
               We use necessary cookies to run RestPilot AI, plus optional ones for preferences,
@@ -73,6 +109,14 @@ export function CookieBanner() {
                 Accept all
               </button>
             </div>
+            <button
+              type="button"
+              aria-label="Dismiss — show as pill"
+              onClick={() => setMode("pill")}
+              className="absolute right-0 top-0 rounded-full p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           <div className="relative">

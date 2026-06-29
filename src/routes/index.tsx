@@ -63,7 +63,10 @@ function Landing() {
   const ctaHref = signedIn ? "/dashboard" : "/auth";
 
   return (
-    <div className="overflow-hidden">
+    <div
+      className="overflow-hidden"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)" }}
+    >
       <Hero ctaHref={ctaHref} />
       <LogoTicker />
       {showBelowFold && (
@@ -102,17 +105,31 @@ function Hero({ ctaHref }: { ctaHref: string }) {
               Meet Aura · your AI Sleep Companion
             </span>
             <h1
-              className="mt-6 text-5xl leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl"
+              className="mt-6 text-4xl leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              A real AI{" "}
-              <span className="italic text-indigo-glow">companion</span> for
-              the people who sleep when the world wakes.
+              {/* Mobile: short, punchy */}
+              <span className="sm:hidden">
+                Your AI sleep <span className="italic text-indigo-glow">companion</span>.
+                <br />
+                One tap away.
+              </span>
+              {/* Tablet + desktop: full editorial line */}
+              <span className="hidden sm:inline">
+                A real AI{" "}
+                <span className="italic text-indigo-glow">companion</span> for
+                the people who sleep when the world wakes.
+              </span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Tap the avatar to talk. Aura plans tonight's sleep, calms you
-              down after shift, runs sleep sounds, sets your smart alarm, and
-              checks in all day — built around your real rotation.
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
+              <span className="sm:hidden">
+                Calmer nights, sharper days — voice or text, built for your shifts.
+              </span>
+              <span className="hidden sm:inline">
+                Tap the avatar to talk. Aura plans tonight's sleep, calms you
+                down after shift, runs sleep sounds, sets your smart alarm, and
+                checks in all day — built around your real rotation.
+              </span>
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -159,12 +176,12 @@ function Trust({ icon: Icon, label }: { icon: typeof Shield; label: string }) {
 
 function HeroStack({ ctaHref }: { ctaHref: string }) {
   return (
-    <div className="relative aspect-[5/6] w-full">
+    <div className="relative w-full lg:aspect-[5/6]">
       {/* Primary: Companion glass card */}
       <Link
         to={ctaHref}
         aria-label="Open your AI Companion"
-        className="group absolute inset-0 flex flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8"
+        className="group relative flex aspect-[5/6] w-full flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8 lg:absolute lg:inset-0 lg:aspect-auto"
         style={{
           background:
             "radial-gradient(120% 80% at 50% 0%, oklch(0.32 0.14 280 / 0.55), transparent 60%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
@@ -203,8 +220,8 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
         </div>
       </Link>
 
-      {/* Floating tonight tile (bottom-right) */}
-      <div className="absolute -right-3 -bottom-3 w-[58%] max-w-[260px] rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y">
+      {/* Tonight tile — stacked under hero on mobile, floats at lg+ (top-right, clear of mic CTA) */}
+      <div className="mt-4 w-full rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y lg:absolute lg:-right-6 lg:-top-6 lg:mt-0 lg:w-[44%] lg:max-w-[220px]">
         <div className="flex items-center justify-between">
           <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
             Tonight · Tue
@@ -270,7 +287,7 @@ function LogoTicker() {
   ];
   const items = [...roles, ...roles];
   return (
-    <section className="border-y border-border/60 bg-background/40 py-8">
+    <section className="relative isolate z-0 mt-6 border-y border-border/60 bg-background/40 py-8">
       <p className="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         Built for people who work when others sleep
       </p>
@@ -1385,9 +1402,9 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
         </div>
 
         <div className="mt-14 grid items-stretch gap-5 lg:grid-cols-[1.05fr_1.4fr]">
-          {/* Avatar showcase */}
+          {/* Avatar showcase — desktop only to avoid duplicating the hero on mobile */}
           <div
-            className="relative flex flex-col items-center justify-center overflow-hidden rounded-[32px] border border-white/10 p-8 text-center shadow-[var(--shadow-card)] backdrop-blur-xl lg:p-12"
+            className="relative hidden flex-col items-center justify-center overflow-hidden rounded-[32px] border border-white/10 p-8 text-center shadow-[var(--shadow-card)] backdrop-blur-xl lg:flex lg:p-12"
             style={{
               background:
                 "radial-gradient(120% 90% at 50% 10%, oklch(0.34 0.16 280 / 0.55), transparent 65%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
