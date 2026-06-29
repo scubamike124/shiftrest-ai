@@ -212,12 +212,12 @@ export function CompanionAvatarFace({
         shoulderRef.current.style.transform = `scale(${breathe})`;
       }
 
-      // Aura pulse follows speaking amplitude
+      // Aura pulse — calmer, never bigger than 1.08
       if (auraRef.current) {
         const auraScale =
-          s === "speaking" ? 1 + Math.min(gamma * 0.22, 0.22) :
-          s === "listening" ? 1 + Math.min(levelPropRef.current * 3, 0.18) : 1;
-        const auraOp = s === "thinking" ? 0.55 + Math.sin(dt * 3.5) * 0.2 : 0.8;
+          s === "speaking" ? 1 + Math.min(gamma * 0.08, 0.08) :
+          s === "listening" ? 1 + Math.min(levelPropRef.current * 1.5, 0.06) : 1;
+        const auraOp = s === "thinking" ? 0.4 + Math.sin(dt * 3.5) * 0.12 : 0.55;
         auraRef.current.style.transform = `scale(${auraScale})`;
         auraRef.current.style.opacity = `${auraOp}`;
       }
