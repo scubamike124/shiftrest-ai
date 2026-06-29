@@ -37,6 +37,7 @@ function SimliPoc() {
   const clientRef = useRef<any>(null);
 
   const [faceId, setFaceId] = useState(DEFAULT_FACE_ID);
+  const [activeFaceId, setActiveFaceId] = useState<string | null>(null);
   const [voice, setVoice] = useState<string>(DEFAULT_ELEVEN_VOICE);
   const [text, setText] = useState(
     "Hi — I'm running on Simli with ElevenLabs Flash. If you can hear me clearly and the face stays in sync, we're in business.",
@@ -48,6 +49,12 @@ function SimliPoc() {
   const [fps, setFps] = useState<number>(0);
   const [glitches, setGlitches] = useState(0);
   const [lastSpeakMs, setLastSpeakMs] = useState<number | null>(null);
+
+  // Simli face IDs are short alphanumeric tokens (e.g. "tmp9i8bbq7c").
+  // Accept letters, digits, underscore, dash; 6–64 chars.
+  const FACE_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
+  const faceIdValid = FACE_ID_RE.test(faceId.trim());
+
 
   const voices = useMemo(() => ELEVEN_VOICES, []);
 
@@ -93,12 +100,25 @@ function SimliPoc() {
 
   async function connect() {
     setError(null);
+    const trimmed = faceId.trim();
+    if (!FACE_ID_RE.test(trimmed)) {
+      setError(
+        "Invalid face ID. Paste the full Simli face ID from your dashboard — letters, digits, '-' or '_', 6–64 chars (e.g. tmp9i8bbq7c).",
+      );
+      setStatus("error");
+      return;
+    }
+    // Tear down any existing session so a new face ID actually takes effect.
+    if (clientRef.current) {
+      try { await clientRef.current.stop?.(); } catch { /* ok */ }
+      clientRef.current = null;
+    }
     setStatus("connecting");
     try {
       const res = await fetch("/api/lab/simli/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ faceId, maxSessionLength: 300, maxIdleTime: 60 }),
+        body: JSON.stringify({ faceId: trimmed, maxSessionLength: 300, maxIdleTime: 60 }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -122,6 +142,7 @@ function SimliPoc() {
       client.on("start", () => setStatus("ready"));
       await client.start();
       clientRef.current = client;
+      setActiveFaceId(trimmed);
       try { await videoRef.current?.play(); } catch { /* autoplay */ }
       try { await audioRef.current?.play(); } catch { /* autoplay */ }
     } catch (e) {
@@ -135,8 +156,11 @@ function SimliPoc() {
   async function disconnect() {
     try { await clientRef.current?.stop?.(); } catch { /* ok */ }
     clientRef.current = null;
+    setActiveFaceId(null);
     setStatus("idle");
   }
+
+
 
   async function speak() {
     if (!clientRef.current) return;
@@ -219,9 +243,23 @@ function SimliPoc() {
             <input
               value={faceId}
               onChange={(e) => setFaceId(e.target.value)}
-              disabled={status === "ready" || status === "connecting"}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              placeholder="e.g. tmp9i8bbq7c"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm"
             />
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className={faceIdValid ? "text-foreground/50" : "text-amber-400"}>
+                {faceIdValid ? "Format ok" : "Letters, digits, '-' or '_', 6–64 chars"}
+              </span>
+              <span className="text-foreground/50">
+                Active:{" "}
+                <span className="font-mono text-foreground/80">
+                  {activeFaceId ?? "—"}
+                </span>
+              </span>
+            </div>
           </label>
 
           <label className="block">
@@ -247,11 +285,19 @@ function SimliPoc() {
             />
           </label>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {status === "ready" ? (
               <>
                 <button onClick={speak} className="flex-1 rounded-lg bg-emerald-500/90 px-4 py-2 text-sm font-medium text-black hover:bg-emerald-400">
                   Speak
+                </button>
+                <button
+                  onClick={connect}
+                  disabled={!faceIdValid || faceId.trim() === activeFaceId}
+                  title={faceId.trim() === activeFaceId ? "Already connected with this face" : "Restart session with the face ID above"}
+                  className="rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/5 disabled:opacity-40"
+                >
+                  Reconnect with this face
                 </button>
                 <button onClick={disconnect} className="rounded-lg border border-white/15 px-4 py-2 text-sm hover:bg-white/5">
                   Stop
@@ -260,13 +306,14 @@ function SimliPoc() {
             ) : (
               <button
                 onClick={connect}
-                disabled={status === "connecting"}
+                disabled={status === "connecting" || !faceIdValid}
                 className="flex-1 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
               >
                 {status === "connecting" ? "Connecting…" : "Connect"}
               </button>
             )}
           </div>
+
 
           {error && (
             <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
