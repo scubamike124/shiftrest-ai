@@ -754,6 +754,18 @@ function CompanionPage() {
     setSending(false);
   }
 
+  function handleHardReset() {
+    abortRef.current?.abort();
+    stopSpeaking();
+    setSending(false);
+    setTranscribing(false);
+    setVoiceStatus("idle");
+    setOrbState("idle");
+    setMessages([]);
+    setInput("");
+    emitDebug("reset");
+  }
+
   // ─── Render ─────────────────────────────────────────────────────
   if (signedIn === false) {
     return (
