@@ -1200,7 +1200,7 @@ function CompanionPage() {
             )}
             aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
             aria-pressed={micState === "listening"}
-            disabled={!companionOn || transcribing || sending}
+            disabled={transcribing || sending}
             onClick={handleMicClick}
             onPointerDown={handleMicPointerDown}
             onPointerUp={handleMicPointerUp}
@@ -1212,8 +1212,8 @@ function CompanionPage() {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={companionOn ? "Message your Companion" : "Companion Mode is off"}
-          disabled={!companionOn || sending}
+          placeholder="Message your Companion"
+          disabled={sending}
           className="h-11"
           inputMode="text"
           autoComplete="off"
@@ -1223,7 +1223,7 @@ function CompanionPage() {
             <Square className="h-4 w-4" />
           </Button>
         ) : (
-          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Send" disabled={!companionOn || !input.trim()}>
+          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Send" disabled={!input.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         )}
