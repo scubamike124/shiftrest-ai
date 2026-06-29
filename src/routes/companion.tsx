@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-r
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock } from "lucide-react";
+import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock, Volume1, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
@@ -38,7 +38,7 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
-import { speak, stopSpeaking } from "@/lib/companion/speak";
+import { speak, stopSpeaking, beginSpeakTurn, speakQueued } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
@@ -181,6 +181,23 @@ function CompanionPage() {
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
+  // Phase D — voice playback status from speak.ts events.
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStatus = (e: Event) => {
+      const detail = (e as CustomEvent<{ status: string }>).detail;
+      if (detail.status === "started") setVoiceStatus("speaking");
+      else if (detail.status === "failed") setVoiceStatus("failed");
+      else if (detail.status === "ended") {
+        setVoiceStatus((s) => (s === "failed" ? s : "idle"));
+      }
+    };
+    window.addEventListener("companion:voice-status", onStatus);
+    return () => window.removeEventListener("companion:voice-status", onStatus);
+  }, []);
+  // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
+  const cancelMicRef = useRef(false);
   // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
 
   const execCtx = {
@@ -232,7 +249,12 @@ function CompanionPage() {
       return;
     }
     setInput("");
+    cancelMicRef.current = false;
     await micStart(async (blob) => {
+      if (cancelMicRef.current) {
+        cancelMicRef.current = false;
+        return; // user pressed Cancel — discard without transcribing
+      }
       if (!blob) return;
       setTranscribing(true);
       try {
@@ -259,11 +281,22 @@ function CompanionPage() {
     });
   }
 
+  async function cancelMicCapture() {
+    cancelMicRef.current = true;
+    await micStop();
+  }
+
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
   async function speakIfEnabled(text: string) {
     await speak(text, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
   }
+
+  /** Phase D — replay an assistant message via the existing speak() gate. */
+  function replayMessage(text: string) {
+    void speak(text, { voice: prefs?.voiceId ?? null, source: "manual" });
+  }
+
 
   // Slice 9 — central confirm path: record history (executing → completed/failed)
   // and narrate the outcome (when voice replies are allowed).
@@ -461,6 +494,12 @@ function CompanionPage() {
       }
 
       setMessages([...baseMessages, { role: "assistant", content: "" }]);
+      // Phase D — early speech: start a fresh TTS turn, then enqueue the
+      // first complete sentence as soon as it streams in. Remaining text
+      // is enqueued after streaming completes; chunks play sequentially.
+      beginSpeakTurn();
+      let spokenChars = 0;
+      const SENTENCE_RE = /[.!?][\s)\]"']*\s/;
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -485,11 +524,28 @@ function CompanionPage() {
             if (delta) {
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
+              // Early speech: emit the first sentence past 30 chars ASAP.
+              if (spokenChars === 0 && assistant.length >= 30) {
+                const tail = assistant.slice(spokenChars);
+                const m = tail.match(SENTENCE_RE);
+                if (m && m.index !== undefined) {
+                  const cut = spokenChars + m.index + m[0].length;
+                  const segment = assistant.slice(spokenChars, cut).trim();
+                  if (segment) {
+                    speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+                    spokenChars = cut;
+                  }
+                }
+              }
             }
           } catch { /* noop */ }
         }
       }
-      void speakIfEnabled(assistant);
+      // Enqueue any unsaid remainder.
+      const remainder = assistant.slice(spokenChars).trim();
+      if (remainder) {
+        speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+      }
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
@@ -818,6 +874,19 @@ function CompanionPage() {
               )}
             </div>
 
+            {m.role === "assistant" && m.content && !sending && (
+              <button
+                type="button"
+                onClick={() => replayMessage(m.content)}
+                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground transition hover:text-foreground"
+                aria-label="Replay this reply"
+                title="Replay"
+              >
+                <Volume1 className="h-3 w-3" />
+                Replay
+              </button>
+            )}
+
             {m.role === "assistant" && m.action && (
               <div className="w-full max-w-[85%]">
                 <ActionCard
@@ -835,8 +904,35 @@ function CompanionPage() {
 
       {/* Voice-replies status badge */}
       {companionOn && (
-        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
-          {localPrefs.voiceRepliesEnabled ? (
+        <div
+          className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {micState === "listening" ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/70" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+              </span>
+              Listening… release to send
+            </>
+          ) : transcribing ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Transcribing…
+            </>
+          ) : voiceStatus === "speaking" ? (
+            <>
+              <Volume2 className="h-3 w-3 text-primary animate-pulse" />
+              Speaking…
+            </>
+          ) : voiceStatus === "failed" ? (
+            <>
+              <AlertCircle className="h-3 w-3 text-destructive" />
+              Voice unavailable — reply shown in chat
+            </>
+          ) : localPrefs.voiceRepliesEnabled ? (
             <>
               <Volume2 className="h-3 w-3 text-primary" />
               Voice replies on
@@ -851,7 +947,6 @@ function CompanionPage() {
         </div>
       )}
 
-      {/* Composer */}
       {/* Now-playing strip — visible only when sounds are active. */}
       <NowPlayingStrip />
 
@@ -862,10 +957,19 @@ function CompanionPage() {
             type="button"
             variant={micState === "listening" ? "default" : "outline"}
             size="icon"
-            className="h-11 w-11 shrink-0"
-            aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
+            className={cn(
+              "h-11 w-11 shrink-0 transition",
+              micState === "listening" && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
+            )}
+            aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
+            aria-pressed={micState === "listening"}
             disabled={!companionOn || transcribing || sending}
             onClick={handleMicTap}
+            onPointerLeave={() => {
+              // Slide-off-to-cancel: if the user drags off the mic while
+              // recording, treat it as a cancel.
+              if (micState === "listening") void cancelMicCapture();
+            }}
           >
             {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
           </Button>
@@ -890,7 +994,17 @@ function CompanionPage() {
         )}
       </form>
       {micState === "listening" && (
-        <p className="mt-1 text-center text-[11px] text-muted-foreground">Listening… tap mic to stop</p>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => void cancelMicCapture()}
+            className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+            Cancel
+          </button>
+          <span className="text-[11px] text-muted-foreground">or tap mic to send</span>
+        </div>
       )}
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />

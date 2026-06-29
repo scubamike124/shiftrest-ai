@@ -19,6 +19,29 @@ let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
 let lastReqId = 0;
 
+// ── Voice status events ────────────────────────────────────────────────
+// Companion UI listens on `companion:voice-status` for "started" | "ended"
+// | "failed" | "skipped" so it can render Speaking/failed indicators.
+type VoiceStatus = "started" | "ended" | "failed" | "skipped";
+function emitStatus(status: VoiceStatus, reason?: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("companion:voice-status", { detail: { status, reason } }),
+  );
+}
+
+// ── Sequential turn queue ──────────────────────────────────────────────
+// `speakQueued()` plays chunks one after another within the same logical
+// "turn" (one assistant reply). `beginSpeakTurn()` cancels the prior turn
+// and starts a fresh queue. This lets the caller speak the first sentence
+// as soon as it streams in, then enqueue the remainder when streaming
+// completes — without overlapping or cutting itself off.
+let turnId = 0;
+type QueueItem = { text: string; opts: SpeakOptions; turn: number };
+const queue: QueueItem[] = [];
+let draining = false;
+
+
 // ── Amplitude-based lip-sync ──────────────────────────────────────────────
 // One shared AudioContext + AnalyserNode. We re-use a MediaElementSource per
 // audio element (each element can only be source'd once). RAF dispatches a
@@ -94,6 +117,8 @@ export type SpeakOptions = {
 
 export function stopSpeaking(): void {
   lastReqId += 1; // invalidate any pending fetch
+  turnId += 1; // invalidate queued turn
+  queue.length = 0;
   try {
     currentAudio?.pause();
   } catch {
@@ -105,62 +130,129 @@ export function stopSpeaking(): void {
   }
   currentAudio = null;
   stopLevelMeter();
+  emitStatus("ended");
 }
 
+/** Begin a new assistant-reply turn; cancels prior speech & clears queue. */
+export function beginSpeakTurn(): number {
+  stopSpeaking();
+  return ++turnId;
+}
+
+/**
+ * Single-shot speak (cancel-prior). Use for narration, replay, action
+ * confirmations — anything that is one self-contained utterance.
+ */
 export async function speak(text: string, opts: SpeakOptions = {}): Promise<void> {
   if (typeof window === "undefined") return;
   const t = text?.trim();
   if (!t) {
     track({ event: "voice_skipped", reason: "empty" });
+    emitStatus("skipped", "empty");
     return;
   }
   const prefs = loadLocalPrefs();
   if (!prefs.voiceRepliesEnabled) {
     track({ event: "voice_skipped", reason: "disabled" });
+    emitStatus("skipped", "disabled");
     return;
   }
   if (inQuietHours(prefs.quietHours) || isQuietModeOn()) {
     track({ event: "voice_skipped", reason: "quiet_hours" });
+    emitStatus("skipped", "quiet_hours");
     return;
   }
 
   const myId = ++lastReqId;
   try {
-    const { data: sess } = await supabase.auth.getSession();
-    const token = sess.session?.access_token;
-    const resp = await fetch("/api/tts", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ text: t, voice: opts.voice ?? undefined }),
-    });
-    if (!resp.ok) {
-      track({ event: "voice_skipped", reason: "tts_error" });
-      return;
-    }
-    if (myId !== lastReqId) {
-      track({ event: "voice_skipped", reason: "superseded" });
-      return;
-    }
-    const blob = await resp.blob();
-    if (myId !== lastReqId) {
-      track({ event: "voice_skipped", reason: "superseded" });
-      return;
-    }
-    // Cancel anything currently playing (cancel-prior policy).
-    try {
-      currentAudio?.pause();
-    } catch {
-      /* noop */
-    }
-    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    await playOnce(t, opts, () => myId === lastReqId);
+  } catch {
+    track({ event: "voice_skipped", reason: "tts_error" });
+    emitStatus("failed", "tts_error");
+  }
+}
 
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    currentAudio = audio;
-    currentUrl = url;
+/**
+ * Append a chunk to the current turn's queue. If no turn is active, one
+ * is started implicitly. Chunks play sequentially without overlap.
+ */
+export function speakQueued(text: string, opts: SpeakOptions = {}): void {
+  if (typeof window === "undefined") return;
+  const t = text?.trim();
+  if (!t) return;
+  const prefs = loadLocalPrefs();
+  if (!prefs.voiceRepliesEnabled) {
+    emitStatus("skipped", "disabled");
+    return;
+  }
+  if (inQuietHours(prefs.quietHours) || isQuietModeOn()) {
+    emitStatus("skipped", "quiet_hours");
+    return;
+  }
+  const myTurn = turnId || ++turnId;
+  queue.push({ text: t, opts, turn: myTurn });
+  if (!draining) void drainQueue();
+}
+
+async function drainQueue(): Promise<void> {
+  draining = true;
+  try {
+    while (queue.length > 0) {
+      const next = queue.shift()!;
+      if (next.turn !== turnId) continue; // stale
+      try {
+        await playOnce(next.text, next.opts, () => next.turn === turnId);
+      } catch {
+        track({ event: "voice_skipped", reason: "tts_error" });
+        emitStatus("failed", "tts_error");
+      }
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+/** Internal: fetch + play a single utterance; resolves when audio ends. */
+async function playOnce(
+  text: string,
+  opts: SpeakOptions,
+  stillValid: () => boolean,
+): Promise<void> {
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token;
+  const resp = await fetch("/api/tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ text, voice: opts.voice ?? undefined }),
+  });
+  if (!resp.ok) {
+    track({ event: "voice_skipped", reason: "tts_error" });
+    emitStatus("failed", "tts_error");
+    return;
+  }
+  if (!stillValid()) {
+    track({ event: "voice_skipped", reason: "superseded" });
+    return;
+  }
+  const blob = await resp.blob();
+  if (!stillValid()) {
+    track({ event: "voice_skipped", reason: "superseded" });
+    return;
+  }
+  try { currentAudio?.pause(); } catch { /* noop */ }
+  if (currentUrl) URL.revokeObjectURL(currentUrl);
+
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  currentAudio = audio;
+  currentUrl = url;
+  track({ event: "voice_played", chars: text.length });
+  emitStatus("started");
+
+  await new Promise<void>((resolve) => {
     audio.onended = () => {
       if (currentUrl === url) {
         URL.revokeObjectURL(url);
@@ -168,14 +260,21 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
         currentAudio = null;
       }
       stopLevelMeter();
+      emitStatus("ended");
+      resolve();
+    };
+    audio.onerror = () => {
+      stopLevelMeter();
+      emitStatus("failed", "playback_error");
+      resolve();
     };
     audio.onpause = () => {
       if (currentAudio === audio) stopLevelMeter();
     };
-    track({ event: "voice_played", chars: t.length });
-    await audio.play().catch(() => undefined);
-    startLevelMeter(audio);
-  } catch {
-    track({ event: "voice_skipped", reason: "tts_error" });
-  }
+    audio.play().then(() => startLevelMeter(audio)).catch(() => {
+      emitStatus("failed", "autoplay_blocked");
+      resolve();
+    });
+  });
 }
+
