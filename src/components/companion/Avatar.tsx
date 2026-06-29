@@ -484,17 +484,6 @@ export function CompanionAvatarFace({
             />
           )}
 
-          {/* Listening warmth on the jaw/chin */}
-          {state === "listening" && (
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(ellipse 55% 35% at 50% 72%, hsl(var(--primary) / 0.10), transparent 70%)",
-              }}
-            />
-          )}
 
           {/* Rim light */}
           {size !== "sm" && (
