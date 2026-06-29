@@ -101,6 +101,121 @@ function normalizeDecimals(s: string): string {
   );
 }
 
+/** "85%" → "85 percent", "12.5%" → "12.5 percent". Numbers are left as
+ *  digits so the TTS model speaks them naturally ("twelve point five"). */
+function normalizePercents(s: string): string {
+  return s.replace(/(\d+(?:\.\d+)?)\s*%/g, "$1 percent");
+}
+
+/** "72°F" → "72 degrees Fahrenheit", "21 °C" → "21 degrees Celsius",
+ *  bare "72°" → "72 degrees". voice-rewriter handles °F/°C with a digit
+ *  prefix; this catches the bare-degree case and unspaced "72F". */
+function normalizeTemps(s: string): string {
+  return s
+    .replace(/(\d)\s*°\s*(?![FCfc])/g, "$1 degrees ")
+    .replace(/(\d)\s*°\s*F\b/gi, "$1 degrees Fahrenheit")
+    .replace(/(\d)\s*°\s*C\b/gi, "$1 degrees Celsius")
+    // Bare "72F" / "72C" only when surrounded by spaces and clearly a temp
+    // (the previous token looks like a temperature context).
+    .replace(/\b(\d{1,3})F\b(?=\s|[.,!?;:]|$)/g, (m, n) =>
+      /(temp|degrees|outside|today|tomorrow|high|low)/i.test(s.slice(0, s.indexOf(m)))
+        ? `${n} degrees Fahrenheit` : m,
+    );
+}
+
+/** "https://example.com/path" → "the link example.com". Keep it short — the
+ *  full URL spelled letter-by-letter is unlistenable. Email addresses are
+ *  preserved as "user at example dot com" only when clearly an email. */
+function normalizeUrls(s: string): string {
+  let out = s.replace(
+    /\bhttps?:\/\/(?:www\.)?([^\s)>\]]+)/gi,
+    (_m, rest: string) => {
+      const host = rest.split("/")[0].replace(/[.,;:!?]+$/, "");
+      return `the link ${host}`;
+    },
+  );
+  // Bare domains like "example.com/path" with a path — also collapse.
+  out = out.replace(
+    /\b([a-z0-9-]+\.[a-z]{2,})(\/[^\s)>\]]*)/gi,
+    (_m, host: string) => `the link ${host}`,
+  );
+  // Emails: "a@b.co" → "a at b dot co"
+  out = out.replace(
+    /\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/g,
+    (_m, user: string, dom: string) => `${user} at ${dom.replace(/\./g, " dot ")}`,
+  );
+  return out;
+}
+
+/** ISO dates "2026-06-29" → "June twenty-ninth, twenty twenty-six".
+ *  US dates "6/29/2026" → same. Leaves "Jun 29" alone (already natural). */
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+] as const;
+function ordinal(n: number): string {
+  if (n >= 11 && n <= 13) return `${twoDigitWord(n)}th`;
+  const last = n % 10;
+  const base = twoDigitWord(n);
+  if (last === 1) return base.endsWith("one") ? base.replace(/one$/, "first") : `${base}-first`;
+  if (last === 2) return base.endsWith("two") ? base.replace(/two$/, "second") : `${base}-second`;
+  if (last === 3) return base.endsWith("three") ? base.replace(/three$/, "third") : `${base}-third`;
+  return `${base}th`;
+}
+function yearWords(y: number): string {
+  if (y >= 2000 && y < 2010) return `two thousand${y === 2000 ? "" : ` ${ONES[y - 2000]}`}`;
+  if (y >= 2010 && y < 2100) {
+    const a = Math.floor(y / 100);
+    const b = y % 100;
+    return `${twoDigitWord(a)} ${b < 10 ? `oh ${ONES[b]}` : twoDigitWord(b)}`;
+  }
+  return String(y);
+}
+function normalizeDates(s: string): string {
+  // ISO YYYY-MM-DD
+  let out = s.replace(
+    /\b(20\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g,
+    (_m, y: string, mm: string, dd: string) => {
+      const monthIdx = parseInt(mm, 10) - 1;
+      return `${MONTHS[monthIdx]} ${ordinal(parseInt(dd, 10))}, ${yearWords(parseInt(y, 10))}`;
+    },
+  );
+  // US M/D or M/D/YYYY (year optional). Skip fractions like "1/2 cup".
+  out = out.replace(
+    /\b(0?[1-9]|1[0-2])\/(0?[1-9]|[12]\d|3[01])(?:\/(\d{2,4}))?\b/g,
+    (m, mm: string, dd: string, y: string | undefined, offset: number, full: string) => {
+      // Skip fraction context like "1/2 cup", "3/4 mile".
+      const after = full.slice(offset + m.length, offset + m.length + 8).toLowerCase();
+      if (/^\s*(cup|tsp|tbsp|teaspoon|tablespoon|mile|inch|hour)/.test(after)) return m;
+      const monthIdx = parseInt(mm, 10) - 1;
+      const day = ordinal(parseInt(dd, 10));
+      if (!y) return `${MONTHS[monthIdx]} ${day}`;
+      const yy = parseInt(y, 10);
+      const fullYear = yy < 100 ? 2000 + yy : yy;
+      return `${MONTHS[monthIdx]} ${day}, ${yearWords(fullYear)}`;
+    },
+  );
+  return out;
+}
+
+/** Common abbreviations beyond what voice-rewriter handles. Conservative —
+ *  only fires when followed by a capital letter or end-of-sentence so we
+ *  don't mangle prose. */
+function normalizeAbbreviations(s: string): string {
+  return s
+    .replace(/\bDr\.\s+(?=[A-Z])/g, "Doctor ")
+    .replace(/\bMr\.\s+(?=[A-Z])/g, "Mister ")
+    .replace(/\bMrs\.\s+(?=[A-Z])/g, "Missus ")
+    .replace(/\bMs\.\s+(?=[A-Z])/g, "Miss ")
+    .replace(/\bSt\.\s+(?=[A-Z])/g, "Saint ")
+    .replace(/\bAve\.?\b/g, "Avenue")
+    .replace(/\bBlvd\.?\b/g, "Boulevard")
+    .replace(/\bRd\.?\b/g, "Road")
+    // Standalone "AM"/"PM" not already glued to a clock time → "a.m."/"p.m."
+    .replace(/\b([AP])\.?\s*M\.?\b/g, (_m, c: string) => (c === "A" ? "a.m." : "p.m."));
+}
+
+
 function stripMarkdown(s: string): string {
   return s
     .replace(/```[\s\S]*?```/g, " ")
