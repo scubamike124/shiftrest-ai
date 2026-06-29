@@ -28,14 +28,16 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const t0 = Date.now();
         try {
-          const body = (await request.json()) as {
+          const reqBody = (await request.json()) as {
             text?: string;
             voice?: string;
             mode?: "normal" | "sleep" | "encouraging" | "thinking";
           };
-          const text = body.text;
+          const text = reqBody.text;
           if (!text || typeof text !== "string") {
+            console.warn("[tts-elevenlabs] bad_request reason=missing_text");
             return new Response(JSON.stringify({ error: "text required" }), {
               status: 400,
               headers: { "Content-Type": "application/json" },
@@ -43,16 +45,15 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           }
           const apiKey = process.env.ELEVENLABS_API_KEY;
           if (!apiKey) {
-            console.error("[tts-elevenlabs] ELEVENLABS_API_KEY missing");
+            console.error("[tts-elevenlabs] provider_failure reason=config_missing ELEVENLABS_API_KEY not set");
             return fallback("config", messageFromReason("config"));
           }
 
-          const voiceId = body.voice && /^[a-zA-Z0-9]+$/.test(body.voice) ? body.voice : DEFAULT_VOICE;
-          const mode = body.mode ?? "normal";
+          const voiceId = reqBody.voice && /^[a-zA-Z0-9]+$/.test(reqBody.voice) ? reqBody.voice : DEFAULT_VOICE;
+          const mode = reqBody.mode ?? "normal";
+          const textLen = text.length;
 
           // Per-mode prosody presets (Phase 1 voice system).
-          // Tuned so the same voice reads bedtime cues vs. morning briefs
-          // with audibly different energy without changing the speaker.
           const preset =
             mode === "sleep"        ? { stability: 0.65, similarity: 0.80, style: 0.15, speed: 0.92, prefix: "[whisper] [soft] " }
           : mode === "encouraging"  ? { stability: 0.40, similarity: 0.78, style: 0.55, speed: 1.02, prefix: "" }
@@ -82,20 +83,30 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           );
 
           if (!upstream.ok) {
-            const t = await upstream.text().catch(() => "");
-            console.error("[tts-elevenlabs] upstream failed", upstream.status, t);
+            const upstreamBody = await upstream.text().catch(() => "");
+            // Server-side log = PROVIDER failures only. Browser/autoplay
+            // failures never reach this route — they happen client-side
+            // after the 200 response is already on the wire.
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
               : "unavailable";
+            console.error(
+              `[tts-elevenlabs] provider_failure reason=${reason} status=${upstream.status} voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0} body=${upstreamBody.slice(0, 240)}`,
+            );
             return fallback(reason, messageFromReason(reason));
           }
 
+          console.log(
+            `[tts-elevenlabs] provider_ok voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0}`,
+          );
           return new Response(upstream.body, {
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });
         } catch (e) {
-          console.error("[tts-elevenlabs] route error", e);
+          console.error(
+            `[tts-elevenlabs] provider_failure reason=network ms=${Date.now() - t0} err=${e instanceof Error ? e.message : String(e)}`,
+          );
           return fallback("unavailable", messageFromReason("unavailable"));
         }
       },

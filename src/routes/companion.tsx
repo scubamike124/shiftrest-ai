@@ -242,14 +242,18 @@ function CompanionPage() {
         setVoiceSkipped(null);
         recentFails.length = 0;
       } else if (detail.status === "failed") {
-        // Suppress the first transient autoplay race; only show banner on
-        // persistent (≥2 in 5s) failures, and never repeat after unlock.
+        // Only show the persistent "Voice unavailable" banner AFTER audio
+        // has been unlocked by a user gesture. Pre-unlock autoplay
+        // rejections are a browser-policy thing, not a real failure — the
+        // user simply hasn't tapped yet, so the banner would mislead.
+        // Even after unlock we require ≥2 failures in 5s to ride out a
+        // single transient race.
         const now = Date.now();
         recentFails.push(now);
         while (recentFails.length && now - recentFails[0] > 5000) recentFails.shift();
         const persistent = recentFails.length >= 2;
         setVoiceStatus("failed");
-        if (!unlocked && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
+        if (unlocked && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
           setVoiceSkipped(detail.reason);
         }
         if (failTimer) clearTimeout(failTimer);
