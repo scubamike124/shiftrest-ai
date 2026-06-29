@@ -409,6 +409,11 @@ async function playOnce(
   track({ event: "voice_played", chars: text.length });
   emitStatus("started");
 
+  // Make sure the shared AudioContext is actually running before play()
+  // resolves; on iOS Safari `audio.play()` can return while the context is
+  // still "suspended", which makes the first few hundred ms silent.
+  await ensureContextRunning();
+
   await new Promise<void>((resolve) => {
     audio.onended = () => {
       if (currentUrl === url) {
@@ -428,12 +433,16 @@ async function playOnce(
     audio.onpause = () => {
       if (currentAudio === audio) stopLevelMeter();
     };
-    audio.play().then(() => {
+    audio.play().then(async () => {
       markAudioUnlocked();
+      // Belt-and-braces: if the context flipped back to suspended between
+      // ensureContextRunning() and play(), force it back to running.
+      if (levelCtx && levelCtx.state !== "running") {
+        try { await levelCtx.resume(); } catch { /* noop */ }
+      }
       startLevelMeter(audio);
     }).catch(() => {
       if (audioUnlocked) {
-        // Already past the iOS unlock — treat as transient and don't re-warn.
         emitStatus("failed", "playback_error");
       } else {
         emitStatus("failed", "autoplay_blocked");
