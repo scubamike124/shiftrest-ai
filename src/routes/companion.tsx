@@ -494,6 +494,12 @@ function CompanionPage() {
       }
 
       setMessages([...baseMessages, { role: "assistant", content: "" }]);
+      // Phase D — early speech: start a fresh TTS turn, then enqueue the
+      // first complete sentence as soon as it streams in. Remaining text
+      // is enqueued after streaming completes; chunks play sequentially.
+      beginSpeakTurn();
+      let spokenChars = 0;
+      const SENTENCE_RE = /[.!?][\s)\]"']*\s/;
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -518,11 +524,28 @@ function CompanionPage() {
             if (delta) {
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
+              // Early speech: emit the first sentence past 30 chars ASAP.
+              if (spokenChars === 0 && assistant.length >= 30) {
+                const tail = assistant.slice(spokenChars);
+                const m = tail.match(SENTENCE_RE);
+                if (m && m.index !== undefined) {
+                  const cut = spokenChars + m.index + m[0].length;
+                  const segment = assistant.slice(spokenChars, cut).trim();
+                  if (segment) {
+                    speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+                    spokenChars = cut;
+                  }
+                }
+              }
             }
           } catch { /* noop */ }
         }
       }
-      void speakIfEnabled(assistant);
+      // Enqueue any unsaid remainder.
+      const remainder = assistant.slice(spokenChars).trim();
+      if (remainder) {
+        speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+      }
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
