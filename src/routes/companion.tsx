@@ -248,10 +248,15 @@ function CompanionPage() {
   const pendingProposalCount = proposalsQ.data?.length ?? 0;
 
   useEffect(() => {
+    // Priority: listening > speaking > thinking > idle. Speaking wins over
+    // "thinking" so the avatar's alive presence is visible the moment audio
+    // begins, even while the model is still streaming the rest of its reply.
     if (micState === "listening") setOrbState("listening");
+    else if (voiceStatus === "speaking") setOrbState("speaking");
     else if (sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, sending]);
+  }, [micState, sending, voiceStatus]);
+
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
