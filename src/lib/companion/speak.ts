@@ -47,7 +47,7 @@ export function prepareVoicePlayback(): void {
   try {
     ensureAudioGraph();
     if (levelCtx && levelCtx.state === "suspended") {
-      levelCtx.resume().catch(() => undefined);
+      void levelCtx.resume().catch(() => undefined);
     }
     if (!primedAudio) {
       primedAudio = new Audio();
@@ -77,6 +77,15 @@ export function prepareVoicePlayback(): void {
   } catch {
     /* best effort only */
   }
+}
+
+/** Awaitable resume of the shared AudioContext. Prevents the "quiet first
+ *  seconds" symptom on iOS Safari where audio.play() resolves before the
+ *  context has actually resumed and the graph is still silent. */
+async function ensureContextRunning(): Promise<void> {
+  if (!ensureAudioGraph() || !levelCtx) return;
+  if (levelCtx.state === "running") return;
+  try { await levelCtx.resume(); } catch { /* best effort */ }
 }
 
 // ── Voice status events ────────────────────────────────────────────────
