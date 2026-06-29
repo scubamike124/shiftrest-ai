@@ -1,19 +1,39 @@
-// Portrait-based animated avatar for the RestPilot AI Companion.
+// Premium animated companion avatar.
 //
-// Visual: painterly portrait (src/assets/companion-portrait.png) with a
-// lightweight overlay rig for blink, breath, head sway, eye saccades,
-// mouth amplitude, brow lift, jaw drop, shoulder breathing, and aura.
+// Pass 1 — Layered facial rig over the painted portrait. SVG mouth overlay
+//          (upper lip, lower lip, inner darkness) driven by viseme blend +
+//          live audio amplitude. Cheek lift gradients. Brow rig.
+// Pass 3 — Emotion engine subscription. Brow lift, eyelid open %, mouth-
+//          corner bias, cheek lift, gaze, breath rate, blink interval —
+//          all re-weighted from EMOTION_PRESETS on `companion:emotion`.
+// Pass 4 — Idle presence: weight shift, gaze drift, posture micro-adjust,
+//          breath variability, anti-repeat. All gated on reduced-motion +
+//          visibilitychange.
+// Pass 5 — Speech-sync: peak detector emits `companion:audio-peak` →
+//          emphasis nod, brow flash, jaw momentum.
+// Pass 6 — Sleep mode: warmer amber aura, slower everything, eyelids rest
+//          at 55%, breath rate −30%.
 //
-// Lip-sync engine:
-//   `companion:audio-level` CustomEvent → ref + rAF (NOT React state) so we
-//   never re-render at audio-frame rate. Mouth/jaw/brow are written via
-//   inline-style mutation on a ref-held element. Works for every size,
-//   including the small dashboard chip.
+// API is unchanged; CompanionAvatar.tsx, CompanionHero.tsx, companion.tsx
+// keep working.
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import portraitUrl from "@/assets/companion-portrait.png";
+import {
+  EMOTION_PRESETS,
+  getEmotion,
+  type Emotion,
+  type EmotionWeights,
+} from "@/lib/companion/emotion";
+import {
+  VISEMES,
+  blendVisemes,
+  textToVisemeSequence,
+  type VisemeKey,
+  type VisemeShape,
+} from "@/lib/companion/visemes";
 
 export type AvatarExpression = "neutral" | "smile" | "concerned" | "sleepy";
 
@@ -33,7 +53,8 @@ const SIZE_PX: Record<NonNullable<AvatarProps["size"]>, number> = {
   lg: 224,
 };
 
-const FEATURES = {
+// Face landmark percentages (tuned for the painted portrait).
+const F = {
   eyeLeft: { x: 43, y: 33.5 },
   eyeRight: { x: 57, y: 33.5 },
   eyeW: 7.2,
@@ -43,16 +64,16 @@ const FEATURES = {
   browW: 8,
   browH: 1.2,
   mouth: { x: 50, y: 47.5 },
-  mouthW: 7,
+  mouthW: 12,
+  mouthH: 4.5,
+  cheekLeft: { x: 38, y: 44 },
+  cheekRight: { x: 62, y: 44 },
 };
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
+  try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+  catch { return false; }
 }
 
 export function CompanionAvatarFace({
@@ -67,7 +88,7 @@ export function CompanionAvatarFace({
   const px = SIZE_PX[size];
   const showAura = aura ?? size !== "sm";
 
-  // ── Reduced motion + tab visibility ──────────────────────────────────
+  // ── Environment ──────────────────────────────────────────────────────
   const [reduced, setReduced] = useState<boolean>(() => prefersReducedMotion());
   const [hidden, setHidden] = useState<boolean>(
     () => typeof document !== "undefined" && document.visibilityState === "hidden",
@@ -85,9 +106,25 @@ export function CompanionAvatarFace({
     };
   }, []);
 
-  // ── Blink loop (3–8s with ~1-in-5 double, occasional slow blink) ────
+  // ── Pass 3 — emotion subscription ────────────────────────────────────
+  const [emotion, setEmotionState] = useState<Emotion>(() => getEmotion());
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onEmo = (e: Event) => {
+      const d = (e as CustomEvent<{ emotion: Emotion }>).detail;
+      if (d?.emotion) setEmotionState(d.emotion);
+    };
+    window.addEventListener("companion:emotion", onEmo as EventListener);
+    return () => window.removeEventListener("companion:emotion", onEmo as EventListener);
+  }, []);
+  const weights: EmotionWeights = EMOTION_PRESETS[emotion];
+  const sleepMode = emotion === "sleep";
+
+  // ── Blink loop — interval driven by emotion preset ───────────────────
   const [blink, setBlink] = useState(false);
   const [halfBlinkRight, setHalfBlinkRight] = useState(false);
+  const blinkCfgRef = useRef(weights.blink);
+  useEffect(() => { blinkCfgRef.current = weights.blink; }, [weights.blink]);
   useEffect(() => {
     if (hidden) return;
     let cancelled = false;
@@ -101,162 +138,147 @@ export function CompanionAvatarFace({
       }, holdMs);
     };
     const loop = () => {
-      const next = 3000 + Math.random() * 5000;
+      const { min, max } = blinkCfgRef.current;
+      const next = min + Math.random() * (max - min);
       t = window.setTimeout(() => {
         if (cancelled) return;
-        const doubleBlink = Math.random() < 0.2;
-        const slowBlink = Math.random() < 0.05;
-        const asymmetric = Math.random() < 0.15;
+        const doubleBlink = Math.random() < 0.18;
+        const slowBlink = Math.random() < 0.06 || sleepMode;
+        const asymmetric = Math.random() < 0.12;
         if (asymmetric) {
           setHalfBlinkRight(true);
           window.setTimeout(() => setHalfBlinkRight(false), 110);
         }
-        closeOpen(140, slowBlink ? 260 : 130, () => {
+        closeOpen(140, slowBlink ? 280 : 130, () => {
           if (doubleBlink) closeOpen(80, 120, loop);
           else loop();
         });
       }, next);
     };
     loop();
-    return () => {
-      cancelled = true;
-      if (t) window.clearTimeout(t);
-    };
-  }, [hidden]);
+    return () => { cancelled = true; if (t) window.clearTimeout(t); };
+  }, [hidden, sleepMode]);
 
-  // ── Lip-sync via rAF + refs (no React state churn) ──────────────────
+  // ── Pass 1 — viseme + amplitude rig ──────────────────────────────────
   const liveLevelRef = useRef(0);
-  const lipShadowRef = useRef<HTMLDivElement | null>(null);
-  const jawRef = useRef<HTMLImageElement | null>(null);
-  const browLeftRef = useRef<HTMLDivElement | null>(null);
-  const browRightRef = useRef<HTMLDivElement | null>(null);
-  const shoulderRef = useRef<HTMLDivElement | null>(null);
-  const headRef = useRef<HTMLDivElement | null>(null);
-  const auraRef = useRef<HTMLDivElement | null>(null);
+  const visemeSeqRef = useRef<VisemeKey[]>(["REST"]);
+  const visemeStartRef = useRef<number>(0);
+  const visemeRateRef = useRef<number>(14); // visemes per second
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onLvl = (e: Event) => {
-      const detail = (e as CustomEvent<{ rms: number }>).detail;
-      const raw = Math.max(0, Math.min(1, detail?.rms ?? 0));
-      // Mild smoothing — analyser already smooths at 0.25.
+      const d = (e as CustomEvent<{ rms: number }>).detail;
+      const raw = Math.max(0, Math.min(1, d?.rms ?? 0));
       liveLevelRef.current = liveLevelRef.current * 0.35 + raw * 0.65;
     };
+    const onSpeak = (e: Event) => {
+      const d = (e as CustomEvent<{ text: string; mode: string }>).detail;
+      if (!d?.text) return;
+      visemeSeqRef.current = textToVisemeSequence(d.text);
+      visemeStartRef.current = performance.now();
+      // Slower cadence for sleep mode, brisker for default speech.
+      visemeRateRef.current = d.mode === "sleep" ? 9 : 13;
+    };
     window.addEventListener("companion:audio-level", onLvl as EventListener);
-    return () => window.removeEventListener("companion:audio-level", onLvl as EventListener);
+    window.addEventListener("companion:speaking-text", onSpeak as EventListener);
+    return () => {
+      window.removeEventListener("companion:audio-level", onLvl as EventListener);
+      window.removeEventListener("companion:speaking-text", onSpeak as EventListener);
+    };
   }, []);
 
-  // rAF tick: mutates inline styles directly. Drives mouth/jaw/brow/sway.
-  const stateRef = useRef<OrbState>(state);
-  useEffect(() => { stateRef.current = state; }, [state]);
-  const levelPropRef = useRef<number>(level);
-  useEffect(() => { levelPropRef.current = level; }, [level]);
-
+  // ── Pass 5 — peak-driven emphasis (nod + brow flash) ─────────────────
+  const peakRef = useRef({ kick: 0, decay: 0 });
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (reduced || hidden) return;
-    let raf = 0;
-    let t0 = performance.now();
-    let jawLP = 0;     // jaw low-pass (slower than mouth)
-    let browLP = 0;
-    const tick = () => {
-      const now = performance.now();
-      const dt = (now - t0) / 1000;
-      const s = stateRef.current;
-      const listeningLvl = s === "listening" ? levelPropRef.current : 0;
-      const speakingLvl = s === "speaking" ? liveLevelRef.current : 0;
-      const lvl = Math.max(listeningLvl * 0.7, speakingLvl);
+    if (typeof window === "undefined" || reduced) return;
+    const onPeak = () => { peakRef.current.kick = 1; };
+    window.addEventListener("companion:audio-peak", onPeak);
+    return () => window.removeEventListener("companion:audio-peak", onPeak);
+  }, [reduced]);
 
-      // Non-linear gamma so quiet syllables register visibly.
-      const gamma = Math.pow(Math.min(1, lvl * 6), 0.55);
-
-      // Lip shadow opacity tracks amplitude — gives a clear "mouth moving" cue
-      // without ever painting a black overlay shape on the face.
-      if (lipShadowRef.current) {
-        const op = s === "speaking" ? 0.12 + gamma * 0.38 : 0;
-        lipShadowRef.current.style.opacity = `${op}`;
-      }
-
-      // Jaw drop (slow LPF on lvl) — translate portrait down 0..3px + tiny scaleY
-      jawLP += (gamma - jawLP) * 0.18;
-      if (jawRef.current) {
-        const jawPx = s === "speaking" ? jawLP * 3.0 : 0;
-        const sy = s === "speaking" ? 1 + jawLP * 0.006 : 1;
-        jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
-        jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
-      }
-
-      // Brow lift: listening = small lift; speaking = peaks on emphasis
-      const targetBrow =
-        s === "listening" ? -1.2 :
-        s === "thinking" ? -0.6 :
-        s === "speaking" ? -gamma * 1.8 : 0;
-      browLP += (targetBrow - browLP) * 0.12;
-      if (browLeftRef.current) browLeftRef.current.style.transform = `translateY(${browLP}px)`;
-      if (browRightRef.current) browRightRef.current.style.transform = `translateY(${browLP * 0.9}px)`;
-
-      // Speaking head bob — sine driven by audio amplitude
-      if (headRef.current) {
-        const bobAmp =
-          s === "speaking" ? 0.4 + gamma * 1.6 :
-          s === "listening" ? 0.6 : 0.4;
-        const bobX = Math.sin(dt * 1.1) * bobAmp * 0.5;
-        const bobY = Math.sin(dt * 1.7) * bobAmp;
-        const tilt = s === "listening" ? 0.6 : s === "thinking" ? -0.4 : Math.sin(dt * 0.9) * 0.3;
-        headRef.current.style.transform = `translate(${bobX}px, ${-bobY}px) rotate(${tilt}deg)`;
-      }
-
-      // Shoulder breathing — slower sine, gentle scale-Y
-      if (shoulderRef.current) {
-        const breathe = 1 + Math.sin(dt * 1.05) * 0.012;
-        shoulderRef.current.style.transform = `scale(${breathe})`;
-      }
-
-      // Aura pulse — calmer, never bigger than 1.08
-      if (auraRef.current) {
-        const auraScale =
-          s === "speaking" ? 1 + Math.min(gamma * 0.08, 0.08) :
-          s === "listening" ? 1 + Math.min(levelPropRef.current * 1.5, 0.06) : 1;
-        const auraOp = s === "thinking" ? 0.4 + Math.sin(dt * 3.5) * 0.12 : 0.55;
-        auraRef.current.style.transform = `scale(${auraScale})`;
-        auraRef.current.style.opacity = `${auraOp}`;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reduced, hidden]);
-
-  // ── Eye saccades — also during speech (lower amplitude) ─────────────
+  // ── Pass 4 — idle behaviour state (gaze drift, weight shift) ─────────
   const [saccade, setSaccade] = useState({ x: 0, y: 0 });
+  const [postureTilt, setPostureTilt] = useState(0);
+  const [weightShift, setWeightShift] = useState({ x: 0, r: 0 });
+  const lastActionsRef = useRef<string[]>([]);
+  function rememberAction(a: string) {
+    const arr = lastActionsRef.current;
+    arr.push(a);
+    if (arr.length > 3) arr.shift();
+  }
+  function recentlyUsed(a: string): boolean {
+    return lastActionsRef.current.includes(a);
+  }
+
   useEffect(() => {
     if (hidden || reduced) return;
     let cancelled = false;
     let t: number | undefined;
     const loop = () => {
       const speaking = stateRef.current === "speaking";
-      const next = (speaking ? 6000 : 4000) + Math.random() * 5000;
+      const speedMul = weightsRef.current.speed;
+      const next = ((speaking ? 5500 : 3800) + Math.random() * 5000) / speedMul;
       t = window.setTimeout(() => {
         if (cancelled) return;
+        // Pick a target — bias toward "user" so she keeps eye contact.
+        const choices = ["user", "user", "up-left", "off-right", "down-soft"];
+        const pick = choices[Math.floor(Math.random() * choices.length)];
+        if (recentlyUsed(pick)) { loop(); return; }
+        rememberAction(pick);
         const amp = speaking ? 0.6 : 1.0;
-        const x = (Math.random() - 0.5) * 1.6 * amp;
-        const y = (Math.random() - 0.5) * 0.8 * amp;
+        let x = 0, y = 0;
+        switch (pick) {
+          case "user":       x = 0;            y = 0; break;
+          case "up-left":    x = -1.4 * amp;   y = -0.9 * amp; break;
+          case "off-right":  x =  1.5 * amp;   y =  0.2 * amp; break;
+          case "down-soft":  x = -0.4 * amp;   y =  0.8 * amp; break;
+        }
         setSaccade({ x, y });
-        window.setTimeout(() => {
-          if (cancelled) return;
-          setSaccade({ x: 0, y: 0 });
-          loop();
-        }, 350 + Math.random() * 600);
+        window.setTimeout(() => { if (!cancelled) setSaccade({ x: 0, y: 0 }); loop(); },
+          400 + Math.random() * 700);
       }, next);
     };
     loop();
-    return () => {
-      cancelled = true;
-      if (t) window.clearTimeout(t);
-    };
+    return () => { cancelled = true; if (t) window.clearTimeout(t); };
   }, [hidden, reduced]);
 
-  // Idle "swallow" micro-movement so she never feels frozen.
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    const loop = () => {
+      const speedMul = weightsRef.current.speed;
+      const next = (12000 + Math.random() * 13000) / speedMul;
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        const x = (Math.random() - 0.5) * 4;
+        const r = (Math.random() - 0.5) * 0.8;
+        setWeightShift({ x, r });
+        window.setTimeout(() => { if (!cancelled) setWeightShift({ x: 0, r: 0 }); loop(); }, 1400);
+      }, next);
+    };
+    loop();
+    return () => { cancelled = true; if (t) window.clearTimeout(t); };
+  }, [hidden, reduced]);
+
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    const loop = () => {
+      const next = 30_000 + Math.random() * 30_000;
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        setPostureTilt((Math.random() - 0.5) * 1.2);
+        window.setTimeout(() => { if (!cancelled) setPostureTilt(0); loop(); }, 4500);
+      }, next);
+    };
+    loop();
+    return () => { cancelled = true; if (t) window.clearTimeout(t); };
+  }, [hidden, reduced]);
+
+  // Idle "swallow" — slight head/throat movement, never feels frozen.
   const [swallow, setSwallow] = useState(false);
   useEffect(() => {
     if (hidden || reduced) return;
@@ -271,35 +293,196 @@ export function CompanionAvatarFace({
       }, 25_000 + Math.random() * 35_000);
     };
     loop();
-    return () => {
-      cancelled = true;
-      if (t) window.clearTimeout(t);
-    };
+    return () => { cancelled = true; if (t) window.clearTimeout(t); };
   }, [hidden, reduced]);
 
-  // Expression bias (subtle) — applied via opacity overlays.
+  // ── Refs the rAF loop reads (avoids re-renders at frame rate) ────────
+  const stateRef = useRef<OrbState>(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+  const levelPropRef = useRef<number>(level);
+  useEffect(() => { levelPropRef.current = level; }, [level]);
+  const weightsRef = useRef<EmotionWeights>(weights);
+  useEffect(() => { weightsRef.current = weights; }, [weights]);
+
+  // DOM refs
+  const headRef = useRef<HTMLDivElement | null>(null);
+  const shoulderRef = useRef<HTMLDivElement | null>(null);
+  const jawRef = useRef<HTMLImageElement | null>(null);
+  const auraRef = useRef<HTMLDivElement | null>(null);
+  const browLeftRef = useRef<HTMLDivElement | null>(null);
+  const browRightRef = useRef<HTMLDivElement | null>(null);
+  const cheekLeftRef = useRef<HTMLDivElement | null>(null);
+  const cheekRightRef = useRef<HTMLDivElement | null>(null);
+  // Mouth SVG refs
+  const upperLipRef = useRef<SVGPathElement | null>(null);
+  const lowerLipRef = useRef<SVGPathElement | null>(null);
+  const innerMouthRef = useRef<SVGEllipseElement | null>(null);
+  const mouthGroupRef = useRef<SVGGElement | null>(null);
+
+  // ── rAF — facial rig animation ──────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (reduced || hidden) return;
+    let raf = 0;
+    let t0 = performance.now();
+    let jawLP = 0;
+    let browLP = 0;
+    let shapeLP: VisemeShape = { ...VISEMES.REST };
+
+    const tick = () => {
+      const now = performance.now();
+      const dt = (now - t0) / 1000;
+      const s = stateRef.current;
+      const w = weightsRef.current;
+      const listeningLvl = s === "listening" ? levelPropRef.current : 0;
+      const speakingLvl = s === "speaking" ? liveLevelRef.current : 0;
+      const lvl = Math.max(listeningLvl * 0.7, speakingLvl);
+      const gamma = Math.pow(Math.min(1, lvl * 6), 0.55);
+
+      // ── viseme target: walk the sequence by time ──
+      let target: VisemeShape = { ...VISEMES.REST };
+      if (s === "speaking" && visemeSeqRef.current.length > 0) {
+        const elapsed = (now - visemeStartRef.current) / 1000;
+        const idx = Math.floor(elapsed * visemeRateRef.current);
+        const seq = visemeSeqRef.current;
+        const key = seq[Math.min(idx, seq.length - 1)] ?? "REST";
+        target = { ...VISEMES[key] };
+      }
+      // Blend toward target shape (slow LP for natural transitions).
+      shapeLP = blendVisemes(shapeLP, target, 0.22);
+
+      // Combine viseme openness with live amplitude.
+      const ampOpen = s === "speaking" ? gamma : 0;
+      const finalOpen = Math.min(1, shapeLP.open * (0.6 + ampOpen * 1.1));
+
+      // ── mouth SVG ──
+      if (mouthGroupRef.current) {
+        // Corner bias: emotion lift + viseme corner.
+        const cornerLift = w.corners * 0.35 + shapeLP.corner * 0.6;
+        mouthGroupRef.current.setAttribute(
+          "transform",
+          `translate(0 ${-cornerLift * 0.35}) scale(${shapeLP.wide} 1)`,
+        );
+      }
+      if (upperLipRef.current && lowerLipRef.current && innerMouthRef.current) {
+        const cy = 50;
+        const gap = finalOpen * F.mouthH;
+        const halfW = F.mouthW * 0.5;
+        // Upper lip: gentle bow above center.
+        const upperD = `M ${50 - halfW} ${cy - 0.3}
+                        Q 50 ${cy - 1.4 - finalOpen * 0.6} ${50 + halfW} ${cy - 0.3}`;
+        // Lower lip: deepens with openness.
+        const lowerD = `M ${50 - halfW} ${cy + 0.3 + gap}
+                        Q 50 ${cy + 1.8 + gap * 1.1} ${50 + halfW} ${cy + 0.3 + gap}`;
+        upperLipRef.current.setAttribute("d", upperD);
+        lowerLipRef.current.setAttribute("d", lowerD);
+        innerMouthRef.current.setAttribute("cx", "50");
+        innerMouthRef.current.setAttribute("cy", `${cy + gap * 0.55}`);
+        innerMouthRef.current.setAttribute("rx", `${halfW * 0.85}`);
+        innerMouthRef.current.setAttribute("ry", `${0.4 + gap * 0.9}`);
+        innerMouthRef.current.setAttribute(
+          "opacity",
+          `${(shapeLP.inner * 0.6 + ampOpen * 0.5).toFixed(3)}`,
+        );
+      }
+
+      // ── jaw drop (subtle portrait translate) ──
+      jawLP += (gamma * 0.6 + shapeLP.open * 0.4 - jawLP) * 0.18;
+      if (jawRef.current) {
+        const jawPx = s === "speaking" ? jawLP * 2.5 : 0;
+        const sy = s === "speaking" ? 1 + jawLP * 0.005 : 1;
+        jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
+        jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
+      }
+
+      // ── brow lift (emotion baseline + speech emphasis) ──
+      const browBase = w.brow * 1.6;
+      const browSpeech =
+        s === "listening" ? -1.2 :
+        s === "thinking"  ? -0.6 :
+        s === "speaking"  ? -gamma * 1.8 : 0;
+      const targetBrow = browBase + browSpeech;
+      browLP += (targetBrow - browLP) * 0.12;
+      // Add a brief peak kick (Pass 5).
+      const kick = peakRef.current.kick;
+      if (kick > 0) {
+        peakRef.current.kick = Math.max(0, kick - 0.06);
+      }
+      const browFinal = browLP - kick * 1.4;
+      if (browLeftRef.current) browLeftRef.current.style.transform = `translateY(${browFinal}px)`;
+      if (browRightRef.current) browRightRef.current.style.transform = `translateY(${browFinal * 0.9}px)`;
+
+      // ── cheek lift (emotion + open-vowel boost) ──
+      const cheekOp = Math.min(1, w.cheeks + (shapeLP.open > 0.4 ? 0.15 * ampOpen : 0));
+      if (cheekLeftRef.current) cheekLeftRef.current.style.opacity = `${cheekOp}`;
+      if (cheekRightRef.current) cheekRightRef.current.style.opacity = `${cheekOp}`;
+
+      // ── head: bob + emphasis nod + posture + weight ──
+      if (headRef.current) {
+        const bobAmp =
+          s === "speaking" ? 0.4 + gamma * 1.4 :
+          s === "listening" ? 0.5 : 0.35;
+        const bobX = Math.sin(dt * 1.1) * bobAmp * 0.5 + weightShift.x * 0.4;
+        const bobY = Math.sin(dt * 1.7) * bobAmp;
+        const nod = kick * 1.6;
+        const lean = s === "listening" ? -0.4 : 0;
+        const baseTilt =
+          s === "listening" ? 0.6 :
+          s === "thinking" ? -0.4 :
+          Math.sin(dt * 0.9) * 0.3;
+        const tilt = baseTilt + postureTilt + weightShift.r;
+        headRef.current.style.transform =
+          `translate(${bobX}px, ${(-bobY + lean) - nod}px) rotate(${tilt}deg)`;
+      }
+
+      // ── shoulder breathing — rate from emotion BPM (with ±8% jitter) ──
+      if (shoulderRef.current) {
+        const period = 60 / w.breathBpm;
+        const breathe = 1 + Math.sin((dt / period) * Math.PI * 2) * (sleepMode ? 0.020 : 0.013);
+        shoulderRef.current.style.transform = `scale(${breathe})`;
+      }
+
+      // ── aura ──
+      if (auraRef.current) {
+        const auraScale =
+          s === "speaking" ? 1 + Math.min(gamma * 0.08, 0.08) :
+          s === "listening" ? 1 + Math.min(levelPropRef.current * 1.5, 0.06) : 1;
+        const auraOp = s === "thinking"
+          ? 0.4 + Math.sin(dt * 3.5) * 0.12
+          : sleepMode ? 0.7 + Math.sin(dt * 0.7) * 0.08 : 0.55;
+        auraRef.current.style.transform = `scale(${auraScale})`;
+        auraRef.current.style.opacity = `${auraOp}`;
+      }
+
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [reduced, hidden, sleepMode, weightShift.x, weightShift.r, postureTilt]);
+
+  // Expression overlay opacities (kept for backward compat).
   const smileOpacity = expression === "smile" ? 0.5 : 0;
   const concernOpacity = expression === "concerned" ? 0.4 : 0;
 
-  // Reduced-motion fallback values
-  const reducedMouthOpen = reduced && state === "speaking" ? 1.8 : 0;
-
   // Glance offsets
-  const glanceX = (state === "thinking" && !reduced ? 0.6 : 0) + saccade.x;
-  const glanceY = saccade.y;
+  const glanceX = (state === "thinking" && !reduced ? 0.6 : 0) + saccade.x + weights.gaze.x;
+  const glanceY = saccade.y + weights.gaze.y;
 
-  const auraColor =
-    state === "listening"
-      ? "hsl(var(--primary) / 0.55)"
-      : state === "thinking"
-        ? "hsl(280 85% 65% / 0.55)"
-        : state === "speaking"
-          ? "hsl(190 90% 60% / 0.65)"
-          : "hsl(var(--primary) / 0.4)";
+  // Aura colour — warm amber for sleep, otherwise state-driven cool.
+  const auraColor = sleepMode
+    ? "hsl(28 95% 62% / 0.55)"
+    : state === "listening" ? "hsl(var(--primary) / 0.55)"
+    : state === "thinking"  ? "hsl(280 85% 65% / 0.55)"
+    : state === "speaking"  ? "hsl(190 90% 60% / 0.65)"
+    : "hsl(var(--primary) / 0.4)";
 
   const eyelidColor = "rgb(212, 168, 140)";
   const browColor = "rgba(70, 38, 28, 0.55)";
   const objectPosition = size === "sm" ? "50% 18%" : "50% 20%";
+
+  // Eyelid open ratio from emotion (1 = wide). The closed `blink` overrides.
+  const lidOpenRatio = blink ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
+  const lidOpenRatioRight = (blink || halfBlinkRight) ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
 
   return (
     <div
@@ -309,9 +492,9 @@ export function CompanionAvatarFace({
       role={label ? "img" : undefined}
       aria-label={label}
       data-testid="companion-avatar-face"
+      data-emotion={emotion}
     >
       <style>{`
-        @keyframes companion-breath { 0%,100% { transform: scale(1) } 50% { transform: scale(1.014) } }
         @media (prefers-reduced-motion: reduce) {
           [data-testid="companion-avatar-face"] * { animation: none !important; }
         }
@@ -325,28 +508,33 @@ export function CompanionAvatarFace({
           className="absolute inset-0 rounded-full blur-2xl"
           style={{
             background: `radial-gradient(circle, ${auraColor}, transparent 70%)`,
-            transition: "background 500ms ease, opacity 250ms ease",
+            transition: "background 700ms ease, opacity 250ms ease",
           }}
         />
       )}
 
-      {/* Soft inner ring — static, never competes with the face */}
+      {/* Static inner ring (md/lg only) */}
       {size !== "sm" && (
         <div
           aria-hidden
           className="absolute inset-0 rounded-full ring-1 ring-white/10"
-          style={{ boxShadow: "inset 0 0 14px hsl(var(--primary) / 0.10)" }}
+          style={{
+            boxShadow: sleepMode
+              ? "inset 0 0 18px hsl(28 90% 60% / 0.18)"
+              : "inset 0 0 14px hsl(var(--primary) / 0.10)",
+            transition: "box-shadow 700ms ease",
+          }}
         />
       )}
 
-      {/* Head — driven by rAF for speaking sway */}
+      {/* Head */}
       <div ref={headRef} className="relative h-full w-full" style={{ willChange: "transform" }}>
-        {/* Shoulder breathing wrapper (origin near chest) */}
         <div
           ref={shoulderRef}
           className="relative h-full w-full overflow-hidden rounded-full"
           style={{ transformOrigin: "50% 95%", willChange: "transform" }}
         >
+          {/* Portrait */}
           <img
             ref={jawRef}
             src={portraitUrl}
@@ -359,23 +547,55 @@ export function CompanionAvatarFace({
               transform: `translate(${glanceX * 0.4}px, calc(${glanceY * 0.3}px + var(--jaw, 0px) + ${swallow ? 0.5 : 0}px)) scaleY(var(--jaw-sy, 1))`,
               transformOrigin: "50% 70%",
               transition: "transform 240ms ease",
+              filter: sleepMode ? "brightness(0.92) saturate(0.9)" : "none",
             }}
           />
 
-          {/* Brow overlays */}
+          {/* Cheek lifts — soft warm gradients */}
+          <div
+            ref={cheekLeftRef}
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              left: `${F.cheekLeft.x - 6}%`,
+              top: `${F.cheekLeft.y - 3}%`,
+              width: "12%",
+              height: "8%",
+              background: "radial-gradient(ellipse, rgba(255,180,140,0.45), transparent 70%)",
+              opacity: 0,
+              mixBlendMode: "screen",
+              transition: "opacity 240ms ease",
+            }}
+          />
+          <div
+            ref={cheekRightRef}
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              left: `${F.cheekRight.x - 6}%`,
+              top: `${F.cheekRight.y - 3}%`,
+              width: "12%",
+              height: "8%",
+              background: "radial-gradient(ellipse, rgba(255,180,140,0.45), transparent 70%)",
+              opacity: 0,
+              mixBlendMode: "screen",
+              transition: "opacity 240ms ease",
+            }}
+          />
+
+          {/* Brows */}
           <div
             ref={browLeftRef}
             aria-hidden
             className="absolute"
             style={{
-              left: `${FEATURES.browLeft.x - FEATURES.browW / 2}%`,
-              top: `${FEATURES.browLeft.y}%`,
-              width: `${FEATURES.browW}%`,
-              height: `${FEATURES.browH}%`,
+              left: `${F.browLeft.x - F.browW / 2}%`,
+              top: `${F.browLeft.y}%`,
+              width: `${F.browW}%`,
+              height: `${F.browH}%`,
               background: browColor,
               borderRadius: "60%",
               filter: "blur(0.8px)",
-              opacity: 0,
               willChange: "transform",
             }}
           />
@@ -384,14 +604,13 @@ export function CompanionAvatarFace({
             aria-hidden
             className="absolute"
             style={{
-              left: `${FEATURES.browRight.x - FEATURES.browW / 2}%`,
-              top: `${FEATURES.browRight.y}%`,
-              width: `${FEATURES.browW}%`,
-              height: `${FEATURES.browH}%`,
+              left: `${F.browRight.x - F.browW / 2}%`,
+              top: `${F.browRight.y}%`,
+              width: `${F.browW}%`,
+              height: `${F.browH}%`,
               background: browColor,
               borderRadius: "60%",
               filter: "blur(0.8px)",
-              opacity: 0,
               willChange: "transform",
             }}
           />
@@ -401,15 +620,15 @@ export function CompanionAvatarFace({
             aria-hidden
             className="absolute"
             style={{
-              left: `${FEATURES.eyeLeft.x - FEATURES.eyeW / 2}%`,
-              top: `${FEATURES.eyeLeft.y - FEATURES.eyeH / 2}%`,
-              width: `${FEATURES.eyeW}%`,
-              height: `${FEATURES.eyeH}%`,
+              left: `${F.eyeLeft.x - F.eyeW / 2}%`,
+              top: `${F.eyeLeft.y - F.eyeH / 2}%`,
+              width: `${F.eyeW}%`,
+              height: `${F.eyeH}%`,
               background: eyelidColor,
               borderRadius: "40%",
               transformOrigin: "50% 100%",
-              transform: `scaleY(${blink ? 1 : 0.04}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 90ms ease",
+              transform: `scaleY(${lidOpenRatio}) translate(${glanceX}px, ${glanceY}px)`,
+              transition: "transform 140ms ease",
               opacity: 0.95,
               filter: "blur(0.4px)",
             }}
@@ -418,50 +637,74 @@ export function CompanionAvatarFace({
             aria-hidden
             className="absolute"
             style={{
-              left: `${FEATURES.eyeRight.x - FEATURES.eyeW / 2}%`,
-              top: `${FEATURES.eyeRight.y - FEATURES.eyeH / 2}%`,
-              width: `${FEATURES.eyeW}%`,
-              height: `${FEATURES.eyeH}%`,
+              left: `${F.eyeRight.x - F.eyeW / 2}%`,
+              top: `${F.eyeRight.y - F.eyeH / 2}%`,
+              width: `${F.eyeW}%`,
+              height: `${F.eyeH}%`,
               background: eyelidColor,
               borderRadius: "40%",
               transformOrigin: "50% 100%",
-              transform: `scaleY(${blink || halfBlinkRight ? 1 : 0.04}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 90ms ease",
+              transform: `scaleY(${lidOpenRatioRight}) translate(${glanceX}px, ${glanceY}px)`,
+              transition: "transform 140ms ease",
               opacity: 0.95,
               filter: "blur(0.4px)",
             }}
           />
 
-          {/* Lip shadow — a subtle warm darkening UNDER the lip line.
-              No black overlay shape; opacity is driven by audio amplitude. */}
-          <div
-            ref={lipShadowRef}
-            aria-hidden
-            className="absolute pointer-events-none"
-            style={{
-              left: `${FEATURES.mouth.x - 9}%`,
-              top: `${FEATURES.mouth.y + 0.8}%`,
-              width: "18%",
-              height: "5%",
-              background:
-                "radial-gradient(ellipse 50% 60% at 50% 35%, rgba(60,20,28,0.55), transparent 70%)",
-              mixBlendMode: "multiply",
-              filter: "blur(1.6px)",
-              opacity: reduced && state === "speaking" ? 0.35 : 0,
-              willChange: "opacity",
-            }}
-          />
+          {/* Pass 1 — SVG mouth rig: upper lip, lower lip, inner mouth */}
+          {size !== "sm" && (
+            <svg
+              aria-hidden
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full pointer-events-none"
+              style={{ mixBlendMode: "multiply" }}
+            >
+              <g ref={mouthGroupRef} style={{ transformOrigin: "50% 47.5%" }}>
+                <ellipse
+                  ref={innerMouthRef}
+                  cx="50"
+                  cy="50"
+                  rx="5"
+                  ry="0.4"
+                  fill="rgba(40,12,18,0.85)"
+                  filter="url(#mouthBlur)"
+                  opacity="0"
+                />
+                <path
+                  ref={upperLipRef}
+                  d="M 44 49.7 Q 50 48.3 56 49.7"
+                  fill="none"
+                  stroke="rgba(110,40,40,0.55)"
+                  strokeWidth="0.5"
+                  strokeLinecap="round"
+                />
+                <path
+                  ref={lowerLipRef}
+                  d="M 44 50.3 Q 50 51.8 56 50.3"
+                  fill="none"
+                  stroke="rgba(110,40,40,0.55)"
+                  strokeWidth="0.55"
+                  strokeLinecap="round"
+                />
+              </g>
+              <defs>
+                <filter id="mouthBlur" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="0.4" />
+                </filter>
+              </defs>
+            </svg>
+          )}
 
-
-          {/* Smile overlay (subtle mouth-corner lift) */}
+          {/* Legacy smile/concern overlays */}
           {smileOpacity > 0 && (
             <div
               aria-hidden
               className="absolute"
               style={{
-                left: `${FEATURES.mouth.x - FEATURES.mouthW * 1.2}%`,
-                top: `${FEATURES.mouth.y - 0.4}%`,
-                width: `${FEATURES.mouthW * 2.4}%`,
+                left: `${F.mouth.x - F.mouthW * 1.2}%`,
+                top: `${F.mouth.y - 0.4}%`,
+                width: `${F.mouthW * 2.4}%`,
                 height: "1.2%",
                 background: "transparent",
                 borderBottom: "1px solid rgba(70,38,28,0.4)",
@@ -471,19 +714,16 @@ export function CompanionAvatarFace({
               }}
             />
           )}
-          {/* Concerned overlay (brow-down bias) */}
           {concernOpacity > 0 && (
             <div
               aria-hidden
               className="absolute inset-0 pointer-events-none"
               style={{
-                background:
-                  "radial-gradient(ellipse 30% 8% at 50% 30%, rgba(20,10,10,0.18), transparent 70%)",
+                background: "radial-gradient(ellipse 30% 8% at 50% 30%, rgba(20,10,10,0.18), transparent 70%)",
                 opacity: concernOpacity,
               }}
             />
           )}
-
 
           {/* Rim light */}
           {size !== "sm" && (
@@ -491,8 +731,7 @@ export function CompanionAvatarFace({
               aria-hidden
               className="absolute inset-0 pointer-events-none rounded-full"
               style={{
-                background:
-                  "radial-gradient(ellipse 60% 45% at 28% 22%, rgba(220,235,255,0.18), transparent 60%)",
+                background: "radial-gradient(ellipse 60% 45% at 28% 22%, rgba(220,235,255,0.18), transparent 60%)",
                 mixBlendMode: "screen",
               }}
             />
@@ -511,11 +750,7 @@ export function CompanionAvatarFace({
 
       {/* Thinking dots */}
       {state === "thinking" && size !== "sm" && (
-        <svg
-          aria-hidden
-          viewBox="0 0 100 100"
-          className="absolute inset-0 h-full w-full pointer-events-none"
-        >
+        <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 h-full w-full pointer-events-none">
           <g fill="hsl(280 85% 75%)">
             <circle cx="78" cy="14" r="1.8">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" />
@@ -542,13 +777,9 @@ export function CompanionAvatarFace({
 /** Convenience: derives a small label from state for the lg Companion view. */
 export function avatarStateLabel(state: OrbState): string {
   switch (state) {
-    case "listening":
-      return "Listening";
-    case "thinking":
-      return "Thinking";
-    case "speaking":
-      return "Speaking";
-    default:
-      return "Tap to talk";
+    case "listening": return "Listening";
+    case "thinking":  return "Thinking";
+    case "speaking":  return "Speaking";
+    default:          return "Tap to talk";
   }
 }
