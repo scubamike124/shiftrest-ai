@@ -31,6 +31,12 @@ const SILENT_WAV =
 export function prepareVoicePlayback(): void {
   if (typeof window === "undefined") return;
   try {
+    // Prime the WebAudio graph (gain + compressor + analyser) inside the
+    // user gesture so the very first reply is loud and lip-syncs.
+    ensureAudioGraph();
+    if (levelCtx && levelCtx.state === "suspended") {
+      levelCtx.resume().catch(() => undefined);
+    }
     if (!primedAudio) {
       primedAudio = new Audio();
       primedAudio.preload = "auto";
@@ -85,14 +91,60 @@ const queue: QueueItem[] = [];
 let draining = false;
 
 
-// ── Amplitude-based lip-sync ──────────────────────────────────────────────
-// One shared AudioContext + AnalyserNode. We re-use a MediaElementSource per
-// audio element (each element can only be source'd once). RAF dispatches a
-// `companion:audio-level` CustomEvent with { rms } the Avatar listens for.
+// ── Amplitude-based lip-sync + loudness boost ────────────────────────────
+// Shared AudioContext with a Gain (loudness boost) + Compressor (keeps it
+// clean) feeding both the destination and an Analyser for the avatar's
+// mouth amplitude. Each <audio> element can only be source'd once, so we
+// remember which ones we've wired with a WeakSet.
 let levelCtx: AudioContext | null = null;
 let levelAnalyser: AnalyserNode | null = null;
+let levelGain: GainNode | null = null;
+let levelCompressor: DynamicsCompressorNode | null = null;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
+
+const VOICE_GAIN = 1.85; // perceived loudness boost over raw element volume
+
+function ensureAudioGraph(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const AC: typeof AudioContext | undefined =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AC) return false;
+    if (!levelCtx) levelCtx = new AC();
+    if (levelCtx.state === "suspended") levelCtx.resume().catch(() => undefined);
+    if (!levelGain) {
+      levelGain = levelCtx.createGain();
+      levelGain.gain.value = VOICE_GAIN;
+    }
+    if (!levelCompressor) {
+      levelCompressor = levelCtx.createDynamicsCompressor();
+      // Tame the louder gain so peaks stay clean instead of clipping.
+      try {
+        levelCompressor.threshold.value = -18;
+        levelCompressor.knee.value = 24;
+        levelCompressor.ratio.value = 3;
+        levelCompressor.attack.value = 0.004;
+        levelCompressor.release.value = 0.18;
+      } catch { /* property assignment varies across browsers */ }
+    }
+    if (!levelAnalyser) {
+      levelAnalyser = levelCtx.createAnalyser();
+      levelAnalyser.fftSize = 512;
+      levelAnalyser.smoothingTimeConstant = 0.55;
+    }
+    // Wire: source → gain → compressor → destination
+    //                              ↘ analyser
+    try { levelGain.disconnect(); } catch { /* noop */ }
+    levelGain.connect(levelCompressor);
+    try { levelCompressor.disconnect(); } catch { /* noop */ }
+    levelCompressor.connect(levelCtx.destination);
+    levelCompressor.connect(levelAnalyser);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function emitLevel(rms: number) {
   if (typeof window === "undefined") return;
@@ -101,21 +153,11 @@ function emitLevel(rms: number) {
 
 function startLevelMeter(audio: HTMLAudioElement) {
   if (typeof window === "undefined") return;
+  if (!ensureAudioGraph() || !levelCtx || !levelAnalyser || !levelGain) return;
   try {
-    const AC: typeof AudioContext | undefined =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    if (!levelCtx) levelCtx = new AC();
-    if (levelCtx.state === "suspended") levelCtx.resume().catch(() => undefined);
-    if (!levelAnalyser) {
-      levelAnalyser = levelCtx.createAnalyser();
-      levelAnalyser.fftSize = 512;
-      levelAnalyser.smoothingTimeConstant = 0.6;
-      levelAnalyser.connect(levelCtx.destination);
-    }
     if (!sourcedAudios.has(audio)) {
       const src = levelCtx.createMediaElementSource(audio);
-      src.connect(levelAnalyser);
+      src.connect(levelGain);
       sourcedAudios.add(audio);
     }
     const analyser = levelAnalyser;
@@ -142,6 +184,7 @@ function startLevelMeter(audio: HTMLAudioElement) {
     /* lip-sync is best-effort; silently drop on failure */
   }
 }
+
 
 function stopLevelMeter() {
   if (levelRaf) {

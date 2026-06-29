@@ -137,17 +137,46 @@ export function CompanionAvatarFace({
   const liveLevel =
     state === "speaking" ? Math.max(audioLevel, level) : state === "listening" ? level : 0;
 
-  // Mouth-open % (height of the dark mouth ellipse, in % of avatar box)
-  const mouthOpen = reduced
-    ? state === "speaking"
-      ? 1.4
-      : 0
-    : state === "speaking"
-      ? Math.max(0.5, Math.min(4.5, liveLevel * 10))
-      : 0;
+  // ── Eye saccades (random tiny glances every 4–9s) ───────────────────────
+  const [saccade, setSaccade] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    const loop = () => {
+      const next = 4000 + Math.random() * 5000;
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        const x = (Math.random() - 0.5) * 1.6;
+        const y = (Math.random() - 0.5) * 0.8;
+        setSaccade({ x, y });
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setSaccade({ x: 0, y: 0 });
+          loop();
+        }, 350 + Math.random() * 600);
+      }, next);
+    };
+    loop();
+    return () => {
+      cancelled = true;
+      if (t) window.clearTimeout(t);
+    };
+  }, [hidden, reduced]);
 
-  // Eye glance (small horizontal shift on thinking)
-  const glanceX = state === "thinking" && !reduced ? 0.6 : 0;
+  // Mouth-open % — drive PURELY by liveLevel so it actually moves with
+  // speech. Floor raised so it's visible even on quiet syllables.
+  const mouthOpen = reduced
+    ? state === "speaking" ? 1.8 : 0
+    : liveLevel > 0.01
+      ? Math.max(1.2, Math.min(6.5, liveLevel * 14))
+      : state === "speaking"
+        ? 1.2
+        : 0;
+
+  // Eye glance (small horizontal shift on thinking) + saccade overlay
+  const glanceX = (state === "thinking" && !reduced ? 0.6 : 0) + saccade.x;
+  const glanceY = saccade.y;
 
   // Aura color per state
   const auraColor =
@@ -167,9 +196,12 @@ export function CompanionAvatarFace({
         ? 1 + Math.min(liveLevel * 1.5, 0.18)
         : 1;
 
-  const idleAnim =
+  // Head sway: gentle in idle, a touch more during listening/speaking.
+  const swayAnim =
     !reduced && !hidden
-      ? "[animation:companion-bob_5.5s_ease-in-out_infinite]"
+      ? state === "listening" || state === "speaking"
+        ? "[animation:companion-sway_6s_ease-in-out_infinite]"
+        : "[animation:companion-bob_5.5s_ease-in-out_infinite]"
       : "";
   const breath =
     !reduced && !hidden
@@ -193,12 +225,14 @@ export function CompanionAvatarFace({
     >
       <style>{`
         @keyframes companion-bob { 0%,100% { transform: translate(0,0) } 50% { transform: translate(0.4px,-1.6px) } }
-        @keyframes companion-breath { 0%,100% { transform: scale(1) } 50% { transform: scale(1.012) } }
+        @keyframes companion-sway { 0%,100% { transform: translate(-0.8px,-0.6px) rotate(-0.4deg) } 50% { transform: translate(0.9px,-1.8px) rotate(0.5deg) } }
+        @keyframes companion-breath { 0%,100% { transform: scale(1) } 50% { transform: scale(1.014) } }
         @keyframes companion-aura-pulse { 0%,100% { opacity:.55 } 50% { opacity:.95 } }
         @media (prefers-reduced-motion: reduce) {
           [data-testid="companion-avatar-face"] * { animation: none !important; }
         }
       `}</style>
+
 
       {/* Aura */}
       {showAura && (
@@ -234,7 +268,7 @@ export function CompanionAvatarFace({
       )}
 
       {/* Portrait + overlay rig */}
-      <div className={cn("relative h-full w-full overflow-hidden rounded-full", idleAnim)}>
+      <div className={cn("relative h-full w-full overflow-hidden rounded-full", swayAnim)}>
         <div className={cn("relative h-full w-full", breath)} style={{ transformOrigin: "50% 65%" }}>
           <img
             src={portraitUrl}
@@ -244,7 +278,7 @@ export function CompanionAvatarFace({
             style={{
               objectFit: "cover",
               objectPosition,
-              transform: `translateX(${glanceX * 0.4}px)`,
+              transform: `translate(${glanceX * 0.4}px, ${glanceY * 0.3}px)`,
               transition: "transform 400ms ease",
             }}
           />
@@ -261,7 +295,7 @@ export function CompanionAvatarFace({
               background: eyelidColor,
               borderRadius: "40%",
               transformOrigin: "50% 100%",
-              transform: `scaleY(${blink ? 1 : 0.04}) translateX(${glanceX}px)`,
+              transform: `scaleY(${blink ? 1 : 0.04}) translate(${glanceX}px, ${glanceY}px)`,
               transition: "transform 90ms ease",
               opacity: 0.95,
               filter: "blur(0.4px)",
@@ -278,15 +312,16 @@ export function CompanionAvatarFace({
               background: eyelidColor,
               borderRadius: "40%",
               transformOrigin: "50% 100%",
-              transform: `scaleY(${blink ? 1 : 0.04}) translateX(${glanceX}px)`,
+              transform: `scaleY(${blink ? 1 : 0.04}) translate(${glanceX}px, ${glanceY}px)`,
               transition: "transform 90ms ease",
               opacity: 0.95,
               filter: "blur(0.4px)",
             }}
           />
 
-          {/* Mouth opening overlay — only when speaking */}
-          {state === "speaking" && size !== "sm" && (
+          {/* Mouth opening overlay — driven by live amplitude so lip-sync is
+              always visible while audio plays, regardless of state timing. */}
+          {mouthOpen > 0 && size !== "sm" && (
             <div
               aria-hidden
               className="absolute"
@@ -295,10 +330,10 @@ export function CompanionAvatarFace({
                 top: `${FEATURES.mouth.y - mouthOpen / 2}%`,
                 width: `${FEATURES.mouthW}%`,
                 height: `${mouthOpen}%`,
-                background: "rgba(40, 18, 22, 0.78)",
+                background: "rgba(40, 18, 22, 0.82)",
                 borderRadius: "50%",
-                filter: "blur(1.2px)",
-                transition: "height 70ms linear, top 70ms linear",
+                filter: "blur(1.1px)",
+                transition: "height 60ms linear, top 60ms linear",
               }}
             />
           )}
@@ -314,8 +349,33 @@ export function CompanionAvatarFace({
               }}
             />
           )}
+
+          {/* Rim light — subtle cool highlight on the upper-left edge */}
+          {size !== "sm" && (
+            <div
+              aria-hidden
+              className="absolute inset-0 pointer-events-none rounded-full"
+              style={{
+                background:
+                  "radial-gradient(ellipse 60% 45% at 28% 22%, rgba(220,235,255,0.18), transparent 60%)",
+                mixBlendMode: "screen",
+              }}
+            />
+          )}
+
+          {/* Vignette — gentle darkening at edges to make her sit in the frame */}
+          {size !== "sm" && (
+            <div
+              aria-hidden
+              className="absolute inset-0 pointer-events-none rounded-full"
+              style={{
+                boxShadow: "inset 0 0 40px rgba(8,10,20,0.45)",
+              }}
+            />
+          )}
         </div>
       </div>
+
 
       {/* Thinking dots — kept outside clip so they appear above head */}
       {state === "thinking" && size !== "sm" && (
