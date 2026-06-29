@@ -42,6 +42,9 @@ const Avatar3D = lazy(() => import("./Avatar3D"));
 const Avatar3DSkeleton = lazy(() =>
   import("./Avatar3D").then((m) => ({ default: m.Avatar3DSkeleton })),
 );
+const AvatarVideo = lazy(() => import("./AvatarVideo"));
+
+import { hasVideoAvatar } from "@/lib/companion/avatar-states";
 
 export type AvatarExpression = "neutral" | "smile" | "concerned" | "sleepy";
 
@@ -84,23 +87,50 @@ function prefersReducedMotion(): boolean {
   catch { return false; }
 }
 
-// ── Public wrapper: routes to 3D when supported + opted in, else 2D ──
-// We intentionally render the 2D portrait on the server and during the first
-// client render so SSR hydration matches. After mount we switch to the 3D
-// renderer if the user/device supports it.
+// Opt-in 3D escape hatch for internal testing only: `?avatar=3d`.
+function threeDQueryOptIn(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).get("avatar") === "3d";
+  } catch { return false; }
+}
+
+// ── Public wrapper: prefers video-state → 2D portrait → 3D (opt-in only) ──
+// Post-pivot order:
+//   1. Video-state clips when the avatar has them (premium, photoreal, iOS-safe)
+//   2. 2D painted portrait (the reliable, always-works baseline)
+//   3. 3D head ONLY when explicitly requested via `?avatar=3d` or stored pref
+//      AND WebGL is supported AND the avatar has a model URL.
+// SSR always paints the 2D portrait so hydration matches.
 export function CompanionAvatarFace(props: AvatarProps) {
   const { renderer } = useRenderer();
   const { id } = useAvatar();
   const [mounted, setMounted] = useState(false);
   const [webgl] = useState<boolean>(() => webglSupported());
   const [threeDFailed, setThreeDFailed] = useState(false);
+  const [videoUnavailable, setVideoUnavailable] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
+  const wantVideo = mounted && !videoUnavailable && hasVideoAvatar(id);
   const has3DModel = !!modelUrlFor(id);
-  const want3D = mounted && renderer === "3d" && webgl && has3DModel && !threeDFailed;
+  const queryOptIn = mounted && threeDQueryOptIn();
+  const want3D =
+    mounted && !wantVideo && (renderer === "3d" || queryOptIn) && webgl && has3DModel && !threeDFailed;
+
+  if (wantVideo) {
+    return (
+      <Suspense fallback={<CompanionAvatarFace2D {...props} />}>
+        <div className={cn("relative", props.className)} style={{ width: SIZE_PX[props.size ?? "md"], height: SIZE_PX[props.size ?? "md"] }}>
+          <AvatarVideo
+            state={props.state}
+            size={props.size}
+            onUnavailable={() => setVideoUnavailable(true)}
+          />
+        </div>
+      </Suspense>
+    );
+  }
 
   if (want3D) {
     return (
