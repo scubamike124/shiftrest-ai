@@ -19,6 +19,16 @@ import { inQuietHours } from "./quiet-hours";
 import { loadLocalPrefs } from "./voice-action-prefs";
 import { track } from "./analytics";
 import { isQuietModeOn } from "@/lib/quiet-mode";
+import { normalizeForSpeech } from "./speech-normalize";
+
+let audioUnlocked = false;
+function markAudioUnlocked() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("companion:voice-unlocked"));
+  }
+}
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
@@ -59,6 +69,7 @@ export function prepareVoicePlayback(): void {
           audio.currentTime = 0;
         }
         audio.volume = 1;
+        markAudioUnlocked();
       })
       .catch(() => {
         audio.volume = 1;
@@ -302,6 +313,7 @@ async function playOnce(
   opts: SpeakOptions,
   stillValid: () => boolean,
 ): Promise<void> {
+  const spoken = normalizeForSpeech(text);
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   const resp = await fetch("/api/tts", {
@@ -310,7 +322,7 @@ async function playOnce(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text, voice: opts.voice ?? undefined }),
+    body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, speed: 0.95 }),
   });
   if (!resp.ok) {
     track({ event: "voice_skipped", reason: "tts_error" });
@@ -370,8 +382,16 @@ async function playOnce(
     audio.onpause = () => {
       if (currentAudio === audio) stopLevelMeter();
     };
-    audio.play().then(() => startLevelMeter(audio)).catch(() => {
-      emitStatus("failed", "autoplay_blocked");
+    audio.play().then(() => {
+      markAudioUnlocked();
+      startLevelMeter(audio);
+    }).catch(() => {
+      if (audioUnlocked) {
+        // Already past the iOS unlock — treat as transient and don't re-warn.
+        emitStatus("failed", "playback_error");
+      } else {
+        emitStatus("failed", "autoplay_blocked");
+      }
       resolve();
     });
   });

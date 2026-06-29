@@ -187,15 +187,24 @@ function CompanionPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let failTimer: ReturnType<typeof setTimeout> | null = null;
+    let unlocked = false;
+    const recentFails: number[] = [];
     const onStatus = (e: Event) => {
       const detail = (e as CustomEvent<{ status: string; reason?: string }>).detail;
       if (detail.status === "started") {
         if (failTimer) { clearTimeout(failTimer); failTimer = null; }
         setVoiceStatus("speaking");
         setVoiceSkipped(null);
+        recentFails.length = 0;
       } else if (detail.status === "failed") {
+        // Suppress the first transient autoplay race; only show banner on
+        // persistent (≥2 in 5s) failures, and never repeat after unlock.
+        const now = Date.now();
+        recentFails.push(now);
+        while (recentFails.length && now - recentFails[0] > 5000) recentFails.shift();
+        const persistent = recentFails.length >= 2;
         setVoiceStatus("failed");
-        if (detail.reason === "autoplay_blocked" || detail.reason === "tts_error") {
+        if (!unlocked && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
           setVoiceSkipped(detail.reason);
         }
         if (failTimer) clearTimeout(failTimer);
@@ -209,9 +218,15 @@ function CompanionPage() {
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
+    const onUnlock = () => {
+      unlocked = true;
+      setVoiceSkipped((cur) => (cur === "autoplay_blocked" || cur === "tts_error" ? null : cur));
+    };
     window.addEventListener("companion:voice-status", onStatus);
+    window.addEventListener("companion:voice-unlocked", onUnlock);
     return () => {
       window.removeEventListener("companion:voice-status", onStatus);
+      window.removeEventListener("companion:voice-unlocked", onUnlock);
       if (failTimer) clearTimeout(failTimer);
     };
   }, []);

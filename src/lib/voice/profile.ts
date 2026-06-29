@@ -81,7 +81,7 @@ export const PERSONALITY_OPTIONS: { key: PersonalityKey; label: string; desc: st
 ];
 
 const PERSONALITY_TEMPLATES: Record<PersonalityKey, string> = {
-  calm:         "Speak in a calm, warm, conversational tone — like a trusted recovery coach. Natural pacing, gentle confidence, never robotic.",
+  calm:         "Speak slowly and softly, like a calm friend at bedtime. Use natural breath pauses between sentences and gentle pitch variation — never monotone, never robotic. Read times the way a person would (say 'eight o'clock' or 'eight a.m.', never 'eight colon zero zero'). Avoid reading punctuation aloud.",
   friendly:     "Speak warmly and brightly, like a close friend who's happy to see them. Conversational, natural pauses, never stiff.",
   professional: "Speak with clear, professional confidence. Composed pacing, precise diction, friendly but focused.",
   motivational: "Speak with upbeat, encouraging energy — like a personal coach. Confident, forward-leaning, never pushy.",

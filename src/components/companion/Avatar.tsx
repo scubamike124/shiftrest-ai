@@ -126,7 +126,7 @@ export function CompanionAvatarFace({
 
   // ── Lip-sync via rAF + refs (no React state churn) ──────────────────
   const liveLevelRef = useRef(0);
-  const mouthRef = useRef<HTMLDivElement | null>(null);
+  const lipShadowRef = useRef<HTMLDivElement | null>(null);
   const jawRef = useRef<HTMLImageElement | null>(null);
   const browLeftRef = useRef<HTMLDivElement | null>(null);
   const browRightRef = useRef<HTMLDivElement | null>(null);
@@ -170,19 +170,20 @@ export function CompanionAvatarFace({
       // Non-linear gamma so quiet syllables register visibly.
       const gamma = Math.pow(Math.min(1, lvl * 6), 0.55);
 
-      // Mouth: 0.8% (idle speaking floor) → 7.5% open.
-      if (mouthRef.current) {
-        const open = s === "speaking" ? Math.max(1.0, gamma * 7.5) : 0;
-        mouthRef.current.style.height = `${open}%`;
-        mouthRef.current.style.top = `${FEATURES.mouth.y - open / 2}%`;
-        mouthRef.current.style.opacity = open > 0 ? "1" : "0";
+      // Lip shadow opacity tracks amplitude — gives a clear "mouth moving" cue
+      // without ever painting a black overlay shape on the face.
+      if (lipShadowRef.current) {
+        const op = s === "speaking" ? 0.12 + gamma * 0.38 : 0;
+        lipShadowRef.current.style.opacity = `${op}`;
       }
 
-      // Jaw drop (slow LPF on lvl) — translate portrait down 0..1.5px
+      // Jaw drop (slow LPF on lvl) — translate portrait down 0..3px + tiny scaleY
       jawLP += (gamma - jawLP) * 0.18;
       if (jawRef.current) {
-        const jawPx = s === "speaking" ? jawLP * 1.5 : 0;
+        const jawPx = s === "speaking" ? jawLP * 3.0 : 0;
+        const sy = s === "speaking" ? 1 + jawLP * 0.006 : 1;
         jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
+        jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
       }
 
       // Brow lift: listening = small lift; speaking = peaks on emphasis
@@ -211,12 +212,12 @@ export function CompanionAvatarFace({
         shoulderRef.current.style.transform = `scale(${breathe})`;
       }
 
-      // Aura pulse follows speaking amplitude
+      // Aura pulse — calmer, never bigger than 1.08
       if (auraRef.current) {
         const auraScale =
-          s === "speaking" ? 1 + Math.min(gamma * 0.22, 0.22) :
-          s === "listening" ? 1 + Math.min(levelPropRef.current * 3, 0.18) : 1;
-        const auraOp = s === "thinking" ? 0.55 + Math.sin(dt * 3.5) * 0.2 : 0.8;
+          s === "speaking" ? 1 + Math.min(gamma * 0.08, 0.08) :
+          s === "listening" ? 1 + Math.min(levelPropRef.current * 1.5, 0.06) : 1;
+        const auraOp = s === "thinking" ? 0.4 + Math.sin(dt * 3.5) * 0.12 : 0.55;
         auraRef.current.style.transform = `scale(${auraScale})`;
         auraRef.current.style.opacity = `${auraOp}`;
       }
@@ -329,20 +330,12 @@ export function CompanionAvatarFace({
         />
       )}
 
-      {/* Soft inner ring */}
+      {/* Soft inner ring — static, never competes with the face */}
       {size !== "sm" && (
         <div
           aria-hidden
           className="absolute inset-0 rounded-full ring-1 ring-white/10"
-          style={{
-            boxShadow:
-              state === "speaking"
-                ? "inset 0 0 18px hsl(190 70% 60% / 0.20)"
-                : state === "listening"
-                  ? "inset 0 0 14px hsl(var(--primary) / 0.16)"
-                  : "inset 0 0 14px hsl(var(--primary) / 0.10)",
-            transition: "box-shadow 500ms ease",
-          }}
+          style={{ boxShadow: "inset 0 0 14px hsl(var(--primary) / 0.10)" }}
         />
       )}
 
@@ -363,7 +356,8 @@ export function CompanionAvatarFace({
             style={{
               objectFit: "cover",
               objectPosition,
-              transform: `translate(${glanceX * 0.4}px, calc(${glanceY * 0.3}px + var(--jaw, 0px) + ${swallow ? 0.5 : 0}px))`,
+              transform: `translate(${glanceX * 0.4}px, calc(${glanceY * 0.3}px + var(--jaw, 0px) + ${swallow ? 0.5 : 0}px)) scaleY(var(--jaw-sy, 1))`,
+              transformOrigin: "50% 70%",
               transition: "transform 240ms ease",
             }}
           />
@@ -438,23 +432,26 @@ export function CompanionAvatarFace({
             }}
           />
 
-          {/* Mouth — driven by rAF, works for every size including sm */}
+          {/* Lip shadow — a subtle warm darkening UNDER the lip line.
+              No black overlay shape; opacity is driven by audio amplitude. */}
           <div
-            ref={mouthRef}
+            ref={lipShadowRef}
             aria-hidden
-            className="absolute"
+            className="absolute pointer-events-none"
             style={{
-              left: `${FEATURES.mouth.x - FEATURES.mouthW / 2}%`,
-              top: `${FEATURES.mouth.y}%`,
-              width: `${FEATURES.mouthW}%`,
-              height: reduced ? `${reducedMouthOpen}%` : "0%",
-              background: "rgba(40, 18, 22, 0.82)",
-              borderRadius: "50%",
-              filter: size === "sm" ? "blur(0.5px)" : "blur(1.1px)",
-              opacity: reduced ? (reducedMouthOpen > 0 ? 1 : 0) : 0,
-              willChange: "height, top, opacity",
+              left: `${FEATURES.mouth.x - 9}%`,
+              top: `${FEATURES.mouth.y + 0.8}%`,
+              width: "18%",
+              height: "5%",
+              background:
+                "radial-gradient(ellipse 50% 60% at 50% 35%, rgba(60,20,28,0.55), transparent 70%)",
+              mixBlendMode: "multiply",
+              filter: "blur(1.6px)",
+              opacity: reduced && state === "speaking" ? 0.35 : 0,
+              willChange: "opacity",
             }}
           />
+
 
           {/* Smile overlay (subtle mouth-corner lift) */}
           {smileOpacity > 0 && (
@@ -487,17 +484,6 @@ export function CompanionAvatarFace({
             />
           )}
 
-          {/* Listening warmth on the jaw/chin */}
-          {state === "listening" && (
-            <div
-              aria-hidden
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(ellipse 55% 35% at 50% 72%, hsl(var(--primary) / 0.10), transparent 70%)",
-              }}
-            />
-          )}
 
           {/* Rim light */}
           {size !== "sm" && (
