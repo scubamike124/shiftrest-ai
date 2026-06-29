@@ -267,9 +267,9 @@ function CompanionPage() {
     // begins, even while the model is still streaming the rest of its reply.
     if (micState === "listening") setOrbState("listening");
     else if (voiceStatus === "speaking") setOrbState("speaking");
-    else if (sending) setOrbState("thinking");
+    else if (transcribing || sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, sending, voiceStatus]);
+  }, [micState, transcribing, sending, voiceStatus]);
 
 
   useEffect(() => {
@@ -607,6 +607,10 @@ function CompanionPage() {
 
       if (!resp.ok || !resp.body) {
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
+        const fallback =
+          resp.status === 429
+            ? "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
+            : "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
         if (resp.status === 429) {
           toast.error("Daily AI limit reached.", {
             description: "Upgrade for unlimited conversations.",
@@ -615,6 +619,8 @@ function CompanionPage() {
         } else {
           toast.error(errJson.error || "Companion is unavailable");
         }
+        setMessages([...baseMessages, { role: "assistant", content: fallback }]);
+        track({ event: "voice_turn_failed", stage: "ai" });
         return;
       }
 
@@ -676,6 +682,15 @@ function CompanionPage() {
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
+        setMessages([
+          ...baseMessages,
+          {
+            role: "assistant",
+            content:
+              "I heard you, but the connection dropped before I could answer. Try again in a moment or type below.",
+          },
+        ]);
+        track({ event: "voice_turn_failed", stage: "ai" });
       }
     } finally {
       setSending(false);
