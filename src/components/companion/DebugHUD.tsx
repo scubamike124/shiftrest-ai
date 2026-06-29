@@ -26,6 +26,9 @@ export function DebugHUD(props: DebugHUDProps) {
   const [permission, setPermission] = useState<string>("unknown");
   const [steps, setSteps] = useState<StepRow[]>([]);
   const [ttsCtx, setTtsCtx] = useState<string>("?");
+  const [auth, setAuth] = useState<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>(
+    { hasSession: false, hasToken: false, userId: null, source: "—" },
+  );
   const lastTapRef = useRef<number>(0);
   const [, force] = useState(0);
 
@@ -52,6 +55,17 @@ export function DebugHUD(props: DebugHUDProps) {
     };
     window.addEventListener("companion:audio-level", onLvl as EventListener);
     return () => window.removeEventListener("companion:audio-level", onLvl as EventListener);
+  }, [enabled]);
+
+  // Auth status from the hardened bearer attacher
+  useEffect(() => {
+    if (!enabled) return;
+    const onAuth = (e: Event) => {
+      const d = (e as CustomEvent<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>).detail;
+      if (d) setAuth(d);
+    };
+    window.addEventListener("companion:auth-status", onAuth as EventListener);
+    return () => window.removeEventListener("companion:auth-status", onAuth as EventListener);
   }, [enabled]);
 
   // Pipeline step log
@@ -138,6 +152,10 @@ export function DebugHUD(props: DebugHUDProps) {
       </div>
 
       <div className="space-y-0.5">
+        {row("Authenticated", auth.hasSession ? "YES" : "NO")}
+        {row("User Session", auth.hasSession ? "Present" : "Missing")}
+        {row("Auth Header", auth.hasToken ? `Attached (${auth.source})` : "Missing")}
+        {row("userId", auth.userId ? `${auth.userId.slice(0, 8)}…` : "—")}
         {row("signedIn", props.signedIn ?? "—")}
         {row("companionOn", props.companionOn)}
         {row("prefsLoaded", props.prefsLoaded)}
