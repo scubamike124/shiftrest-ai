@@ -86,6 +86,32 @@ function firstName(p: Prefs, email: string | null): string {
   return "there";
 }
 
+/**
+ * Time-aware bedside greeting. Returns a short, calm headline + sub-line.
+ * Hours are local to the device; we don't need timezone precision here.
+ */
+function timeGreeting(name: string): { hi: string; sub: string } {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) {
+    return { hi: `Good morning, ${name}.`, sub: "Want help easing into the day?" };
+  }
+  if (h >= 12 && h < 17) {
+    return { hi: `Good afternoon, ${name}.`, sub: "Need a reset before tonight?" };
+  }
+  if (h >= 17 && h < 22) {
+    return { hi: `Good evening, ${name}.`, sub: "Want me to help you wind down?" };
+  }
+  return { hi: `I'm here, ${name}.`, sub: "Want something quiet to help you sleep?" };
+}
+
+/** Suggested first-action chips for an empty conversation. */
+const SUGGESTED_CHIPS: { label: string; text: string }[] = [
+  { label: "Help me wind down", text: "Help me wind down" },
+  { label: "Play rain for 30 minutes", text: "Play rain for 30 minutes" },
+  { label: "Wake me at 6:30", text: "Wake me at 6:30" },
+];
+
+
 function CompanionPage() {
   const qc = useQueryClient();
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
