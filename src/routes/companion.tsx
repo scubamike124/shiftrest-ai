@@ -1266,6 +1266,17 @@ function CompanionPage() {
       )}
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
+
+      <DebugHUD
+        signedIn={signedIn}
+        companionOn={companionOn}
+        prefsLoaded={prefsQ.isSuccess || prefsQ.isError}
+        micState={micState}
+        voiceStatus={voiceStatus}
+        orbState={orbState}
+        greetShown={greetedRef.current}
+        onReset={handleHardReset}
+      />
     </main>
   );
 }
