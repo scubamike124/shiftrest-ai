@@ -39,8 +39,9 @@ export function getRenderer(): CompanionRenderer {
   return v === "2d" ? "2d" : "3d";
 }
 export function getTtsProvider(): CompanionTtsProvider {
-  const v = readLS(TTS_KEY, "openai");
-  return v === "elevenlabs" ? "elevenlabs" : "openai";
+  // ElevenLabs is now the default premium provider; OpenAI is the auto-fallback.
+  const v = readLS(TTS_KEY, "elevenlabs");
+  return v === "openai" ? "openai" : "elevenlabs";
 }
 export function getElevenVoice(): string {
   return readLS(ELEVEN_VOICE_KEY, DEFAULT_ELEVEN_VOICE);
