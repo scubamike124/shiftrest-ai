@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   BUILD_STAMP,
+  getLastHttpStatus,
   installDebugNetworkProbe,
   isDebugEnabled,
   onDebug,
@@ -38,7 +39,10 @@ export function DebugHUD(props: DebugHUDProps) {
   const [auth, setAuth] = useState<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>(
     { hasSession: false, hasToken: false, userId: null, source: "—" },
   );
-  const [http, setHttp] = useState<{ endpoint: string; status: number } | null>(null);
+  const [http, setHttp] = useState<{ endpoint: string; status: number } | null>(() => {
+    const last = getLastHttpStatus();
+    return last ? { endpoint: last.endpoint, status: last.status } : null;
+  });
   const lastTapRef = useRef<number>(0);
   const [, force] = useState(0);
 
@@ -96,6 +100,8 @@ export function DebugHUD(props: DebugHUDProps) {
 
   useEffect(() => {
     if (!enabled) return;
+    const last = getLastHttpStatus();
+    if (last) setHttp({ endpoint: last.endpoint, status: last.status });
     return onHttpStatus((p) => setHttp({ endpoint: p.endpoint, status: p.status }));
   }, [enabled]);
 
