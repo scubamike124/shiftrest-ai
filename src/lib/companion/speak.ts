@@ -20,6 +20,11 @@ import { loadLocalPrefs } from "./voice-action-prefs";
 import { track } from "./analytics";
 import { isQuietModeOn } from "@/lib/quiet-mode";
 import { normalizeForSpeech } from "./speech-normalize";
+import { getTtsProvider, getElevenVoice, setTtsProvider } from "./renderer-pref";
+
+// Session-level kill switch — if ElevenLabs errors once, fall back to
+// OpenAI for the rest of the session so the user is never stranded silent.
+let elevenLabsBlocked = false;
 
 let audioUnlocked = false;
 function markAudioUnlocked() {
@@ -388,14 +393,32 @@ async function playOnce(
   }
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
-  const resp = await fetch("/api/tts", {
+  const provider = !elevenLabsBlocked && getTtsProvider() === "elevenlabs" ? "elevenlabs" : "openai";
+  const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
+  const voice = provider === "elevenlabs" ? (opts.voice ?? getElevenVoice()) : (opts.voice ?? undefined);
+  let resp = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
+    body: JSON.stringify({ text: spoken, voice, mode }),
   });
+  // Provider-specific failure → fall back to OpenAI for the rest of the session.
+  if (provider === "elevenlabs" && !resp.ok) {
+    console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
+    elevenLabsBlocked = true;
+    // Best-effort: also flip the saved pref back so the UI reflects reality.
+    try { setTtsProvider("openai"); } catch { /* noop */ }
+    resp = await fetch("/api/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
+    });
+  }
   if (!resp.ok) {
     track({ event: "voice_skipped", reason: "tts_error" });
     emitStatus("failed", "tts_error");
