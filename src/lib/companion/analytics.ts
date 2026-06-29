@@ -40,6 +40,10 @@ export type CompanionEvent =
   | { event: "companion_greeting_shown"; trigger: "url" | "auto" }
   | { event: "mic_permission_denied" }
   | { event: "mic_error" }
+  | { event: "voice_turn_empty_audio" }
+  | { event: "voice_turn_empty_transcript" }
+  | { event: "voice_turn_transcribed"; chars: number }
+  | { event: "voice_turn_failed"; stage: "stt" | "ai" | "tts" }
   | { event: "avatar_tap_to_talk"; result: "started" | "stopped" | "denied" | "fallback" };
 
 export function track(evt: CompanionEvent): void {
