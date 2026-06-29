@@ -46,6 +46,8 @@ import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
+import { DebugHUD } from "@/components/companion/DebugHUD";
+import { emitDebug } from "@/lib/companion/debug-bus";
 
 
 
@@ -295,6 +297,7 @@ function CompanionPage() {
         ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
         : `Hi ${name}, I'm here. How can I help tonight?`;
     setMessages([{ role: "assistant", content: opener }]);
+    emitDebug("greet-shown");
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
   }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
 
@@ -344,7 +347,9 @@ function CompanionPage() {
     prepareVoicePlayback();
     setInput("");
     cancelMicRef.current = false;
+    emitDebug("mic-start");
     await micStart(async (blob) => {
+      emitDebug("mic-stop", blob ? `${blob.size}b` : "empty");
       if (cancelMicRef.current) {
         cancelMicRef.current = false;
         return; // user pressed Cancel — discard without transcribing
@@ -361,6 +366,7 @@ function CompanionPage() {
         const fd = new FormData();
         fd.append("file", blob, "recording.wav");
         if (prefs?.voiceLanguage) fd.append("language", prefs.voiceLanguage.split("-")[0]);
+        emitDebug("stt-req");
         const resp = await fetch("/api/stt", {
           method: "POST",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -368,16 +374,19 @@ function CompanionPage() {
         });
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
+          emitDebug("stt-fail", `${resp.status}`);
           toast.error(json.error || "Couldn't transcribe");
           track({ event: "voice_turn_failed", stage: "stt" });
           return;
         }
         const text = (json.text || "").trim();
         if (!text) {
+          emitDebug("stt-ok", "empty");
           toast.info("I didn't catch any words. You can try again or type it below.");
           track({ event: "voice_turn_empty_transcript" });
           return;
         }
+        emitDebug("stt-ok", `${text.length}c`);
         track({ event: "voice_turn_transcribed", chars: text.length });
         setInput(text);
         // Complete the voice loop: transcript → thinking → assistant reply.
@@ -627,6 +636,7 @@ function CompanionPage() {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
+      emitDebug("ai-req");
       const resp = await fetch("/api/ai", {
         method: "POST",
         headers: {
@@ -642,6 +652,7 @@ function CompanionPage() {
       });
 
       if (!resp.ok || !resp.body) {
+        emitDebug("ai-fail", `${resp.status}`);
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
         const fallback =
           resp.status === 429
@@ -689,6 +700,7 @@ function CompanionPage() {
             const evt = JSON.parse(json) as { choices?: { delta?: { content?: string } }[] };
             const delta = evt.choices?.[0]?.delta?.content;
             if (delta) {
+              if (!assistant) emitDebug("ai-first-token");
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
               // Stream-speak: flush every complete sentence past the
@@ -715,8 +727,10 @@ function CompanionPage() {
       if (remainder) {
         speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
       }
+      emitDebug("ai-done", `${assistant.length}c`);
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
+        emitDebug("ai-fail", (e as { message?: string })?.message ?? "err");
         toast.error(e instanceof Error ? e.message : "Something went wrong");
         setMessages([
           ...baseMessages,
@@ -738,6 +752,18 @@ function CompanionPage() {
     abortRef.current?.abort();
     stopSpeaking();
     setSending(false);
+  }
+
+  function handleHardReset() {
+    abortRef.current?.abort();
+    stopSpeaking();
+    setSending(false);
+    setTranscribing(false);
+    setVoiceStatus("idle");
+    setOrbState("idle");
+    setMessages([]);
+    setInput("");
+    emitDebug("reset");
   }
 
   // ─── Render ─────────────────────────────────────────────────────
@@ -932,10 +958,7 @@ function CompanionPage() {
         <button
           type="button"
           onClick={() => {
-            if (!companionOn) {
-              toast.info("Turn on Companion Mode first.");
-              return;
-            }
+            emitDebug("tap", `mic=${micState}`);
             if (!localPrefs.voiceInputEnabled || micState === "denied") {
               // Voice off or mic blocked — fall back to text composer instead
               // of a silent dead-tap.
@@ -1243,6 +1266,17 @@ function CompanionPage() {
       )}
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
+
+      <DebugHUD
+        signedIn={signedIn}
+        companionOn={companionOn}
+        prefsLoaded={prefsQ.isSuccess || prefsQ.isError}
+        micState={micState}
+        voiceStatus={voiceStatus}
+        orbState={orbState}
+        greetShown={greetedRef.current}
+        onReset={handleHardReset}
+      />
     </main>
   );
 }
