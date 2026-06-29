@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-r
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock } from "lucide-react";
+import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock, Volume1, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
@@ -38,7 +38,7 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
-import { speak, stopSpeaking } from "@/lib/companion/speak";
+import { speak, stopSpeaking, beginSpeakTurn, speakQueued } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
