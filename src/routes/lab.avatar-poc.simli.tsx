@@ -37,6 +37,7 @@ function SimliPoc() {
   const clientRef = useRef<any>(null);
 
   const [faceId, setFaceId] = useState(DEFAULT_FACE_ID);
+  const [activeFaceId, setActiveFaceId] = useState<string | null>(null);
   const [voice, setVoice] = useState<string>(DEFAULT_ELEVEN_VOICE);
   const [text, setText] = useState(
     "Hi — I'm running on Simli with ElevenLabs Flash. If you can hear me clearly and the face stays in sync, we're in business.",
@@ -48,6 +49,12 @@ function SimliPoc() {
   const [fps, setFps] = useState<number>(0);
   const [glitches, setGlitches] = useState(0);
   const [lastSpeakMs, setLastSpeakMs] = useState<number | null>(null);
+
+  // Simli face IDs are short alphanumeric tokens (e.g. "tmp9i8bbq7c").
+  // Accept letters, digits, underscore, dash; 6–64 chars.
+  const FACE_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
+  const faceIdValid = FACE_ID_RE.test(faceId.trim());
+
 
   const voices = useMemo(() => ELEVEN_VOICES, []);
 
