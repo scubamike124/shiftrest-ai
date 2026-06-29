@@ -26,6 +26,20 @@ import { getTtsProvider, getElevenVoice, setTtsProvider } from "./renderer-pref"
 // OpenAI for the rest of the session so the user is never stranded silent.
 let elevenLabsBlocked = false;
 
+// Hard env flag: only allow ElevenLabs at all when explicitly enabled.
+// Default OFF — the streamless MP3 path stalls on iPhone Safari and
+// produces 1-2 s gaps between sentences. Re-enable per-build via
+// VITE_COMPANION_ELEVENLABS=on once true streaming is wired.
+const ELEVENLABS_FLAG_ON =
+  typeof import.meta !== "undefined" &&
+  ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    ?.VITE_COMPANION_ELEVENLABS ?? "off") === "on";
+
+// Per-session: warm the output device only on the first utterance.
+// Re-running warmOutputDevice() before every chunk added perceptible latency
+// between sentences on iOS Safari (the "stutter" symptom).
+let outputWarmed = false;
+
 let audioUnlocked = false;
 function markAudioUnlocked() {
   if (audioUnlocked) return;
