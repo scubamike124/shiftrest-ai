@@ -193,26 +193,20 @@ function CompanionAvatarFace2D({
     if (hidden) return;
     let cancelled = false;
     let t: number | undefined;
+    // Per launch-audit P1: blinking on a painted portrait reads as artificial
+    // no matter how clean the rig. Realism comes from the OTHER idle loops —
+    // posture tilt, shoulder breathing, eye saccades, micro-smile, swallow.
+    // We keep the blink rig in place (so we can re-enable it later or for the
+    // 3D avatar) but stop scheduling automatic blinks on the 2D portrait.
+    // The rAF interpolator still respects manual `scheduleBlink()` calls.
     const loop = () => {
-      // Tightened cadence: 3.5–6.5s feels alive without looking nervous.
-      // Sleep mode: slower, longer hold (handled below).
-      const next = 3500 + Math.random() * 3000;
-      t = window.setTimeout(() => {
-        if (cancelled) return;
-        const slow = sleepMode || Math.random() < 0.06;
-        const doubleBlink = Math.random() < 0.16;
-        scheduleBlink({
-          closeMs: slow ? 130 : 90,
-          holdMs: slow ? 90 : 40,
-          openMs: slow ? 180 : 130,
-          doubleBlink,
-        });
-        loop();
-      }, next);
+      // No-op: intentional. Idle realism is driven by saccades / breath /
+      // posture / micro-smile loops elsewhere in this component.
     };
     loop();
     return () => { cancelled = true; if (t) window.clearTimeout(t); };
   }, [hidden, sleepMode]);
+
 
   // ── Pass 1 — viseme + amplitude rig ──────────────────────────────────
   const liveLevelRef = useRef(0);

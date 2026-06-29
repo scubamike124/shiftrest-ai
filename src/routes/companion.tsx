@@ -39,6 +39,7 @@ import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
+import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { AvatarPickerChip } from "@/components/companion/AvatarPickerChip";
@@ -799,12 +800,53 @@ function CompanionPage() {
       // is enqueued after streaming completes; chunks play sequentially.
       beginSpeakTurn();
       let spokenChars = 0;
+      // Flush on sentence boundary, but only AFTER we've buffered a real
+      // chunk (~220 chars OR a paragraph break). Smaller flushes mean more
+      // serial TTS round-trips → dead air between bullets. We also run
+      // `bulletsToProse()` over the unspoken tail before searching for a
+      // boundary so list markers and "header:" patterns don't fragment
+      // playback into one-line clips.
       const SENTENCE_RE = /[.!?][\s)\]"']*\s/;
+      const PARAGRAPH_RE = /\n\s*\n/;
+      const MIN_FLUSH_CHARS = 220;
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let assistant = "";
       let done = false;
+
+      const flushReady = (force: boolean) => {
+        // Only call after assistant updates; flushes one chunk at a time.
+        while (true) {
+          const rawTail = assistant.slice(spokenChars);
+          if (!rawTail.trim()) return;
+          // Prefer a paragraph break — natural breath, large chunk.
+          const pIdx = rawTail.search(PARAGRAPH_RE);
+          if (pIdx !== -1) {
+            const cutLen = pIdx + (rawTail.slice(pIdx).match(PARAGRAPH_RE)?.[0].length ?? 2);
+            const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
+            spokenChars += cutLen;
+            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+            continue;
+          }
+          // Otherwise wait until we have a sentence boundary past the min.
+          if (rawTail.length < MIN_FLUSH_CHARS && !force) return;
+          const m = rawTail.match(SENTENCE_RE);
+          if (!m || m.index === undefined) {
+            if (!force) return;
+            const segment = bulletsToProse(rawTail).trim();
+            spokenChars += rawTail.length;
+            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+            return;
+          }
+          // Don't flush a tiny first sentence; wait for more material.
+          if (m.index + m[0].length < MIN_FLUSH_CHARS && !force) return;
+          const cutLen = m.index + m[0].length;
+          const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
+          spokenChars += cutLen;
+          if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+        }
+      };
 
       while (!done) {
         const { done: rDone, value } = await reader.read();
@@ -825,31 +867,15 @@ function CompanionPage() {
               if (!assistant) emitDebug("ai-first-token");
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
-              // Stream-speak: flush every complete sentence past the
-              // already-spoken cursor as soon as it arrives.
-              if (assistant.length - spokenChars >= 30) {
-                while (true) {
-                  const tail = assistant.slice(spokenChars);
-                  const m = tail.match(SENTENCE_RE);
-                  if (!m || m.index === undefined) break;
-                  const cut = spokenChars + m.index + m[0].length;
-                  const segment = assistant.slice(spokenChars, cut).trim();
-                  if (segment) {
-                    speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
-                  }
-                  spokenChars = cut;
-                }
-              }
+              flushReady(false);
             }
           } catch { /* noop */ }
         }
       }
-      // Enqueue any unsaid trailing fragment (no terminal punctuation).
-      const remainder = assistant.slice(spokenChars).trim();
-      if (remainder) {
-        speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
-      }
+      // Flush whatever's left — force=true ignores the min-size gate.
+      flushReady(true);
       emitDebug("ai-done", `${assistant.length}c`);
+
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         emitDebug("ai-fail", (e as { message?: string })?.message ?? "err");
