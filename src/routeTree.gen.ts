@@ -41,6 +41,7 @@ import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
 import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
+import { Route as QaVoiceRouteImport } from './routes/qa.voice'
 import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
 import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
@@ -229,6 +230,11 @@ const SettingsCompanionRoute = SettingsCompanionRouteImport.update({
 const SettingsAvatarRoute = SettingsAvatarRouteImport.update({
   id: '/settings/avatar',
   path: '/settings/avatar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QaVoiceRoute = QaVoiceRouteImport.update({
+  id: '/qa/voice',
+  path: '/qa/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
@@ -431,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
@@ -493,6 +500,7 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
@@ -557,6 +565,7 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
@@ -622,6 +631,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
@@ -684,6 +694,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
@@ -747,6 +758,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
@@ -796,6 +808,7 @@ export interface RootRouteChildren {
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
+  QaVoiceRoute: typeof QaVoiceRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
@@ -1032,6 +1045,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/avatar'
       fullPath: '/settings/avatar'
       preLoaderRoute: typeof SettingsAvatarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qa/voice': {
+      id: '/qa/voice'
+      path: '/qa/voice'
+      fullPath: '/qa/voice'
+      preLoaderRoute: typeof QaVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/trademark': {
@@ -1316,6 +1336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
+  QaVoiceRoute: QaVoiceRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
