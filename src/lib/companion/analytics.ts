@@ -36,7 +36,11 @@ export type CompanionEvent =
   | { event: "skill_status_changed"; skill: string; status: "connected" | "disabled" | "disconnected" }
   | { event: "skill_invoked"; skill: string; action: string }
   | { event: "calendar_agenda_viewed"; period: "morning" | "afternoon" | "evening"; count: number }
-  | { event: "personal_plan_viewed"; period: "morning" | "afternoon" | "evening"; topCount: number };
+  | { event: "personal_plan_viewed"; period: "morning" | "afternoon" | "evening"; topCount: number }
+  | { event: "companion_greeting_shown"; trigger: "url" | "auto" }
+  | { event: "mic_permission_denied" }
+  | { event: "mic_error" }
+  | { event: "avatar_tap_to_talk"; result: "started" | "stopped" | "denied" | "fallback" };
 
 export function track(evt: CompanionEvent): void {
   if (typeof window === "undefined") return;
