@@ -128,10 +128,10 @@ const MODE_OVERLAYS: Record<SpeakMode, string> = {
 };
 
 export const MODE_SPEED: Record<SpeakMode, number> = {
-  normal: 0.92,
-  sleep: 0.82,
-  encouraging: 0.96,
-  thinking: 0.9,
+  normal: 1.0,
+  sleep: 0.9,
+  encouraging: 1.02,
+  thinking: 0.96,
 };
 
 export function buildInstructions(
