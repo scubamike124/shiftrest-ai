@@ -1,111 +1,70 @@
-# AI Companion Avatar — Investigation, POC, and Recommendation
+# Service-Worker Cache Busting & Auto-Update
 
-No production code will be touched until you approve the winning stack after Phase 4. All POC work lives behind `/lab/*` routes and is gated from the main app.
+## What we found
 
----
+Most of what you asked for is already implemented in `public/sw-src.ts` and `vite.config.ts`. The remaining gap is the one that actually causes your "old shell doesn't know about new routes" 404 on iPhone.
 
-## Phase 1 — Investigation (Desk Research)
+| You asked for | Status today |
+|---|---|
+| 1. Bump SW cache version per deploy | ✅ Workbox `__WB_MANIFEST` hashes every asset; `cleanupOutdatedCaches()` already runs |
+| 2. Auto-invalidate old route manifests | ✅ `registerType: "autoUpdate"` + `cleanupOutdatedCaches()` |
+| 3. Force newest SW to activate immediately | ⚠️ `skipWaiting()`/`clientsClaim()` are set, but iOS often skips the SW script revalidation entirely, so the new worker is never even discovered until the user hard-refreshes |
+| 4. "Update Available" banner | ❌ Not implemented |
+| 5. New routes available immediately | ⚠️ Works *if* the new SW is discovered; today it can take a stale visit before iOS checks |
+| 6. Every publish invalidates manifests | ✅ Same as #1/#2 |
 
-Deliverable: a comparison matrix saved to `docs/avatar-poc/PHASE1_MATRIX.md`.
+**Root cause of the 404 you hit:** the cached app-shell `index.html` was served by the old SW, which still pointed at the old JS route-tree bundle. That old bundle had no route at `/lab/avatar-poc/simli`, so the SPA rendered its in-app 404 even though the server-side route was live. Private Safari (no SW) loads it fine — which is exactly what your test will confirm.
 
-### Avatar platforms evaluated
-1. **HeyGen Interactive Avatar (Streaming API)** — photoreal, WebRTC, server-driven lip sync.
-2. **D-ID Agents / Live Portrait** — photoreal, WebRTC stream from a still image or preset avatar.
-3. **Simli** — low-latency (sub-300ms) WebRTC photoreal avatars built for voice agents.
-4. **Tavus CVI (Conversational Video Interface)** — photoreal cloned avatars, WebRTC.
-5. **Soul Machines** — premium digital humans, enterprise pricing.
-6. **Ready Player Me + Three.js (current)** — included as the baseline we are replacing.
-7. **Live2D Cubism Web** — stylized 2D, viseme-driven.
-8. **Rive State Machine** — vector, hand-authored states.
+## What we'll change
 
-### Voice platforms evaluated
-1. **ElevenLabs** (current) — Turbo v2.5 / Flash v2.5, multilingual, streaming.
-2. **OpenAI Realtime API (gpt-realtime / gpt-4o-realtime)** — speech-to-speech, lowest latency.
-3. **Cartesia Sonic** — ~90ms TTFB streaming TTS.
-4. **PlayHT 3.0 / Play 3.0 mini** — conversational TTS, streaming.
-5. **Hume AI EVI 2** — emotionally aware voice.
-6. **Deepgram Aura-2** — fastest streaming TTS, lower realism.
+Three small additions, scoped to the SW path. No edits to Simli, avatar, or app logic.
 
-### Scoring axes (1–5, with notes)
-Avatar quality · lip sync · facial expressions · emotional realism · iPhone Safari · Desktop (Mac/Win) · API quality · SDK quality · Voice integration · Performance (TTFB, FPS) · Scalability · Cost ($/min) · Licensing · Long-term maintenance.
+### 1. Force SW script revalidation on every navigation
+Set `updateViaCache: "none"` when registering `/sw.js`. iOS Safari otherwise caches the SW script itself for up to 24h, which delays discovery of every new deploy.
+- File: `src/lib/pwa/register.ts` — add the option to the existing `navigator.serviceWorker.register("/sw.js", { scope: "/" })` call.
 
-### Output of Phase 1
-- Filled matrix in `docs/avatar-poc/PHASE1_MATRIX.md`.
-- Shortlist: **Top 3 avatar + voice combinations**, ranked, with rationale.
-  - Likely candidates (pre-research hypothesis, subject to change):
-    1. **Simli + ElevenLabs Flash v2.5** — lowest latency photoreal.
-    2. **HeyGen Streaming + ElevenLabs Turbo v2.5** — highest photoreal fidelity.
-    3. **D-ID Agents + OpenAI Realtime** — simplest end-to-end stack.
+### 2. Proactively check for updates
+After registration, call `reg.update()` on:
+- initial load (after a short delay so it doesn't compete with hydration)
+- every `visibilitychange` to `visible` (returning to the tab/app after backgrounding)
+- File: `src/lib/pwa/register.ts` only.
 
----
+### 3. One-tap "Update available" banner
+A tiny client component listens for `reg.waiting` / `updatefound` and renders a bottom-right pill when a new SW is installed and ready:
 
-## Phase 2 — Proof of Concept (Isolated)
-
-Build one POC route per shortlisted combo. **Not wired into `/companion`, `/`, or any production surface.**
-
-### Route layout
+```text
+┌──────────────────────────────┐
+│  New version ready  · Update │
+└──────────────────────────────┘
 ```
-src/routes/lab/
-  avatar-poc.index.tsx       # picker: choose combo 1/2/3
-  avatar-poc.simli.tsx       # combo 1
-  avatar-poc.heygen.tsx      # combo 2
-  avatar-poc.did.tsx         # combo 3
-```
-Each route is `noindex`, behind a `?key=` query gate to avoid casual discovery, and renders only the avatar + a single text input + state HUD.
+Tapping it posts `{ type: "SKIP_WAITING" }` to the waiting worker and reloads once `controllerchange` fires.
+- New file: `src/components/pwa/UpdateBanner.tsx`
+- New file: `src/lib/pwa/update-channel.ts` — small event bus the registrar publishes to
+- Mount once in `src/routes/__root.tsx`
+- SW side: add a `message` listener in `public/sw-src.ts` that calls `self.skipWaiting()` on `SKIP_WAITING` (cheap, additive — `skipWaiting()` already runs on install, this just covers the case where the user previously dismissed the banner)
 
-### Feature checklist per combo
-- Real photoreal avatar visible in <2s
-- Natural blinking (idle)
-- Breathing / micro-motion
-- Eye saccades / gaze
-- Listening state (mic open, no speaking)
-- Thinking state (between user finish and first audio)
-- Speaking state with real-time lip sync
-- Streaming voice (TTFB measured)
-- Smooth state transitions (no pop)
-- Latency budget: user-stop-talking → first audio < 1.2s target
+### Out of scope (intentionally)
+- No edits to the Simli POC, avatar pipeline, or any feature route.
+- No changes to the push-notification handlers in `sw-src.ts`.
+- No removal of `vite-plugin-pwa`, no kill-switch worker — the current PWA is healthy, just slow to discover updates on iOS.
 
-### Server wiring
-- Per provider, one `/api/lab/<provider>/session.ts` server route that mints short-lived session tokens (no provider keys in client).
-- Secrets requested via `add_secret` only after you approve a provider to test (HEYGEN_API_KEY, DID_API_KEY, SIMLI_API_KEY, etc.). Nothing requested upfront.
-- ElevenLabs uses existing `ELEVENLABS_API_KEY`.
+## How we verify
 
-### Instrumentation
-- `docs/avatar-poc/perf.md` records TTFB, FPS, dropped frames, CPU/GPU hints, audio glitches, per device.
+After the changes land and you publish:
 
----
+1. **Open in Private Safari** on iPhone → `https://shift-rest-ai.lovable.app/lab/avatar-poc/simli` → should load the Connect/Speak screen. This is the "is the deploy itself healthy?" baseline you're already planning to run.
+2. **Open in normal Safari** (the one with the stuck SW) → should load the cached shell once, then show the "Update available" banner within ~1s, tap it, page reloads, Simli POC loads. No "Clear Website Data" needed.
+3. Subsequent publishes: same banner appears within seconds of opening the app — no manual cache action ever again.
 
-## Phase 3 — Hardware Testing
+## Production URL (unchanged)
 
-You run a fixed script on each combo across:
-- iPhone Safari (your device)
-- Android Chrome
-- Mac Safari
-- Windows Chrome
-- Windows Edge
+`https://shift-rest-ai.lovable.app/lab/avatar-poc/simli`
 
-For each: PASS/FAIL on performance, stability, latency, voice quality, avatar quality, battery (qualitative), and browser compat. Results captured in `docs/avatar-poc/PHASE3_RESULTS.md`. I cannot run these — you'll fill in the matrix and reply with the data.
+The picker is at `https://shift-rest-ai.lovable.app/lab/avatar-poc`.
 
----
+## Technical notes (for reference, skip if not relevant)
 
-## Phase 4 — Recommendation
-
-Final deliverable in `docs/avatar-poc/RECOMMENDATION.md`:
-- Winning avatar platform + why
-- Winning voice platform + why
-- Estimated implementation effort (days)
-- Estimated monthly operating cost at three usage tiers (100 / 1k / 10k active users)
-- Known limitations
-- Screenshots / screen recordings from the POC (you capture on device, I embed)
-- Go/No-Go: whether quality is sufficient to be RestPilot's flagship
-
-Only after you approve does production integration begin — that becomes a separate plan.
-
----
-
-## What I need from you to start
-
-1. **Approval to begin Phase 1** (desk research, no secrets, no code).
-2. After Phase 1, approval of which 1–3 combos to actually POC in Phase 2 (each commercial provider POC needs an API key).
-
-Reply **approve Phase 1** to start. I will hold all production code as-is until Phase 4 sign-off.
+- `updateViaCache: "none"` is the spec-defined way to force the browser to revalidate the SW script on every check; without it iOS uses the HTTP cache (up to 24h).
+- `reg.update()` on `visibilitychange` is the standard pattern for installed PWAs that may stay backgrounded for days.
+- The banner is gated on `import.meta.env.PROD` and the same refuse-list as `registerAppShell()`, so it never renders in Lovable preview or dev.
+- No changes to manifest fields (`start_url`, `id`, `scope`, `display`) — those are install-time sticky on iOS and changing them would require reinstall.
