@@ -81,13 +81,13 @@ export const PERSONALITY_OPTIONS: { key: PersonalityKey; label: string; desc: st
 ];
 
 const PERSONALITY_TEMPLATES: Record<PersonalityKey, string> = {
-  calm:         "Speak slowly and softly, like a calm friend at bedtime. Use natural breath pauses between sentences and gentle pitch variation — never monotone, never robotic. Read times the way a person would (say 'eight o'clock' or 'eight a.m.', never 'eight colon zero zero'). Avoid reading punctuation aloud.",
-  friendly:     "Speak warmly and brightly, like a close friend who's happy to see them. Conversational, natural pauses, never stiff.",
-  professional: "Speak with clear, professional confidence. Composed pacing, precise diction, friendly but focused.",
-  motivational: "Speak with upbeat, encouraging energy — like a personal coach. Confident, forward-leaning, never pushy.",
-  companion:    "Speak gently and personally, with a relaxed companion vibe. Soft pacing, warmth, like talking to someone you care about.",
-  coach:        "Speak with direct, supportive coaching energy. Clear, confident, action-oriented, still warm.",
-  energetic:    "Speak with high energy and momentum. Brisk but clear, naturally enthusiastic, never rushed.",
+  calm:         "Speak like a calm, present human friend — warm, unhurried, never robotic. Take a soft breath before the first word so the line starts naturally, not abruptly. Land each sentence with a gentle downstep instead of a flat tail. Vary pace within a sentence: a touch quicker on supporting clauses, a touch slower on the key idea. Read times the way a person would ('eight o'clock', 'eight a.m.' — never 'eight colon zero zero') and never read punctuation aloud. Allow tiny natural micro-pauses where a person would breathe.",
+  friendly:     "Speak warmly and brightly, like a close friend genuinely glad to hear from them. Conversational rhythm, real breath pauses, pitch that moves — never stiff or sing-song.",
+  professional: "Speak with clear, composed confidence. Measured pacing, precise diction, warmth underneath the polish. Natural pitch movement, not a newsreader monotone.",
+  motivational: "Speak with upbeat, forward-leaning energy, like a coach who believes in them. Confident lift on the verb, soft on the encouragement. Never pushy, never shouty.",
+  companion:    "Speak gently and personally, the way you'd talk to someone you care about. Soft pacing, real warmth, occasional small breath between thoughts. Avoid anything that sounds read aloud.",
+  coach:        "Speak with direct, supportive coaching energy. Clear, confident, action-oriented — still warm. Stress the action word, soften the ask.",
+  energetic:    "Speak with high, natural energy. Brisk but clean, audibly smiling, momentum without rushing.",
 };
 
 export type VoiceProfile = {
