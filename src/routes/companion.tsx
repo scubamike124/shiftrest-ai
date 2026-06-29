@@ -700,6 +700,7 @@ function CompanionPage() {
             const evt = JSON.parse(json) as { choices?: { delta?: { content?: string } }[] };
             const delta = evt.choices?.[0]?.delta?.content;
             if (delta) {
+              if (!assistant) emitDebug("ai-first-token");
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
               // Stream-speak: flush every complete sentence past the
@@ -726,8 +727,10 @@ function CompanionPage() {
       if (remainder) {
         speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
       }
+      emitDebug("ai-done", `${assistant.length}c`);
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
+        emitDebug("ai-fail", (e as { message?: string })?.message ?? "err");
         toast.error(e instanceof Error ? e.message : "Something went wrong");
         setMessages([
           ...baseMessages,
