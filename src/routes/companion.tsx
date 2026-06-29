@@ -670,7 +670,30 @@ function CompanionPage() {
     void speakIfEnabled(content);
   }
 
+  function handleQuickAction(id: CompanionQuickActionId) {
+    track({ event: "companion_quick_action", trigger: id });
+    switch (id) {
+      case "fall_asleep":
+      case "calm_down":
+        setBreathingOpen(true);
+        return;
+      case "sleep_sounds":
+        navigate({ to: "/sleep" }).catch(() => undefined);
+        return;
+      case "review_sleep":
+        navigate({ to: "/health" }).catch(() => undefined);
+        return;
+      case "plan_morning":
+        void handleSend(undefined, "Plan my morning");
+        return;
+      case "smart_alarm":
+        void handleSend(undefined, "Help me set a smart alarm for tomorrow");
+        return;
+    }
+  }
+
   async function handleSend(e?: React.FormEvent, override?: string) {
+
     const fromForm = !!e;
     e?.preventDefault();
     const text = (override ?? input).trim();
