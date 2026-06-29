@@ -109,15 +109,50 @@ let draining = false;
 
 
 // ── Audio graph (built ONCE, never re-wired) ─────────────────────────
+// Final chain:  source → Gain → WaveShaper (stateless soft-clip) →
+//               destination + Analyser (lip-sync taps off the shaper).
+// We deliberately do NOT use a DynamicsCompressor in the live path: its
+// internal envelope starts cold and pumps gain up over the first ~300 ms,
+// which produces the "quiet greeting → loud reply" curve on iOS Safari.
+// A WaveShaper is stateless, so the first sample is already at final loudness.
 let levelCtx: AudioContext | null = null;
 let levelAnalyser: AnalyserNode | null = null;
 let levelGain: GainNode | null = null;
-let levelCompressor: DynamicsCompressorNode | null = null;
+let levelShaper: WaveShaperNode | null = null;
 let graphWired = false;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
-const VOICE_GAIN = 1.9;
+const VOICE_GAIN = 1.7;
+
+function buildSoftClipCurve(samples = 2048): Float32Array {
+  // tanh-shaped soft clip. Linear at low levels, rounds gently toward ±1.0.
+  const curve = new Float32Array(samples);
+  const k = 1.4;
+  for (let i = 0; i < samples; i++) {
+    const x = (i / (samples - 1)) * 2 - 1;
+    curve[i] = Math.tanh(k * x) / Math.tanh(k);
+  }
+  return curve;
+}
+
+async function warmOutputDevice(): Promise<void> {
+  // Push ~40 ms of near-silent buffer through the graph so the OS audio
+  // device is already running when the TTS blob's first sample arrives.
+  // Prevents iOS Safari from swallowing the first ~100 ms.
+  if (!levelCtx || !levelGain) return;
+  try {
+    const ctx = levelCtx;
+    const frames = Math.max(1, Math.floor(ctx.sampleRate * 0.04));
+    const buf = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = (Math.random() - 0.5) * 1e-4;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(levelGain);
+    src.start();
+  } catch { /* best-effort */ }
+}
 
 function ensureAudioGraph(): boolean {
   if (typeof window === "undefined") return false;
@@ -131,18 +166,10 @@ function ensureAudioGraph(): boolean {
       levelGain = levelCtx.createGain();
       levelGain.gain.value = VOICE_GAIN;
     }
-    if (!levelCompressor) {
-      levelCompressor = levelCtx.createDynamicsCompressor();
-      try {
-        // Soft peak limiter — only catches true peaks (>-3 dBFS) and
-        // recovers fast enough that no fade-in is audible. Normal speech
-        // passes through untouched, so the very first syllable is at full volume.
-        levelCompressor.threshold.value = -3;
-        levelCompressor.knee.value = 6;
-        levelCompressor.ratio.value = 6;
-        levelCompressor.attack.value = 0.003;
-        levelCompressor.release.value = 0.08;
-      } catch { /* noop */ }
+    if (!levelShaper) {
+      levelShaper = levelCtx.createWaveShaper();
+      levelShaper.curve = buildSoftClipCurve();
+      levelShaper.oversample = "2x";
     }
     if (!levelAnalyser) {
       levelAnalyser = levelCtx.createAnalyser();
@@ -150,11 +177,9 @@ function ensureAudioGraph(): boolean {
       levelAnalyser.smoothingTimeConstant = 0.25;
     }
     if (!graphWired) {
-      // Wire once. Subsequent calls are no-ops so we never tear down the
-      // graph mid-playback (which caused pumping / quieter replies).
-      levelGain.connect(levelCompressor);
-      levelCompressor.connect(levelCtx.destination);
-      levelCompressor.connect(levelAnalyser);
+      levelGain.connect(levelShaper);
+      levelShaper.connect(levelCtx.destination);
+      levelShaper.connect(levelAnalyser);
       graphWired = true;
     }
     return true;
