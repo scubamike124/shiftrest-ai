@@ -27,6 +27,83 @@ import {
   saveLocalPrefs,
   type CompanionLocalPrefs,
 } from "@/lib/companion/voice-action-prefs";
+import {
+  ELEVEN_VOICES,
+  useElevenVoice,
+  useRenderer,
+  useTtsProvider,
+  webglSupported,
+} from "@/lib/companion/renderer-pref";
+
+function RealismCard() {
+  const { renderer, setRenderer } = useRenderer();
+  const { provider, setProvider } = useTtsProvider();
+  const { voiceId, setVoiceId } = useElevenVoice();
+  const webgl = useMemo(() => webglSupported(), []);
+
+  return (
+    <Card className="p-4">
+      <h2 className="text-sm font-semibold">Avatar realism & voice (beta)</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Try the new 3D Companion head and an experimental voice. You can switch back any time —
+        if anything fails on your device we'll fall back to the safe defaults automatically.
+      </p>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div>
+          <Label htmlFor="renderer-3d" className="text-sm">3D Companion head</Label>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {webgl ? "Adds natural breathing, eye saccades, blinks, and speech-driven lips."
+                   : "Your device doesn't support WebGL — staying on the 2D portrait."}
+          </p>
+        </div>
+        <Switch
+          id="renderer-3d"
+          checked={renderer === "3d"}
+          disabled={!webgl}
+          onCheckedChange={(v) => setRenderer(v ? "3d" : "2d")}
+        />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <div>
+          <Label htmlFor="tts-eleven" className="text-sm">ElevenLabs voice (experimental)</Label>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Off by default. If ElevenLabs hits a limit or fails, we drop back to the standard voice for the rest of the session.
+          </p>
+        </div>
+        <Switch
+          id="tts-eleven"
+          checked={provider === "elevenlabs"}
+          onCheckedChange={(v) => setProvider(v ? "elevenlabs" : "openai")}
+        />
+      </div>
+
+      {provider === "elevenlabs" && (
+        <div className="mt-3">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">ElevenLabs voice</Label>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ELEVEN_VOICES.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() => setVoiceId(v.id)}
+                className={`rounded-lg border p-2 text-left text-xs transition-colors ${
+                  voiceId === v.id
+                    ? "border-primary bg-primary/10"
+                    : "border-border/60 hover:bg-muted/50"
+                }`}
+              >
+                <div className="font-medium">{v.label}</div>
+                <div className="text-[10px] text-muted-foreground">{v.tone}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export const Route = createFileRoute("/settings/companion")({
   head: () => ({
@@ -265,6 +342,10 @@ function CompanionSettings() {
           Choose →
         </span>
       </Link>
+
+      <RealismCard />
+
+
 
 
       <Card className="p-4">
