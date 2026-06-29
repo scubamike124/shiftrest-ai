@@ -381,8 +381,16 @@ async function playOnce(
     audio.onpause = () => {
       if (currentAudio === audio) stopLevelMeter();
     };
-    audio.play().then(() => startLevelMeter(audio)).catch(() => {
-      emitStatus("failed", "autoplay_blocked");
+    audio.play().then(() => {
+      markAudioUnlocked();
+      startLevelMeter(audio);
+    }).catch(() => {
+      if (audioUnlocked) {
+        // Already past the iOS unlock — treat as transient and don't re-warn.
+        emitStatus("failed", "playback_error");
+      } else {
+        emitStatus("failed", "autoplay_blocked");
+      }
       resolve();
     });
   });
