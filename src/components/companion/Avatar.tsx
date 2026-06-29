@@ -170,19 +170,20 @@ export function CompanionAvatarFace({
       // Non-linear gamma so quiet syllables register visibly.
       const gamma = Math.pow(Math.min(1, lvl * 6), 0.55);
 
-      // Mouth: 0.8% (idle speaking floor) → 7.5% open.
-      if (mouthRef.current) {
-        const open = s === "speaking" ? Math.max(1.0, gamma * 7.5) : 0;
-        mouthRef.current.style.height = `${open}%`;
-        mouthRef.current.style.top = `${FEATURES.mouth.y - open / 2}%`;
-        mouthRef.current.style.opacity = open > 0 ? "1" : "0";
+      // Lip shadow opacity tracks amplitude — gives a clear "mouth moving" cue
+      // without ever painting a black overlay shape on the face.
+      if (lipShadowRef.current) {
+        const op = s === "speaking" ? 0.12 + gamma * 0.38 : 0;
+        lipShadowRef.current.style.opacity = `${op}`;
       }
 
-      // Jaw drop (slow LPF on lvl) — translate portrait down 0..1.5px
+      // Jaw drop (slow LPF on lvl) — translate portrait down 0..3px + tiny scaleY
       jawLP += (gamma - jawLP) * 0.18;
       if (jawRef.current) {
-        const jawPx = s === "speaking" ? jawLP * 1.5 : 0;
+        const jawPx = s === "speaking" ? jawLP * 3.0 : 0;
+        const sy = s === "speaking" ? 1 + jawLP * 0.006 : 1;
         jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
+        jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
       }
 
       // Brow lift: listening = small lift; speaking = peaks on emphasis
