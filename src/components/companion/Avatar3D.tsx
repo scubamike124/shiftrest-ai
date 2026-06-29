@@ -52,14 +52,13 @@ function setMorph(target: { mesh: THREE.Mesh; index: number } | null, value: num
   target.mesh.morphTargetInfluences[target.index] = value;
 }
 
-function HeadModel({ url, state, level, onFail }: {
+function HeadModel({ url, state }: {
   url: string;
   state: OrbState;
-  level: number;
+  level?: number;
   onFail?: () => void;
 }) {
   const gltf = useGLTF(url);
-  void onFail;
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
 
