@@ -904,8 +904,35 @@ function CompanionPage() {
 
       {/* Voice-replies status badge */}
       {companionOn && (
-        <div className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
-          {localPrefs.voiceRepliesEnabled ? (
+        <div
+          className="mt-2 flex items-center justify-center gap-2 text-[11px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {micState === "listening" ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/70" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+              </span>
+              Listening… release to send
+            </>
+          ) : transcribing ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Transcribing…
+            </>
+          ) : voiceStatus === "speaking" ? (
+            <>
+              <Volume2 className="h-3 w-3 text-primary animate-pulse" />
+              Speaking…
+            </>
+          ) : voiceStatus === "failed" ? (
+            <>
+              <AlertCircle className="h-3 w-3 text-destructive" />
+              Voice unavailable — reply shown in chat
+            </>
+          ) : localPrefs.voiceRepliesEnabled ? (
             <>
               <Volume2 className="h-3 w-3 text-primary" />
               Voice replies on
@@ -920,7 +947,6 @@ function CompanionPage() {
         </div>
       )}
 
-      {/* Composer */}
       {/* Now-playing strip — visible only when sounds are active. */}
       <NowPlayingStrip />
 
@@ -931,10 +957,19 @@ function CompanionPage() {
             type="button"
             variant={micState === "listening" ? "default" : "outline"}
             size="icon"
-            className="h-11 w-11 shrink-0"
-            aria-label={micState === "listening" ? "Stop recording" : "Hold to talk"}
+            className={cn(
+              "h-11 w-11 shrink-0 transition",
+              micState === "listening" && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
+            )}
+            aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
+            aria-pressed={micState === "listening"}
             disabled={!companionOn || transcribing || sending}
             onClick={handleMicTap}
+            onPointerLeave={() => {
+              // Slide-off-to-cancel: if the user drags off the mic while
+              // recording, treat it as a cancel.
+              if (micState === "listening") void cancelMicCapture();
+            }}
           >
             {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
           </Button>
