@@ -38,7 +38,7 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
-import { speak, stopSpeaking, beginSpeakTurn, speakQueued } from "@/lib/companion/speak";
+import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
@@ -320,6 +320,7 @@ function CompanionPage() {
       return;
     }
     if (micState === "requesting" || micState === "encoding") return;
+    prepareVoicePlayback();
     setInput("");
     cancelMicRef.current = false;
     await micStart(async (blob) => {
