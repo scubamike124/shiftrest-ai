@@ -1503,8 +1503,10 @@ function CompanionPage() {
         voiceStatus={voiceStatus}
         orbState={orbState}
         greetShown={greetedRef.current}
+        companionMode={localPrefs.companionMode ?? "normal"}
         onReset={handleHardReset}
       />
+
     </main>
   );
 }
