@@ -185,16 +185,27 @@ function CompanionPage() {
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let failTimer: ReturnType<typeof setTimeout> | null = null;
     const onStatus = (e: Event) => {
       const detail = (e as CustomEvent<{ status: string }>).detail;
-      if (detail.status === "started") setVoiceStatus("speaking");
-      else if (detail.status === "failed") setVoiceStatus("failed");
-      else if (detail.status === "ended") {
+      if (detail.status === "started") {
+        if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+        setVoiceStatus("speaking");
+      } else if (detail.status === "failed") {
+        setVoiceStatus("failed");
+        // Auto-clear the badge after 6s so a one-off TTS failure doesn't
+        // leave "Voice unavailable" stuck for the rest of the session.
+        if (failTimer) clearTimeout(failTimer);
+        failTimer = setTimeout(() => setVoiceStatus("idle"), 6000);
+      } else if (detail.status === "ended") {
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
     window.addEventListener("companion:voice-status", onStatus);
-    return () => window.removeEventListener("companion:voice-status", onStatus);
+    return () => {
+      window.removeEventListener("companion:voice-status", onStatus);
+      if (failTimer) clearTimeout(failTimer);
+    };
   }, []);
   // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
   const cancelMicRef = useRef(false);
@@ -286,6 +297,39 @@ function CompanionPage() {
     await micStop();
   }
 
+  // Phase E — true hold-to-talk with tap-toggle fallback.
+  // - pointerdown remembers when the press began
+  // - pointerup within HOLD_THRESHOLD_MS = tap (handled by onClick toggle)
+  // - pointerup after threshold = release-to-send (stops recording)
+  const holdStartRef = useRef<number>(0);
+  const heldRef = useRef(false);
+  const HOLD_THRESHOLD_MS = 350;
+  function handleMicPointerDown() {
+    if (!companionOn || transcribing || sending) return;
+    holdStartRef.current = performance.now();
+    heldRef.current = false;
+    // If currently idle, start capture eagerly so audio begins under the gesture.
+    if (micState === "idle") void handleMicTap();
+  }
+  function handleMicPointerUp() {
+    if (holdStartRef.current === 0) return;
+    const dt = performance.now() - holdStartRef.current;
+    holdStartRef.current = 0;
+    if (dt >= HOLD_THRESHOLD_MS && micState === "listening") {
+      heldRef.current = true;
+      void micStop(); // release sends
+    }
+    // Otherwise let the click handler toggle (tap behavior).
+  }
+  function handleMicClick() {
+    // Suppress the synthetic click that follows a hold-release.
+    if (heldRef.current) {
+      heldRef.current = false;
+      return;
+    }
+    void handleMicTap();
+  }
+
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
   async function speakIfEnabled(text: string) {
@@ -373,6 +417,8 @@ function CompanionPage() {
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+    // Phase E — clear any prior "Voice unavailable" badge as a new turn begins.
+    setVoiceStatus((s) => (s === "failed" ? "idle" : s));
 
 
     // Pending text-based yes/no fallback (kept for accessibility & voice flows).
@@ -524,24 +570,26 @@ function CompanionPage() {
             if (delta) {
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
-              // Early speech: emit the first sentence past 30 chars ASAP.
-              if (spokenChars === 0 && assistant.length >= 30) {
-                const tail = assistant.slice(spokenChars);
-                const m = tail.match(SENTENCE_RE);
-                if (m && m.index !== undefined) {
+              // Stream-speak: flush every complete sentence past the
+              // already-spoken cursor as soon as it arrives.
+              if (assistant.length - spokenChars >= 30) {
+                while (true) {
+                  const tail = assistant.slice(spokenChars);
+                  const m = tail.match(SENTENCE_RE);
+                  if (!m || m.index === undefined) break;
                   const cut = spokenChars + m.index + m[0].length;
                   const segment = assistant.slice(spokenChars, cut).trim();
                   if (segment) {
                     speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
-                    spokenChars = cut;
                   }
+                  spokenChars = cut;
                 }
               }
             }
           } catch { /* noop */ }
         }
       }
-      // Enqueue any unsaid remainder.
+      // Enqueue any unsaid trailing fragment (no terminal punctuation).
       const remainder = assistant.slice(spokenChars).trim();
       if (remainder) {
         speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
@@ -874,7 +922,7 @@ function CompanionPage() {
               )}
             </div>
 
-            {m.role === "assistant" && m.content && !sending && (
+            {m.role === "assistant" && m.content && !(sending && i === messages.length - 1) && (
               <button
                 type="button"
                 onClick={() => replayMessage(m.content)}
@@ -964,12 +1012,10 @@ function CompanionPage() {
             aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
             aria-pressed={micState === "listening"}
             disabled={!companionOn || transcribing || sending}
-            onClick={handleMicTap}
-            onPointerLeave={() => {
-              // Slide-off-to-cancel: if the user drags off the mic while
-              // recording, treat it as a cancel.
-              if (micState === "listening") void cancelMicCapture();
-            }}
+            onClick={handleMicClick}
+            onPointerDown={handleMicPointerDown}
+            onPointerUp={handleMicPointerUp}
+            onPointerCancel={handleMicPointerUp}
           >
             {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
           </Button>
