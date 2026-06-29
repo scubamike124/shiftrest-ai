@@ -179,35 +179,31 @@ function CompanionPage() {
   const updateLocal = (patch: Partial<CompanionLocalPrefs>) => setLocalPrefs(saveLocalPrefs(patch));
 
   // Pass 3 + Pass 6 — drive emotion state from user/AI signals.
+  // We keep a ref to the latest messages so the event handler reads fresh data
+  // without re-subscribing on every keystroke.
+  const messagesSnapshotRef = useRef<Msg[]>([]);
+  useEffect(() => { messagesSnapshotRef.current = messages; }, [messages]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let cancelled = false;
-    let lastReply = "";
-    const captureReply = () => {
-      // Snapshot last assistant message text for inference on turn end.
-      const last = messagesRef.current?.filter(m => m.role === "assistant").slice(-1)[0];
-      lastReply = last?.content ?? "";
-    };
     const onTurnEnd = async () => {
-      if (cancelled) return;
-      captureReply();
+      const last = messagesSnapshotRef.current.filter((m) => m.role === "assistant").slice(-1)[0];
       const { inferFromText, setEmotion } = await import("@/lib/companion/emotion");
       if (localPrefs.companionMode === "sleep") { setEmotion("sleep"); return; }
-      setEmotion(inferFromText(lastReply));
+      setEmotion(inferFromText(last?.content ?? ""));
     };
-    const onStart = async () => {
+    const onStatus = async (e: Event) => {
+      const d = (e as CustomEvent<{ status: string }>).detail;
+      if (d?.status !== "started") return;
       const { setEmotion } = await import("@/lib/companion/emotion");
       if (localPrefs.companionMode === "sleep") setEmotion("sleep");
       else setEmotion("listening");
     };
     window.addEventListener("companion:turn-ended", onTurnEnd as EventListener);
-    window.addEventListener("companion:voice-status", ((e: Event) => {
-      const d = (e as CustomEvent<{ status: string }>).detail;
-      if (d?.status === "started") onStart();
-    }) as EventListener);
+    window.addEventListener("companion:voice-status", onStatus as EventListener);
     return () => {
-      cancelled = true;
       window.removeEventListener("companion:turn-ended", onTurnEnd as EventListener);
+      window.removeEventListener("companion:voice-status", onStatus as EventListener);
     };
   }, [localPrefs.companionMode]);
 
