@@ -209,7 +209,7 @@ export function CompanionAvatarFace({
         />
       )}
 
-      {/* Soft inner ring (md/lg only) */}
+      {/* Soft inner ring (md/lg only) — gentle warmth, never bright. */}
       {size !== "sm" && (
         <div
           aria-hidden
@@ -217,11 +217,11 @@ export function CompanionAvatarFace({
           style={{
             boxShadow:
               state === "speaking"
-                ? "inset 0 0 24px hsl(190 90% 60% / 0.35), 0 0 28px hsl(190 90% 60% / 0.25)"
+                ? "inset 0 0 18px hsl(190 70% 60% / 0.18)"
                 : state === "listening"
-                  ? "inset 0 0 20px hsl(var(--primary) / 0.35)"
-                  : "inset 0 0 18px hsl(var(--primary) / 0.18)",
-            transition: "box-shadow 400ms ease",
+                  ? "inset 0 0 14px hsl(var(--primary) / 0.14)"
+                  : "inset 0 0 14px hsl(var(--primary) / 0.10)",
+            transition: "box-shadow 500ms ease",
           }}
         />
       )}
