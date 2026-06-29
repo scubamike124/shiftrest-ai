@@ -220,8 +220,8 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
         </div>
       </Link>
 
-      {/* Tonight tile — stacked under hero on mobile, floats at lg+ */}
-      <div className="mt-4 w-full rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y lg:absolute lg:-right-3 lg:-bottom-3 lg:mt-0 lg:w-[58%] lg:max-w-[260px]">
+      {/* Tonight tile — stacked under hero on mobile, floats at lg+ (top-right, clear of mic CTA) */}
+      <div className="mt-4 w-full rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y lg:absolute lg:-right-6 lg:-top-6 lg:mt-0 lg:w-[44%] lg:max-w-[220px]">
         <div className="flex items-center justify-between">
           <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
             Tonight · Tue
