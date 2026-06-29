@@ -53,6 +53,7 @@ export const Route = createFileRoute("/companion")({
       s.period === "morning" || s.period === "afternoon" || s.period === "evening"
         ? s.period
         : undefined,
+    intro: s.intro === 1 || s.intro === "1" ? (1 as const) : undefined,
   }),
   head: () => ({
     meta: [
