@@ -299,14 +299,22 @@ export function DebugHUD(props: DebugHUDProps) {
         {row("companionOn", props.companionOn ?? "—")}
         {row("prefsLoaded", props.prefsLoaded ?? "—")}
         {row("micPerm", permission)}
+        {row("micTrack", micTrack)}
         {row("micState", props.micState ?? "—")}
         {row("voiceStatus", props.voiceStatus ?? "—")}
         {row("orbState", props.orbState ?? "—")}
         {row("audioLevel", audioLevel.toFixed(2))}
+        {row("audioCtx", acState)}
         {row("ttsCtx", ttsCtx)}
+        {row("viseme", viseme)}
+        {row("emotion", emotion)}
+        {row("mode", props.companionMode ?? "normal")}
+        {row("fps", fps || "—")}
+        {row("heap", heap)}
         {row("greetShown", props.greetShown ?? "—")}
         {row("lastTap", lastTapAgo)}
       </div>
+
 
       <div className="mt-2 max-h-[140px] overflow-y-auto rounded bg-white/5 p-1">
         {steps.length === 0 ? (
