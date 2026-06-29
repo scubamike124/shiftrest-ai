@@ -994,7 +994,17 @@ function CompanionPage() {
         )}
       </form>
       {micState === "listening" && (
-        <p className="mt-1 text-center text-[11px] text-muted-foreground">Listening… tap mic to stop</p>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => void cancelMicCapture()}
+            className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+            Cancel
+          </button>
+          <span className="text-[11px] text-muted-foreground">or tap mic to send</span>
+        </div>
       )}
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
