@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { KTX2Loader } from "three-stdlib";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
@@ -52,13 +53,43 @@ function setMorph(target: { mesh: THREE.Mesh; index: number } | null, value: num
   target.mesh.morphTargetInfluences[target.index] = value;
 }
 
+const BASIS_TRANSCODER_PATH =
+  "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/libs/basis/";
+
+let cachedKTX2Loader: KTX2Loader | null = null;
+
+function getKTX2Loader(): KTX2Loader | null {
+  if (cachedKTX2Loader) return cachedKTX2Loader;
+  if (typeof window === "undefined" || typeof document === "undefined") return null;
+  try {
+    const canvas = document.createElement("canvas");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    const ktx2 = new KTX2Loader();
+    ktx2.setTranscoderPath(BASIS_TRANSCODER_PATH);
+    ktx2.detectSupport(renderer);
+    renderer.dispose();
+    cachedKTX2Loader = ktx2;
+    return cachedKTX2Loader;
+  } catch (err) {
+    console.warn("KTX2Loader init failed; 3D textures may not decode", err);
+    return null;
+  }
+}
+
+function configureKTX2Loader(loader: { setKTX2Loader?: (l: KTX2Loader) => void }) {
+  const ktx2 = getKTX2Loader();
+  if (ktx2 && loader.setKTX2Loader) {
+    loader.setKTX2Loader(ktx2);
+  }
+}
+
 function HeadModel({ url, state }: {
   url: string;
   state: OrbState;
   level?: number;
   onFail?: () => void;
 }) {
-  const gltf = useGLTF(url);
+  const gltf = useGLTF(url, true, true, configureKTX2Loader);
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
 
@@ -245,5 +276,5 @@ export default function Avatar3D({ state, level = 0, size = "lg", className, onF
 // Preload helper for the picker / hero entrypoint.
 export function preloadAvatarModel(id: string | null | undefined) {
   const url = modelUrlFor(id);
-  if (url) useGLTF.preload(url);
+  if (url) useGLTF.preload(url, true, true, configureKTX2Loader);
 }

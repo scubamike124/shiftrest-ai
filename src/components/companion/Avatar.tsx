@@ -82,14 +82,22 @@ function prefersReducedMotion(): boolean {
 }
 
 // ── Public wrapper: routes to 3D when supported + opted in, else 2D ──
+// We intentionally render the 2D portrait on the server and during the first
+// client render so SSR hydration matches. After mount we switch to the 3D
+// renderer if the user/device supports it.
 export function CompanionAvatarFace(props: AvatarProps) {
   const { renderer } = useRenderer();
   const { id } = useAvatar();
+  const [mounted, setMounted] = useState(false);
   const [webgl] = useState<boolean>(() => webglSupported());
   const [threeDFailed, setThreeDFailed] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const has3DModel = !!modelUrlFor(id);
-  const want3D = renderer === "3d" && webgl && has3DModel && !threeDFailed;
+  const want3D = mounted && renderer === "3d" && webgl && has3DModel && !threeDFailed;
 
   if (want3D) {
     return (
