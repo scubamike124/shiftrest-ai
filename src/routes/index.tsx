@@ -182,11 +182,18 @@ function CapChip({ icon: Icon, label }: { icon: typeof Shield; label: string }) 
 
 
 function HeroStack({ ctaHref }: { ctaHref: string }) {
+  // Avatar always opens the live Companion experience. If the user isn't
+  // signed in yet, the /auth route will round-trip them back to /companion
+  // via ?return= so the tap never lands on a dead end.
+  const avatarTarget = ctaHref === "/dashboard" ? "/companion" : "/auth";
+  const avatarSearch =
+    ctaHref === "/dashboard" ? { greet: 1 } : { return: "/companion?greet=1" };
   return (
     <div className="relative w-full lg:aspect-[5/6]">
       {/* Primary: Companion glass card */}
       <Link
-        to={ctaHref}
+        to={avatarTarget}
+        search={avatarSearch as never}
         aria-label="Open your AI Companion"
         className="group relative flex aspect-[5/6] w-full flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8 lg:absolute lg:inset-0 lg:aspect-auto"
         style={{
