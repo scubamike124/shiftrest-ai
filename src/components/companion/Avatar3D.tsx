@@ -89,7 +89,7 @@ function HeadModel({ url, state }: {
   level?: number;
   onFail?: () => void;
 }) {
-  const gltf = useGLTF(url);
+  const gltf = useGLTF(url, true, true, configureKTX2Loader);
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
 
