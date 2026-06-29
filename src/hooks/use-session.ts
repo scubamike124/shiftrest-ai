@@ -28,5 +28,10 @@ export function useSession() {
     };
   }, []);
 
-  return { session, ready, hasSession: Boolean(session) };
+  return {
+    session,
+    ready,
+    hasSession: Boolean(session),
+    hasAccessToken: Boolean(session?.access_token),
+  };
 }

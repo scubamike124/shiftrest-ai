@@ -47,7 +47,7 @@ import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
 import { DebugHUD } from "@/components/companion/DebugHUD";
-import { emitDebug } from "@/lib/companion/debug-bus";
+import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 
 
 
@@ -141,17 +141,6 @@ function CompanionPage() {
       sub.data.subscription.unsubscribe();
     };
   }, []);
-
-  // If the user opened /companion while signed-out, bounce to /auth and
-  // bring them right back here once they're in. Avoids the "tap Nova → blank
-  // companion shell" dead-end.
-  const navigateForAuth = useNavigate();
-  useEffect(() => {
-    if (signedIn === false) {
-      const back = `/companion${typeof window !== "undefined" ? window.location.search : ""}`;
-      navigateForAuth({ to: "/auth", search: { return: back } as never }).catch(() => undefined);
-    }
-  }, [signedIn, navigateForAuth]);
 
   const prefsQ = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, enabled: signedIn === true });
   const prefs = prefsQ.data;
@@ -374,6 +363,7 @@ function CompanionPage() {
         });
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
+          emitHttpStatus({ endpoint: "/api/stt", status: resp.status, at: Date.now() });
           emitDebug("stt-fail", `${resp.status}`);
           toast.error(json.error || "Couldn't transcribe");
           track({ event: "voice_turn_failed", stage: "stt" });
@@ -652,6 +642,7 @@ function CompanionPage() {
       });
 
       if (!resp.ok || !resp.body) {
+        emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
         const fallback =
@@ -772,8 +763,20 @@ function CompanionPage() {
       <main className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center gap-4 px-5 py-12 text-center">
         <Sparkles className="h-10 w-10 text-primary" />
         <h1 className="text-2xl font-semibold">Sign in to meet your Companion</h1>
-        <p className="text-sm text-muted-foreground">Your private AI lives behind your account.</p>
+        <p className="text-sm text-muted-foreground">
+          Your private AI needs an authenticated session before it can load personal guidance.
+        </p>
         <Button asChild><Link to="/auth">Sign in</Link></Button>
+        <DebugHUD
+          signedIn={false}
+          companionOn={false}
+          prefsLoaded={false}
+          micState="not-mounted"
+          voiceStatus="not-mounted"
+          orbState="signed-out"
+          greetShown={false}
+          onReset={handleHardReset}
+        />
       </main>
     );
   }
@@ -1037,7 +1040,7 @@ function CompanionPage() {
       )}
 
       {/* Slice 7 — Smart Day & Evening Intelligence: time-of-day brief */}
-      {signedIn === true && (
+      {signedIn === true && prefsQ.isSuccess && prefs?.onboarded && (
         <DailyBrief
           prefs={prefs ?? null}
           signedIn={true}

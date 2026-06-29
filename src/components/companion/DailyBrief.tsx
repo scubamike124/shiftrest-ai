@@ -170,8 +170,8 @@ export function DailyBrief({
   // Gate on a *hydrated* session, not the parent's `signedIn` snapshot —
   // otherwise on iPhone Safari we fire before the SDK has loaded the token
   // and hit "Unauthorized: No authorization header provided".
-  const { hasSession, ready } = useSession();
-  const canFetch = signedIn && ready && hasSession && enabled;
+  const { hasSession, hasAccessToken, ready } = useSession();
+  const canFetch = signedIn && ready && hasSession && hasAccessToken && enabled;
 
   const afternoonQ = useQuery({
     queryKey: ["afternoon-brief"],
@@ -223,6 +223,7 @@ export function DailyBrief({
       const detail = (e as CustomEvent<{ period?: string }>).detail;
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
       refreshTimer.current = window.setTimeout(() => {
+        if (!canFetch) return;
         if (!detail?.period || detail.period === "afternoon") void afternoonQ.refetch();
         if (!detail?.period || detail.period === "evening") void eveningQ.refetch();
       }, 250);
@@ -232,18 +233,18 @@ export function DailyBrief({
       window.removeEventListener("companion:brief-refresh", onRefresh as EventListener);
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
     };
-  }, [afternoonQ, eveningQ]);
+  }, [afternoonQ, eveningQ, canFetch]);
 
-  if (!signedIn || !enabled) return null;
+  if (!signedIn || !ready || !hasSession || !hasAccessToken || !enabled) return null;
 
   if (period === "morning") {
     return (
       <>
-        <WeatherAlertsCard period="morning" signedIn={signedIn} />
-        <TrafficCard period="morning" signedIn={signedIn} />
-        <AgendaCard period="morning" signedIn={signedIn} />
-        <PersonalPlanCard period="morning" signedIn={signedIn} />
-        <MorningBrief prefs={prefs} signedIn={signedIn} />
+        <WeatherAlertsCard period="morning" signedIn={canFetch} />
+        <TrafficCard period="morning" signedIn={canFetch} />
+        <AgendaCard period="morning" signedIn={canFetch} />
+        <PersonalPlanCard period="morning" signedIn={canFetch} />
+        <MorningBrief prefs={prefs} signedIn={canFetch} />
       </>
     );
   }
@@ -254,10 +255,10 @@ export function DailyBrief({
       className="mt-2 flex flex-col gap-3"
       data-testid={`daily-brief-${period}`}
     >
-      <WeatherAlertsCard period={period} signedIn={signedIn} />
-      <TrafficCard period={period} signedIn={signedIn} />
-      <AgendaCard period={period} signedIn={signedIn} />
-      <PersonalPlanCard period={period} signedIn={signedIn} />
+      <WeatherAlertsCard period={period} signedIn={canFetch} />
+      <TrafficCard period={period} signedIn={canFetch} />
+      <AgendaCard period={period} signedIn={canFetch} />
+      <PersonalPlanCard period={period} signedIn={canFetch} />
       {period === "afternoon" ? (
         afternoonQ.isLoading && !afternoonQ.data ? (
           <CardSkeleton />

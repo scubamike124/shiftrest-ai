@@ -149,6 +149,7 @@ function RootComponent() {
   const navigate = useNavigate();
   const surface = surfaceFor(pathname);
   const [signedIn, setSignedIn] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,9 +171,13 @@ function RootComponent() {
       await registerAppShell();
     }
     bootstrap();
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    supabase.auth.getSession().then(({ data }) => {
+      setSignedIn(!!data.session);
+      setAuthReady(true);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setSignedIn(!!session);
+      setAuthReady(true);
       if (event === "SIGNED_IN" || event === "SIGNED_OUT") bootstrap();
     });
     return () => {
@@ -218,7 +223,7 @@ function RootComponent() {
         </div>
       )}
 
-      {surface === "app" && <Onboarding />}
+      {surface === "app" && authReady && signedIn && <Onboarding />}
       <CookieBanner />
       <Toaster />
     </QueryClientProvider>

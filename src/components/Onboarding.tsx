@@ -6,6 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DEFAULT_PREFS, fetchPrefs, markOnboarded } from "@/lib/prefs";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
 import { toast } from "sonner";
+import { DebugHUD } from "@/components/companion/DebugHUD";
+import { useSession } from "@/hooks/use-session";
 
 const INTRO_SLIDES = [
   {
@@ -33,6 +35,7 @@ const ONBOARDING_DOCS = ["terms", "privacy", "disclaimers", "safety", "electroni
 
 export function Onboarding() {
   const queryClient = useQueryClient();
+  const { ready: sessionReady, hasSession, hasAccessToken } = useSession();
   const { data: prefs, isSuccess } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
@@ -57,6 +60,10 @@ export function Onboarding() {
 
   async function finish() {
     if (!allAcked || busy) return;
+    if (!sessionReady || !hasSession || !hasAccessToken) {
+      toast.info("Please sign in before continuing.");
+      return;
+    }
     setBusy(true);
     try {
       await recordAcceptanceFn({
@@ -150,6 +157,16 @@ export function Onboarding() {
           {!isConsentStep && <ChevronRight className="h-5 w-5" />}
         </button>
       </div>
+
+      <DebugHUD
+        signedIn={sessionReady ? hasSession : null}
+        companionOn={false}
+        prefsLoaded={isSuccess}
+        micState="not-mounted"
+        voiceStatus="not-mounted"
+        orbState="onboarding"
+        greetShown={false}
+      />
     </div>
   );
 }

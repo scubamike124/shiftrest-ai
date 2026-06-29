@@ -2,7 +2,7 @@
 // Frontend-only. No analytics, no network. Emit calls are cheap no-ops
 // when the HUD isn't mounted.
 
-export const BUILD_STAMP = "2026-06-29T05:10Z";
+export const BUILD_STAMP = "2026-06-29T05:45Z";
 
 export type DebugStep =
   | "tap"
@@ -32,7 +32,25 @@ export type DebugPayload = {
   info?: string;
 };
 
+export type DebugHttpStatus = {
+  endpoint: string;
+  status: number;
+  at: number;
+};
+
 const EVT = "companion:debug";
+const HTTP_EVT = "companion:http-status";
+let fetchProbeInstalled = false;
+
+function endpointFrom(input: RequestInfo | URL): string {
+  try {
+    const raw = typeof input === "string" || input instanceof URL ? String(input) : input.url;
+    const url = new URL(raw, window.location.origin);
+    return `${url.pathname}${url.search}`.slice(0, 160);
+  } catch {
+    return "unknown";
+  }
+}
 
 export function emitDebug(step: DebugStep, info?: string): void {
   if (typeof window === "undefined") return;
@@ -52,6 +70,41 @@ export function onDebug(cb: (p: DebugPayload) => void): () => void {
   const h = (e: Event) => cb((e as CustomEvent<DebugPayload>).detail);
   window.addEventListener(EVT, h as EventListener);
   return () => window.removeEventListener(EVT, h as EventListener);
+}
+
+export function emitHttpStatus(status: DebugHttpStatus): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent<DebugHttpStatus>(HTTP_EVT, { detail: status }));
+  } catch {
+    /* noop */
+  }
+}
+
+export function onHttpStatus(cb: (p: DebugHttpStatus) => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const h = (e: Event) => cb((e as CustomEvent<DebugHttpStatus>).detail);
+  window.addEventListener(HTTP_EVT, h as EventListener);
+  return () => window.removeEventListener(HTTP_EVT, h as EventListener);
+}
+
+export function installDebugNetworkProbe(): void {
+  if (typeof window === "undefined" || fetchProbeInstalled || !isDebugEnabled()) return;
+  fetchProbeInstalled = true;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const endpoint = endpointFrom(input);
+    try {
+      const response = await originalFetch(input, init);
+      if (!response.ok) {
+        emitHttpStatus({ endpoint, status: response.status, at: Date.now() });
+      }
+      return response;
+    } catch (error) {
+      emitHttpStatus({ endpoint, status: 0, at: Date.now() });
+      throw error;
+    }
+  };
 }
 
 export function isDebugEnabled(): boolean {
