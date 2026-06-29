@@ -330,20 +330,12 @@ export function CompanionAvatarFace({
         />
       )}
 
-      {/* Soft inner ring */}
+      {/* Soft inner ring — static, never competes with the face */}
       {size !== "sm" && (
         <div
           aria-hidden
           className="absolute inset-0 rounded-full ring-1 ring-white/10"
-          style={{
-            boxShadow:
-              state === "speaking"
-                ? "inset 0 0 18px hsl(190 70% 60% / 0.20)"
-                : state === "listening"
-                  ? "inset 0 0 14px hsl(var(--primary) / 0.16)"
-                  : "inset 0 0 14px hsl(var(--primary) / 0.10)",
-            transition: "box-shadow 500ms ease",
-          }}
+          style={{ boxShadow: "inset 0 0 14px hsl(var(--primary) / 0.10)" }}
         />
       )}
 
