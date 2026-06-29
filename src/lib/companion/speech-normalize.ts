@@ -125,11 +125,30 @@ function tidyPunctuation(s: string): string {
     .trim();
 }
 
+/** Pass 2 — Cadence padding. The TTS model honours punctuation density for
+ *  breath pacing; we lightly amplify natural pauses without changing wording.
+ *    - collapse stacked "!!" → single "!"
+ *    - " , " sub-comma after every coordinating conjunction at clause start
+ *    - sentence end "?" / "." gets a trailing space we already keep
+ *    - sleep mode: insert ellipses between clauses for hushed cadence
+ */
+function applyCadence(s: string, mode: "normal" | "sleep"): string {
+  let out = s
+    .replace(/([!?]){2,}/g, "$1")
+    .replace(/\b(and|but|so|then)\b\s+/gi, "$1, ");
+  if (mode === "sleep") {
+    out = out
+      .replace(/([.?!])\s+/g, "$1 … ")
+      .replace(/,\s+/g, ", … ");
+  }
+  return out;
+}
+
 /**
  * Single entry point. Always returns a non-empty string when given non-empty
  * input; on any failure returns the original text unchanged.
  */
-export function normalizeForSpeech(input: string): string {
+export function normalizeForSpeech(input: string, mode: "normal" | "sleep" = "normal"): string {
   if (!input) return input;
   try {
     let s = input;
@@ -138,6 +157,7 @@ export function normalizeForSpeech(input: string): string {
     s = normalizeDecimals(s);
     s = expandForSpeech(s);
     s = tidyPunctuation(s);
+    s = applyCadence(s, mode);
     if (s && !/[.!?]$/.test(s)) s = `${s}.`;
     return s;
   } catch {

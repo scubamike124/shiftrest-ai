@@ -114,12 +114,36 @@ export function clampSpeed(n: unknown): number {
   return Math.min(1.4, Math.max(0.7, v));
 }
 
-export function buildInstructions(profile: Pick<VoiceProfile, "personality" | "accent" | "language" | "instructionsOverride">): string {
+export type SpeakMode = "normal" | "sleep" | "encouraging" | "thinking";
+
+const MODE_OVERLAYS: Record<SpeakMode, string> = {
+  normal:
+    "Warm, conversational, unhurried. Use natural breath pauses between clauses and soften the end of every sentence. Vary pitch gently — never monotone.",
+  sleep:
+    "Slow, hushed, near-whisper. Long pauses between ideas. Trailing endings that fade. Lower pitch slightly. Never bright. Never crisp. Sound like a friend sitting on the edge of the bed.",
+  encouraging:
+    "Slight smile in the voice. A touch brighter without speeding up. Warm, supportive cadence.",
+  thinking:
+    "Reflective and unhurried. Brief pause before key points as if considering them aloud.",
+};
+
+export const MODE_SPEED: Record<SpeakMode, number> = {
+  normal: 0.95,
+  sleep: 0.85,
+  encouraging: 0.98,
+  thinking: 0.92,
+};
+
+export function buildInstructions(
+  profile: Pick<VoiceProfile, "personality" | "accent" | "language" | "instructionsOverride">,
+  mode: SpeakMode = "normal",
+): string {
   if (profile.instructionsOverride && profile.instructionsOverride.trim()) {
     return profile.instructionsOverride.trim();
   }
   const base = PERSONALITY_TEMPLATES[profile.personality] ?? PERSONALITY_TEMPLATES.calm;
+  const overlay = MODE_OVERLAYS[mode] ?? MODE_OVERLAYS.normal;
   const lang = LANGUAGE_OPTIONS.find((l) => l.code === profile.language)?.label ?? "English";
   const accent = profile.accent ? ` Use a ${profile.accent} accent.` : "";
-  return `${base} Respond in ${lang}.${accent}`;
+  return `${base} ${overlay} Respond in ${lang}.${accent}`;
 }
