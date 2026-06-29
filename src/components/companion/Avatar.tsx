@@ -21,6 +21,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
+import { getEyeRig } from "@/lib/companion/avatars";
 import { useRenderer, webglSupported } from "@/lib/companion/renderer-pref";
 import { modelUrlFor } from "@/lib/companion/avatar-models";
 import {
