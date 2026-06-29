@@ -796,14 +796,23 @@ function CompanionPage() {
           <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
             <div
               className={cn(
-                "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+                "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground"
+                  ? "whitespace-pre-wrap bg-primary text-primary-foreground"
                   : "bg-muted text-foreground",
               )}
             >
-              {m.content || (sending && i === messages.length - 1 ? "…" : "")}
+              {m.role === "assistant" ? (
+                m.content ? (
+                  <MarkdownMessage content={m.content} />
+                ) : sending && i === messages.length - 1 ? (
+                  <ThinkingShimmer />
+                ) : null
+              ) : (
+                m.content
+              )}
             </div>
+
             {m.role === "assistant" && m.action && (
               <div className="w-full max-w-[85%]">
                 <ActionCard
