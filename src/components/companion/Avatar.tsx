@@ -120,7 +120,10 @@ function CompanionAvatarFace2D({
 }: AvatarProps) {
   const px = SIZE_PX[size];
   const showAura = aura ?? size !== "sm";
-  const { src: portraitUrl } = useAvatar();
+  const { src: portraitUrl, id: avatarId } = useAvatar();
+  const eyeRig = getEyeRig(avatarId);
+  // Local face landmark map — eye coords come from the per-avatar rig.
+  const FL = { ...F, eyeLeft: eyeRig.eyeLeft, eyeRight: eyeRig.eyeRight, eyeW: eyeRig.eyeW, eyeH: eyeRig.eyeH };
 
   // ── Environment ──────────────────────────────────────────────────────
   const [reduced, setReduced] = useState<boolean>(() => prefersReducedMotion());
