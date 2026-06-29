@@ -18,6 +18,7 @@ import { SiteHeader } from "../components/site/SiteHeader";
 import { SiteFooter } from "../components/site/SiteFooter";
 import { AppSidebar } from "../components/site/AppSidebar";
 import { CompanionDock } from "../components/companion/CompanionDock";
+import { DebugHUD } from "../components/companion/DebugHUD";
 import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
@@ -25,8 +26,8 @@ import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
-import { supabase } from "@/integrations/supabase/client";
 import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
+import { useSession } from "@/hooks/use-session";
 
 const MARKETING_ROUTES = new Set(["/", "/pricing", "/features", "/privacy", "/terms"]);
 const MARKETING_PREFIXES = ["/legal"];
@@ -149,14 +150,31 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const surface = surfaceFor(pathname);
-  const [signedIn, setSignedIn] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
+  const { ready: authReady, hasSession, hasAccessToken } = useSession();
+  const signedIn = authReady && hasSession && hasAccessToken;
 
   installDebugNetworkProbe();
 
   useEffect(() => {
     let cancelled = false;
-    async function bootstrap() {
+    async function registerPwa() {
+      // Single guarded registrar; refuses in dev/preview/iframe and
+      // unregisters stale workers in those contexts. On production
+      // origins this activates BOTH app-shell caching and push handlers
+      // from the same /sw.js file.
+      const { registerAppShell } = await import("@/lib/pwa/register");
+      await registerAppShell();
+    }
+    registerPwa();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function bootstrapAuthed() {
+      if (!signedIn) return;
       await Promise.all([migrateLocalShiftsIfNeeded(), migrateLocalPrefsIfNeeded()]);
       if (cancelled) return;
       await ensureDefaultEmployer();
@@ -166,28 +184,12 @@ function RootComponent() {
       queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
       await scheduleNextWindDown();
-      // Single guarded registrar; refuses in dev/preview/iframe and
-      // unregisters stale workers in those contexts. On production
-      // origins this activates BOTH app-shell caching and push handlers
-      // from the same /sw.js file.
-      const { registerAppShell } = await import("@/lib/pwa/register");
-      await registerAppShell();
     }
-    bootstrap();
-    supabase.auth.getSession().then(({ data }) => {
-      setSignedIn(!!data.session);
-      setAuthReady(true);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      setSignedIn(!!session);
-      setAuthReady(true);
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT") bootstrap();
-    });
+    bootstrapAuthed();
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, signedIn]);
 
   // Signed-in users belong on the dashboard, not the marketing homepage.
   // Soft client-side redirect — keeps SSR/marketing intact for logged-out visitors.
@@ -227,6 +229,15 @@ function RootComponent() {
       )}
 
       {surface === "app" && authReady && signedIn && <Onboarding />}
+      <DebugHUD
+        signedIn={authReady ? signedIn : null}
+        companionOn={false}
+        prefsLoaded={false}
+        micState="root"
+        voiceStatus="root"
+        orbState={pathname}
+        greetShown={false}
+      />
       <CookieBanner />
       <Toaster />
     </QueryClientProvider>
