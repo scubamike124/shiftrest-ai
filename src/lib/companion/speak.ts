@@ -312,6 +312,7 @@ async function playOnce(
   opts: SpeakOptions,
   stillValid: () => boolean,
 ): Promise<void> {
+  const spoken = normalizeForSpeech(text);
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   const resp = await fetch("/api/tts", {
@@ -320,7 +321,7 @@ async function playOnce(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text, voice: opts.voice ?? undefined }),
+    body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, speed: 0.95 }),
   });
   if (!resp.ok) {
     track({ event: "voice_skipped", reason: "tts_error" });
