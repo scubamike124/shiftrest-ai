@@ -366,6 +366,7 @@ function CompanionPage() {
         const fd = new FormData();
         fd.append("file", blob, "recording.wav");
         if (prefs?.voiceLanguage) fd.append("language", prefs.voiceLanguage.split("-")[0]);
+        emitDebug("stt-req");
         const resp = await fetch("/api/stt", {
           method: "POST",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -373,16 +374,19 @@ function CompanionPage() {
         });
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
+          emitDebug("stt-fail", `${resp.status}`);
           toast.error(json.error || "Couldn't transcribe");
           track({ event: "voice_turn_failed", stage: "stt" });
           return;
         }
         const text = (json.text || "").trim();
         if (!text) {
+          emitDebug("stt-ok", "empty");
           toast.info("I didn't catch any words. You can try again or type it below.");
           track({ event: "voice_turn_empty_transcript" });
           return;
         }
+        emitDebug("stt-ok", `${text.length}c`);
         track({ event: "voice_turn_transcribed", chars: text.length });
         setInput(text);
         // Complete the voice loop: transcript → thinking → assistant reply.
