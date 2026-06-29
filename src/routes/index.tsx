@@ -173,12 +173,12 @@ function Trust({ icon: Icon, label }: { icon: typeof Shield; label: string }) {
 
 function HeroStack({ ctaHref }: { ctaHref: string }) {
   return (
-    <div className="relative aspect-[5/6] w-full">
+    <div className="relative w-full lg:aspect-[5/6]">
       {/* Primary: Companion glass card */}
       <Link
         to={ctaHref}
         aria-label="Open your AI Companion"
-        className="group absolute inset-0 flex flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8"
+        className="group relative flex aspect-[5/6] w-full flex-col items-center justify-between rounded-[36px] border border-white/10 bg-card/60 p-6 text-center shadow-[var(--shadow-card)] backdrop-blur-xl transition hover:border-primary/40 sm:p-8 lg:absolute lg:inset-0 lg:aspect-auto"
         style={{
           background:
             "radial-gradient(120% 80% at 50% 0%, oklch(0.32 0.14 280 / 0.55), transparent 60%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
@@ -217,8 +217,8 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
         </div>
       </Link>
 
-      {/* Floating tonight tile (bottom-right) */}
-      <div className="absolute -right-3 -bottom-3 w-[58%] max-w-[260px] rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y">
+      {/* Tonight tile — stacked under hero on mobile, floats at lg+ */}
+      <div className="mt-4 w-full rounded-2xl border border-primary/30 bg-background/90 p-3.5 shadow-[var(--shadow-glow)] backdrop-blur-xl float-y lg:absolute lg:-right-3 lg:-bottom-3 lg:mt-0 lg:w-[58%] lg:max-w-[260px]">
         <div className="flex items-center justify-between">
           <p className="text-[9px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
             Tonight · Tue
