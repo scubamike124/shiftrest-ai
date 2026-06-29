@@ -100,12 +100,25 @@ function SimliPoc() {
 
   async function connect() {
     setError(null);
+    const trimmed = faceId.trim();
+    if (!FACE_ID_RE.test(trimmed)) {
+      setError(
+        "Invalid face ID. Paste the full Simli face ID from your dashboard — letters, digits, '-' or '_', 6–64 chars (e.g. tmp9i8bbq7c).",
+      );
+      setStatus("error");
+      return;
+    }
+    // Tear down any existing session so a new face ID actually takes effect.
+    if (clientRef.current) {
+      try { await clientRef.current.stop?.(); } catch { /* ok */ }
+      clientRef.current = null;
+    }
     setStatus("connecting");
     try {
       const res = await fetch("/api/lab/simli/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ faceId, maxSessionLength: 300, maxIdleTime: 60 }),
+        body: JSON.stringify({ faceId: trimmed, maxSessionLength: 300, maxIdleTime: 60 }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -129,6 +142,7 @@ function SimliPoc() {
       client.on("start", () => setStatus("ready"));
       await client.start();
       clientRef.current = client;
+      setActiveFaceId(trimmed);
       try { await videoRef.current?.play(); } catch { /* autoplay */ }
       try { await audioRef.current?.play(); } catch { /* autoplay */ }
     } catch (e) {
@@ -142,8 +156,11 @@ function SimliPoc() {
   async function disconnect() {
     try { await clientRef.current?.stop?.(); } catch { /* ok */ }
     clientRef.current = null;
+    setActiveFaceId(null);
     setStatus("idle");
   }
+
+
 
   async function speak() {
     if (!clientRef.current) return;
