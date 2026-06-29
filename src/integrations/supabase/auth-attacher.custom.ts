@@ -40,7 +40,7 @@ async function waitForSession(timeoutMs: number): Promise<string | null> {
     const finish = (token: string | null) => {
       if (done) return;
       done = true;
-      try { sub.subscription.unsubscribe(); } catch { /* noop */ }
+      try { sub.data.subscription.unsubscribe(); } catch { /* noop */ }
       window.clearTimeout(timer);
       resolve(token);
     };
