@@ -348,6 +348,7 @@ function CompanionPage() {
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
           toast.error(json.error || "Couldn't transcribe");
+          track({ event: "voice_turn_failed", stage: "stt" });
           return;
         }
         const text = (json.text || "").trim();
