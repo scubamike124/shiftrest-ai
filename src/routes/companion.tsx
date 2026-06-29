@@ -764,10 +764,34 @@ function CompanionPage() {
         style={{ minHeight: 220 }}
       >
         {messages.length === 0 && (
-          <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-            {companionOn ? "Say hi or ask anything about your sleep, schedule, or recovery." : "Conversations are paused while Companion Mode is off."}
-          </p>
+          <div className="px-1 py-4">
+            {companionOn ? (
+              <>
+                <p className="mb-3 text-center text-xs text-muted-foreground">
+                  Try one of these — or just say what's on your mind.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {SUGGESTED_CHIPS.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => void handleSend(undefined, chip.text)}
+                      disabled={sending}
+                      className="rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground/90 backdrop-blur-sm transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground">
+                Conversations are paused while Companion Mode is off.
+              </p>
+            )}
+          </div>
         )}
+
         {messages.map((m, i) => (
           <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
             <div
