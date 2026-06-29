@@ -690,15 +690,19 @@ function CompanionPage() {
           />
         </button>
         <div className="mt-4 text-center">
-          <p className="text-base font-medium">
-            Hi {firstName(prefs ?? ({} as Prefs), sessionEmail)}, I&apos;m {aiName}.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {companionOn
-              ? "Talk or type — I'm here when you need me."
-              : "Turn on Companion Mode to start chatting."}
-          </p>
+          {(() => {
+            const g = timeGreeting(firstName(prefs ?? ({} as Prefs), sessionEmail));
+            return (
+              <>
+                <p className="text-base font-medium">{g.hi}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {companionOn ? g.sub : "Turn on Companion Mode to start chatting."}
+                </p>
+              </>
+            );
+          })()}
         </div>
+
       </section>
 
       {/* Slice 5 — pending memory proposals (non-intrusive). */}
