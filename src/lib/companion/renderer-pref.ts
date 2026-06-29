@@ -35,8 +35,10 @@ function writeLS(key: string, value: string) {
 }
 
 export function getRenderer(): CompanionRenderer {
-  const v = readLS(RENDERER_KEY, "3d");
-  return v === "2d" ? "2d" : "3d";
+  // Default to 2D after the avatar-pivot. The 3D renderer is opt-in via
+  // localStorage or `?avatar=3d` (handled in Avatar.tsx) for internal testing.
+  const v = readLS(RENDERER_KEY, "2d");
+  return v === "3d" ? "3d" : "2d";
 }
 export function getTtsProvider(): CompanionTtsProvider {
   // ElevenLabs is now the default premium provider; OpenAI is the auto-fallback.
