@@ -249,7 +249,12 @@ function CompanionPage() {
       return;
     }
     setInput("");
+    cancelMicRef.current = false;
     await micStart(async (blob) => {
+      if (cancelMicRef.current) {
+        cancelMicRef.current = false;
+        return; // user pressed Cancel — discard without transcribing
+      }
       if (!blob) return;
       setTranscribing(true);
       try {
@@ -276,11 +281,22 @@ function CompanionPage() {
     });
   }
 
+  async function cancelMicCapture() {
+    cancelMicRef.current = true;
+    await micStop();
+  }
+
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
   async function speakIfEnabled(text: string) {
     await speak(text, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
   }
+
+  /** Phase D — replay an assistant message via the existing speak() gate. */
+  function replayMessage(text: string) {
+    void speak(text, { voice: prefs?.voiceId ?? null, source: "manual" });
+  }
+
 
   // Slice 9 — central confirm path: record history (executing → completed/failed)
   // and narrate the outcome (when voice replies are allowed).
