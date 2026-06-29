@@ -1402,9 +1402,9 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
         </div>
 
         <div className="mt-14 grid items-stretch gap-5 lg:grid-cols-[1.05fr_1.4fr]">
-          {/* Avatar showcase */}
+          {/* Avatar showcase — desktop only to avoid duplicating the hero on mobile */}
           <div
-            className="relative flex flex-col items-center justify-center overflow-hidden rounded-[32px] border border-white/10 p-8 text-center shadow-[var(--shadow-card)] backdrop-blur-xl lg:p-12"
+            className="relative hidden flex-col items-center justify-center overflow-hidden rounded-[32px] border border-white/10 p-8 text-center shadow-[var(--shadow-card)] backdrop-blur-xl lg:flex lg:p-12"
             style={{
               background:
                 "radial-gradient(120% 90% at 50% 10%, oklch(0.34 0.16 280 / 0.55), transparent 65%), linear-gradient(180deg, oklch(0.16 0.04 270 / 0.85), oklch(0.10 0.03 270 / 0.85))",
