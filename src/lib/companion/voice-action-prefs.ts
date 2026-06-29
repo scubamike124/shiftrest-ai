@@ -5,12 +5,16 @@
 
 import type { QuietHours } from "./quiet-hours";
 
+export type CompanionMode = "normal" | "sleep";
+
 export type CompanionLocalPrefs = {
   voiceInputEnabled: boolean;
   voiceRepliesEnabled: boolean;
   actionSuggestionsEnabled: boolean;
   requireActionConfirmation: boolean;
   quietHours: QuietHours;
+  /** Pass 6 — Sleep Companion Mode (warmer aura, slower breath, hushed voice). */
+  companionMode: CompanionMode;
 };
 
 export const DEFAULT_LOCAL_PREFS: CompanionLocalPrefs = {
@@ -19,6 +23,7 @@ export const DEFAULT_LOCAL_PREFS: CompanionLocalPrefs = {
   actionSuggestionsEnabled: true,
   requireActionConfirmation: true,
   quietHours: null,
+  companionMode: "normal",
 };
 
 const KEY = "restpilot.companion.localprefs.v1";
