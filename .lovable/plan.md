@@ -1,63 +1,76 @@
-# Companion Auth 401 — Root Cause & Fix Plan
+# Companion Polish — Bug Fix Pass
 
-## What the error actually is
+## Root causes (verified)
 
-The string `Unauthorized: No authorization header provided` is thrown in exactly one place: `src/integrations/supabase/auth-middleware.ts` line 34. It fires when a protected `createServerFn` is called from the browser without a `Bearer` token attached.
+1. **"Mustache" mouth** — `src/components/companion/Avatar.tsx` renders a black ellipse (`background: rgba(40,18,22,0.82)`) at `top: 47.5%` of the portrait. On the live portrait the actual lip line sits lower, and an opaque oval at that position reads as a dot/mustache above the chin. The overlay itself is the wrong technique for a painterly portrait — it can never align convincingly.
+2. **Robotic delivery + "8 dot 00"** — `src/lib/companion/speak.ts:playOnce` POSTs raw assistant text straight to `/api/tts`. There is no normalization step. `expandForSpeech()` in `src/lib/voice-rewriter.ts` exists but is unused by the companion pipeline, and even it doesn't normalize clock times. Times like `8:00 AM`, `10:30 pm`, decimals `7.5 hours`, and bullet/markdown leftovers all get read literally → "eight dot zero zero".
+3. **Stale autoplay banner** — `speak.ts` dispatches `voice-status: "failed" / autoplay_blocked"` on the *very first* play (before the iOS unlock takes effect), and `companion.tsx` latches that into `voiceSkipped` state. Subsequent successful plays never clear it because the listener doesn't reset on `started` / `ended`. Result: the warning sticks even though voice is now working.
+4. **"Decorative glow over face"** — the aura div sits behind the head but the per-state ring (`inset 0 0 18px hsl(190…)`), thinking-dots SVG, and listening jaw-warmth gradient compete for attention. Users perceive the face as static because the glow is the loudest signal.
 
-The Companion route (`/companion`) does **not** call any protected serverFn directly. The culprit is the **DailyBrief** widget it renders:
+## Fix Plan
 
-```
-src/routes/companion.tsx  →  <DailyBrief signedIn={signedIn} ... />
-src/components/companion/DailyBrief.tsx
-  → useServerFn(getAfternoonBrief)   ← .middleware([requireSupabaseAuth])
-  → useServerFn(getEveningBrief)     ← .middleware([requireSupabaseAuth])
-```
+### 1. Replace the black mouth overlay with jaw-only motion
+- **Delete** the `mouthRef` ellipse element and all `mouthRef.current.style.*` writes in the rAF tick.
+- Keep — and amplify — the existing **jaw translate** (`--jaw` CSS var on the portrait `<img>`): widen its range from `0..1.5px` to `0..3px` and add a tiny `scaleY` (`1.000 → 1.006`) on the portrait when speaking so the lower face visibly articulates without any overlay.
+- Add a **soft warm shadow** (radial gradient, ~6% mouth area, `mix-blend-multiply`, opacity tied to `gamma`) under the lip line as the only "mouth" cue. This reads as lip darkening on a real face, not a floating mark.
+- Keep brow lift, blink, saccades, head sway untouched — those already feel alive.
 
-Both calls are gated by `enabled: signedIn`. The race is on **iPhone Safari first-paint**: `signedIn` flips true (set by the auth listener), the query fires immediately, but the `attachSupabaseAuth` client middleware calls `supabase.auth.getSession()` which returns `null` during the brief window where the SDK is still hydrating the session from `localStorage` (or after the Safari "disclaimer" tap when the page was opened pre-auth). No token → no header → 401 → "No authorization header provided" surfaces in the UI/toast. `/api/ai`, `/api/stt`, `/api/tts` all tolerate missing auth (they only gate the budget), so the AI loop itself is **not** the source of this specific error — the brief is.
+### 2. Natural-speech normalizer (fixes "8 dot 00" + robotic punctuation)
+Create `src/lib/companion/speech-normalize.ts`. Called from `speak.ts` *before* the `/api/tts` POST. Pipeline:
+1. Strip markdown leftovers (`**`, `*`, `_`, backticks, headings, bullets, link syntax).
+2. **Times**:
+   - `8:00` → `eight o'clock`
+   - `8:30` → `eight thirty`
+   - `8:45` → `eight forty-five`
+   - `8:00 AM` / `8 AM` → `8 a.m.`  (TTS reads "a.m." as "ay-em" naturally; for `:00` use `eight a.m.`)
+   - `12:00 PM` → `noon`, `12:00 AM` → `midnight`
+3. Decimals: `7.5 hours` → `seven and a half hours`; generic `1.5` → `one point five` only when followed by a unit word.
+4. Run existing `expandForSpeech()` for units (mg → milligrams, °F → degrees Fahrenheit, etc.).
+5. Collapse ellipses, em-dashes → comma+space; strip stray symbols (`#`, `>`, `|`, `~`).
+6. Normalize whitespace and ensure final period.
 
-## Fix (3 small changes, no schema/back-end edits)
+Add unit tests in `src/lib/companion/__tests__/speech-normalize.test.ts` covering each case above.
 
-### 1. Harden the client bearer attacher
-File: `src/integrations/supabase/auth-attacher.ts` (auto-generated — replace its body with the same export so generation-aware tools still find it).
+### 3. TTS instruction polish (less robotic)
+- Tighten `PERSONALITY_TEMPLATES.calm` in `src/lib/voice/profile.ts` with explicit sleep-coach guidance: *"Speak slowly and softly, like a calm friend at bedtime. Add gentle breath pauses between sentences. Read times as a person would — never letter-by-letter. Vary pitch naturally; avoid monotone."*
+- Lower default `speed` for the companion surface to `0.95` (server-side merge in `/api/tts` when surface header `x-companion-surface: 1` is set, or just pass `speed: 0.95` from `speak.ts`).
 
-- Call `getSession()`; if it returns no token, wait up to ~600ms for `onAuthStateChange` to fire `INITIAL_SESSION`/`SIGNED_IN`, then try once more.
-- If still no token, call `supabase.auth.refreshSession()` as a last resort (works when the refresh token is in storage but the access token expired).
-- Emit a `companion:auth-status` event with `{ hasSession, hasToken, userId }` for the HUD.
-- Always return `next(...)` — never throw — so unauthenticated calls fail at the server with a clean 401 instead of a network-layer exception.
+### 4. Robust autoplay unlock + smarter banner
+- In `speak.ts`, on every successful `audio.play()`, emit a new event `companion:voice-unlocked`. After the first such event, set a module flag `audioUnlocked = true` and from then on **never** emit `failed/autoplay_blocked` again unless the user explicitly muted.
+- In `prepareVoicePlayback()`: keep the silent-WAV unlock, but also pre-fetch a tiny TTS warmup *only on the first user gesture* so the gain/compressor graph is fully primed before the real reply arrives.
+- In `companion.tsx`, clear `voiceSkipped` on `companion:voice-unlocked` and on every `voice-status: started`. Only show the banner for **persistent** failures (≥ 2 consecutive `failed` events within 5s) — never for the first race-condition failure.
+- Suppress `autoplay_blocked` banner copy entirely once `audioUnlocked` is true.
 
-### 2. Gate the brief queries on a real session, not just `signedIn`
-File: `src/components/companion/DailyBrief.tsx`.
+### 5. Tone down decorative glow so the face leads
+- Aura: lower default opacity to 0.55, drop max scale pulse from 1.22 → 1.08.
+- Remove the per-state inner ring `box-shadow` swap (keep a static subtle ring).
+- Remove the listening "jaw warmth" gradient overlay (it muddies the chin where new jaw motion now lives).
+- Keep thinking dots but reduce size and move further off-face.
 
-- Replace the `signedIn` prop check with `useQuery({ enabled: hasSession && ... })` where `hasSession` is derived from a lightweight `useSession()` hook (one `supabase.auth.getSession()` + `onAuthStateChange` listener, returns `{ session, ready }`).
-- Don't fire until `ready === true && session != null`. This eliminates the first-paint race entirely.
-- On 401 the query's `onError` shows a soft "Sign in to see your brief" line instead of bubbling the raw error.
+## Files touched
+- `src/components/companion/Avatar.tsx` — remove mouth overlay, amplify jaw, add lip shadow, calm glow.
+- `src/lib/companion/speech-normalize.ts` — **new**.
+- `src/lib/companion/__tests__/speech-normalize.test.ts` — **new**.
+- `src/lib/companion/speak.ts` — call normalizer; emit `voice-unlocked`; suppress repeat banner triggers; pass `speed: 0.95`.
+- `src/lib/voice/profile.ts` — refine `calm` personality instructions.
+- `src/routes/companion.tsx` — listen for `voice-unlocked` + dampen `voiceSkipped` logic.
 
-### 3. Extend the Debug HUD with auth rows
-File: `src/components/companion/DebugHUD.tsx` + `src/lib/companion/debug-bus.ts`.
+## Validation (before marking complete)
+1. `bunx tsgo --noEmit` clean.
+2. `bunx vitest run src/lib/companion/__tests__/speech-normalize.test.ts`.
+3. Drive Playwright at iPhone 14 viewport (`390×844`, mobile Safari UA), sign in, open `/companion`, tap Aura, capture a screenshot during a spoken reply. Verify:
+   - no black oval / mustache visible
+   - jaw shows clear sub-pixel motion across 3 sequential frames
+   - no "Voice unavailable" banner after first reply
+4. Manual iPhone Safari pass for audio: greeting + reply heard, "8 a.m." not "8 dot zero zero", natural pacing.
+5. Provide before/after screenshots in the implementation reply.
 
-- Add three rows: `Authenticated` (YES/NO), `User Session` (Present/Missing), `Authorization Header` (Attached/Missing — last attempted call).
-- Listen for the new `companion:auth-status` event from the attacher.
-- New debug steps in the event log: `auth-ok`, `auth-missing`, `auth-refresh`, `auth-fail` (never logs the token value, only its presence).
-- Bump `BUILD_STAMP` so the user can confirm the fresh build is loaded.
+## Risks
+- Removing the mouth overlay leaves the portrait static below the eyes if the jaw delta is too subtle on low-DPI screens. Mitigation: also animate a faint lip-shadow `opacity` (0 → 0.35) — gives motion cue even when jaw is imperceptible.
+- Time regex must not eat dimensions like `16:9` aspect ratios in any future content. Restrict pattern to clock-shaped tokens (`\b([01]?\d|2[0-3]):[0-5]\d\b`) and bail when surrounded by `aspect`, `ratio`, `score`, `vs`.
+- `speed: 0.95` slightly lengthens replies; acceptable for sleep-companion tone.
 
-## Verification
+## Effort
+~ 90 min implement + 30 min mobile QA.
 
-1. Typecheck.
-2. Cold-load `/companion?debug=1` on iPhone Safari signed-in:
-   - HUD shows `Authenticated: YES`, `User Session: Present`, `Authorization Header: Attached`.
-   - No 401 toast, brief renders.
-3. Cold-load `/companion?debug=1` signed-out:
-   - HUD shows `Authenticated: NO`, `User Session: Missing`, `Authorization Header: Missing`.
-   - Brief silently hides; voice/text loop still works against the public `/api/*` endpoints.
-4. Sign out mid-session → HUD flips to NO/Missing on next call; no crash.
-
-## Out of scope (intentionally not touching)
-
-- `/api/ai`, `/api/stt`, `/api/tts`, TTS playback, avatar animation, voice queue — these were fixed last round and are not the source of *this* error.
-- Edge functions / DB / RLS — server side is correct; the bug is purely the client failing to attach a token in time.
-
-## Technical notes
-
-- The auto-generated attacher header comment will stay; the patched implementation keeps the same export name so the build still recognizes it.
-- No new dependencies.
-- `useSession` will live in `src/hooks/use-session.ts` and is reusable anywhere we need to gate on a hydrated session.
+Awaiting approval to implement.
