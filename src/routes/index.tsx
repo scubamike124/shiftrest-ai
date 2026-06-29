@@ -179,14 +179,6 @@ function CapChip({ icon: Icon, label }: { icon: typeof Shield; label: string }) 
   );
 }
 
-function Trust({ icon: Icon, label }: { icon: typeof Shield; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <Icon className="h-4 w-4 text-indigo-glow" />
-      {label}
-    </span>
-  );
-}
 
 function HeroStack({ ctaHref }: { ctaHref: string }) {
   return (
