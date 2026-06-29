@@ -271,8 +271,14 @@ export function normalizeForSpeech(input: string, mode: "normal" | "sleep" = "no
   try {
     let s = input;
     s = stripMarkdown(s);
+    // URLs first so date/clock rules don't try to parse path segments.
+    s = normalizeUrls(s);
+    s = normalizeDates(s);
     s = normalizeClock(s);
     s = normalizeDecimals(s);
+    s = normalizePercents(s);
+    s = normalizeTemps(s);
+    s = normalizeAbbreviations(s);
     s = expandForSpeech(s);
     s = tidyPunctuation(s);
     s = applyCadence(s, mode);
@@ -282,3 +288,4 @@ export function normalizeForSpeech(input: string, mode: "normal" | "sleep" = "no
     return input;
   }
 }
+
