@@ -312,7 +312,7 @@ function HeadModel({ url, state }: {
   });
 
   return (
-    <group ref={group} position={[0, -1.45, 0]}>
+    <group ref={group}>
       <primitive object={gltf.scene} />
     </group>
   );
