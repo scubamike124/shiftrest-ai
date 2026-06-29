@@ -164,6 +164,8 @@ export function CompanionAvatarFace({
   const visemeSeqRef = useRef<VisemeKey[]>(["REST"]);
   const visemeStartRef = useRef<number>(0);
   const visemeRateRef = useRef<number>(14); // visemes per second
+  const lastVisemeRef = useRef<VisemeKey>("REST");
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
