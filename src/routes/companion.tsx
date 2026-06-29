@@ -330,13 +330,14 @@ function CompanionPage() {
     void speakIfEnabled(content);
   }
 
-  async function handleSend(e?: React.FormEvent) {
+  async function handleSend(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
-    const text = input.trim();
+    const text = (override ?? input).trim();
     if (!text || sending || !companionOn) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+
 
     // Pending text-based yes/no fallback (kept for accessibility & voice flows).
     if (pendingSoundIntent) {
