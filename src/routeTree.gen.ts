@@ -57,6 +57,7 @@ import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
 import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
@@ -65,10 +66,13 @@ import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
+import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
 import { Route as ApiPublicHooksAiLearnRouteImport } from './routes/api/public/hooks/ai-learn'
+import { Route as ApiLabSimliSpeakRouteImport } from './routes/api/lab/simli/speak'
+import { Route as ApiLabSimliSessionRouteImport } from './routes/api/lab/simli/session'
 import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
 import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/api/public/wearables/fitbit/callback'
 
@@ -312,6 +316,11 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
+const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
+  id: '/lab/avatar-poc',
+  path: '/lab/avatar-poc',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
   id: '/api/tts-elevenlabs',
   path: '/api/tts-elevenlabs',
@@ -352,6 +361,11 @@ const ApiAiRoute = ApiAiRouteImport.update({
   path: '/api/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
+  id: '/simli',
+  path: '/simli',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -371,6 +385,16 @@ const ApiPublicHooksNotifyRoute = ApiPublicHooksNotifyRouteImport.update({
 const ApiPublicHooksAiLearnRoute = ApiPublicHooksAiLearnRouteImport.update({
   id: '/api/public/hooks/ai-learn',
   path: '/api/public/hooks/ai-learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabSimliSpeakRoute = ApiLabSimliSpeakRouteImport.update({
+  id: '/api/lab/simli/speak',
+  path: '/api/lab/simli/speak',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabSimliSessionRoute = ApiLabSimliSessionRouteImport.update({
+  id: '/api/lab/simli/session',
+  path: '/api/lab/simli/session',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicWearablesOuraCallbackRoute =
@@ -422,6 +446,7 @@ export interface FileRoutesByFullPath {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -443,6 +468,9 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
+  '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -485,6 +513,7 @@ export interface FileRoutesByTo {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -506,6 +535,9 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
+  '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -550,6 +582,7 @@ export interface FileRoutesById {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -571,6 +604,9 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
+  '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -616,6 +652,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -637,6 +674,9 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/lab/avatar-poc/simli'
+    | '/api/lab/simli/session'
+    | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -679,6 +719,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -700,6 +741,9 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/lab/avatar-poc/simli'
+    | '/api/lab/simli/session'
+    | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -743,6 +787,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -764,6 +809,9 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/lab/avatar-poc/simli'
+    | '/api/lab/simli/session'
+    | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
@@ -808,11 +856,14 @@ export interface RootRouteChildren {
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
+  LabAvatarPocRoute: typeof LabAvatarPocRouteWithChildren
   QaVoiceRoute: typeof QaVoiceRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  ApiLabSimliSessionRoute: typeof ApiLabSimliSessionRoute
+  ApiLabSimliSpeakRoute: typeof ApiLabSimliSpeakRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
@@ -1159,6 +1210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/lab/avatar-poc': {
+      id: '/lab/avatar-poc'
+      path: '/lab/avatar-poc'
+      fullPath: '/lab/avatar-poc'
+      preLoaderRoute: typeof LabAvatarPocRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tts-elevenlabs': {
       id: '/api/tts-elevenlabs'
       path: '/api/tts-elevenlabs'
@@ -1215,6 +1273,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lab/avatar-poc/simli': {
+      id: '/lab/avatar-poc/simli'
+      path: '/simli'
+      fullPath: '/lab/avatar-poc/simli'
+      preLoaderRoute: typeof LabAvatarPocSimliRouteImport
+      parentRoute: typeof LabAvatarPocRoute
+    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -1241,6 +1306,20 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/ai-learn'
       fullPath: '/api/public/hooks/ai-learn'
       preLoaderRoute: typeof ApiPublicHooksAiLearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lab/simli/speak': {
+      id: '/api/lab/simli/speak'
+      path: '/api/lab/simli/speak'
+      fullPath: '/api/lab/simli/speak'
+      preLoaderRoute: typeof ApiLabSimliSpeakRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/lab/simli/session': {
+      id: '/api/lab/simli/session'
+      path: '/api/lab/simli/session'
+      fullPath: '/api/lab/simli/session'
+      preLoaderRoute: typeof ApiLabSimliSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/wearables/oura/callback': {
@@ -1300,6 +1379,18 @@ const LegalRouteChildren: LegalRouteChildren = {
 
 const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 
+interface LabAvatarPocRouteChildren {
+  LabAvatarPocSimliRoute: typeof LabAvatarPocSimliRoute
+}
+
+const LabAvatarPocRouteChildren: LabAvatarPocRouteChildren = {
+  LabAvatarPocSimliRoute: LabAvatarPocSimliRoute,
+}
+
+const LabAvatarPocRouteWithChildren = LabAvatarPocRoute._addFileChildren(
+  LabAvatarPocRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
@@ -1336,11 +1427,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
+  LabAvatarPocRoute: LabAvatarPocRouteWithChildren,
   QaVoiceRoute: QaVoiceRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  ApiLabSimliSessionRoute: ApiLabSimliSessionRoute,
+  ApiLabSimliSpeakRoute: ApiLabSimliSpeakRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
