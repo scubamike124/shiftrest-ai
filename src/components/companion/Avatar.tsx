@@ -459,7 +459,7 @@ function CompanionAvatarFace2D({
       // ── mouth SVG ──
       if (mouthGroupRef.current) {
         // Corner bias: emotion lift + viseme corner.
-        const cornerLift = w.corners * 0.35 + shapeLP.corner * 0.6;
+        const cornerLift = w.corners * 0.35 + shapeLP.corner * 0.6 + microSmileRef.current * 0.45;
         mouthGroupRef.current.setAttribute(
           "transform",
           `translate(0 ${-cornerLift * 0.35}) scale(${shapeLP.wide} 1)`,
