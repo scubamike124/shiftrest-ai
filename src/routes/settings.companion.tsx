@@ -246,6 +246,26 @@ function CompanionSettings() {
         </span>
       </Link>
 
+      <Link
+        to="/settings/avatar"
+        className="group flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-4 transition-colors hover:bg-muted/40"
+      >
+        <div>
+          <p className="text-sm font-semibold">Companion avatar</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Pick the face of your companion or upload your own portrait.
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground/80">
+            iOS asks for the microphone again whenever the site URL changes
+            (e.g. a new preview link). Granting once on the published site is
+            permanent for that tab.
+          </p>
+        </div>
+        <span className="text-xs font-medium text-primary transition-transform group-hover:translate-x-0.5">
+          Choose →
+        </span>
+      </Link>
+
 
       <Card className="p-4">
         <h2 className="text-sm font-semibold">Briefings</h2>

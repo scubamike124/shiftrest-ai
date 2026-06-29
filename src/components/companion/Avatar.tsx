@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
-import portraitUrl from "@/assets/companion-portrait.png";
+import { useAvatar } from "@/lib/companion/use-avatar";
 import {
   EMOTION_PRESETS,
   getEmotion,
@@ -87,6 +87,7 @@ export function CompanionAvatarFace({
 }: AvatarProps) {
   const px = SIZE_PX[size];
   const showAura = aura ?? size !== "sm";
+  const { src: portraitUrl } = useAvatar();
 
   // ── Environment ──────────────────────────────────────────────────────
   const [reduced, setReduced] = useState<boolean>(() => prefersReducedMotion());
@@ -315,9 +316,7 @@ export function CompanionAvatarFace({
   const browRightRef = useRef<HTMLDivElement | null>(null);
   const cheekLeftRef = useRef<HTMLDivElement | null>(null);
   const cheekRightRef = useRef<HTMLDivElement | null>(null);
-  // Mouth SVG refs
-  const upperLipRef = useRef<SVGPathElement | null>(null);
-  const lowerLipRef = useRef<SVGPathElement | null>(null);
+  // Mouth SVG refs (single soft inner-mouth shadow — no visible lip lines)
   const innerMouthRef = useRef<SVGEllipseElement | null>(null);
   const mouthGroupRef = useRef<SVGGElement | null>(null);
 
@@ -375,33 +374,24 @@ export function CompanionAvatarFace({
           `translate(0 ${-cornerLift * 0.35}) scale(${shapeLP.wide} 1)`,
         );
       }
-      if (upperLipRef.current && lowerLipRef.current && innerMouthRef.current) {
+      if (innerMouthRef.current) {
         const cy = 50;
         const gap = finalOpen * F.mouthH;
         const halfW = F.mouthW * 0.5;
-        // Upper lip: gentle bow above center.
-        const upperD = `M ${50 - halfW} ${cy - 0.3}
-                        Q 50 ${cy - 1.4 - finalOpen * 0.6} ${50 + halfW} ${cy - 0.3}`;
-        // Lower lip: deepens with openness.
-        const lowerD = `M ${50 - halfW} ${cy + 0.3 + gap}
-                        Q 50 ${cy + 1.8 + gap * 1.1} ${50 + halfW} ${cy + 0.3 + gap}`;
-        upperLipRef.current.setAttribute("d", upperD);
-        lowerLipRef.current.setAttribute("d", lowerD);
         innerMouthRef.current.setAttribute("cx", "50");
         innerMouthRef.current.setAttribute("cy", `${cy + gap * 0.55}`);
         innerMouthRef.current.setAttribute("rx", `${halfW * 0.85}`);
-        innerMouthRef.current.setAttribute("ry", `${0.4 + gap * 0.9}`);
-        innerMouthRef.current.setAttribute(
-          "opacity",
-          `${(shapeLP.inner * 0.6 + ampOpen * 0.5).toFixed(3)}`,
-        );
+        innerMouthRef.current.setAttribute("ry", `${0.35 + gap * 0.95}`);
+        // Fade entirely when mouth is closed so no rig is visible at rest.
+        const op = finalOpen < 0.04 ? 0 : Math.min(0.55, shapeLP.inner * 0.55 + ampOpen * 0.45);
+        innerMouthRef.current.setAttribute("opacity", op.toFixed(3));
       }
 
       // ── jaw drop (subtle portrait translate) ──
       jawLP += (gamma * 0.6 + shapeLP.open * 0.4 - jawLP) * 0.18;
       if (jawRef.current) {
-        const jawPx = s === "speaking" ? jawLP * 2.5 : 0;
-        const sy = s === "speaking" ? 1 + jawLP * 0.005 : 1;
+        const jawPx = s === "speaking" ? jawLP * 3.1 : 0;
+        const sy = s === "speaking" ? 1 + jawLP * 0.006 : 1;
         jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
         jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
       }
@@ -662,7 +652,8 @@ export function CompanionAvatarFace({
             }}
           />
 
-          {/* Pass 1 — SVG mouth rig: upper lip, lower lip, inner mouth */}
+          {/* Soft inner-mouth shadow — no visible lip lines.
+              Tints existing painted lips via multiply blend; vanishes when closed. */}
           {size !== "sm" && (
             <svg
               aria-hidden
@@ -671,6 +662,16 @@ export function CompanionAvatarFace({
               className="absolute inset-0 h-full w-full pointer-events-none"
               style={{ mixBlendMode: "multiply" }}
             >
+              <defs>
+                <radialGradient id="mouthShadow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"  stopColor="rgba(28,8,12,0.85)" />
+                  <stop offset="55%" stopColor="rgba(40,14,18,0.45)" />
+                  <stop offset="100%" stopColor="rgba(40,14,18,0)" />
+                </radialGradient>
+                <filter id="mouthBlur" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="1.1" />
+                </filter>
+              </defs>
               <g ref={mouthGroupRef} style={{ transformOrigin: "50% 47.5%" }}>
                 <ellipse
                   ref={innerMouthRef}
@@ -678,32 +679,11 @@ export function CompanionAvatarFace({
                   cy="50"
                   rx="5"
                   ry="0.4"
-                  fill="rgba(40,12,18,0.85)"
+                  fill="url(#mouthShadow)"
                   filter="url(#mouthBlur)"
                   opacity="0"
                 />
-                <path
-                  ref={upperLipRef}
-                  d="M 44 49.7 Q 50 48.3 56 49.7"
-                  fill="none"
-                  stroke="rgba(110,40,40,0.55)"
-                  strokeWidth="0.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  ref={lowerLipRef}
-                  d="M 44 50.3 Q 50 51.8 56 50.3"
-                  fill="none"
-                  stroke="rgba(110,40,40,0.55)"
-                  strokeWidth="0.55"
-                  strokeLinecap="round"
-                />
               </g>
-              <defs>
-                <filter id="mouthBlur" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="0.4" />
-                </filter>
-              </defs>
             </svg>
           )}
 

@@ -47,7 +47,7 @@ export function prepareVoicePlayback(): void {
   try {
     ensureAudioGraph();
     if (levelCtx && levelCtx.state === "suspended") {
-      levelCtx.resume().catch(() => undefined);
+      void levelCtx.resume().catch(() => undefined);
     }
     if (!primedAudio) {
       primedAudio = new Audio();
@@ -79,6 +79,15 @@ export function prepareVoicePlayback(): void {
   }
 }
 
+/** Awaitable resume of the shared AudioContext. Prevents the "quiet first
+ *  seconds" symptom on iOS Safari where audio.play() resolves before the
+ *  context has actually resumed and the graph is still silent. */
+async function ensureContextRunning(): Promise<void> {
+  if (!ensureAudioGraph() || !levelCtx) return;
+  if (levelCtx.state === "running") return;
+  try { await levelCtx.resume(); } catch { /* best effort */ }
+}
+
 // ── Voice status events ────────────────────────────────────────────────
 type VoiceStatus = "started" | "ended" | "failed" | "skipped";
 function emitStatus(status: VoiceStatus, reason?: string) {
@@ -108,7 +117,7 @@ let graphWired = false;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
-const VOICE_GAIN = 2.2;
+const VOICE_GAIN = 1.9;
 
 function ensureAudioGraph(): boolean {
   if (typeof window === "undefined") return false;
@@ -125,12 +134,14 @@ function ensureAudioGraph(): boolean {
     if (!levelCompressor) {
       levelCompressor = levelCtx.createDynamicsCompressor();
       try {
-        // Softer compressor — only catches true peaks, no pumping.
-        levelCompressor.threshold.value = -12;
-        levelCompressor.knee.value = 18;
-        levelCompressor.ratio.value = 2;
-        levelCompressor.attack.value = 0.006;
-        levelCompressor.release.value = 0.22;
+        // Soft peak limiter — only catches true peaks (>-3 dBFS) and
+        // recovers fast enough that no fade-in is audible. Normal speech
+        // passes through untouched, so the very first syllable is at full volume.
+        levelCompressor.threshold.value = -3;
+        levelCompressor.knee.value = 6;
+        levelCompressor.ratio.value = 6;
+        levelCompressor.attack.value = 0.003;
+        levelCompressor.release.value = 0.08;
       } catch { /* noop */ }
     }
     if (!levelAnalyser) {
@@ -398,6 +409,11 @@ async function playOnce(
   track({ event: "voice_played", chars: text.length });
   emitStatus("started");
 
+  // Make sure the shared AudioContext is actually running before play()
+  // resolves; on iOS Safari `audio.play()` can return while the context is
+  // still "suspended", which makes the first few hundred ms silent.
+  await ensureContextRunning();
+
   await new Promise<void>((resolve) => {
     audio.onended = () => {
       if (currentUrl === url) {
@@ -417,12 +433,16 @@ async function playOnce(
     audio.onpause = () => {
       if (currentAudio === audio) stopLevelMeter();
     };
-    audio.play().then(() => {
+    audio.play().then(async () => {
       markAudioUnlocked();
+      // Belt-and-braces: if the context flipped back to suspended between
+      // ensureContextRunning() and play(), force it back to running.
+      if (levelCtx && levelCtx.state !== "running") {
+        try { await levelCtx.resume(); } catch { /* noop */ }
+      }
       startLevelMeter(audio);
     }).catch(() => {
       if (audioUnlocked) {
-        // Already past the iOS unlock — treat as transient and don't re-warn.
         emitStatus("failed", "playback_error");
       } else {
         emitStatus("failed", "autoplay_blocked");

@@ -105,3 +105,18 @@ For each ❌ failure, capture:
 Do **not** mark the AI Companion production-ready until every box above is
 checked on at least one iPhone Safari, one Android Chrome, and one desktop
 browser.
+
+## Microphone & Preview URLs (iOS Safari)
+
+iOS Safari scopes microphone permission **per origin**. Lovable preview
+subdomains (`id-preview--<uuid>.lovable.app`) and the published
+`shift-rest-ai.lovable.app` are *different* origins, so iOS will prompt the
+first time on each. Within a single origin, Safari keeps the grant for the
+tab lifetime — closing the tab also re-prompts. This is correct iOS
+behavior, not a bug.
+
+**What to verify:**
+- First visit to a fresh preview URL → mic prompt appears once.
+- Reload the same URL in the same tab → no prompt.
+- Close tab, reopen the same URL → prompt again (expected).
+- On the published domain → prompt appears once per Safari install.
