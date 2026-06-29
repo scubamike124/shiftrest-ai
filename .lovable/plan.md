@@ -1,80 +1,72 @@
-# Phase E — QA Investigation Report
 
-Investigation-only pass over the Phase D code (`src/routes/companion.tsx`, `src/lib/companion/speak.ts`, `src/lib/voice/useMicRecorder.ts`). No code changed yet. Below are confirmed bugs, suspected issues, and the fix list I'd ship before starting Phase E.
+# Nova Tap + Voice Interaction Fix
 
-## Confirmed bugs
+## Investigation summary
 
-### 1. Voice status can get stuck on "Voice unavailable"
-`speak.ts` only emits `failed` → it is never cleared on its own. In `companion.tsx`:
-```ts
-else if (detail.status === "ended") {
-  setVoiceStatus((s) => (s === "failed" ? s : "idle"));
-}
-```
-Once a single TTS call fails (quota, autoplay block, network blip), the badge reads "Voice unavailable" for the rest of the session — even after the next reply speaks successfully (the `started` event flips it to `speaking`, but if the user never sends another message, it stays stuck).
+Three concrete bugs cause "Nova looks alive but doesn't respond":
 
-**Fix:** clear `failed` on any new `started`, on a new user message, and after ~6 s timeout.
+1. **Landing avatar (`/`) is a dead end on mobile.** `HeroStack` (src/routes/index.tsx ~L188) wraps the big Aura avatar in `<Link to={ctaHref}>` which resolves to `/auth` for signed-out users. Tapping the eye sends you to a login form — no listening state, no greeting, looks broken.
+2. **Companion avatar (`/companion`) tap does nothing voice-related.** The button around `CompanionAvatarFace` (src/routes/companion.tsx L790–807) only focuses the composer. It does not start the mic, does not trigger a greeting, and does not show any state change. The mic is only reachable from the small composer mic button (L1044) — discoverability bug + perceived dead tap.
+3. **No greeting on entry.** Companion never speaks first. User opens `/companion` and sees a static avatar until they type — exact "feels visually present, not functionally interactive" symptom.
 
-### 2. Mic "slide-off to cancel" cancels legitimate taps on mobile
-```tsx
-onPointerLeave={() => { if (micState === "listening") void cancelMicCapture(); }}
-```
-On touch devices, `pointerleave` fires whenever the finger moves off the 44×44 button — which happens on almost every real tap-and-hold gesture and on scroll. Result: recordings are silently discarded.
+Secondary findings:
+- Mic permission is requested correctly inside a gesture in `useMicRecorder.start()`, but `NotAllowedError` only sets internal state — there is no toast/inline message, so a denied permission looks identical to a dead tap.
+- Voice-status "failed" pill exists but only renders after a TTS attempt; it doesn't cover mic-denied or STT-failed cases.
+- Dashboard `CompanionAvatar` chip is a plain `Link to /companion` — fine, but should land on a `/companion?greet=1` state so the user gets an immediate hello.
+- Desktop has the same dead-tap on the big avatar; the bug is not mobile-only, it's just most obvious there.
 
-**Fix:** only treat as cancel when pointer moves a meaningful distance away (e.g. >40 px outside the button) *and* the gesture began as a hold (pointerdown timestamp > 250 ms). Or remove pointerleave-cancel entirely and rely on the explicit Cancel chip.
+## Fix plan (interaction layer only — no visual redesign)
 
-### 3. There is no actual "hold to talk"
-The mic is `onClick` (tap-to-toggle). The aria label says "Hold or tap to talk" but no `onPointerDown`/`onPointerUp` exists, so holding then releasing leaves the recorder running until silence auto-stop or another tap. Phase D's hold-to-talk requirement is not met.
+### 1. Landing page — make Nova's tap meaningful
+`src/routes/index.tsx`
+- Change `HeroStack` + `CompanionShowcaseSection` avatar links so the destination is always `/companion?intro=1&greet=1`, regardless of `signedIn`. The `_authenticated` gate will still redirect signed-out users to `/auth`, but with `redirect=/companion?greet=1` so they land in the live experience after login instead of on the dashboard.
+- Keep the secondary "Start free" CTA pointing at `ctaHref` for the signup path.
 
-**Fix:** add `onPointerDown` → start, `onPointerUp` → stop, with a short threshold so quick taps still behave as toggle.
+### 2. Companion entry — auto-greeting
+`src/routes/companion.tsx`
+- On mount, if `search.greet === 1` OR this is the first visit of the session, push an assistant message:  
+  `"Hi {firstName}, I'm here. How can I help tonight?"`  
+  Use `speakIfEnabled()` so it auto-plays when voice is enabled, and silently no-ops in quiet hours / voice-off (text still visible).
+- Guard with a `useRef` so the greeting fires only once per mount.
 
-### 4. Mid-stream speech gap on long replies
-The streaming loop speaks the first sentence early, then waits until the entire stream finishes to enqueue the remainder as one big chunk. Long replies sit silent between sentence 1 ending and the stream finishing.
+### 3. Avatar tap = start voice turn (with safe fallback)
+`src/routes/companion.tsx` (avatar `<button>` at L790)
+- Replace the focus-composer handler with `handleAvatarTap()`:
+  - If `micState === "listening"` → `micStop()` (release/send).
+  - Else → call `handleMicTap()` to start capture *synchronously inside the gesture* (preserves iOS Safari user-gesture chain — see Lovable stack-overflow note on media gestures).
+  - Wrap in try/catch; on any failure call `focusComposer()` and toast `"Voice unavailable — you can type instead."`
+- Add `aria-pressed={micState === "listening"}` and a hover/active scale so the tap is visibly acknowledged.
 
-**Fix:** continue scanning for sentence boundaries inside the read loop and `speakQueued()` each new complete sentence as it arrives. Only the trailing fragment is flushed in the `done` branch.
+### 4. Mic permission + error surfacing
+`src/lib/voice/useMicRecorder.ts` already classifies `NotAllowedError` → `denied`. In `companion.tsx`:
+- Watch `micState`. When it flips to `"denied"` show a one-time inline banner above the composer:  
+  `"Microphone is blocked. Enable it in browser settings, or just type below."` with a "Dismiss" button.
+- When it flips to `"error"` show the recorder's `error` string as a toast and keep the composer focused.
+- Pre-flight `navigator.permissions.query({ name: "microphone" })` (wrapped in try/catch for Safari) before first tap so we can show the banner instead of a silent denial loop.
 
-### 5. `speakQueued` only checks quiet hours / prefs at enqueue time
-If quiet hours begin (or the user toggles voice replies off) after enqueue but before playback, the queued chunk still plays.
+### 5. State indicators (already present — verify wired through)
+The avatar already accepts `state={orbState}` covering idle / listening / thinking / speaking. Add the missing ones:
+- `muted` → render when `voiceRepliesEnabled === false` (small "Voice off" pill under avatar).
+- `error` → render when `voiceStatus === "failed"` OR `micState === "denied" | "error"` (reuse existing amber pill, expand copy).
 
-**Fix:** re-check `loadLocalPrefs()` + `inQuietHours()` + `isQuietModeOn()` inside `drainQueue()` before each `playOnce`; drop the item with an `emitStatus("skipped", …)` if gated.
+### 6. Tap-target hygiene
+- Ensure the avatar button has `min-h-[88px] min-w-[88px]` hit area and `z-10` so the bottom nav and any preview overlay can't intercept the tap.
+- Verify `CompanionDock` and `BottomNav` do not render an invisible overlay over the avatar region (quick `pointer-events` audit on `/companion`).
 
-### 6. Replay during an in-flight reply silently does nothing visible
-`replayMessage` correctly cancels prior speech via `++lastReqId`, but the replay buttons are hidden whenever `sending` is true, so a user cannot replay an earlier message while a new one streams. Not a crash, but inconsistent with "replay is always available."
+## Acceptance verification
 
-**Fix:** show replay on all *prior* assistant messages even while a new one streams; hide only on the actively-streaming message.
+After the changes, on both desktop and a 390×844 mobile viewport via Playwright:
+1. Cold-load `/` → tap the big Aura eye → lands on `/auth?redirect=/companion?greet=1` (signed out) or `/companion?greet=1` (signed in).
+2. On `/companion` first paint → greeting message appears, voice plays if enabled.
+3. Tap avatar → mic permission prompt fires (first time) → state flips to "listening" → release/tap again → STT → assistant replies → TTS speaks.
+4. Deny mic permission → inline banner appears, composer stays usable, user can type and get a reply.
+5. Voice replies disabled → avatar shows "Voice off" pill; text reply still works.
+6. No console errors. No dead taps. Bottom nav does not block avatar.
 
-## Suspected / lower-confidence
+## Files touched
+- `src/routes/index.tsx` — hero + showcase avatar links
+- `src/routes/companion.tsx` — greeting on mount, avatar tap handler, permission banner, muted/error pills
+- `src/routes/auth.tsx` — honor `?redirect=` after sign-in (verify, add if missing)
+- `src/lib/voice/useMicRecorder.ts` — no API change; only consumed differently
 
-- **Replay button accessibility:** `aria-label="Replay this reply"` is fine; missing `type="button"` (it inherits from the surrounding `<form>` context… actually it isn't inside the form, so OK). No fix needed — flagged for the checklist.
-- **`micState === "encoding"`:** very brief; not surfaced in the status badge. Probably fine, but the badge will briefly show the prior state during encode.
-- **Sequential queue ordering on rapid prompts:** `beginSpeakTurn()` correctly invalidates prior turns. Confirmed safe by reading `speak.ts`.
-- **AudioContext reuse for lip-sync:** `MediaElementSource` is created once per element and tracked in a `WeakSet`. Looks correct; no leak path identified.
-
-## Out of scope for this fix pass (Phase E backlog)
-
-- "Aura speaking" animation polish (pulsing glow, waveform). Avatar already has `breath`/`bob`; we'll layer the speaking visual in Phase E proper.
-- Real-device verification on iPhone Safari + Android Chrome (headless sandbox cannot drive Bluetooth/lockscreen). I'll document the manual matrix; user must run it before announce.
-
-## Proposed fix pass (before any Phase E feature work)
-
-Single small PR touching only voice/mic surface:
-
-1. `src/lib/companion/speak.ts` — re-check gates inside `drainQueue` (Bug 5).
-2. `src/routes/companion.tsx`:
-   - Clear `voiceStatus === "failed"` on new turn / timeout (Bug 1).
-   - Implement true hold-to-talk with tap-toggle fallback (Bug 3).
-   - Replace naive `onPointerLeave` cancel with distance+time threshold (Bug 2).
-   - Continue speaking subsequent sentences during streaming (Bug 4).
-   - Show replay on prior assistant messages during streaming (Bug 6).
-3. Manual + headless verification:
-   - Typecheck.
-   - Playwright pass at 390 × 844, 1280 × 1800 — verify mic button states, replay click, quiet-hours toggle suppresses audio.
-   - Console clean.
-
-## Readiness assessment
-
-**Not ready for Phase E** until Bugs 1–4 are fixed. Bug 2 in particular silently breaks mobile voice input, which is the centerpiece of the Companion experience. Bugs 5 & 6 are quality issues that should ship in the same pass since they touch the same files.
-
-Estimated scope: ~80 lines across two files, no schema or backend changes, no new dependencies.
-
-**Awaiting approval to proceed with the fix pass above. Phase E feature work starts only after these are merged and re-verified.**
+No DB changes, no new dependencies, no UI redesign.

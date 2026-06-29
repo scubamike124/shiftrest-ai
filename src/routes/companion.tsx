@@ -64,6 +64,7 @@ export const Route = createFileRoute("/companion")({
         ? s.period
         : undefined,
     intro: s.intro === 1 || s.intro === "1" ? (1 as const) : undefined,
+    greet: s.greet === 1 || s.greet === "1" ? (1 as const) : undefined,
   }),
   head: () => ({
     meta: [
@@ -138,6 +139,17 @@ function CompanionPage() {
       sub.data.subscription.unsubscribe();
     };
   }, []);
+
+  // If the user opened /companion while signed-out, bounce to /auth and
+  // bring them right back here once they're in. Avoids the "tap Nova → blank
+  // companion shell" dead-end.
+  const navigateForAuth = useNavigate();
+  useEffect(() => {
+    if (signedIn === false) {
+      const back = `/companion${typeof window !== "undefined" ? window.location.search : ""}`;
+      navigateForAuth({ to: "/auth", search: { return: back } as never }).catch(() => undefined);
+    }
+  }, [signedIn, navigateForAuth]);
 
   const prefsQ = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, enabled: signedIn === true });
   const prefs = prefsQ.data;
@@ -263,6 +275,44 @@ function CompanionPage() {
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, sending]);
+
+  // One-time greeting on entry — proves Nova is alive the moment you arrive.
+  // Fires when signed-in + Companion Mode on + the chat is empty, OR when
+  // the URL carries ?greet=1 (the landing-page avatar tap path).
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (greetedRef.current) return;
+    if (signedIn !== true || !companionOn) return;
+    if (messages.length > 0) return;
+    if (!search.greet && !search.intro) {
+      // Without an explicit greet flag, still greet on first mount of a
+      // fresh session so the user never sees a silent avatar.
+    }
+    greetedRef.current = true;
+    const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+    const hour = new Date().getHours();
+    const opener =
+      hour >= 22 || hour < 5
+        ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
+        : `Hi ${name}, I'm here. How can I help tonight?`;
+    setMessages([{ role: "assistant", content: opener }]);
+    // Speak through the centralized gate — silently no-ops when voice is
+    // off or quiet hours are active.
+    void speak(opener, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+    track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
+  }, [signedIn, companionOn, prefs, sessionEmail, messages.length, search.greet, search.intro]);
+
+  // Mic-permission banner state — surfaces a clear message instead of a
+  // silent dead-tap when the user has blocked the microphone.
+  const [micBannerDismissed, setMicBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (micState === "denied") {
+      track({ event: "mic_permission_denied" });
+    } else if (micState === "error") {
+      track({ event: "mic_error" });
+    }
+  }, [micState]);
+
 
   async function handleMicTap() {
     if (micState === "listening") {
@@ -783,26 +833,67 @@ function CompanionPage() {
       {/* First-launch Companion intro (auto-shown once per device). */}
       <CompanionIntroSheet />
 
-
+      {/* Mic permission blocked — clear, dismissible, never a silent failure. */}
+      {micState === "denied" && !micBannerDismissed && (
+        <div
+          role="status"
+          className="mb-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+          <div className="flex-1">
+            <p className="font-semibold">Microphone is blocked.</p>
+            <p className="mt-0.5 text-amber-100/80">
+              Enable mic access in your browser settings — or just type below, it works the same.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMicBannerDismissed(true)}
+            className="rounded-full p-1 text-amber-200/80 hover:bg-amber-500/20 hover:text-amber-100"
+            aria-label="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Avatar + greeting */}
       <section className="flex flex-col items-center gap-3 pb-4 pt-2">
         <button
           type="button"
           onClick={() => {
-            const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
-              '[data-companion-composer] textarea, [data-companion-composer] input',
-            );
-            el?.focus();
+            if (!companionOn) {
+              toast.info("Turn on Companion Mode first.");
+              return;
+            }
+            if (!localPrefs.voiceInputEnabled || micState === "denied") {
+              // Voice off or mic blocked — fall back to text composer instead
+              // of a silent dead-tap.
+              track({ event: "avatar_tap_to_talk", result: "fallback" });
+              const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
+                '[data-companion-composer] textarea, [data-companion-composer] input',
+              );
+              el?.focus();
+              return;
+            }
+            // Synchronous gesture chain — required for iOS Safari getUserMedia.
+            track({
+              event: "avatar_tap_to_talk",
+              result: micState === "listening" ? "stopped" : "started",
+            });
+            void handleMicTap();
           }}
-          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={avatarStateLabel(orbState)}
+          className="rounded-full transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label={
+            micState === "listening" ? "Stop listening" : `Tap to talk — ${avatarStateLabel(orbState)}`
+          }
+          aria-pressed={micState === "listening"}
         >
           <CompanionAvatarFace
             state={orbState}
             level={level}
             size="lg"
-            label={avatarStateLabel(orbState)}
+            label={micState === "listening" ? "Listening…" : "Tap to talk"}
           />
         </button>
         {/* Phase E — reserved presence slot. Fixed height prevents the
