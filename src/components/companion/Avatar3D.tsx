@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
+import { KTX2Loader } from "three-stdlib";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
