@@ -39,6 +39,8 @@ import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/
 import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { speak, stopSpeaking } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
+import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
