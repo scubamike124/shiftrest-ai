@@ -89,22 +89,29 @@ export function CompanionAvatarFace({
     };
   }, []);
 
-  // ── Blink loop ───────────────────────────────────────────────────────────
+  // ── Blink loop (3–8s with ~1-in-5 double blink) ──────────────────────────
   const [blink, setBlink] = useState(false);
   useEffect(() => {
     if (hidden) return;
     let cancelled = false;
     let t: number | undefined;
+    const closeOpen = (after: number, cb: () => void) => {
+      setBlink(true);
+      window.setTimeout(() => {
+        if (cancelled) return;
+        setBlink(false);
+        window.setTimeout(() => { if (!cancelled) cb(); }, after);
+      }, 130);
+    };
     const loop = () => {
-      const next = 2800 + Math.random() * 3200;
+      const next = 3000 + Math.random() * 5000;
       t = window.setTimeout(() => {
         if (cancelled) return;
-        setBlink(true);
-        window.setTimeout(() => {
-          if (cancelled) return;
-          setBlink(false);
-          loop();
-        }, 140);
+        const doubleBlink = Math.random() < 0.2;
+        closeOpen(140, () => {
+          if (doubleBlink) closeOpen(80, loop);
+          else loop();
+        });
       }, next);
     };
     loop();
