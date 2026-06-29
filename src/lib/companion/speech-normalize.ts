@@ -133,9 +133,12 @@ function tidyPunctuation(s: string): string {
  *    - sleep mode: insert ellipses between clauses for hushed cadence
  */
 function applyCadence(s: string, mode: "normal" | "sleep"): string {
+  // Only add a sub-comma when the conjunction actually starts a clause,
+  // i.e. preceded by sentence-ending punctuation. Avoids breaking natural
+  // phrases like "seven and a half hours" or "rock and roll".
   let out = s
     .replace(/([!?]){2,}/g, "$1")
-    .replace(/\b(and|but|so|then)\b\s+/gi, "$1, ");
+    .replace(/([.!?;:])\s+(and|but|so|then)\b\s+/gi, "$1 $2, ");
   if (mode === "sleep") {
     out = out
       .replace(/([.?!])\s+/g, "$1 … ")
