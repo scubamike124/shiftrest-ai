@@ -63,7 +63,10 @@ function Landing() {
   const ctaHref = signedIn ? "/dashboard" : "/auth";
 
   return (
-    <div className="overflow-hidden">
+    <div
+      className="overflow-hidden"
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4.5rem)" }}
+    >
       <Hero ctaHref={ctaHref} />
       <LogoTicker />
       {showBelowFold && (
@@ -284,7 +287,7 @@ function LogoTicker() {
   ];
   const items = [...roles, ...roles];
   return (
-    <section className="border-y border-border/60 bg-background/40 py-8">
+    <section className="relative isolate z-0 mt-6 border-y border-border/60 bg-background/40 py-8">
       <p className="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         Built for people who work when others sleep
       </p>
