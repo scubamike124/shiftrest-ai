@@ -805,17 +805,23 @@ function CompanionPage() {
             label={avatarStateLabel(orbState)}
           />
         </button>
-        {/* Phase E — speaking presence: waveform appears only while audio plays. */}
-        <SpeakingIndicator active={voiceStatus === "speaking"} className="mt-2 h-3 w-24" />
-        {voiceStatus === "failed" && (
-          <p
-            role="status"
-            className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200"
-          >
-            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
-            Voice unavailable — text still works
-          </p>
-        )}
+        {/* Phase E — reserved presence slot. Fixed height prevents the
+            column from reflowing when the waveform or failure pill toggle. */}
+        <div className="mt-2 flex h-6 items-center justify-center">
+          {voiceStatus === "speaking" && (
+            <SpeakingIndicator active className="h-4 w-24" />
+          )}
+          {voiceStatus === "failed" && (
+            <p
+              role="status"
+              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200"
+            >
+              <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
+              Voice unavailable — text still works
+            </p>
+          )}
+        </div>
+
 
         <div className="mt-4 text-center">
           {(() => {
