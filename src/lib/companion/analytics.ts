@@ -43,7 +43,7 @@ export type CompanionEvent =
   | { event: "voice_turn_empty_audio" }
   | { event: "voice_turn_empty_transcript" }
   | { event: "voice_turn_transcribed"; chars: number }
-  | { event: "voice_turn_failed"; stage: "stt" | "ai" | "tts" }
+  | { event: "voice_turn_failed"; stage: "stt" | "ai" | "tts" | "auth" }
   | { event: "avatar_tap_to_talk"; result: "started" | "stopped" | "denied" | "fallback" };
 
 export function track(evt: CompanionEvent): void {
