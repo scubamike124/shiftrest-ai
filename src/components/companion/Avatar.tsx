@@ -652,7 +652,8 @@ export function CompanionAvatarFace({
             }}
           />
 
-          {/* Pass 1 — SVG mouth rig: upper lip, lower lip, inner mouth */}
+          {/* Soft inner-mouth shadow — no visible lip lines.
+              Tints existing painted lips via multiply blend; vanishes when closed. */}
           {size !== "sm" && (
             <svg
               aria-hidden
@@ -661,6 +662,16 @@ export function CompanionAvatarFace({
               className="absolute inset-0 h-full w-full pointer-events-none"
               style={{ mixBlendMode: "multiply" }}
             >
+              <defs>
+                <radialGradient id="mouthShadow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%"  stopColor="rgba(28,8,12,0.85)" />
+                  <stop offset="55%" stopColor="rgba(40,14,18,0.45)" />
+                  <stop offset="100%" stopColor="rgba(40,14,18,0)" />
+                </radialGradient>
+                <filter id="mouthBlur" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="1.1" />
+                </filter>
+              </defs>
               <g ref={mouthGroupRef} style={{ transformOrigin: "50% 47.5%" }}>
                 <ellipse
                   ref={innerMouthRef}
@@ -668,32 +679,11 @@ export function CompanionAvatarFace({
                   cy="50"
                   rx="5"
                   ry="0.4"
-                  fill="rgba(40,12,18,0.85)"
+                  fill="url(#mouthShadow)"
                   filter="url(#mouthBlur)"
                   opacity="0"
                 />
-                <path
-                  ref={upperLipRef}
-                  d="M 44 49.7 Q 50 48.3 56 49.7"
-                  fill="none"
-                  stroke="rgba(110,40,40,0.55)"
-                  strokeWidth="0.5"
-                  strokeLinecap="round"
-                />
-                <path
-                  ref={lowerLipRef}
-                  d="M 44 50.3 Q 50 51.8 56 50.3"
-                  fill="none"
-                  stroke="rgba(110,40,40,0.55)"
-                  strokeWidth="0.55"
-                  strokeLinecap="round"
-                />
               </g>
-              <defs>
-                <filter id="mouthBlur" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="0.4" />
-                </filter>
-              </defs>
             </svg>
           )}
 
