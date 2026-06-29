@@ -116,12 +116,6 @@ function timeGreeting(name: string): { hi: string; sub: string } {
   return { hi: `I'm here, ${name}.`, sub: "Want something quiet to help you sleep?" };
 }
 
-/** Suggested first-action chips for an empty conversation. */
-const SUGGESTED_CHIPS: { label: string; text: string }[] = [
-  { label: "Help me wind down", text: "Help me wind down" },
-  { label: "Play rain for 30 minutes", text: "Play rain for 30 minutes" },
-  { label: "Wake me at 6:30", text: "Wake me at 6:30" },
-];
 
 
 function CompanionPage() {
