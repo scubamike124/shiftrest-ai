@@ -15,7 +15,7 @@ export type CompanionLocalPrefs = {
 
 export const DEFAULT_LOCAL_PREFS: CompanionLocalPrefs = {
   voiceInputEnabled: true,
-  voiceRepliesEnabled: false, // off by default — TTS costs credits.
+  voiceRepliesEnabled: true, // ON by default — Aura is a voice-first companion.
   actionSuggestionsEnabled: true,
   requireActionConfirmation: true,
   quietHours: null,
