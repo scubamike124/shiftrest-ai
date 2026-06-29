@@ -390,8 +390,8 @@ export function CompanionAvatarFace({
       // ── jaw drop (subtle portrait translate) ──
       jawLP += (gamma * 0.6 + shapeLP.open * 0.4 - jawLP) * 0.18;
       if (jawRef.current) {
-        const jawPx = s === "speaking" ? jawLP * 2.5 : 0;
-        const sy = s === "speaking" ? 1 + jawLP * 0.005 : 1;
+        const jawPx = s === "speaking" ? jawLP * 3.1 : 0;
+        const sy = s === "speaking" ? 1 + jawLP * 0.006 : 1;
         jawRef.current.style.setProperty("--jaw", `${jawPx}px`);
         jawRef.current.style.setProperty("--jaw-sy", `${sy}`);
       }
