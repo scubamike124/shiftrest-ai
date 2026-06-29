@@ -42,8 +42,11 @@ export function prepareVoicePlayback(): void {
     void audio
       .play()
       .then(() => {
-        audio.pause();
-        audio.currentTime = 0;
+        // Do not interrupt real TTS if the async prime resolves late.
+        if (audio.src === SILENT_WAV || audio.currentSrc === SILENT_WAV) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
         audio.volume = 1;
       })
       .catch(() => {
