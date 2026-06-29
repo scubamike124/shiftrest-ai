@@ -98,7 +98,7 @@ function RealismCard() {
         <div>
           <Label htmlFor="tts-eleven" className="text-sm">ElevenLabs voice (experimental)</Label>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Off by default. If ElevenLabs hits a limit or fails, we drop back to the standard voice for the rest of the session.
+            Beta — may stutter on iPhone Safari. Off by default. If ElevenLabs hits a limit or fails, we drop back to the standard voice for the rest of the session.
           </p>
         </div>
         <Switch
