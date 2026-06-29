@@ -37,12 +37,33 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
+function withLaunchDebugCacheHeaders(request: Request, response: Response): Response {
+  const url = new URL(request.url);
+  const isCompanionDebug = url.pathname === "/companion" && url.searchParams.get("debug") === "1";
+  const isHtml = (response.headers.get("content-type") ?? "").includes("text/html");
+  if (!isCompanionDebug || !isHtml) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  headers.set("Pragma", "no-cache");
+  headers.set("Expires", "0");
+  headers.set("Surrogate-Control", "no-store");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      return withLaunchDebugCacheHeaders(
+        request,
+        await normalizeCatastrophicSsrResponse(response),
+      );
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {
