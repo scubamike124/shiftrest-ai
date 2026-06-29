@@ -335,6 +335,41 @@ function CompanionAvatarFace2D({
     return () => { cancelled = true; if (t) window.clearTimeout(t); };
   }, [hidden, reduced]);
 
+  // Idle micro-smile — every 9–22s, briefly bias mouth corners up.
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    let rafA = 0, rafB = 0;
+    const ramp = (from: number, to: number, ms: number, onDone?: () => void) => {
+      const start = performance.now();
+      const tick = () => {
+        if (cancelled) return;
+        const k = Math.min(1, (performance.now() - start) / ms);
+        microSmileRef.current = from + (to - from) * (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+        if (k < 1) rafA = requestAnimationFrame(tick);
+        else onDone?.();
+      };
+      tick();
+    };
+    const loop = () => {
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        ramp(0, 1, 380, () => {
+          rafB = window.setTimeout(() => ramp(1, 0, 520, loop), 480) as unknown as number;
+        });
+      }, 9_000 + Math.random() * 13_000);
+    };
+    loop();
+    return () => {
+      cancelled = true;
+      if (t) window.clearTimeout(t);
+      if (rafA) cancelAnimationFrame(rafA);
+      if (rafB) window.clearTimeout(rafB);
+      microSmileRef.current = 0;
+    };
+  }, [hidden, reduced]);
+
   // Idle "swallow" — slight head/throat movement, never feels frozen.
   const [swallow, setSwallow] = useState(false);
   useEffect(() => {
