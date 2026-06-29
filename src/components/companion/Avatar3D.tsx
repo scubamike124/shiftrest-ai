@@ -239,26 +239,21 @@ function HeadModel({ url, state }: {
     if (hiddenRef.current) return; // skip work when tab hidden — battery
     const reduced = reducedRef.current;
     const t = performance.now() / 1000;
-    const s = stateRef.current;
+    const stateNow = stateRef.current;
 
     // Smooth state weights — 220ms ease to target.
     const w = stateWeights.current;
     const lerpK = Math.min(1, dt * 6);
-    w.idle      += ((s === "idle"      ? 1 : 0) - w.idle)      * lerpK;
-    w.listening += ((s === "listening" ? 1 : 0) - w.listening) * lerpK;
-    w.thinking  += ((s === "thinking"  ? 1 : 0) - w.thinking)  * lerpK;
-    w.speaking  += ((s === "speaking"  ? 1 : 0) - w.speaking)  * lerpK;
+    w.idle      += ((stateNow === "idle"      ? 1 : 0) - w.idle)      * lerpK;
+    w.listening += ((stateNow === "listening" ? 1 : 0) - w.listening) * lerpK;
+    w.thinking  += ((stateNow === "thinking"  ? 1 : 0) - w.thinking)  * lerpK;
+    w.speaking  += ((stateNow === "speaking"  ? 1 : 0) - w.speaking)  * lerpK;
 
-    // Breathing — gentle Y scale on the root. Slower if reduced.
+    // Breathing — gentle modulation layered on top of the auto-frame scale.
     const breathRate = reduced ? 0.55 : 1.05;
-    const breath = Math.sin(t * breathRate) * (reduced ? 0.003 : 0.006) + 0.998;
-    group.current.scale.setScalar(breath);
+    const breath = Math.sin(t * breathRate) * (reduced ? 0.003 : 0.006) + 1;
 
     // Head behavior — blend per-state targets.
-    //   listening → slight forward lean + small tilt toward user
-    //   thinking  → tilt up-and-away (looking off, considering)
-    //   speaking  → engaged forward, audio-peak nod
-    //   idle      → gentle drift
     const swayBase = reduced ? 0 : 1;
     const idleSwayX = Math.sin(t * 0.7) * 0.02 * swayBase;
     const idleSwayY = Math.sin(t * 0.5 + 1.2) * 0.025 * swayBase;
@@ -274,10 +269,10 @@ function HeadModel({ url, state }: {
     const nod = peakKickRef.current * 0.04 * w.speaking;
 
     // Apply auto-frame: uniform scale + center offset so any GLB lands inside
-    // the camera frustum. Breathing is layered as a tiny multiplier on top.
-    const s = frame.scale * breath;
-    group.current.scale.setScalar(s);
+    // the camera frustum, regardless of authoring units.
+    group.current.scale.setScalar(frame.scale * breath);
     group.current.position.set(frame.offsetX, frame.offsetY, frame.offsetZ);
+
 
     const off = headOffsetLP.current;
     off.tilt = off.tilt + (targetTilt - off.tilt) * Math.min(1, dt * 5);
