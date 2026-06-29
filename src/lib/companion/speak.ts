@@ -26,6 +26,20 @@ import { getTtsProvider, getElevenVoice, setTtsProvider } from "./renderer-pref"
 // OpenAI for the rest of the session so the user is never stranded silent.
 let elevenLabsBlocked = false;
 
+// Hard env flag: only allow ElevenLabs at all when explicitly enabled.
+// Default OFF — the streamless MP3 path stalls on iPhone Safari and
+// produces 1-2 s gaps between sentences. Re-enable per-build via
+// VITE_COMPANION_ELEVENLABS=on once true streaming is wired.
+const ELEVENLABS_FLAG_ON =
+  typeof import.meta !== "undefined" &&
+  ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    ?.VITE_COMPANION_ELEVENLABS ?? "off") === "on";
+
+// Per-session: warm the output device only on the first utterance.
+// Re-running warmOutputDevice() before every chunk added perceptible latency
+// between sentences on iOS Safari (the "stutter" symptom).
+let outputWarmed = false;
+
 let audioUnlocked = false;
 function markAudioUnlocked() {
   if (audioUnlocked) return;
@@ -393,22 +407,52 @@ async function playOnce(
   }
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
-  const provider = !elevenLabsBlocked && getTtsProvider() === "elevenlabs" ? "elevenlabs" : "openai";
+  const wantEleven =
+    ELEVENLABS_FLAG_ON && !elevenLabsBlocked && getTtsProvider() === "elevenlabs";
+  const provider = wantEleven ? "elevenlabs" : "openai";
   const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
   const voice = provider === "elevenlabs" ? (opts.voice ?? getElevenVoice()) : (opts.voice ?? undefined);
-  let resp = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ text: spoken, voice, mode }),
-  });
+
+  // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
+  // don't arrive in time, abort and fall through to OpenAI for this session.
+  const ctrl = provider === "elevenlabs" ? new AbortController() : null;
+  const stallTimer = ctrl
+    ? setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, 2500)
+    : null;
+  let resp: Response;
+  try {
+    resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text: spoken, voice, mode }),
+      signal: ctrl?.signal,
+    });
+  } catch (_err) {
+    if (provider === "elevenlabs") {
+      console.warn("[speak] ElevenLabs stalled, falling back to OpenAI for this session");
+      elevenLabsBlocked = true;
+      try { setTtsProvider("openai"); } catch { /* noop */ }
+      resp = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
+      });
+    } else {
+      throw _err;
+    }
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer);
+  }
   // Provider-specific failure → fall back to OpenAI for the rest of the session.
   if (provider === "elevenlabs" && !resp.ok) {
     console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
     elevenLabsBlocked = true;
-    // Best-effort: also flip the saved pref back so the UI reflects reality.
     try { setTtsProvider("openai"); } catch { /* noop */ }
     resp = await fetch("/api/tts", {
       method: "POST",
@@ -462,9 +506,13 @@ async function playOnce(
   // resolves; on iOS Safari `audio.play()` can return while the context is
   // still "suspended", which makes the first few hundred ms silent.
   await ensureContextRunning();
-  // Warm the output device so the first sample of the TTS blob is not
-  // swallowed (iOS Safari drops ~100 ms after a cold play()).
-  await warmOutputDevice();
+  // Warm the output device ONLY for the first utterance of the session.
+  // Re-warming before every chunk added ~50 ms latency between sentences,
+  // which presented as stuttering on iPhone Safari.
+  if (!outputWarmed) {
+    await warmOutputDevice();
+    outputWarmed = true;
+  }
 
   await new Promise<void>((resolve) => {
     audio.onended = () => {

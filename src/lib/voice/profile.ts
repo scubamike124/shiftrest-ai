@@ -81,7 +81,7 @@ export const PERSONALITY_OPTIONS: { key: PersonalityKey; label: string; desc: st
 ];
 
 const PERSONALITY_TEMPLATES: Record<PersonalityKey, string> = {
-  calm:         "Speak like a calm, present human friend — warm, unhurried, never robotic. Take a soft breath before the first word so the line starts naturally, not abruptly. Land each sentence with a gentle downstep instead of a flat tail. Vary pace within a sentence: a touch quicker on supporting clauses, a touch slower on the key idea. Read times the way a person would ('eight o'clock', 'eight a.m.' — never 'eight colon zero zero') and never read punctuation aloud. Allow tiny natural micro-pauses where a person would breathe.",
+  calm:         "Speak like a calm, warm human friend — natural and conversational, never robotic. Keep an even, easy pace. Read times the way a person would ('eight o'clock', 'eight a.m.' — never 'eight colon zero zero') and never read punctuation aloud.",
   friendly:     "Speak warmly and brightly, like a close friend genuinely glad to hear from them. Conversational rhythm, real breath pauses, pitch that moves — never stiff or sing-song.",
   professional: "Speak with clear, composed confidence. Measured pacing, precise diction, warmth underneath the polish. Natural pitch movement, not a newsreader monotone.",
   motivational: "Speak with upbeat, forward-leaning energy, like a coach who believes in them. Confident lift on the verb, soft on the encouragement. Never pushy, never shouty.",
@@ -128,10 +128,10 @@ const MODE_OVERLAYS: Record<SpeakMode, string> = {
 };
 
 export const MODE_SPEED: Record<SpeakMode, number> = {
-  normal: 0.92,
-  sleep: 0.82,
-  encouraging: 0.96,
-  thinking: 0.9,
+  normal: 1.0,
+  sleep: 0.9,
+  encouraging: 1.02,
+  thinking: 0.96,
 };
 
 export function buildInstructions(
