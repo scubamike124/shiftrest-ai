@@ -43,6 +43,8 @@ import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
+import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
+import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
 
 
 
@@ -764,24 +766,27 @@ function CompanionPage() {
         style={{ minHeight: 220 }}
       >
         {messages.length === 0 && (
-          <div className="px-1 py-4">
+          <div className="space-y-4 px-1 py-4">
             {companionOn ? (
               <>
-                <p className="mb-3 text-center text-xs text-muted-foreground">
-                  Try one of these — or just say what's on your mind.
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {SUGGESTED_CHIPS.map((chip) => (
-                    <button
-                      key={chip.label}
-                      type="button"
-                      onClick={() => void handleSend(undefined, chip.text)}
-                      disabled={sending}
-                      className="rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground/90 backdrop-blur-sm transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
+                <WindDownQuickAction onStart={() => setBreathingOpen(true)} />
+                <div>
+                  <p className="mb-3 text-center text-xs text-muted-foreground">
+                    Try one of these — or just say what's on your mind.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {SUGGESTED_CHIPS.map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => void handleSend(undefined, chip.text)}
+                        disabled={sending}
+                        className="rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground/90 backdrop-blur-sm transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
