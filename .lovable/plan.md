@@ -1,85 +1,111 @@
-# Avatar Strategy Pivot — Investigation & Recommendation
+# AI Companion Avatar — Investigation, POC, and Recommendation
 
-The Three.js + GLB pipeline has been retired for the launch path. Below is a head-to-head of the four directions you asked for, scored against the constraint that matters most: **reliable rendering on iPhone Safari, today.**
+No production code will be touched until you approve the winning stack after Phase 4. All POC work lives behind `/lab/*` routes and is gated from the main app.
 
-## Option Comparison
+---
 
-| Criterion | Live2D (Cubism Web) | Rive | Video/State Crossfade | Commercial SDK (D-ID / HeyGen / Soul Machines) |
-|---|---|---|---|---|
-| iOS Safari reliability | Good (WebGL1, well-trodden) | Excellent (Canvas2D/WebGL, tiny runtime) | Excellent (native `<video>`, HLS/MP4) | Variable — depends on vendor (most stream MP4/WebRTC, generally fine) |
-| Visual quality | High, anime/illustrated look | Vector/illustrated, very stylized | **Photoreal possible** (pre-rendered) | Photoreal, real-time generated |
-| Lip sync | Viseme-driven, needs audio analyser | Manual state-machine, weakest of the four | Mouth-frame crossfade or short loop per phoneme | Built-in, server-side from TTS |
-| Listening / thinking states | Yes (parameters) | Yes (state machine — its strength) | Yes (one clip per state) | Yes |
-| Blinking / idle motion | Built-in physics | Hand-authored, smooth | Baked into idle loop | Built-in |
-| Customization | Needs Live2D artist + Cubism Editor | Needs Rive designer | Needs one render pass per avatar/state | Vendor presets, limited |
-| Dev complexity | Medium (runtime + rig + viseme map) | Low–Medium | **Low** | Low integration, high vendor lock-in |
-| Bundle / payload | ~600 KB runtime + model | ~150 KB runtime + .riv | 2–6 MB video per avatar (cached) | Streamed |
-| Cost | Free for <$10M rev (Cubism Free SDK), else paid license | Free runtime, paid editor tiers | Free runtime; one-time render cost (Runway/Pika/Sora ~$5–20/avatar) | $0.05–0.30/min streaming, ongoing |
-| Long-term maintenance | Medium (rig edits need editor) | Low | **Very low** (static files on CDN) | Low code, high vendor risk |
-| Estimated time to ship | 5–8 days | 4–6 days | **1.5–2 days** | 2–3 days integration + legal |
+## Phase 1 — Investigation (Desk Research)
 
-## Recommendation — Video/State Crossfade
+Deliverable: a comparison matrix saved to `docs/avatar-poc/PHASE1_MATRIX.md`.
 
-Ship the **video-state avatar** for launch. It is the only option that gives you photoreal quality, near-zero runtime risk on iOS Safari, and a path to live in 2 days.
+### Avatar platforms evaluated
+1. **HeyGen Interactive Avatar (Streaming API)** — photoreal, WebRTC, server-driven lip sync.
+2. **D-ID Agents / Live Portrait** — photoreal, WebRTC stream from a still image or preset avatar.
+3. **Simli** — low-latency (sub-300ms) WebRTC photoreal avatars built for voice agents.
+4. **Tavus CVI (Conversational Video Interface)** — photoreal cloned avatars, WebRTC.
+5. **Soul Machines** — premium digital humans, enterprise pricing.
+6. **Ready Player Me + Three.js (current)** — included as the baseline we are replacing.
+7. **Live2D Cubism Web** — stylized 2D, viseme-driven.
+8. **Rive State Machine** — vector, hand-authored states.
 
-### Why this wins for RestPilot
+### Voice platforms evaluated
+1. **ElevenLabs** (current) — Turbo v2.5 / Flash v2.5, multilingual, streaming.
+2. **OpenAI Realtime API (gpt-realtime / gpt-4o-realtime)** — speech-to-speech, lowest latency.
+3. **Cartesia Sonic** — ~90ms TTFB streaming TTS.
+4. **PlayHT 3.0 / Play 3.0 mini** — conversational TTS, streaming.
+5. **Hume AI EVI 2** — emotionally aware voice.
+6. **Deepgram Aura-2** — fastest streaming TTS, lower realism.
 
-- **iOS Safari is a solved problem** for `<video playsinline muted>` with MP4/H.264. No WebGL, no decoders, no Meshopt, no KTX2 — the exact stack that has failed three times.
-- **Premium look beats premium tech.** A 4-second pre-rendered idle of Nova breathing looks better than any real-time 3D head we can ship this month.
-- **States map cleanly to what the Companion already emits**: `idle`, `listening`, `thinking`, `speaking`. We already have these signals wired in `Avatar3D`.
-- **Lip sync is "good enough" with a speaking loop** crossfaded over the existing audio-amplitude jaw pulse. We can upgrade later to viseme-frame swapping without changing the architecture.
-- **Reversible.** If we later want true 3D or Rive, the `<CompanionAvatar />` component becomes the only swap point.
+### Scoring axes (1–5, with notes)
+Avatar quality · lip sync · facial expressions · emotional realism · iPhone Safari · Desktop (Mac/Win) · API quality · SDK quality · Voice integration · Performance (TTFB, FPS) · Scalability · Cost ($/min) · Licensing · Long-term maintenance.
 
-### Architecture (Technical Section)
+### Output of Phase 1
+- Filled matrix in `docs/avatar-poc/PHASE1_MATRIX.md`.
+- Shortlist: **Top 3 avatar + voice combinations**, ranked, with rationale.
+  - Likely candidates (pre-research hypothesis, subject to change):
+    1. **Simli + ElevenLabs Flash v2.5** — lowest latency photoreal.
+    2. **HeyGen Streaming + ElevenLabs Turbo v2.5** — highest photoreal fidelity.
+    3. **D-ID Agents + OpenAI Realtime** — simplest end-to-end stack.
 
+---
+
+## Phase 2 — Proof of Concept (Isolated)
+
+Build one POC route per shortlisted combo. **Not wired into `/companion`, `/`, or any production surface.**
+
+### Route layout
 ```
-src/components/companion/
-  AvatarVideo.tsx          # <video> per state, crossfade, audio-reactive jaw overlay
-  avatar-states.ts         # url maps: { aura: { idle, listening, thinking, speaking } }
-src/assets/avatars/<name>/
-  idle.mp4   (3–5s loop, 720p, ~800 KB)
-  listening.mp4
-  thinking.mp4
-  speaking.mp4
-  poster.jpg
+src/routes/lab/
+  avatar-poc.index.tsx       # picker: choose combo 1/2/3
+  avatar-poc.simli.tsx       # combo 1
+  avatar-poc.heygen.tsx      # combo 2
+  avatar-poc.did.tsx         # combo 3
 ```
+Each route is `noindex`, behind a `?key=` query gate to avoid casual discovery, and renders only the avatar + a single text input + state HUD.
 
-- Two stacked `<video>` elements; fade between them on state change (200ms opacity).
-- All clips: `playsinline`, `muted`, `loop`, `preload="auto"`, H.264 baseline, AAC stripped.
-- Reuse existing `useAudioLevel()` to drive a subtle SVG mouth overlay during `speaking` — gives lip motion synced to *this* TTS playback, not a baked loop.
-- Skeleton + poster image cover the <300ms first-frame decode.
-- Files served via Lovable Assets CDN (already in stack).
+### Feature checklist per combo
+- Real photoreal avatar visible in <2s
+- Natural blinking (idle)
+- Breathing / micro-motion
+- Eye saccades / gaze
+- Listening state (mic open, no speaking)
+- Thinking state (between user finish and first audio)
+- Speaking state with real-time lip sync
+- Streaming voice (TTFB measured)
+- Smooth state transitions (no pop)
+- Latency budget: user-stop-talking → first audio < 1.2s target
 
-### Asset Production Plan
+### Server wiring
+- Per provider, one `/api/lab/<provider>/session.ts` server route that mints short-lived session tokens (no provider keys in client).
+- Secrets requested via `add_secret` only after you approve a provider to test (HEYGEN_API_KEY, DID_API_KEY, SIMLI_API_KEY, etc.). Nothing requested upfront.
+- ElevenLabs uses existing `ELEVENLABS_API_KEY`.
 
-Four avatars (Aura, Nova, Atlas, Sage) × 4 states = 16 clips. Two production paths:
+### Instrumentation
+- `docs/avatar-poc/perf.md` records TTFB, FPS, dropped frames, CPU/GPU hints, audio glitches, per device.
 
-1. **Fast path (recommended for launch):** Generate with Runway Gen-3 or Pika — portrait, subtle breathing/listening/thinking head motion, 4s loops. ~$60 total, same day.
-2. **Premium path (post-launch):** Commission a single shoot or use HeyGen avatars exported as MP4. ~$200–400, 1 week.
+---
 
-We can launch on path 1 and silently swap CDN URLs to path 2 later — no code change.
+## Phase 3 — Hardware Testing
 
-### Rejected Options — One-line Why
+You run a fixed script on each combo across:
+- iPhone Safari (your device)
+- Android Chrome
+- Mac Safari
+- Windows Chrome
+- Windows Edge
 
-- **Live2D** — Best long-term feel but needs an illustrator + 1 week of rig work per avatar; overkill for launch.
-- **Rive** — Great runtime, but weakest lip sync and the vector look fights the "premium photoreal" brand.
-- **Commercial SDK** — Ongoing per-minute cost and vendor lock-in; D-ID/HeyGen streaming adds 400–800ms latency on top of ElevenLabs.
+For each: PASS/FAIL on performance, stability, latency, voice quality, avatar quality, battery (qualitative), and browser compat. Results captured in `docs/avatar-poc/PHASE3_RESULTS.md`. I cannot run these — you'll fill in the matrix and reply with the data.
 
-## What Happens to the Existing 3D Code
+---
 
-- Keep `Avatar3D.tsx` behind a `?avatar=3d` query flag for internal testing only.
-- New default everywhere (`/`, `/companion`, hero, dock) is `AvatarVideo`.
-- Delete the GLB asset and Meshopt/KTX2 wiring after one stable release.
+## Phase 4 — Recommendation
 
-## Ship Checklist (post-approval)
+Final deliverable in `docs/avatar-poc/RECOMMENDATION.md`:
+- Winning avatar platform + why
+- Winning voice platform + why
+- Estimated implementation effort (days)
+- Estimated monthly operating cost at three usage tiers (100 / 1k / 10k active users)
+- Known limitations
+- Screenshots / screen recordings from the POC (you capture on device, I embed)
+- Go/No-Go: whether quality is sufficient to be RestPilot's flagship
 
-1. Build `AvatarVideo.tsx` + `avatar-states.ts`.
-2. Generate 4× idle clips for Nova first; wire end-to-end on `/companion`.
-3. Verify on iPhone Safari (hard refresh, cold cache).
-4. Backfill listening/thinking/speaking for Nova, then the other three avatars.
-5. Swap hero and dock to the new component.
-6. Publish.
+Only after you approve does production integration begin — that becomes a separate plan.
 
-**Estimated total time to a verified iPhone Safari pass: 1.5–2 days.**
+---
 
-Reply **approve video-state** to start, or name a different option and I'll re-plan.
+## What I need from you to start
+
+1. **Approval to begin Phase 1** (desk research, no secrets, no code).
+2. After Phase 1, approval of which 1–3 combos to actually POC in Phase 2 (each commercial provider POC needs an API key).
+
+Reply **approve Phase 1** to start. I will hold all production code as-is until Phase 4 sign-off.
