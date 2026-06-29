@@ -173,7 +173,7 @@ function CompanionPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Mic for voice input → fills the composer.
-  const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1200 });
+  const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1000, maxMs: 12_000 });
   const [transcribing, setTranscribing] = useState(false);
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
@@ -319,6 +319,7 @@ function CompanionPage() {
       await micStop();
       return;
     }
+    if (micState === "requesting" || micState === "encoding") return;
     setInput("");
     cancelMicRef.current = false;
     await micStart(async (blob) => {
@@ -326,7 +327,11 @@ function CompanionPage() {
         cancelMicRef.current = false;
         return; // user pressed Cancel — discard without transcribing
       }
-      if (!blob) return;
+      if (!blob) {
+        toast.info("I didn't catch that. Tap Nova and try again.");
+        track({ event: "voice_turn_empty_audio" });
+        return;
+      }
       setTranscribing(true);
       try {
         const { data: sess } = await supabase.auth.getSession();
@@ -345,7 +350,20 @@ function CompanionPage() {
           return;
         }
         const text = (json.text || "").trim();
-        if (text) setInput(text);
+        if (!text) {
+          toast.info("I didn't catch any words. You can try again or type it below.");
+          track({ event: "voice_turn_empty_transcript" });
+          return;
+        }
+        track({ event: "voice_turn_transcribed", chars: text.length });
+        setInput(text);
+        // Complete the voice loop: transcript → thinking → assistant reply.
+        // Previously this only filled the composer, which made Nova appear to
+        // stop after listening. Text is still rendered even when TTS is off or fails.
+        void handleSend(undefined, text);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Voice input failed. You can type instead.");
+        track({ event: "voice_turn_failed", stage: "stt" });
       } finally {
         setTranscribing(false);
       }
