@@ -25,8 +25,10 @@ export type DebugHUDProps = {
   voiceStatus?: string;
   orbState?: string;
   greetShown?: boolean;
+  companionMode?: string;
   onReset?: () => void;
 };
+
 
 type StepRow = { step: DebugStep; at: number; info?: string };
 
