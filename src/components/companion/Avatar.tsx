@@ -17,10 +17,12 @@
 // API is unchanged; CompanionAvatar.tsx, CompanionHero.tsx, companion.tsx
 // keep working.
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
+import { useRenderer, webglSupported } from "@/lib/companion/renderer-pref";
+import { modelUrlFor } from "@/lib/companion/avatar-models";
 import {
   EMOTION_PRESETS,
   getEmotion,
@@ -34,6 +36,8 @@ import {
   type VisemeKey,
   type VisemeShape,
 } from "@/lib/companion/visemes";
+
+const Avatar3D = lazy(() => import("./Avatar3D"));
 
 export type AvatarExpression = "neutral" | "smile" | "concerned" | "sleepy";
 
@@ -76,7 +80,35 @@ function prefersReducedMotion(): boolean {
   catch { return false; }
 }
 
-export function CompanionAvatarFace({
+// ── Public wrapper: routes to 3D when supported + opted in, else 2D ──
+export function CompanionAvatarFace(props: AvatarProps) {
+  const { renderer } = useRenderer();
+  const { id } = useAvatar();
+  const [webgl] = useState<boolean>(() => webglSupported());
+  const [threeDFailed, setThreeDFailed] = useState(false);
+
+  const has3DModel = !!modelUrlFor(id);
+  const want3D = renderer === "3d" && webgl && has3DModel && !threeDFailed;
+
+  if (want3D) {
+    return (
+      <Suspense fallback={<CompanionAvatarFace2D {...props} />}>
+        <div className={cn("relative", props.className)} style={{ width: SIZE_PX[props.size ?? "md"], height: SIZE_PX[props.size ?? "md"] }}>
+          <Avatar3D
+            state={props.state}
+            level={props.level}
+            size={props.size}
+            onFail={() => setThreeDFailed(true)}
+          />
+        </div>
+      </Suspense>
+    );
+  }
+
+  return <CompanionAvatarFace2D {...props} />;
+}
+
+function CompanionAvatarFace2D({
   state,
   level = 0,
   size = "md",
