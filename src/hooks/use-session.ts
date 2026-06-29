@@ -28,16 +28,18 @@ function waitForAuthEvent(timeoutMs: number): Promise<Session | null> {
   if (typeof window === "undefined") return Promise.resolve(null);
   return new Promise((resolve) => {
     let done = false;
+    let unsubscribe: (() => void) | null = null;
     const finish = (session: Session | null) => {
       if (done) return;
       done = true;
-      try { sub.data.subscription.unsubscribe(); } catch { /* noop */ }
+      try { unsubscribe?.(); } catch { /* noop */ }
       window.clearTimeout(timer);
       resolve(session);
     };
     const sub = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (nextSession?.access_token) finish(nextSession);
     });
+    unsubscribe = () => sub.data.subscription.unsubscribe();
     const timer = window.setTimeout(() => finish(null), timeoutMs);
   });
 }
