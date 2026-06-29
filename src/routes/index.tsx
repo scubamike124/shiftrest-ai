@@ -102,7 +102,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-secondary/40 px-3 py-1 text-xs font-medium text-indigo-glow backdrop-blur-sm">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-glow" />
-              Meet Aura · your AI Sleep Companion
+              Aura · the AI companion you can see, tap & talk to
             </span>
             <h1
               className="mt-6 text-4xl leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
@@ -110,25 +110,23 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             >
               {/* Mobile: short, punchy */}
               <span className="sm:hidden">
-                Your AI sleep <span className="italic text-indigo-glow">companion</span>.
-                <br />
-                One tap away.
+                Meet the AI <span className="italic text-indigo-glow">companion</span> that helps you sleep better.
               </span>
               {/* Tablet + desktop: full editorial line */}
               <span className="hidden sm:inline">
-                A real AI{" "}
-                <span className="italic text-indigo-glow">companion</span> for
-                the people who sleep when the world wakes.
+                Meet the AI{" "}
+                <span className="italic text-indigo-glow">companion</span> that
+                helps you unwind, sleep, and wake up better.
               </span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
               <span className="sm:hidden">
-                Calmer nights, sharper days — voice or text, built for your shifts.
+                Tap to talk. Sleep sounds, smart alarm, and wind-down guidance — one calm assistant for the hours that wreck everyone else.
               </span>
               <span className="hidden sm:inline">
-                Tap the avatar to talk. Aura plans tonight's sleep, calms you
-                down after shift, runs sleep sounds, sets your smart alarm, and
-                checks in all day — built around your real rotation.
+                Tap your companion after work, ask for calming sounds, start a
+                wind-down routine, or let her wake you at the right time —
+                a personal assistant built for shift life.
               </span>
             </p>
 
@@ -149,11 +147,18 @@ function Hero({ ctaHref }: { ctaHref: string }) {
               </a>
             </div>
 
-            <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-muted-foreground">
-              <Trust icon={Shield} label="Private by default" />
-              <Trust icon={Watch} label="Fitbit · Oura sync" />
-              <Trust icon={Sparkles} label="Personalized AI memory" />
+            {/* Capability chips — what Aura actually does */}
+            <div className="mt-7 flex flex-wrap gap-2">
+              <CapChip icon={Mic} label="Tap to talk" />
+              <CapChip icon={Waves} label="Sleep sounds" />
+              <CapChip icon={BellRing} label="Smart alarm" />
+              <CapChip icon={Moon} label="Wind-down guidance" />
             </div>
+
+            <p className="mt-5 text-xs text-muted-foreground">
+              <Shield className="mr-1.5 inline h-3.5 w-3.5 text-indigo-glow" />
+              Private by default · Fitbit & Oura sync · Personalized memory
+            </p>
           </div>
 
           <div className="relative mx-auto w-full max-w-lg">
@@ -162,6 +167,15 @@ function Hero({ ctaHref }: { ctaHref: string }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function CapChip({ icon: Icon, label }: { icon: typeof Shield; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-card/50 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm">
+      <Icon className="h-3.5 w-3.5 text-indigo-glow" />
+      {label}
+    </span>
   );
 }
 
