@@ -407,7 +407,7 @@ function CompanionPage() {
   const pointerStartedRecordingRef = useRef(false);
   const HOLD_THRESHOLD_MS = 350;
   function handleMicPointerDown() {
-    if (!companionOn || transcribing || sending) return;
+    if (transcribing || sending) return;
     holdStartRef.current = performance.now();
     heldRef.current = false;
     pointerStartedRecordingRef.current = false;
