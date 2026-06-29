@@ -276,18 +276,17 @@ function CompanionPage() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, sending]);
 
-  // One-time greeting on entry — proves Nova is alive the moment you arrive.
-  // Fires when signed-in + Companion Mode on + the chat is empty, OR when
-  // the URL carries ?greet=1 (the landing-page avatar tap path).
+  // One-time greeting on entry. We render greeting text immediately but DO
+  // NOT auto-speak before a user gesture — browsers block autoplay and a
+  // failed greeting playback can leave voiceStatus stuck in "speaking",
+  // causing the avatar to glow indefinitely. Voice begins on the first tap.
   const greetedRef = useRef(false);
   useEffect(() => {
     if (greetedRef.current) return;
-    if (signedIn !== true || !companionOn) return;
+    if (signedIn !== true) return;
+    // Wait for prefs (success or error) so we know the user's name.
+    if (!prefsQ.isSuccess && !prefsQ.isError) return;
     if (messages.length > 0) return;
-    if (!search.greet && !search.intro) {
-      // Without an explicit greet flag, still greet on first mount of a
-      // fresh session so the user never sees a silent avatar.
-    }
     greetedRef.current = true;
     const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
     const hour = new Date().getHours();
@@ -296,11 +295,33 @@ function CompanionPage() {
         ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
         : `Hi ${name}, I'm here. How can I help tonight?`;
     setMessages([{ role: "assistant", content: opener }]);
-    // Speak through the centralized gate — silently no-ops when voice is
-    // off or quiet hours are active.
-    void speak(opener, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
-  }, [signedIn, companionOn, prefs, sessionEmail, messages.length, search.greet, search.intro]);
+  }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
+
+  // Safety: reset voiceStatus on mount so a stale "speaking" from a previous
+  // session can't leave the avatar wedged in the glowing speaking state.
+  useEffect(() => {
+    setVoiceStatus("idle");
+  }, []);
+
+  // Watchdog: if we believe we're speaking but no audio-level events arrive
+  // for 2.5s, force back to idle. Eliminates any "stuck speaking" path.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let lastLevelAt = performance.now();
+    const onLvl = () => { lastLevelAt = performance.now(); };
+    window.addEventListener("companion:audio-level", onLvl as EventListener);
+    const interval = window.setInterval(() => {
+      if (voiceStatus !== "speaking") return;
+      if (performance.now() - lastLevelAt > 2500) {
+        setVoiceStatus("idle");
+      }
+    }, 500);
+    return () => {
+      window.removeEventListener("companion:audio-level", onLvl as EventListener);
+      window.clearInterval(interval);
+    };
+  }, [voiceStatus]);
 
   // Mic-permission banner state — surfaces a clear message instead of a
   // silent dead-tap when the user has blocked the microphone.
@@ -386,7 +407,7 @@ function CompanionPage() {
   const pointerStartedRecordingRef = useRef(false);
   const HOLD_THRESHOLD_MS = 350;
   function handleMicPointerDown() {
-    if (!companionOn || transcribing || sending) return;
+    if (transcribing || sending) return;
     holdStartRef.current = performance.now();
     heldRef.current = false;
     pointerStartedRecordingRef.current = false;
@@ -504,7 +525,10 @@ function CompanionPage() {
   async function handleSend(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
     const text = (override ?? input).trim();
-    if (!text || sending || !companionOn) return;
+    // Gate only on send-in-flight and empty text. companionOn used to gate
+    // here, which silently swallowed every voice turn for users who hadn't
+    // toggled Companion Mode on — root cause of "Nova never replies".
+    if (!text || sending) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
@@ -1176,7 +1200,7 @@ function CompanionPage() {
             )}
             aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
             aria-pressed={micState === "listening"}
-            disabled={!companionOn || transcribing || sending}
+            disabled={transcribing || sending}
             onClick={handleMicClick}
             onPointerDown={handleMicPointerDown}
             onPointerUp={handleMicPointerUp}
@@ -1188,8 +1212,8 @@ function CompanionPage() {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={companionOn ? "Message your Companion" : "Companion Mode is off"}
-          disabled={!companionOn || sending}
+          placeholder="Message your Companion"
+          disabled={sending}
           className="h-11"
           inputMode="text"
           autoComplete="off"
@@ -1199,7 +1223,7 @@ function CompanionPage() {
             <Square className="h-4 w-4" />
           </Button>
         ) : (
-          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Send" disabled={!companionOn || !input.trim()}>
+          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Send" disabled={!input.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         )}

@@ -89,22 +89,29 @@ export function CompanionAvatarFace({
     };
   }, []);
 
-  // ── Blink loop ───────────────────────────────────────────────────────────
+  // ── Blink loop (3–8s with ~1-in-5 double blink) ──────────────────────────
   const [blink, setBlink] = useState(false);
   useEffect(() => {
     if (hidden) return;
     let cancelled = false;
     let t: number | undefined;
+    const closeOpen = (after: number, cb: () => void) => {
+      setBlink(true);
+      window.setTimeout(() => {
+        if (cancelled) return;
+        setBlink(false);
+        window.setTimeout(() => { if (!cancelled) cb(); }, after);
+      }, 130);
+    };
     const loop = () => {
-      const next = 2800 + Math.random() * 3200;
+      const next = 3000 + Math.random() * 5000;
       t = window.setTimeout(() => {
         if (cancelled) return;
-        setBlink(true);
-        window.setTimeout(() => {
-          if (cancelled) return;
-          setBlink(false);
-          loop();
-        }, 140);
+        const doubleBlink = Math.random() < 0.2;
+        closeOpen(140, () => {
+          if (doubleBlink) closeOpen(80, loop);
+          else loop();
+        });
       }, next);
     };
     loop();
@@ -209,7 +216,7 @@ export function CompanionAvatarFace({
         />
       )}
 
-      {/* Soft inner ring (md/lg only) */}
+      {/* Soft inner ring (md/lg only) — gentle warmth, never bright. */}
       {size !== "sm" && (
         <div
           aria-hidden
@@ -217,11 +224,11 @@ export function CompanionAvatarFace({
           style={{
             boxShadow:
               state === "speaking"
-                ? "inset 0 0 24px hsl(190 90% 60% / 0.35), 0 0 28px hsl(190 90% 60% / 0.25)"
+                ? "inset 0 0 18px hsl(190 70% 60% / 0.18)"
                 : state === "listening"
-                  ? "inset 0 0 20px hsl(var(--primary) / 0.35)"
-                  : "inset 0 0 18px hsl(var(--primary) / 0.18)",
-            transition: "box-shadow 400ms ease",
+                  ? "inset 0 0 14px hsl(var(--primary) / 0.14)"
+                  : "inset 0 0 14px hsl(var(--primary) / 0.10)",
+            transition: "box-shadow 500ms ease",
           }}
         />
       )}
@@ -296,14 +303,14 @@ export function CompanionAvatarFace({
             />
           )}
 
-          {/* Listening: subtle catchlight brighten */}
+          {/* Listening: soft warmth on the jaw/chin, NEVER on the eyes. */}
           {state === "listening" && (
             <div
               aria-hidden
               className="absolute inset-0 pointer-events-none"
               style={{
                 background:
-                  "radial-gradient(ellipse at 50% 32%, hsl(var(--primary) / 0.18), transparent 55%)",
+                  "radial-gradient(ellipse 55% 35% at 50% 72%, hsl(var(--primary) / 0.08), transparent 70%)",
               }}
             />
           )}
