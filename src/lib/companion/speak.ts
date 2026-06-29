@@ -145,21 +145,29 @@ const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
 // Pre-shaper drive — pushes the soft-clip into useful range.
 const VOICE_GAIN = 2.3;
-// Post-shaper makeup — recovers headroom lost to the soft-clip ceiling.
-// Combined effective gain ≈ 2.3 × 1.3 = ~3.0 before tanh rounding.
+// Pre-shaper makeup — boosts quiet utterances into the shaper's linear range.
+// Placed BEFORE the shaper (was post-shaper at 1.3, which pushed peaks to 1.3
+// and hard-clipped at the destination on loud syllables). With makeup ahead
+// of the shaper, the tanh curve soft-clips the combined drive instead of
+// clipping at the destination. Combined pre-shaper drive ≈ 2.3 × 1.3 = 2.99.
 const VOICE_MAKEUP = 1.3;
+// Ceiling trim baked into the shaper curve — keeps absolute peak ≤ 0.97
+// (the audit target was < 0.98) so the destination never sees a sample at
+// the digital ceiling, even on a pathological full-scale sine input.
+const SHAPER_CEILING = 0.97;
 
 function buildSoftClipCurve(samples = 2048): Float32Array {
-  // tanh-shaped soft clip. Linear at low levels, rounds gently toward ±1.0.
+  // tanh-shaped soft clip. Linear at low levels, rounds gently toward ±SHAPER_CEILING.
   const ab = new ArrayBuffer(samples * 4);
   const curve = new Float32Array(ab);
   const k = 1.4;
   for (let i = 0; i < samples; i++) {
     const x = (i / (samples - 1)) * 2 - 1;
-    curve[i] = Math.tanh(k * x) / Math.tanh(k);
+    curve[i] = (Math.tanh(k * x) / Math.tanh(k)) * SHAPER_CEILING;
   }
   return curve;
 }
+
 
 async function warmOutputDevice(): Promise<void> {
   // Push ~40 ms of near-silent buffer through the graph so the OS audio
@@ -206,11 +214,11 @@ function ensureAudioGraph(): boolean {
       levelAnalyser.smoothingTimeConstant = 0.25;
     }
     if (!graphWired) {
-      // source → Gain → WaveShaper → MakeupGain → destination + Analyser
-      levelGain.connect(levelShaper);
-      levelShaper.connect(levelMakeup);
-      levelMakeup.connect(levelCtx.destination);
-      levelMakeup.connect(levelAnalyser);
+      // source → Gain → MakeupGain (pre-shaper) → WaveShaper → destination + Analyser
+      levelGain.connect(levelMakeup);
+      levelMakeup.connect(levelShaper);
+      levelShaper.connect(levelCtx.destination);
+      levelShaper.connect(levelAnalyser);
       graphWired = true;
     }
     return true;
