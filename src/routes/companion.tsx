@@ -535,24 +535,26 @@ function CompanionPage() {
             if (delta) {
               assistant += delta;
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
-              // Early speech: emit the first sentence past 30 chars ASAP.
-              if (spokenChars === 0 && assistant.length >= 30) {
-                const tail = assistant.slice(spokenChars);
-                const m = tail.match(SENTENCE_RE);
-                if (m && m.index !== undefined) {
+              // Stream-speak: flush every complete sentence past the
+              // already-spoken cursor as soon as it arrives.
+              if (assistant.length - spokenChars >= 30) {
+                while (true) {
+                  const tail = assistant.slice(spokenChars);
+                  const m = tail.match(SENTENCE_RE);
+                  if (!m || m.index === undefined) break;
                   const cut = spokenChars + m.index + m[0].length;
                   const segment = assistant.slice(spokenChars, cut).trim();
                   if (segment) {
                     speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
-                    spokenChars = cut;
                   }
+                  spokenChars = cut;
                 }
               }
             }
           } catch { /* noop */ }
         }
       }
-      // Enqueue any unsaid remainder.
+      // Enqueue any unsaid trailing fragment (no terminal punctuation).
       const remainder = assistant.slice(spokenChars).trim();
       if (remainder) {
         speakQueued(remainder, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
