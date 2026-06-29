@@ -1,49 +1,95 @@
-# Voice Stutter Fix — Rollback + Targeted Repair (post 2026-06-29T21:10Z)
+# Companion Blink & Idle Animation Fix
 
-## Diagnosis
+## Root cause (Avatar.tsx)
 
-Reading `src/lib/companion/speak.ts` and `src/routes/api/tts-elevenlabs.ts`, three things changed in the 21:10Z build that together produce the "few words → 1-2s pause → continue, and too slow" behavior on iPhone Safari:
+The "crossed eyes during blink" is **entirely a rig bug**, not the portrait.
 
-1. **ElevenLabs is the default for users who toggled it on** and the route requests `mp3_44100_128` from the upstream `text-to-speech` (non-streaming) endpoint. We then call `resp.blob()` client-side, which forces the full MP3 to buffer before playback starts. On cellular/iOS Safari that's the 1-2 s gap between each sentence chunk.
-2. **`speed: 0.96` (normal) / `0.88` (sleep)** in `tts-elevenlabs.ts` plus the "Calm" prosody preset is noticeably slower than the previous OpenAI path.
-3. **Per-chunk warm-up**: `warmOutputDevice()` (~40 ms silent buffer) + `ensureContextRunning()` now run before *every* `playOnce`, not just the first. Combined with the sentence-queue splitting, each chunk adds device-warm latency, so the listener hears: word word word — gap — word word.
-4. The session-level `elevenLabsBlocked` fallback only trips on HTTP failure, not on stall/timeout, so a slow first byte never demotes the provider.
+1. **Eyelids are skin‑colored solid pills painted over the photo's eyes**
+   (`eyelidColor = rgb(212,168,140)`, `borderRadius:40%`, `blur(0.4px)`) — sized
+   from a single percentage map `F.eyeLeft / F.eyeRight` that was tuned for
+   Aura. On Nova the painted iris sits a few pixels off from `F.eye*`, so when
+   the lid expands it lands slightly off‑center over the iris → reads as
+   "crossed."
+2. **`transformOrigin: 50% 100%` + `scaleY(lidOpenRatio)`**: at rest the lid is
+   a 4 %‑tall sliver at the **bottom** of the eye box, and on blink it
+   *balloons upward from the bottom* instead of closing downward like a real
+   eyelid. Combined with (1), the lid sweeps **across** the iris instead of
+   covering it from above.
+3. **Lids `translate(glanceX, glanceY)`** during saccades, but the painted
+   iris does not. Mid‑saccade the slit slides off the eye, exposing or
+   re‑covering one iris asymmetrically → "one eye drifts."
+4. **`halfBlinkRight` (12 % chance)**: deliberately blinks ONLY the right
+   eye for 110 ms — the literal "one eye crossed" symptom. The independent
+   `setBlink` / `setHalfBlinkRight` React states also de‑sync the two lids by
+   a render tick when both are true.
+5. **Per‑eye `lidOpenRatio` vs `lidOpenRatioRight` baselines** can differ by
+   one frame during emotion changes → uneven idle look.
 
-Headless Chromium did not catch this because Chromium starts MP3 decode the moment bytes arrive; iOS Safari waits for a usable buffer window.
+## Implementation
 
-## Fix (do these in one pass, ship behind the existing toggle)
+All changes in `src/components/companion/Avatar.tsx`. No portrait edits, no
+nav/payment changes.
 
-### A. Restore the stable voice path by default
-- In `src/lib/companion/renderer-pref.ts`, keep `"elevenlabs"` selectable but treat it as **beta/opt-in only**. No code change to the default (already `"openai"`), but add a `VITE_COMPANION_ELEVENLABS=off` runtime kill switch read in `speak.ts` — when off, ignore stored `getTtsProvider()` and force OpenAI. This is the rollback rule satisfied without deleting the integration.
-- Update the Settings copy in `src/routes/settings.companion.tsx` to label ElevenLabs as "Experimental — may stutter on iPhone" so users know what they're opting into.
+### 1. Rebuild the blink rig
 
-### B. Stop the per-chunk stall
-In `src/lib/companion/speak.ts`:
-- Track a module-level `outputWarmed` boolean. Run `warmOutputDevice()` only on the first `playOnce` of a session (or after `audioUnlocked` flips). Subsequent chunks skip it.
-- Move `ensureContextRunning()` outside the per-chunk path; it only needs to run when `levelCtx.state !== "running"`.
-- Start `audio.play()` as soon as `canplay` fires (not after awaiting the blob fully when streaming is available). For ElevenLabs specifically, switch from `resp.blob()` + `URL.createObjectURL` to a `MediaSource` / direct streaming `Response.body` → `Audio` via `URL.createObjectURL(response)` is not viable; instead, set `audio.src` to a server endpoint URL and let the browser stream the MP3 natively (route already returns `Content-Type: audio/mpeg`).
+- Delete `halfBlinkRight`, `setHalfBlinkRight`, and the asymmetric branch in
+  the blink loop.
+- Replace `blink` React state with a single `blinkProgressRef` (0 = open,
+  1 = closed) advanced inside the existing rAF `tick()` so **both lids read
+  the same value in the same frame** — no React state, no per‑eye drift.
+- Blink controller: rAF spring with phases `close (90 ms ease‑in) → hold
+  (40 ms) → open (130 ms ease‑out)`, scheduled by the existing interval
+  loop. Double‑blink stays (always synchronized). Sleep mode = slower.
+- Both eyelid `<div>`s read **the same** `lidOpenRatio` written via
+  `style.setProperty('--lid', value)` on a shared parent — guarantees
+  symmetry.
 
-### C. Restore conversational pace
-- In `src/routes/api/tts-elevenlabs.ts`: `speed: 1.0` normal, `0.92` sleep (was 0.96 / 0.88). Lower `style` to `0.35` normal so prosody isn't overly languid.
-- In `src/lib/voice/profile.ts`: revert the "Calm" preset's "unhurried" / "tiny natural micro-pauses" wording to the previous shorter prompt; over-prompting OpenAI TTS for breaths is what stretches phrasing.
+### 2. Make the lid actually look like an eyelid
 
-### D. Stall-aware fallback
-- In `playOnce`, race the `fetch` against a 2.5 s first-byte timeout. If ElevenLabs doesn't return headers in time, abort, set `elevenLabsBlocked = true`, and retry against `/api/tts`. Same for `audio.onstalled` / `onwaiting` firing twice within one utterance.
+- Change `transformOrigin` to `50% 0%` and invert the formula so the lid
+  **closes downward from the upper lash line** (matches real anatomy and
+  matches the painted brow/lash above the iris).
+- Replace the flat skin pill with a soft top‑down gradient
+  (`linear-gradient(to bottom, var(--eyelid-top) 0%, var(--eyelid-mid) 70%,
+  transparent 100%)`) so the closing edge is a thin shadow line rather than
+  a tan blob — invisible at rest, organic when closing.
+- Per‑avatar tuning map (`Aura/Nova/Atlas/Sage`) for `eyeLeft/eyeRight/eyeW/
+  eyeH` and `--eyelid-top/--eyelid-mid`. Read avatar id from `useAvatar()`.
+  Nova gets the values its painted irises actually sit at, so the lid lands
+  exactly on them.
+- **Lids never translate with `glanceX/glanceY`.** Gaze is a portrait effect
+  only; the lid stays locked to the eye socket so it can never slide off.
 
-### E. Keep the greeting volume fix
-- Leave the `WaveShaperNode` soft-clip + 40 ms pre-roll in place, but only for the **first** utterance (gated by `outputWarmed`). This is the change that solved the quiet greeting and it does not need to run again.
+### 3. Idle realism polish (already partly present — fill the gaps)
 
-### F. Verify
-- Bump `BUILD_STAMP` to `2026-06-29T22:30Z`.
-- Headless Chromium: confirm OpenAI is selected when the env flag is off; confirm `warmOutputDevice` is called once per session.
-- Manual: ask the user to retest the greeting + a 3-sentence reply on iPhone Safari and report whether the gaps are gone. If ElevenLabs still stutters after C, the env flag stays `off` until we wire true streaming.
+Already in place: gaze saccades, weight shift, posture tilt, swallow,
+shoulder breathing, head bob. Add/tune:
 
-## Files touched
+- **Micro‑smile variation** — every 9–22 s, briefly bias `mouthGroupRef`
+  `cornerLift` by `+0.4` for ~900 ms, then ease back. Anti‑repeats with the
+  existing `rememberAction` helper.
+- **Natural blink cadence** — tighten idle blink interval to 3.5–6.5 s
+  (was 2.5–9 s on some presets) and bias double‑blinks toward post‑smile.
+- **Breathing already on `shoulderRef`** — verify amplitude stays ≤ 1.3 %
+  scale so the face doesn't pump.
+- All idle motion still gated on `prefersReducedMotion` and
+  `visibilitychange` (already wired).
 
-- `src/lib/companion/speak.ts` — kill switch, one-shot warm-up, stall-aware fallback, BUILD_STAMP
-- `src/lib/companion/renderer-pref.ts` — read env flag
-- `src/routes/api/tts-elevenlabs.ts` — speed/style
-- `src/lib/voice/profile.ts` — trim Calm preset
-- `src/routes/settings.companion.tsx` — beta label
+### 4. Verify
 
-No DB changes. No new dependencies. ElevenLabs code is preserved behind the flag for future debugging.
+- Manual test: open `/companion` on iPhone Safari, watch ≥ 10 blink cycles
+  on Aura, Nova, Atlas, Sage. Lids close together, land exactly on each
+  iris, no drift, no cross‑eyed frame.
+- Spot‑check listening / thinking / speaking states — saccades and head bob
+  do not affect lid position.
+- Reduced‑motion: lids stay fully open, no blink.
+
+## Files
+- `src/components/companion/Avatar.tsx` — eyelid rig rewrite, idle polish.
+- (Optional) `src/lib/companion/avatars.ts` — add optional `eyeRig` per
+  preset (offsets + lid colors); falls back to defaults so custom avatars
+  keep working.
+- `BUILD_STAMP` bump.
+
+## Out of scope
+Portrait assets, navigation, payments, voice/audio pipeline.
