@@ -1,7 +1,9 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+// Use hardened attacher; the auto-generated one is single-shot and races
+// session hydration on iOS Safari (see auth-attacher.custom.ts).
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher.custom";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {

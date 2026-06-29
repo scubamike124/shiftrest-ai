@@ -2,7 +2,7 @@
 // Frontend-only. No analytics, no network. Emit calls are cheap no-ops
 // when the HUD isn't mounted.
 
-export const BUILD_STAMP = "2026-06-29T04:30Z";
+export const BUILD_STAMP = "2026-06-29T05:10Z";
 
 export type DebugStep =
   | "tap"
@@ -20,6 +20,10 @@ export type DebugStep =
   | "tts-end"
   | "tts-fail"
   | "greet-shown"
+  | "auth-ok"
+  | "auth-wait"
+  | "auth-refresh"
+  | "auth-missing"
   | "reset";
 
 export type DebugPayload = {
