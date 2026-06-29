@@ -8,7 +8,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { KTX2Loader } from "three-stdlib";
+import { KTX2Loader, MeshoptDecoder } from "three-stdlib";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
@@ -76,10 +76,21 @@ function getKTX2Loader(): KTX2Loader | null {
   }
 }
 
-function configureKTX2Loader(loader: { setKTX2Loader?: (l: KTX2Loader) => void }) {
+// Configures the GLTFLoader with both KTX2 (Basis) texture decoding AND
+// Meshopt geometry decoding. The bundled companion GLB declares
+// EXT_meshopt_compression in extensionsRequired, so without MeshoptDecoder
+// the loader throws and we fall straight to the 2D portrait — that was the
+// P0 "placeholder circle" bug.
+function configureGltfLoader(loader: {
+  setKTX2Loader?: (l: KTX2Loader) => void;
+  setMeshoptDecoder?: (d: typeof MeshoptDecoder) => void;
+}) {
   const ktx2 = getKTX2Loader();
   if (ktx2 && loader.setKTX2Loader) {
     loader.setKTX2Loader(ktx2);
+  }
+  if (loader.setMeshoptDecoder) {
+    loader.setMeshoptDecoder(MeshoptDecoder);
   }
 }
 
@@ -89,7 +100,7 @@ function HeadModel({ url, state }: {
   level?: number;
   onFail?: () => void;
 }) {
-  const gltf = useGLTF(url, true, true, configureKTX2Loader);
+  const gltf = useGLTF(url, true, true, configureGltfLoader);
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
 
@@ -276,5 +287,5 @@ export default function Avatar3D({ state, level = 0, size = "lg", className, onF
 // Preload helper for the picker / hero entrypoint.
 export function preloadAvatarModel(id: string | null | undefined) {
   const url = modelUrlFor(id);
-  if (url) useGLTF.preload(url, true, true, configureKTX2Loader);
+  if (url) useGLTF.preload(url, true, true, configureGltfLoader);
 }
