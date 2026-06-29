@@ -1225,7 +1225,13 @@ function CompanionPage() {
 
         <div className="mt-4 text-center">
           {(() => {
-            const g = timeGreeting(firstName(prefs ?? ({} as Prefs), sessionEmail));
+            const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+            // mountedGreeting is set in a useEffect below — server and first
+            // client render show a time-neutral greeting so hydration matches;
+            // the time-aware one appears one frame later.
+            const g = mountedGreeting
+              ? timeGreeting(name)
+              : { hi: `Hi, ${name}.`, sub: "" };
             return (
               <>
                 <p className="text-base font-medium">{g.hi}</p>
@@ -1236,6 +1242,7 @@ function CompanionPage() {
             );
           })()}
         </div>
+
 
       </section>
 
