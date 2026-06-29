@@ -47,6 +47,7 @@ import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
+import { CompanionQuickGrid, type CompanionQuickActionId } from "@/components/companion/CompanionQuickGrid";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
@@ -115,12 +116,6 @@ function timeGreeting(name: string): { hi: string; sub: string } {
   return { hi: `I'm here, ${name}.`, sub: "Want something quiet to help you sleep?" };
 }
 
-/** Suggested first-action chips for an empty conversation. */
-const SUGGESTED_CHIPS: { label: string; text: string }[] = [
-  { label: "Help me wind down", text: "Help me wind down" },
-  { label: "Play rain for 30 minutes", text: "Play rain for 30 minutes" },
-  { label: "Wake me at 6:30", text: "Wake me at 6:30" },
-];
 
 
 function CompanionPage() {
@@ -669,7 +664,30 @@ function CompanionPage() {
     void speakIfEnabled(content);
   }
 
+  function handleQuickAction(id: CompanionQuickActionId) {
+
+    switch (id) {
+      case "fall_asleep":
+      case "calm_down":
+        setBreathingOpen(true);
+        return;
+      case "sleep_sounds":
+        navigate({ to: "/sleep" }).catch(() => undefined);
+        return;
+      case "review_sleep":
+        navigate({ to: "/health" }).catch(() => undefined);
+        return;
+      case "plan_morning":
+        void handleSend(undefined, "Plan my morning");
+        return;
+      case "smart_alarm":
+        void handleSend(undefined, "Help me set a smart alarm for tomorrow");
+        return;
+    }
+  }
+
   async function handleSend(e?: React.FormEvent, override?: string) {
+
     const fromForm = !!e;
     e?.preventDefault();
     const text = (override ?? input).trim();
@@ -1370,27 +1388,18 @@ function CompanionPage() {
         style={{ minHeight: 220 }}
       >
         {messages.length === 0 && (
-          <div className="space-y-4 px-1 py-4">
+          <div className="space-y-4 px-1 py-2">
             {companionOn ? (
               <>
                 <WindDownQuickAction onStart={() => setBreathingOpen(true)} />
                 <div>
-                  <p className="mb-3 text-center text-xs text-muted-foreground">
-                    Try one of these — or just say what's on your mind.
+                  <p className="mb-3 text-center text-[11px] uppercase tracking-[0.18em] text-muted-foreground/80">
+                    Quick actions
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {SUGGESTED_CHIPS.map((chip) => (
-                      <button
-                        key={chip.label}
-                        type="button"
-                        onClick={() => void handleSend(undefined, chip.text)}
-                        disabled={sending}
-                        className="rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground/90 backdrop-blur-sm transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
-                      >
-                        {chip.label}
-                      </button>
-                    ))}
-                  </div>
+                  <CompanionQuickGrid
+                    disabled={sending}
+                    onAction={(id) => handleQuickAction(id)}
+                  />
                 </div>
               </>
             ) : (
@@ -1400,6 +1409,17 @@ function CompanionPage() {
             )}
           </div>
         )}
+
+        {companionOn && messages.length >= 2 && messages.length <= 6 && (
+          <div className="sticky top-0 z-10 -mx-1 mb-1 bg-gradient-to-b from-background/80 to-transparent px-1 pb-2 pt-1 backdrop-blur-sm">
+            <CompanionQuickGrid
+              compact
+              disabled={sending}
+              onAction={(id) => handleQuickAction(id)}
+            />
+          </div>
+        )}
+
 
         {messages.map((m, i) => (
           <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
