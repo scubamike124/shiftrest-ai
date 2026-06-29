@@ -874,6 +874,19 @@ function CompanionPage() {
               )}
             </div>
 
+            {m.role === "assistant" && m.content && !sending && (
+              <button
+                type="button"
+                onClick={() => replayMessage(m.content)}
+                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground transition hover:text-foreground"
+                aria-label="Replay this reply"
+                title="Replay"
+              >
+                <Volume1 className="h-3 w-3" />
+                Replay
+              </button>
+            )}
+
             {m.role === "assistant" && m.action && (
               <div className="w-full max-w-[85%]">
                 <ActionCard
