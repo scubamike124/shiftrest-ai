@@ -39,6 +39,30 @@ const ELEVENLABS_FLAG_ON =
 // between sentences on iOS Safari (the "stutter" symptom).
 let outputWarmed = false;
 
+// ── Response cache ────────────────────────────────────────────────────
+// Small in-memory LRU keyed by `${provider}|${voiceId}|${mode}|${text}`.
+// Skips the network and provider cost for fixed strings (greetings, brief
+// intros, sleep cues) that repeat across a session.
+const TTS_CACHE_MAX = 30;
+const ttsCache = new Map<string, Blob>();
+function ttsCacheGet(key: string): Blob | null {
+  const hit = ttsCache.get(key);
+  if (!hit) return null;
+  // LRU touch.
+  ttsCache.delete(key);
+  ttsCache.set(key, hit);
+  return hit;
+}
+function ttsCachePut(key: string, blob: Blob): void {
+  if (ttsCache.has(key)) ttsCache.delete(key);
+  ttsCache.set(key, blob);
+  while (ttsCache.size > TTS_CACHE_MAX) {
+    const first = ttsCache.keys().next().value;
+    if (first === undefined) break;
+    ttsCache.delete(first);
+  }
+}
+
 let audioUnlocked = false;
 function markAudioUnlocked() {
   if (audioUnlocked) return;
