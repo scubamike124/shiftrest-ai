@@ -126,7 +126,7 @@ export function CompanionAvatarFace({
 
   // ── Lip-sync via rAF + refs (no React state churn) ──────────────────
   const liveLevelRef = useRef(0);
-  const mouthRef = useRef<HTMLDivElement | null>(null);
+  const lipShadowRef = useRef<HTMLDivElement | null>(null);
   const jawRef = useRef<HTMLImageElement | null>(null);
   const browLeftRef = useRef<HTMLDivElement | null>(null);
   const browRightRef = useRef<HTMLDivElement | null>(null);
