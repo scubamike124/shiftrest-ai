@@ -1,13 +1,22 @@
-// Ready Player Me model URLs for the 3D Companion head.
+// 3D Companion model resolver.
 //
-// RPM avatars are user-generated, so we don't bundle preset URLs (any baked-in
-// ID is liable to 404). Instead the user creates their own avatar at
-// https://readyplayer.me and pastes the .glb URL into Settings → Companion.
+// RestPilot AI ships ONE premium branded 3D companion. The bundled GLB is
+// hosted on the Lovable asset CDN and used by default — no public input
+// for end users to paste arbitrary URLs (the product is a single curated
+// premium companion, not a user-configured avatar system).
 //
-// When no custom URL is set, the 2D portrait renders.
+// A `companion.modelUrl` value in localStorage still overrides the default
+// (used internally for QA / dev). If loading fails, the parent renderer
+// falls back to the 2D portrait (Avatar.tsx onFail path).
+
+import defaultModelAsset from "@/assets/companion/companion-default.glb.asset.json";
 
 const CUSTOM_KEY = "companion.modelUrl";
 const RPM_QUERY = "morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024&pose=A&lod=1";
+
+// Bundled default 3D head — ARKit/Oculus blendshapes compatible with
+// Avatar3D.tsx (jawOpen, mouthSmile*, eyeBlinkLeft/Right, browInnerUp).
+export const DEFAULT_MODEL_URL: string = defaultModelAsset.url;
 
 export function getCustomModelUrl(): string | null {
   if (typeof window === "undefined") return null;
@@ -38,7 +47,7 @@ function withMorphTargets(raw: string): string {
 export function modelUrlFor(_id: string | null | undefined): string | null {
   const custom = getCustomModelUrl();
   if (custom) return withMorphTargets(custom);
-  return null;
+  return DEFAULT_MODEL_URL;
 }
 
 // Kept for backwards compat with the earlier import site.

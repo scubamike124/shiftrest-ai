@@ -174,11 +174,19 @@ function HeadModel({ url, state }: {
 
 function ErrorTrap({ children, onError }: { children: React.ReactNode; onError: () => void }) {
   // Three.js loader errors propagate as thrown promises; this catches them
-  // by listening for unhandled rejections during the suspense.
+  // by listening for unhandled rejections. Host-agnostic so the bundled
+  // default GLB and any custom URL are both covered → parent then falls
+  // back to the 2D portrait.
   useEffect(() => {
     const handler = (e: PromiseRejectionEvent) => {
-      const msg = String(e.reason ?? "");
-      if (msg.includes("readyplayer") || msg.includes("GLTF") || msg.includes("Could not load")) {
+      const msg = String(e.reason ?? "").toLowerCase();
+      if (
+        msg.includes("gltf") ||
+        msg.includes(".glb") ||
+        msg.includes("could not load") ||
+        msg.includes("failed to load") ||
+        msg.includes("readyplayer")
+      ) {
         onError();
       }
     };
