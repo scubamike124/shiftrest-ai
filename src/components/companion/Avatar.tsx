@@ -157,39 +157,57 @@ function CompanionAvatarFace2D({
   const weights: EmotionWeights = EMOTION_PRESETS[emotion];
   const sleepMode = emotion === "sleep";
 
-  // ── Blink loop — interval driven by emotion preset ───────────────────
-  const [blink, setBlink] = useState(false);
-  const [halfBlinkRight, setHalfBlinkRight] = useState(false);
-  const blinkCfgRef = useRef(weights.blink);
-  useEffect(() => { blinkCfgRef.current = weights.blink; }, [weights.blink]);
+  // ── Blink scheduler ────────────────────────────────────────────────
+  // A single progress ref (0 = fully open, 1 = fully closed) is read by
+  // BOTH eyelids inside the rAF tick — so the two lids are always at the
+  // identical value in the same frame. No per-eye React state, no
+  // asymmetric "half blink." A blink is queued by writing keyframes onto
+  // blinkPlanRef; the rAF loop interpolates between them.
+  const blinkProgressRef = useRef(0);
+  type BlinkFrame = { at: number; v: number };
+  const blinkPlanRef = useRef<BlinkFrame[]>([]);
+
+  function scheduleBlink(opts: { closeMs: number; holdMs: number; openMs: number; doubleBlink: boolean }) {
+    const t0 = performance.now();
+    const { closeMs, holdMs, openMs, doubleBlink } = opts;
+    const frames: BlinkFrame[] = [
+      { at: t0, v: 0 },
+      { at: t0 + closeMs, v: 1 },
+      { at: t0 + closeMs + holdMs, v: 1 },
+      { at: t0 + closeMs + holdMs + openMs, v: 0 },
+    ];
+    if (doubleBlink) {
+      const gap = 90;
+      const base = t0 + closeMs + holdMs + openMs + gap;
+      frames.push(
+        { at: base, v: 0 },
+        { at: base + closeMs * 0.85, v: 1 },
+        { at: base + closeMs * 0.85 + 30, v: 1 },
+        { at: base + closeMs * 0.85 + 30 + openMs * 0.85, v: 0 },
+      );
+    }
+    blinkPlanRef.current = frames;
+  }
+
   useEffect(() => {
     if (hidden) return;
     let cancelled = false;
     let t: number | undefined;
-    const closeOpen = (after: number, holdMs: number, cb: () => void) => {
-      setBlink(true);
-      window.setTimeout(() => {
-        if (cancelled) return;
-        setBlink(false);
-        window.setTimeout(() => { if (!cancelled) cb(); }, after);
-      }, holdMs);
-    };
     const loop = () => {
-      const { min, max } = blinkCfgRef.current;
-      const next = min + Math.random() * (max - min);
+      // Tightened cadence: 3.5–6.5s feels alive without looking nervous.
+      // Sleep mode: slower, longer hold (handled below).
+      const next = 3500 + Math.random() * 3000;
       t = window.setTimeout(() => {
         if (cancelled) return;
-        const doubleBlink = Math.random() < 0.18;
-        const slowBlink = Math.random() < 0.06 || sleepMode;
-        const asymmetric = Math.random() < 0.12;
-        if (asymmetric) {
-          setHalfBlinkRight(true);
-          window.setTimeout(() => setHalfBlinkRight(false), 110);
-        }
-        closeOpen(140, slowBlink ? 280 : 130, () => {
-          if (doubleBlink) closeOpen(80, 120, loop);
-          else loop();
+        const slow = sleepMode || Math.random() < 0.06;
+        const doubleBlink = Math.random() < 0.16;
+        scheduleBlink({
+          closeMs: slow ? 130 : 90,
+          holdMs: slow ? 90 : 40,
+          openMs: slow ? 180 : 130,
+          doubleBlink,
         });
+        loop();
       }, next);
     };
     loop();
