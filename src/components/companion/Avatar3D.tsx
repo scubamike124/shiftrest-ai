@@ -284,6 +284,31 @@ export default function Avatar3D({ state, level = 0, size = "lg", className, onF
   );
 }
 
+// Soft pulsing skeleton — used while the GLB is being fetched/decoded so the
+// first paint never shows the bare placeholder disc.
+export function Avatar3DSkeleton({ size = "lg", className }: { size?: "sm" | "md" | "lg"; className?: string }) {
+  const px = SIZE_PX[size];
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-full bg-gradient-to-b from-indigo-950/60 to-slate-900/60",
+        className,
+      )}
+      style={{ width: px, height: px }}
+      aria-hidden
+    >
+      <div
+        className="absolute inset-0 animate-pulse"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 38%, rgba(188,216,255,0.22), rgba(99,102,241,0.10) 55%, transparent 75%)",
+        }}
+      />
+      <div className="absolute inset-0 rounded-full ring-1 ring-inset ring-white/10" />
+    </div>
+  );
+}
+
 // Preload helper for the picker / hero entrypoint.
 export function preloadAvatarModel(id: string | null | undefined) {
   const url = modelUrlFor(id);
