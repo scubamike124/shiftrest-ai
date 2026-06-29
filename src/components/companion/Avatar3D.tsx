@@ -56,20 +56,30 @@ function setMorph(target: { mesh: THREE.Mesh; index: number } | null, value: num
 const BASIS_TRANSCODER_PATH =
   "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/libs/basis/";
 
-function configureKTX2Loader(loader: { setKTX2Loader?: (l: KTX2Loader) => void }) {
-  if (typeof window === "undefined") return;
+let cachedKTX2Loader: KTX2Loader | null = null;
+
+function getKTX2Loader(): KTX2Loader | null {
+  if (cachedKTX2Loader) return cachedKTX2Loader;
+  if (typeof window === "undefined" || typeof document === "undefined") return null;
   try {
     const canvas = document.createElement("canvas");
-    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
-    if (!gl || !loader.setKTX2Loader) return;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     const ktx2 = new KTX2Loader();
     ktx2.setTranscoderPath(BASIS_TRANSCODER_PATH);
-    ktx2.detectSupport(gl);
-    loader.setKTX2Loader(ktx2);
+    ktx2.detectSupport(renderer);
+    renderer.dispose();
+    cachedKTX2Loader = ktx2;
+    return cachedKTX2Loader;
   } catch (err) {
-    // No KTX2 support on this device; regular GLB load will proceed or fail
-    // and the parent 2D fallback will take over.
-    console.warn("KTX2Loader setup failed; falling back to 2D portrait", err);
+    console.warn("KTX2Loader init failed; 3D textures may not decode", err);
+    return null;
+  }
+}
+
+function configureKTX2Loader(loader: { setKTX2Loader?: (l: KTX2Loader) => void }) {
+  const ktx2 = getKTX2Loader();
+  if (ktx2 && loader.setKTX2Loader) {
+    loader.setKTX2Loader(ktx2);
   }
 }
 
