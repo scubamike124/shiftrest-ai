@@ -181,6 +181,23 @@ function CompanionPage() {
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
+  // Phase D — voice playback status from speak.ts events.
+  const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStatus = (e: Event) => {
+      const detail = (e as CustomEvent<{ status: string }>).detail;
+      if (detail.status === "started") setVoiceStatus("speaking");
+      else if (detail.status === "failed") setVoiceStatus("failed");
+      else if (detail.status === "ended") {
+        setVoiceStatus((s) => (s === "failed" ? s : "idle"));
+      }
+    };
+    window.addEventListener("companion:voice-status", onStatus);
+    return () => window.removeEventListener("companion:voice-status", onStatus);
+  }, []);
+  // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
+  const cancelMicRef = useRef(false);
   // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
 
   const execCtx = {
