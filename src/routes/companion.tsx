@@ -64,6 +64,7 @@ export const Route = createFileRoute("/companion")({
         ? s.period
         : undefined,
     intro: s.intro === 1 || s.intro === "1" ? (1 as const) : undefined,
+    greet: s.greet === 1 || s.greet === "1" ? (1 as const) : undefined,
   }),
   head: () => ({
     meta: [
