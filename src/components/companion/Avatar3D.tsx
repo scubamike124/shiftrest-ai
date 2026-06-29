@@ -273,6 +273,12 @@ function HeadModel({ url, state }: {
     }
     const nod = peakKickRef.current * 0.04 * w.speaking;
 
+    // Apply auto-frame: uniform scale + center offset so any GLB lands inside
+    // the camera frustum. Breathing is layered as a tiny multiplier on top.
+    const s = frame.scale * breath;
+    group.current.scale.setScalar(s);
+    group.current.position.set(frame.offsetX, frame.offsetY, frame.offsetZ);
+
     const off = headOffsetLP.current;
     off.tilt = off.tilt + (targetTilt - off.tilt) * Math.min(1, dt * 5);
     off.lean = off.lean + (targetLean - off.lean) * Math.min(1, dt * 5);
