@@ -920,7 +920,7 @@ function CompanionPage() {
               )}
             </div>
 
-            {m.role === "assistant" && m.content && !sending && (
+            {m.role === "assistant" && m.content && !(sending && i === messages.length - 1) && (
               <button
                 type="button"
                 onClick={() => replayMessage(m.content)}
