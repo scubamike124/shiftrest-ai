@@ -67,6 +67,11 @@ function emitStatus(status: VoiceStatus, reason?: string) {
     new CustomEvent("companion:voice-status", { detail: { status, reason } }),
   );
 }
+/** Fired once after the current speak() (or queued turn) fully completes. */
+function emitTurnEnded() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("companion:turn-ended"));
+}
 
 // ── Sequential turn queue ──────────────────────────────────────────────
 // `speakQueued()` plays chunks one after another within the same logical
@@ -187,17 +192,20 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
   if (!t) {
     track({ event: "voice_skipped", reason: "empty" });
     emitStatus("skipped", "empty");
+    emitTurnEnded();
     return;
   }
   const prefs = loadLocalPrefs();
   if (!prefs.voiceRepliesEnabled) {
     track({ event: "voice_skipped", reason: "disabled" });
     emitStatus("skipped", "disabled");
+    emitTurnEnded();
     return;
   }
   if (inQuietHours(prefs.quietHours) || isQuietModeOn()) {
     track({ event: "voice_skipped", reason: "quiet_hours" });
     emitStatus("skipped", "quiet_hours");
+    emitTurnEnded();
     return;
   }
 
@@ -208,6 +216,7 @@ export async function speak(text: string, opts: SpeakOptions = {}): Promise<void
     track({ event: "voice_skipped", reason: "tts_error" });
     emitStatus("failed", "tts_error");
   }
+  emitTurnEnded();
 }
 
 /**
@@ -258,6 +267,7 @@ async function drainQueue(): Promise<void> {
     }
   } finally {
     draining = false;
+    emitTurnEnded();
   }
 }
 

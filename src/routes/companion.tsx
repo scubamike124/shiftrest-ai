@@ -182,23 +182,30 @@ function CompanionPage() {
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   // Phase D — voice playback status from speak.ts events.
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
+  // Voice-off / quiet-hours / autoplay-blocked banner (never silently skip).
+  const [voiceSkipped, setVoiceSkipped] = useState<null | "disabled" | "quiet_hours" | "autoplay_blocked" | "tts_error">(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     let failTimer: ReturnType<typeof setTimeout> | null = null;
     const onStatus = (e: Event) => {
-      const detail = (e as CustomEvent<{ status: string }>).detail;
+      const detail = (e as CustomEvent<{ status: string; reason?: string }>).detail;
       if (detail.status === "started") {
         if (failTimer) { clearTimeout(failTimer); failTimer = null; }
         setVoiceStatus("speaking");
+        setVoiceSkipped(null);
       } else if (detail.status === "failed") {
         setVoiceStatus("failed");
-        // Auto-clear the badge after 6s so a one-off TTS failure doesn't
-        // leave "Voice unavailable" stuck for the rest of the session.
+        if (detail.reason === "autoplay_blocked" || detail.reason === "tts_error") {
+          setVoiceSkipped(detail.reason);
+        }
         if (failTimer) clearTimeout(failTimer);
         failTimer = setTimeout(() => setVoiceStatus("idle"), 6000);
-      } else if (detail.status === "ended" || detail.status === "skipped") {
-        // Both "ended" and "skipped" stop the speaking presence cleanly.
-        // We don't downgrade a "failed" badge here — its own timer handles it.
+      } else if (detail.status === "skipped") {
+        if (detail.reason === "disabled" || detail.reason === "quiet_hours") {
+          setVoiceSkipped(detail.reason);
+        }
+        setVoiceStatus((s) => (s === "failed" ? s : "idle"));
+      } else if (detail.status === "ended") {
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
@@ -211,6 +218,9 @@ function CompanionPage() {
 
   // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
   const cancelMicRef = useRef(false);
+  // Auto-reopen mic after Aura finishes speaking if the last turn was a voice turn.
+  const lastTurnViaVoiceRef = useRef(false);
+  const autoReopenMicRef = useRef(false);
   // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
 
   const execCtx = {
@@ -280,9 +290,35 @@ function CompanionPage() {
         ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
         : `Hi ${name}, I'm here. How can I help tonight?`;
     setMessages([{ role: "assistant", content: opener }]);
+    greetingTextRef.current = opener;
     emitDebug("greet-shown");
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
   }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
+
+  // First user gesture → unlock audio + speak the greeting aloud once.
+  // Browsers block autoplay, so we wait for the very first pointerdown/click
+  // anywhere on the page before priming the audio context and calling speak().
+  const greetingTextRef = useRef<string | null>(null);
+  const greetSpokenRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (signedIn !== true) return;
+    const onFirstGesture = () => {
+      if (greetSpokenRef.current) return;
+      greetSpokenRef.current = true;
+      prepareVoicePlayback();
+      const text = greetingTextRef.current;
+      if (text) {
+        void speak(text, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+      }
+    };
+    window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
+    window.addEventListener("click", onFirstGesture, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("click", onFirstGesture);
+    };
+  }, [signedIn, prefs?.voiceId]);
 
   // Safety: reset voiceStatus on mount so a stale "speaking" from a previous
   // session can't leave the avatar wedged in the glowing speaking state.
@@ -381,6 +417,7 @@ function CompanionPage() {
         // Complete the voice loop: transcript → thinking → assistant reply.
         // Previously this only filled the composer, which made Nova appear to
         // stop after listening. Text is still rendered even when TTS is off or fails.
+        lastTurnViaVoiceRef.current = true;
         void handleSend(undefined, text);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Voice input failed. You can type instead.");
@@ -390,6 +427,28 @@ function CompanionPage() {
       }
     });
   }
+
+  // Auto-reopen the mic after Aura finishes speaking so the conversation
+  // flows naturally — only when the previous turn was initiated by voice
+  // (not text typing), and only when nothing else is in flight.
+  const handleMicTapRef = useRef(handleMicTap);
+  useEffect(() => { handleMicTapRef.current = handleMicTap; });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onTurnEnded = () => {
+      if (!lastTurnViaVoiceRef.current) return;
+      if (sending || transcribing) return;
+      if (micState !== "idle") return;
+      lastTurnViaVoiceRef.current = false;
+      // Small delay lets the avatar settle to "idle" before re-listening.
+      window.setTimeout(() => {
+        if (sending || transcribing || micState !== "idle") return;
+        void handleMicTapRef.current?.();
+      }, 350);
+    };
+    window.addEventListener("companion:turn-ended", onTurnEnded);
+    return () => window.removeEventListener("companion:turn-ended", onTurnEnded);
+  }, [sending, transcribing, micState]);
 
   async function cancelMicCapture() {
     cancelMicRef.current = true;
@@ -521,8 +580,10 @@ function CompanionPage() {
   }
 
   async function handleSend(e?: React.FormEvent, override?: string) {
+    const fromForm = !!e;
     e?.preventDefault();
     const text = (override ?? input).trim();
+    if (fromForm) lastTurnViaVoiceRef.current = false;
     // Gate only on send-in-flight and empty text. companionOn used to gate
     // here, which silently swallowed every voice turn for users who hadn't
     // toggled Companion Mode on — root cause of "Nova never replies".
@@ -1041,6 +1102,46 @@ function CompanionPage() {
             </p>
           )}
         </div>
+
+        {voiceSkipped && (
+          <button
+            type="button"
+            onClick={() => {
+              if (voiceSkipped === "disabled") {
+                updateLocal({ voiceRepliesEnabled: true });
+                setVoiceSkipped(null);
+                toast.success("Aura's voice is on.");
+                // Replay the last assistant message so the user immediately hears voice.
+                const last = [...messages].reverse().find((m) => m.role === "assistant");
+                if (last?.content) {
+                  prepareVoicePlayback();
+                  void speak(last.content, { voice: prefs?.voiceId ?? null, source: "manual" });
+                }
+              } else {
+                setVoiceSkipped(null);
+              }
+            }}
+            className="mx-auto mt-2 flex max-w-[20rem] items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-left text-xs text-foreground/90 transition hover:bg-primary/15"
+          >
+            <VolumeX className="h-4 w-4 shrink-0 text-primary" />
+            <span className="flex-1">
+              {voiceSkipped === "disabled" && (
+                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable Aura's voice.</span></>
+              )}
+              {voiceSkipped === "quiet_hours" && (
+                <>🌙 Quiet Hours is on — Aura is staying silent. Adjust in settings if you'd like voice back.</>
+              )}
+              {voiceSkipped === "autoplay_blocked" && (
+                <>🔈 Your browser blocked autoplay. Tap Aura once to unlock voice playback.</>
+              )}
+              {voiceSkipped === "tts_error" && (
+                <>⚠️ Voice playback hit an error. Text is still here — try again or check your connection.</>
+              )}
+            </span>
+          </button>
+        )}
+
+
 
 
         <div className="mt-4 text-center">
