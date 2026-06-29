@@ -177,6 +177,44 @@ function CompanionPage() {
     }
   }, []);
   const updateLocal = (patch: Partial<CompanionLocalPrefs>) => setLocalPrefs(saveLocalPrefs(patch));
+
+  // Pass 3 + Pass 6 — drive emotion state from user/AI signals.
+  // We keep a ref to the latest messages so the event handler reads fresh data
+  // without re-subscribing on every keystroke.
+  const messagesSnapshotRef = useRef<Msg[]>([]);
+  useEffect(() => { messagesSnapshotRef.current = messages; }, [messages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onTurnEnd = async () => {
+      const last = messagesSnapshotRef.current.filter((m) => m.role === "assistant").slice(-1)[0];
+      const { inferFromText, setEmotion } = await import("@/lib/companion/emotion");
+      if (localPrefs.companionMode === "sleep") { setEmotion("sleep"); return; }
+      setEmotion(inferFromText(last?.content ?? ""));
+    };
+    const onStatus = async (e: Event) => {
+      const d = (e as CustomEvent<{ status: string }>).detail;
+      if (d?.status !== "started") return;
+      const { setEmotion } = await import("@/lib/companion/emotion");
+      if (localPrefs.companionMode === "sleep") setEmotion("sleep");
+      else setEmotion("listening");
+    };
+    window.addEventListener("companion:turn-ended", onTurnEnd as EventListener);
+    window.addEventListener("companion:voice-status", onStatus as EventListener);
+    return () => {
+      window.removeEventListener("companion:turn-ended", onTurnEnd as EventListener);
+      window.removeEventListener("companion:voice-status", onStatus as EventListener);
+    };
+  }, [localPrefs.companionMode]);
+
+  // Reflect sleep mode immediately even outside of a turn.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    void import("@/lib/companion/emotion").then(({ setEmotion }) => {
+      if (localPrefs.companionMode === "sleep") setEmotion("sleep");
+      else setEmotion("neutral");
+    });
+  }, [localPrefs.companionMode]);
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);

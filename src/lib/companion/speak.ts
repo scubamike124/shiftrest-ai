@@ -169,6 +169,27 @@ function emitLevel(rms: number) {
   window.dispatchEvent(new CustomEvent("companion:audio-level", { detail: { rms } }));
 }
 
+// Pass 5 — peak detector. Rolling average; emit `companion:audio-peak`
+// when the current sample exceeds avg * 1.6 for ≥80ms.
+let peakAvg = 0;
+let peakAbove = 0;
+let lastPeak = 0;
+function pushPeakSample(rms: number, nowMs: number) {
+  peakAvg = peakAvg * 0.92 + rms * 0.08;
+  if (rms > peakAvg * 1.6 && rms > 0.04) {
+    peakAbove += 16; // approx rAF tick
+    if (peakAbove >= 80 && nowMs - lastPeak > 350) {
+      lastPeak = nowMs;
+      peakAbove = 0;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("companion:audio-peak", { detail: { rms } }));
+      }
+    }
+  } else {
+    peakAbove = 0;
+  }
+}
+
 function startLevelMeter(audio: HTMLAudioElement) {
   if (typeof window === "undefined" || !levelAnalyser) return;
   const analyser = levelAnalyser;
@@ -188,6 +209,7 @@ function startLevelMeter(audio: HTMLAudioElement) {
     }
     const rms = Math.sqrt(sum / buf.length);
     emitLevel(rms);
+    pushPeakSample(rms, performance.now());
     levelRaf = requestAnimationFrame(tick);
   };
   levelRaf = requestAnimationFrame(tick);
@@ -198,12 +220,17 @@ function stopLevelMeter() {
     cancelAnimationFrame(levelRaf);
     levelRaf = 0;
   }
+  peakAvg = 0;
+  peakAbove = 0;
   emitLevel(0);
 }
 
 export type SpeakOptions = {
   voice?: string | null;
   source?: "assistant_reply" | "action_narration" | "manual";
+  /** Pass 2 — pacing/timbre preset. Defaults to "normal".
+   *  Sleep mode picks "sleep" automatically when companionMode === "sleep". */
+  mode?: "normal" | "sleep" | "encouraging" | "thinking";
 };
 
 export function stopSpeaking(): void {
@@ -313,7 +340,15 @@ async function playOnce(
   opts: SpeakOptions,
   stillValid: () => boolean,
 ): Promise<void> {
-  const spoken = normalizeForSpeech(text);
+  const prefs = loadLocalPrefs();
+  const mode = opts.mode ?? (prefs.companionMode === "sleep" ? "sleep" : "normal");
+  const spoken = normalizeForSpeech(text, mode === "sleep" ? "sleep" : "normal");
+  // Pass 1 — let the Avatar pre-compute the viseme sequence for this chunk.
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("companion:speaking-text", { detail: { text: spoken, mode } }),
+    );
+  }
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   const resp = await fetch("/api/tts", {
@@ -322,7 +357,7 @@ async function playOnce(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, speed: 0.95 }),
+    body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
   });
   if (!resp.ok) {
     track({ event: "voice_skipped", reason: "tts_error" });

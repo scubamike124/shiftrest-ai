@@ -4,8 +4,10 @@ import {
   DEFAULT_VOICE_PROFILE,
   buildInstructions,
   clampSpeed,
+  MODE_SPEED,
   VOICE_OPTIONS,
   type PersonalityKey,
+  type SpeakMode,
   type VoiceProfile,
 } from "@/lib/voice/profile";
 
@@ -91,6 +93,7 @@ export const Route = createFileRoute("/api/tts")({
             personality?: PersonalityKey;
             speed?: number;
             instructions?: string;
+            mode?: SpeakMode;
           };
           const text = body.text;
           if (!text || typeof text !== "string") {
@@ -107,6 +110,9 @@ export const Route = createFileRoute("/api/tts")({
 
           const profile = await loadUserVoiceProfile(request.headers.get("authorization"));
 
+          const VALID_MODES = new Set<SpeakMode>(["normal", "sleep", "encouraging", "thinking"]);
+          const mode: SpeakMode = body.mode && VALID_MODES.has(body.mode) ? body.mode : "normal";
+
           const merged: VoiceProfile = {
             voiceId: body.voice && VALID_VOICE_IDS.has(body.voice) ? body.voice : profile.voiceId,
             language: body.language || profile.language,
@@ -115,11 +121,12 @@ export const Route = createFileRoute("/api/tts")({
               body.personality && VALID_PERSONALITIES.has(body.personality)
                 ? body.personality
                 : profile.personality,
-            speed: body.speed !== undefined ? clampSpeed(body.speed) : profile.speed,
+            // Mode speed overrides default unless the caller explicitly sent one.
+            speed: body.speed !== undefined ? clampSpeed(body.speed) : clampSpeed(MODE_SPEED[mode]),
             instructionsOverride: body.instructions ?? profile.instructionsOverride,
           };
 
-          const instructions = buildInstructions(merged);
+          const instructions = buildInstructions(merged, mode);
 
           const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
             method: "POST",
