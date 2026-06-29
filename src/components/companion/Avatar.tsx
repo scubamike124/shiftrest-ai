@@ -439,23 +439,26 @@ export function CompanionAvatarFace({
             }}
           />
 
-          {/* Mouth — driven by rAF, works for every size including sm */}
+          {/* Lip shadow — a subtle warm darkening UNDER the lip line.
+              No black overlay shape; opacity is driven by audio amplitude. */}
           <div
-            ref={mouthRef}
+            ref={lipShadowRef}
             aria-hidden
-            className="absolute"
+            className="absolute pointer-events-none"
             style={{
-              left: `${FEATURES.mouth.x - FEATURES.mouthW / 2}%`,
-              top: `${FEATURES.mouth.y}%`,
-              width: `${FEATURES.mouthW}%`,
-              height: reduced ? `${reducedMouthOpen}%` : "0%",
-              background: "rgba(40, 18, 22, 0.82)",
-              borderRadius: "50%",
-              filter: size === "sm" ? "blur(0.5px)" : "blur(1.1px)",
-              opacity: reduced ? (reducedMouthOpen > 0 ? 1 : 0) : 0,
-              willChange: "height, top, opacity",
+              left: `${FEATURES.mouth.x - 9}%`,
+              top: `${FEATURES.mouth.y + 0.8}%`,
+              width: "18%",
+              height: "5%",
+              background:
+                "radial-gradient(ellipse 50% 60% at 50% 35%, rgba(60,20,28,0.55), transparent 70%)",
+              mixBlendMode: "multiply",
+              filter: "blur(1.6px)",
+              opacity: reduced && state === "speaking" ? 0.35 : 0,
+              willChange: "opacity",
             }}
           />
+
 
           {/* Smile overlay (subtle mouth-corner lift) */}
           {smileOpacity > 0 && (
