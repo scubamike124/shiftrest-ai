@@ -127,7 +127,8 @@ const VOICE_GAIN = 1.7;
 
 function buildSoftClipCurve(samples = 2048): Float32Array {
   // tanh-shaped soft clip. Linear at low levels, rounds gently toward ±1.0.
-  const curve = new Float32Array(samples);
+  const ab = new ArrayBuffer(samples * 4);
+  const curve = new Float32Array(ab);
   const k = 1.4;
   for (let i = 0; i < samples; i++) {
     const x = (i / (samples - 1)) * 2 - 1;
