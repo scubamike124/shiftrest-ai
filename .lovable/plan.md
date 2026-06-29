@@ -1,91 +1,89 @@
+## Goal
 
-# Final AI Companion Polish — Investigation & Plan
+Replace the flat portrait + SVG-overlay rig with a real 3D Ready Player Me (RPM) head powered by Three.js, driven by the existing speech pipeline. Add ElevenLabs as a switchable voice provider (off by default) so we can A/B against `openai/gpt-4o-mini-tts` on real iPhone Safari before committing.
 
-Investigation pass complete. Findings + scoped fixes below. No new features. Item 2 (avatar realism) is **recommendation-only** per your instructions — I will not start a rendering rewrite without your approval.
-
----
-
-## 1. Greeting volume — root cause found
-
-**Symptom:** Greeting starts quieter, climbs to full volume a few seconds in.
-
-**What I confirmed in `src/lib/companion/speak.ts`:**
-- The audio graph is built once and reused. ✅
-- Every utterance (greeting + replies) routes through the same `Gain → Compressor → destination` path. ✅
-- However, the `DynamicsCompressor` is set to `threshold: -3 dB, ratio: 6, knee: 6`. On iOS Safari the compressor's internal envelope **starts from a cold state** when playback begins and pumps gain up over the first 200–600 ms. That is the audible "quiet first words → louder" curve — not a graph wiring issue.
-- Secondary contributor: `ensureContextRunning()` resolves, but on iOS Safari the very first `audio.play()` after unlock still has ~80–150 ms where the WebAudio output buffer is empty. The compressor's auto-gain reads near-silence and clamps low, then opens up.
-
-**Fix (small, surgical):**
-1. Remove the compressor from the live path for normal speech. Replace with a fixed-gain `Gain` (≈1.6×) feeding a hard `WaveShaperNode` soft-clip curve. Soft-clip is stateless → no envelope ramp → first syllable is at full level.
-2. Pre-roll: before `audio.play()`, push 40 ms of near-silent PCM through the graph via a one-shot `BufferSource` so the output device is already "warm" when the TTS blob starts.
-3. Keep a single `Limiter` (compressor with `threshold:-1, ratio:20, attack:0.001, release:0.05`) only as a true-peak safety net — its envelope never engages on normal speech so it cannot fade in.
-
-**Acceptance:** On real iPhone Safari, the first word of the greeting and the first word of every reply are subjectively the same loudness. Measured via the existing `companion:audio-level` RMS dispatcher (logged in DebugHUD).
+Everything that already works — greeting volume fix (WaveShaper soft-clip + 40ms warm-up), the new prosody prompts, the avatar picker chip, `/settings/avatar` custom photo, `companion_avatar_id` persistence — stays intact. The 3D layer is additive and falls back to the current 2D rig if WebGL/RPM fails or the user opts out.
 
 ---
 
-## 2. Avatar realism — architecture recommendation (no code yet)
+## Scope
 
-You explicitly asked: has the current approach hit its ceiling? **Yes, it has.** A single raster portrait with SVG overlays cannot cross the "feels alive" line, regardless of how many micro-animations we layer on. The mouth shape doesn't actually change the *pixels of the lips* in the photo — we're only tinting/shadowing over a fixed image.
+### 1. 3D Avatar System (Ready Player Me + Three.js)
 
-### Comparison
+Stack:
+- `three` + `@react-three/fiber` + `@react-three/drei` for rendering.
+- RPM `.glb` head models loaded by URL (no SDK runtime cost). Each preset (Aura / Nova / Atlas / Sage) maps to an RPM model URL stored in `src/lib/companion/avatars.ts`. Custom-photo avatars keep using the 2D portrait path — RPM photo-to-avatar is out of scope for this slice.
+- Models requested with `?morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024&pose=A&lod=1` so we get viseme + ARKit blendshapes and a small file.
 
-| Approach | Visual quality | Mobile perf | Effort | Recommend? |
-|---|---|---|---|---|
-| **Current: photo + SVG overlays** | 5/10 — clearly static base | Excellent (60fps) | Already built | Ceiling reached |
-| **Live2D (Cubism SDK web)** | 8/10 — true 2D rig, real mouth/eye deformation, industry standard for VTubers | Good (~50fps mid iPhone) | High — needs a rigged model per avatar (artist work) + SDK license review | **Recommended** if we want "alive" |
-| **Mesh deformation (Pixi.js + custom bone rig)** | 7/10 | Good | Very high — we'd be rebuilding half of Live2D | No |
-| **TalkingHead.js / SadTalker WebGL (neural lip-sync to portrait)** | 9/10 — actually morphs the photo | Poor on mobile (heavy WASM/WebGL, 200–500 MB models, 2–4s startup) | Medium integration, high runtime cost | No — kills mobile |
-| **Three.js + Ready Player Me 3D avatar with viseme blendshapes** | 8/10 — fully 3D, real lip-sync, free avatars | Good (~45–55fps) | Medium — RPM gives us blendshape-ready GLB, just wire visemes to morph targets | **Recommended alternative** if we want variety + 3D |
-| **Pre-rendered video loops keyed to viseme** | 7/10 | Excellent | Medium asset pipeline, no real-time response | No — won't sync to TTS |
+New component `src/components/companion/Avatar3D.tsx`:
+- Suspense-wrapped `<Canvas>` (transparent bg, `dpr={[1, 2]}`, `frameloop="demand"` flipped to `"always"` only while speaking/listening to save battery).
+- Single `<directionalLight>` + soft `<ambientLight>` for a calm, sleep-friendly key/fill. No HDRI.
+- Camera framed shoulders-up; matches current portrait crop so the picker chip overlay stays positioned.
+- Idle rig (driven from a rAF hook, not React state):
+  - **Breathing**: subtle Y-scale on chest bone + tiny camera dolly (±0.005).
+  - **Head sway**: low-amplitude perlin noise on neck rotation (±2°).
+  - **Eye saccades**: random gaze targets every 1.8–4.2s, eased.
+  - **Blinks**: asymmetric `eyeBlinkLeft`/`eyeBlinkRight` morphs, double-blinks ~12% of the time, suppressed during visemes.
+- Speech rig (consumes the existing `companion:voice-status` + analyser tap from `speak.ts`):
+  - Map analyser level → `jawOpen` + `mouthFunnel`/`mouthPucker` (smoothed 60 Hz).
+  - Map current viseme estimate → matching `viseme_*` morph weights.
+  - Brow flashes (`browInnerUp`) on emotion = "warm"; subtle frown on "concern".
 
-### Recommendation
+Integration:
+- New hook `useAvatarRenderer()` returns `"3d" | "2d"` based on: WebGL2 support, user pref (`localStorage: companion.renderer`), and a feature flag `VITE_COMPANION_3D` (default on once shipped, instant kill-switch).
+- `CompanionAvatarFace` (existing wrapper) chooses `<Avatar3D>` or the current `<Avatar>` portrait. Same outer dimensions, same tap target — keeps `handleMicTap`, the AvatarPickerChip, and orb-state ring untouched.
+- `useAvatar` adds `modelUrl?: string` to preset entries; missing URL → 2D fallback automatically. Custom-photo avatars keep working unchanged.
 
-Two viable paths. Pick one before any work starts:
+### 2. ElevenLabs Voice (behind a flag)
 
-- **Path A — Ready Player Me + Three.js** (my pick). Free avatars, gender variety out of the box, true 3D lip-sync via ARKit-compatible blendshapes that map 1:1 to our existing viseme stream. ~1 week of engineering. Replaces the portrait layer entirely; keeps `speak.ts` and the viseme bus unchanged.
-- **Path B — Live2D Cubism**. Higher visual ceiling for stylized 2D, but requires commissioning rigged art for every avatar and a license review for commercial use. ~2–3 weeks.
+- Standard connector flow (`standard_connectors--connect` → `elevenlabs`). `ELEVENLABS_API_KEY` becomes available in server env.
+- New server function `src/lib/companion/tts-elevenlabs.functions.ts` mirrors the existing `tts.functions.ts` shape: same input (text, mode, voiceId), same MP3 binary output, no client API surface change.
+- `src/lib/companion/speak.ts` selects provider via:
+  - User setting `localStorage: companion.tts.provider` = `openai` (default) | `elevenlabs`
+  - Runtime kill-switch: if ElevenLabs returns non-200, fall back to OpenAI for the rest of the session and emit a debug log line.
+- New `/settings/companion` row: "Voice provider" toggle with helper text "Experimental — compare on your device". When ElevenLabs is selected, surface a voice picker (Sarah / Charlie / River / Liam / Matilda — calm/companion-leaning).
+- Audio graph (WaveShaper soft-clip + 40ms warm-up) is provider-agnostic, so greeting-volume parity is preserved.
 
-**Do nothing else to the current SVG rig until you choose.** Continuing to tweak it is the exact "endless polish on the wrong architecture" you warned against.
+### 3. Persistence & Compatibility
+
+- `companion_avatar_id` in `public.profiles` unchanged.
+- Add `companion_renderer text default '3d'` and `companion_tts_provider text default 'openai'` to `public.profiles` via a single migration with GRANTs (authenticated select/update, service_role all). Hydrated by the existing profile hook, mirrored to localStorage for instant first paint.
+- `/settings/avatar` keeps the same grid + custom-photo upload. 2D preview thumbnails stay (cheaper than rendering 4 GLB scenes). Selection writes both id and (if present) modelUrl.
+
+### 4. Performance Guardrails
+
+- Lazy-load Three.js bundle (`React.lazy`) so the landing page / non-companion routes stay light.
+- Render loop runs on demand when idle, throttled to 30 FPS; switches to 60 FPS only while `orbState ∈ {listening, speaking, thinking}`.
+- WebGL context loss handler reverts to 2D for the session.
+- QA HUD adds: renderer (2d/3d), FPS, GLB load time, current viseme, TTS provider.
+
+### 5. Validation (iPhone Safari)
+
+- Soak: 25 min continuous use with auto-mic reopen on; assert no FPS drop > 10%, no audio fade-in regression, no memory growth > 80 MB.
+- Avatar persistence: pick Nova → refresh → still Nova; toggle 3D→2D in settings → persists.
+- Greeting parity: first word of greeting matches loudness of replies (manual A/B with phone at fixed distance).
+- ElevenLabs flag: default OFF on a fresh session; turning it on uses ElevenLabs end-to-end; turning it off restores OpenAI immediately (no reload).
+- Falls back cleanly when: WebGL disabled, GLB 404s, ElevenLabs returns 4xx/5xx.
 
 ---
 
-## 3. Voice naturalness
+## Technical Notes
 
-**What's in place now:** `openai/gpt-4o-mini-tts` with personality + mode `instructions`, speed 0.85–0.98.
-
-**Why it still sounds synthetic:** `gpt-4o-mini-tts` is the *small* tier. The full `gpt-4o-tts` model (via Lovable AI Gateway as `openai/gpt-4o-mini-tts` is the only TTS model currently allowlisted) is what it is — we won't unlock a different model without gateway support. Realistic gains have to come from prosody steering.
-
-**Fixes inside the current model:**
-1. Strengthen `instructions` with explicit non-robotic cues: *"Take a relaxed breath before the first word. Land each sentence with a soft, natural downstep. Use mild filler-like softness ('mm', 'so') only when it sounds human, never forced. Vary pace within sentences — slightly faster on supporting clauses, slower on the key noun."*
-2. Drop default `speed` from 0.95 → 0.92 for `normal` mode; `gpt-4o-mini-tts` sounds noticeably more human just below 1.0.
-3. Better normalization upstream: split long replies into shorter sentences before sending to TTS. The model produces more natural prosody on 1–2 sentence chunks than on a paragraph.
-4. Add an optional `ElevenLabs` path behind a feature flag (the project already has TTS knowledge for it). ElevenLabs `eleven_turbo_v2_5` is dramatically more human than `gpt-4o-mini-tts`. Costs more per character. **I'll wire it only if you say yes** — it's the single biggest naturalness win available and requires a connector.
-
-**Acceptance:** Side-by-side A/B with current build on a real iPhone — testers prefer new prosody. ElevenLabs gate stays off by default.
+- Deps to add: `three`, `@react-three/fiber`, `@react-three/drei`. RPM models are fetched as plain URLs — no RPM SDK.
+- Files created: `src/components/companion/Avatar3D.tsx`, `src/lib/companion/use-renderer.ts`, `src/lib/companion/tts-elevenlabs.functions.ts`, `src/lib/companion/tts-elevenlabs.server.ts`, migration for two new profile columns.
+- Files edited: `src/lib/companion/avatars.ts` (modelUrl), `src/components/companion/Avatar.tsx` wrapper to delegate, `src/lib/companion/speak.ts` (provider routing only — audio graph untouched), `src/routes/settings.companion.tsx`, `src/components/companion/DebugHUD.tsx`, `BUILD_STAMP`.
+- Untouched: greeting/volume audio graph, AvatarPickerChip behavior, mic recorder, intent router, normalization, `_authenticated` gating.
+- Out of scope this slice: RPM photo-to-avatar generation, full-body rig, lip-sync from phonemes (we drive visemes from analyser amplitude + sentence emotion — phoneme-accurate sync would require ElevenLabs alignment data and is a follow-up if needed).
 
 ---
 
-## 4. Avatar Library discoverability
+## Acceptance
 
-**What's in place:** `AVATAR_PRESETS` already has 4 (2 female: Aura, Nova; 2 male: Atlas, Sage) + custom upload. Route `/settings/avatar` exists.
+1. Tapping the avatar on `/companion` shows a breathing, blinking 3D head with idle gaze and speech-driven mouth on iPhone Safari.
+2. Switching avatars via the picker chip swaps the 3D model live and persists across refresh.
+3. Greeting starts at full volume — no fade-in regression vs current build.
+4. `Voice provider` toggle in settings flips between OpenAI and ElevenLabs without reload; OFF by default.
+5. WebGL-off / GLB failure / ElevenLabs failure all fall back gracefully with a visible debug log entry.
+6. 25-minute soak on iPhone Safari shows stable FPS and no audio drift.
 
-**Why "only one avatar appears during testing":** the selector is buried under `/settings/avatar` with no entry point from `/companion`. New users never find it.
-
-**Fixes:**
-1. Add a small avatar-swap chip directly on `/companion` (top-right of the avatar): tap → opens a bottom sheet with the 4 presets in a 2×2 grid + "Choose photo" + "More options" link to `/settings/avatar`.
-2. On first launch (intro sheet), add a "Pick your companion" step showing the 4 presets before the conversation starts. Skippable.
-3. Verify persistence path: `useAvatar` writes `localStorage` + `profiles.companion_avatar_id`. I'll add a Playwright check that switching avatars round-trips after reload.
-
-**Acceptance:** From `/companion`, switching avatar is reachable in ≤2 taps; both genders visible; selection persists after refresh and across sessions.
-
----
-
-## What I'll implement now (with your approval)
-
-- ✅ Fix #1 — Greeting volume (compressor → soft-clip + pre-roll). Low risk.
-- ✅ Fix #3 (parts 1–3) — Prosody instructions, speed tweak, sentence chunking. Low risk. Skip ElevenLabs unless you say go.
-- ✅ Fix #4 — On-companion avatar chip + first-launch picker step.
-- 🟡 Fix #2 — **No code.** Awaiting your decision: **Path A (Ready Player Me + Three.js)**, **Path B (Live2D)**, or **defer**.
-
-Reply with which avatar path (A / B / defer) and whether to enable the ElevenLabs voice path, and I'll ship #1, #3, #4 in one pass.
+Ready to implement on approval.
