@@ -21,6 +21,13 @@ function LabPicker() {
         Isolated routes used to evaluate avatar providers against real iOS Safari.
         Not linked from the app. Not indexed.
       </p>
+      <a
+        href="/lab/avatar-poc/simli"
+        className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/40 active:bg-emerald-400/30"
+        style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(16,185,129,0.25)" }}
+      >
+        Direct link → /lab/avatar-poc/simli
+      </a>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Link
           to="/lab/avatar-poc/simli"
