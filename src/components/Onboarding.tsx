@@ -40,6 +40,7 @@ export function Onboarding() {
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
+    enabled: sessionReady && hasSession && hasAccessToken,
   });
   const [step, setStep] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -51,7 +52,8 @@ export function Onboarding() {
     setReady(true);
   }, []);
 
-  const open = ready && isSuccess && !prefs.onboarded && !dismissed;
+  const authOk = sessionReady && hasSession && hasAccessToken;
+  const open = ready && authOk && isSuccess && !prefs.onboarded && !dismissed;
   if (!open) return null;
 
   const totalSteps = INTRO_SLIDES.length + 1; // + consent step

@@ -26,6 +26,7 @@ import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
 import { supabase } from "@/integrations/supabase/client";
+import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
 
 const MARKETING_ROUTES = new Set(["/", "/pricing", "/features", "/privacy", "/terms"]);
 const MARKETING_PREFIXES = ["/legal"];
@@ -150,6 +151,8 @@ function RootComponent() {
   const surface = surfaceFor(pathname);
   const [signedIn, setSignedIn] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+
+  installDebugNetworkProbe();
 
   useEffect(() => {
     let cancelled = false;
