@@ -276,5 +276,5 @@ export default function Avatar3D({ state, level = 0, size = "lg", className, onF
 // Preload helper for the picker / hero entrypoint.
 export function preloadAvatarModel(id: string | null | undefined) {
   const url = modelUrlFor(id);
-  if (url) useGLTF.preload(url);
+  if (url) useGLTF.preload(url, true, true, configureKTX2Loader);
 }
