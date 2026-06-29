@@ -46,6 +46,8 @@ import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
+import { DebugHUD } from "@/components/companion/DebugHUD";
+import { emitDebug } from "@/lib/companion/debug-bus";
 
 
 
