@@ -50,11 +50,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const voiceId = body.voice && /^[a-zA-Z0-9]+$/.test(body.voice) ? body.voice : DEFAULT_VOICE;
           const mode = body.mode ?? "normal";
 
-          // Pacing restored to conversational; sleep mode gets a gentler slowdown.
-          const stability = mode === "sleep" ? 0.65 : 0.5;
-          const similarity = 0.78;
-          const style = mode === "sleep" ? 0.15 : 0.35;
-          const speed = mode === "sleep" ? 0.92 : 1.0;
+          // Per-mode prosody presets (Phase 1 voice system).
+          // Tuned so the same voice reads bedtime cues vs. morning briefs
+          // with audibly different energy without changing the speaker.
+          const preset =
+            mode === "sleep"        ? { stability: 0.65, similarity: 0.80, style: 0.15, speed: 0.92, prefix: "[whisper] [soft] " }
+          : mode === "encouraging"  ? { stability: 0.40, similarity: 0.78, style: 0.55, speed: 1.02, prefix: "" }
+          : mode === "thinking"     ? { stability: 0.55, similarity: 0.75, style: 0.20, speed: 0.98, prefix: "" }
+                                    : { stability: 0.45, similarity: 0.78, style: 0.35, speed: 1.00, prefix: "" };
 
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -65,14 +68,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                text: text.slice(0, 4000),
+                text: (preset.prefix + text).slice(0, 4000),
                 model_id: "eleven_turbo_v2_5",
                 voice_settings: {
-                  stability,
-                  similarity_boost: similarity,
-                  style,
+                  stability: preset.stability,
+                  similarity_boost: preset.similarity,
+                  style: preset.style,
                   use_speaker_boost: true,
-                  speed,
+                  speed: preset.speed,
                 },
               }),
             },
