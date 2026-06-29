@@ -82,6 +82,12 @@ export const AVATAR_PRESETS: AvatarPreset[] = [
 
 export const DEFAULT_AVATAR_ID = "aura";
 
+export function resolveAvatarSrc(id: string | null | undefined): string {
+  if (!id) return AVATAR_PRESETS[0].src;
+  if (id.startsWith("custom:")) return id.slice("custom:".length);
+  return AVATAR_PRESETS.find((a) => a.id === id)?.src ?? AVATAR_PRESETS[0].src;
+}
+
 export function getEyeRig(id: string | null | undefined): EyeRig {
   const preset = id && !id.startsWith("custom:")
     ? AVATAR_PRESETS.find((a) => a.id === id)
