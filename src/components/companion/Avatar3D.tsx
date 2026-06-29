@@ -103,16 +103,45 @@ function HeadModel({ url, state }: {
   const gltf = useGLTF(url, true, true, configureGltfLoader);
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
+  const peakKickRef = useRef(0);
+  const stateRef = useRef<OrbState>(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Subscribe to live amplitude from speak.ts
+  // Smooth state weighting — eased 0..1 per state so transitions never pop.
+  const stateWeights = useRef({ idle: 1, listening: 0, thinking: 0, speaking: 0 });
+
+  // Reduced motion / visibility
+  const reducedRef = useRef(false);
+  const hiddenRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const setReduced = () => { reducedRef.current = mq.matches; };
+    setReduced();
+    mq.addEventListener?.("change", setReduced);
+    const onVis = () => { hiddenRef.current = document.visibilityState === "hidden"; };
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      mq.removeEventListener?.("change", setReduced);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  // Subscribe to live amplitude + peaks from speak.ts
   useEffect(() => {
     const onLvl = (e: Event) => {
       const d = (e as CustomEvent<{ rms: number }>).detail;
       const raw = Math.max(0, Math.min(1, d?.rms ?? 0));
       liveLevelRef.current = liveLevelRef.current * 0.4 + raw * 0.6;
     };
+    const onPeak = () => { peakKickRef.current = 1; };
     window.addEventListener("companion:audio-level", onLvl as EventListener);
-    return () => window.removeEventListener("companion:audio-level", onLvl as EventListener);
+    window.addEventListener("companion:audio-peak", onPeak);
+    return () => {
+      window.removeEventListener("companion:audio-level", onLvl as EventListener);
+      window.removeEventListener("companion:audio-peak", onPeak);
+    };
   }, []);
 
   // Cache morph target handles for the loaded scene.
@@ -131,13 +160,17 @@ function HeadModel({ url, state }: {
   useEffect(() => {
     let cancelled = false;
     const loop = () => {
-      const next = 2200 + Math.random() * 3200;
+      // Respect reduced motion: very long intervals, no double-blink.
+      const reduced = reducedRef.current;
+      const next = reduced ? 9000 + Math.random() * 6000 : 2800 + Math.random() * 3400;
       setTimeout(() => {
         if (cancelled) return;
+        if (hiddenRef.current) { loop(); return; }
+        // Don't blink mid-speech-syllable — feels glitchy on a 3D head.
+        if (stateRef.current === "speaking" && Math.random() < 0.6) { loop(); return; }
         blinkTarget.current = 1;
         setTimeout(() => { if (!cancelled) blinkTarget.current = 0; }, 110);
-        // Occasional double-blink
-        if (Math.random() < 0.18) {
+        if (!reduced && Math.random() < 0.16) {
           setTimeout(() => {
             if (cancelled) return;
             blinkTarget.current = 1;
@@ -159,6 +192,7 @@ function HeadModel({ url, state }: {
       const next = 1800 + Math.random() * 2600;
       setTimeout(() => {
         if (cancelled) return;
+        if (hiddenRef.current) { loop(); return; }
         gazeTarget.current.set(
           (Math.random() - 0.5) * 0.6,
           (Math.random() - 0.5) * 0.3,
@@ -173,38 +207,83 @@ function HeadModel({ url, state }: {
 
   const blinkLP = useRef(0);
   const jawLP = useRef(0);
+  const browLP = useRef(0);
+  const headOffsetLP = useRef({ tilt: 0, lean: 0, yaw: 0 });
 
   useFrame((_, dt) => {
     if (!group.current) return;
+    if (hiddenRef.current) return; // skip work when tab hidden — battery
+    const reduced = reducedRef.current;
     const t = performance.now() / 1000;
+    const s = stateRef.current;
 
-    // Breathing — gentle Y scale on the root.
-    const breath = Math.sin(t * 1.05) * 0.006 + 0.998;
+    // Smooth state weights — 220ms ease to target.
+    const w = stateWeights.current;
+    const lerpK = Math.min(1, dt * 6);
+    w.idle      += ((s === "idle"      ? 1 : 0) - w.idle)      * lerpK;
+    w.listening += ((s === "listening" ? 1 : 0) - w.listening) * lerpK;
+    w.thinking  += ((s === "thinking"  ? 1 : 0) - w.thinking)  * lerpK;
+    w.speaking  += ((s === "speaking"  ? 1 : 0) - w.speaking)  * lerpK;
+
+    // Breathing — gentle Y scale on the root. Slower if reduced.
+    const breathRate = reduced ? 0.55 : 1.05;
+    const breath = Math.sin(t * breathRate) * (reduced ? 0.003 : 0.006) + 0.998;
     group.current.scale.setScalar(breath);
 
-    // Head sway.
-    const swayX = Math.sin(t * 0.7) * 0.02;
-    const swayY = Math.sin(t * 0.5 + 1.2) * 0.025;
-    const lean = state === "listening" ? 0.04 : 0;
-    group.current.rotation.x = swayX - lean;
-    group.current.rotation.y = swayY + gazeTarget.current.x * 0.15;
+    // Head behavior — blend per-state targets.
+    //   listening → slight forward lean + small tilt toward user
+    //   thinking  → tilt up-and-away (looking off, considering)
+    //   speaking  → engaged forward, audio-peak nod
+    //   idle      → gentle drift
+    const swayBase = reduced ? 0 : 1;
+    const idleSwayX = Math.sin(t * 0.7) * 0.02 * swayBase;
+    const idleSwayY = Math.sin(t * 0.5 + 1.2) * 0.025 * swayBase;
 
-    // Blink lerp.
+    const targetLean = w.listening * 0.05 + w.speaking * 0.025;
+    const targetTilt = w.thinking * -0.06 + w.listening * 0.025;
+    const targetYaw  = w.thinking * 0.10 + gazeTarget.current.x * 0.15;
+
+    // Peak kick — brief downward nod on speech peaks.
+    if (peakKickRef.current > 0) {
+      peakKickRef.current = Math.max(0, peakKickRef.current - dt * 3.2);
+    }
+    const nod = peakKickRef.current * 0.04 * w.speaking;
+
+    const off = headOffsetLP.current;
+    off.tilt = off.tilt + (targetTilt - off.tilt) * Math.min(1, dt * 5);
+    off.lean = off.lean + (targetLean - off.lean) * Math.min(1, dt * 5);
+    off.yaw  = off.yaw  + (targetYaw  - off.yaw)  * Math.min(1, dt * 5);
+
+    group.current.rotation.x = idleSwayX - off.lean + off.tilt + nod;
+    group.current.rotation.y = idleSwayY + off.yaw;
+    group.current.rotation.z = w.thinking * 0.04;
+
+    // Blink lerp — both eyes from same source = always symmetric.
     blinkLP.current += (blinkTarget.current - blinkLP.current) * Math.min(1, dt * 18);
     setMorph(morphs.blinkL, blinkLP.current);
-    setMorph(morphs.blinkR, blinkLP.current * 0.95);
+    setMorph(morphs.blinkR, blinkLP.current * 0.97);
 
     // Speech → jaw.
-    const speakingLvl = state === "speaking" ? liveLevelRef.current : 0;
+    const speakingLvl = w.speaking * liveLevelRef.current;
     const targetJaw = Math.min(1, Math.pow(speakingLvl * 4.5, 0.6));
     jawLP.current += (targetJaw - jawLP.current) * Math.min(1, dt * 14);
     setMorph(morphs.jaw, jawLP.current * 0.85);
 
-    // Subtle smile baseline; brow lift during speech.
-    setMorph(morphs.smile, 0.18);
-    setMorph(morphs.smileL, 0.18);
-    setMorph(morphs.smileR, 0.18);
-    setMorph(morphs.brow, state === "speaking" ? jawLP.current * 0.35 : 0.08);
+    // Subtle smile baseline + thinking pursed-lip bias.
+    const smileBase = 0.18 - w.thinking * 0.08 + w.listening * 0.04;
+    setMorph(morphs.smile, smileBase);
+    setMorph(morphs.smileL, smileBase);
+    setMorph(morphs.smileR, smileBase);
+
+    // Brow: listening = up (engaged), thinking = down/inner (focused),
+    //       speaking = follows amplitude.
+    const browTarget =
+      w.listening * 0.35 +
+      w.thinking * -0.25 +
+      w.speaking * (jawLP.current * 0.35) +
+      0.08 * w.idle;
+    browLP.current += (browTarget - browLP.current) * Math.min(1, dt * 6);
+    setMorph(morphs.brow, browLP.current);
   });
 
   return (
