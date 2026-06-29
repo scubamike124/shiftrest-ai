@@ -671,7 +671,7 @@ function CompanionPage() {
   }
 
   function handleQuickAction(id: CompanionQuickActionId) {
-    track({ event: "companion_quick_action", trigger: id });
+
     switch (id) {
       case "fall_asleep":
       case "calm_down":
