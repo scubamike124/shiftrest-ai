@@ -1,128 +1,117 @@
-# Phase 1 — Premium AI Companion Voice System (Investigation)
+# AI Companion — Phase 1: Conversation Experience
 
-**Scope:** Research only. No code changes until approved.
+Investigation complete. Below is the proposed plan, scoped to ship in five sequenced slices behind the existing `/companion` route. No code written yet.
 
----
+## 1. Quick Action Cards
 
-## 1. Provider Comparison (as of June 2026)
+**Findings**
+- `companion.tsx` currently shows a bare transcript + composer. There is an existing `WindDownQuickAction` but no action grid.
+- Each suggested action already has a backing system:
+  - Fall Asleep → `BreathingOverlay` + `sleep-engine`
+  - Sleep Sounds → `sounds/mixer` + `SleepSoundsCard`
+  - Calm Me Down → `BreathingOverlay` (4-7-8 preset)
+  - Smart Alarm → `aiSmartAlarm` in `ai-client.ts`
+  - Review My Sleep → `aiDailyReview`
+  - Plan My Morning → `aiTomorrowPreview` / `MorningBrief`
 
-| Dimension | **ElevenLabs** (v3 / Turbo v2.5 / Flash) | **OpenAI Realtime** (gpt-realtime / gpt-4o-mini-tts) | **Cartesia** (Sonic-2 / Sonic-Turbo) | **Hume AI** (Octave / EVI 3) |
-|---|---|---|---|---|
-| Voice realism | Best-in-class. v3 has the most human prosody, breath, micro-pauses available in TTS today. | Very high on Realtime (speech-to-speech keeps emotion). Mini-tts is good, not class-leading. | Very high, slightly "clean studio" — less breathy than EL v3 but extremely consistent. | High + uniquely expressive; voice acts emotion from context (laughs, sighs). Sometimes overacts. |
-| Emotional expression | Explicit `voice_settings` + v3 audio tags (`[whisper]`, `[sigh]`). Excellent. | Implicit via `instructions` ("speak warmly, slowly"). Good but less controllable. | Emotion via `emotion` controls + speed. Good, more neutral baseline. | Strongest — model infers emotion from text + context. Best for empathy. |
-| Conversational quality (turn-taking, barge-in) | TTS only — turn-taking is on us. | Native full-duplex speech-to-speech with server-side VAD, barge-in, interruption. Best in class. | TTS + Sonic streaming; Cartesia Line gives realtime agent loop. | EVI is full-duplex realtime, strong empathy, weaker latency. |
-| Latency (first audio byte) | Flash v2.5 ≈ 75 ms; Turbo v2.5 ≈ 250–300 ms; v3 ≈ 500–800 ms (not realtime). | ~300–500 ms end-to-end realtime. | Sonic-Turbo ~40–90 ms TTFB — lowest in market. | ~500–900 ms — slowest of the four. |
-| Reliability / API stability | Mature, multi-region, 99.9% SLA on Scale tier. Occasional rate-limit spikes. | Very stable, but Realtime API still GA-recent; breaking changes possible. | Very stable, smaller footprint; fewer reported outages. | Smallest provider, more variance. |
-| Pricing (typical) | ~$0.10–0.30 / 1K chars on Creator/Pro; ~$0.05 Flash; enterprise volume discounts. | TTS ~$0.015/min input + $0.030/min output (mini-tts); Realtime ~$0.06/min audio in + $0.24/min out. Most expensive at scale. | ~$0.02–0.05 / 1K chars Sonic; cheapest premium tier. | ~$0.10/min EVI; mid-range, no large-scale discounts published. |
-| Scalability | Concurrent stream caps by plan; Scale/Enterprise required for >50 concurrent. | Pay-as-you-go, no concurrency cap, but cost scales hard. | High concurrency on standard tier; built for agent workloads. | Lower concurrency ceiling. |
-| Multi-language | 32+ languages, v3 strong cross-lingual. | ~50+ via gpt-4o stack. | ~15 languages, English-best. | ~10 languages. |
-| Long-conversation consistency | Excellent with request stitching (`previous_text`/`next_text`). | Excellent (single session keeps context). | Excellent; voice drift minimal. | Good; some emotion drift over very long turns. |
-| Commercial licensing | Clear, included on Creator+ plans. Voice cloning consented. | Clear, OpenAI ToS. | Clear, commercial-friendly. | Clear, but stricter on cloned voices. |
+**Approach**
+- New `CompanionQuickGrid.tsx`: 2-column grid on mobile (3-col ≥640px), 6 tiles with emoji + label + 1-line subtitle. Glass tiles matching the bento dashboard palette.
+- Tile press → dispatches a typed `QuickIntent` to a new `useCompanionIntent()` hook that either (a) opens the relevant overlay, (b) injects a pre-templated user message into the chat ("Help me fall asleep tonight"), or (c) deep-links to the matching route.
+- Collapses to a single horizontal scroller once the conversation has ≥2 assistant turns to keep the transcript dominant.
 
----
+**Files**: `src/components/companion/CompanionQuickGrid.tsx` (new), `src/lib/companion/intents.ts` (new), `src/routes/companion.tsx`.
 
-## 2. Recommendation
+## 2. Natural Conversation Experience
 
-### Primary: **ElevenLabs** (Turbo v2.5 for live chat, v3 for narration/sleep)
-- Best perceived realism — the single biggest driver of "premium" perception.
-- Audio tags (`[whisper]`, `[soft]`, `[warm]`) map 1:1 to RestPilot modes (sleep / morning / encouraging).
-- Streaming MP3/PCM already wired in the codebase (`/api/tts-elevenlabs`).
-- Request-stitching solves long-form coherence — important for guided wind-downs.
+**Findings**
+- `PILOT_VOICE_SYSTEM` already enforces short, non-robotic replies. Gaps: no time-of-day greeting variation, no follow-up memory across turns, no "one question back" behavior surfaced in UI.
 
-### Fallback (auto): **OpenAI gpt-4o-mini-tts** via Lovable AI Gateway
-- Already integrated (`/api/tts`).
-- No extra key, billed in Lovable credits, multi-region.
-- Quality gap vs. ElevenLabs is audible but acceptable as a safety net.
-- Current session-level `elevenLabsBlocked` switch already implements this pattern — keep it.
+**Approach**
+- Add `buildCompanionSystem({ tod, lastTurnSummary, memorySnippet })` in `prompts.server.ts`.
+- Time-of-day aware opener bank in `narration.ts` (morning/afternoon/evening/late-night) with light randomization seeded by date so it changes daily but not mid-conversation.
+- Rolling 4-turn summary stored in conversation state and prefixed to system prompt → gives the model continuity without ballooning tokens.
+- Server hint `expects_followup: boolean` so the UI can render a subtle "Pilot is waiting for your answer…" affordance instead of looking idle.
 
-### Future option (Phase 2, separate decision): **OpenAI Realtime** for full-duplex "talk over me" conversation
-- Only adopt when product demands true barge-in (interrupting Aura mid-sentence). For today's request/reply loop, ElevenLabs streaming is the right call and ~3-5× cheaper.
+**Files**: `src/lib/ai/prompts.server.ts`, `src/lib/companion/narration.ts`, `src/routes/api/coach.ts` (or whichever route serves companion), `src/routes/companion.tsx`.
 
-### Not recommended now
-- **Cartesia** — excellent and cheapest, but voice library is smaller and less "warm" than EL for a wellness brand. Revisit if EL pricing becomes a problem at scale.
-- **Hume** — best empathy demo, weakest latency and smallest scale. Watch but don't depend on.
+## 3. AI Memory Integration
 
----
+**Findings**
+- `ai-memory.ts` + `setMemoryEnabled` already exist. `memory_enabled` defaults to **false** at the prefs layer — good. `/memory` route handles review/edit/delete.
+- Not yet surfaced: an in-companion consent prompt or visual indicator that memory is active.
 
-## 3. Proposed Architecture
+**Approach**
+- First-run sheet (once, gated by `memory_consent_seen` flag in localStorage + `user_prefs`): explains memory, offers Enable / Not now / Manage. No silent enablement.
+- Status chip in the companion header: 🔒 "Memory off" or 🧠 "Remembering" — tap opens `/memory`.
+- Server prompt only includes `MEMORY:` block when `memory_enabled = true`. When enabled, Companion references memory using natural phrasing already mandated in `PILOT_VOICE_SYSTEM` ("Last time you mentioned…").
+- Every assistant message that *used* memory carries a `usedMemoryIds[]` field so we can render a tiny "Used your saved routine" link under the bubble → opens that memory in `/memory`.
 
-```text
-            ┌──────────────────────────────┐
-   client ─►│  /api/tts  (router)          │
-            │   mode: normal|sleep|morning │
-            └─────┬──────────────────┬─────┘
-                  │ primary          │ fallback (auto on 5xx / 2.5s stall)
-                  ▼                  ▼
-        ElevenLabs streaming     OpenAI gpt-4o-mini-tts
-        (Turbo v2.5 / v3)        (Lovable AI Gateway)
-                  │                  │
-                  └────► PCM/MP3 stream ────► Web Audio graph (existing)
-```
+**Files**: `src/components/companion/MemoryConsentSheet.tsx` (new), `src/components/companion/MemoryStatusChip.tsx` (new), `src/lib/ai/context.server.ts`, `src/routes/api/coach.ts`.
 
-- **Single unified endpoint** `/api/tts` selects provider; today's split (`/api/tts-elevenlabs` + `/api/tts`) collapses into one router for clean fallback.
-- **Streaming-first:** request `output_format=mp3_44100_128` (current) for v2.5; PCM for Realtime later.
-- **Stall watchdog:** keep the existing 2.5 s TTFB abort → mark `elevenLabsBlocked` for the session → fallback.
-- **Cache:** SHA-256(`provider:voiceId:mode:text`) → blob cache for fixed strings (greetings, brief intros, sleep cues). ~30-50% cost reduction on repeats.
-- **Per-mode tuning:**
-  - `normal` → Turbo v2.5, stability 0.45, similarity 0.75, style 0.35
-  - `sleep`  → v3 with `[whisper][soft]`, stability 0.65, speed 0.92
-  - `morning`→ Turbo v2.5, stability 0.40, style 0.55, speed 1.05
-  - `encouraging` → Turbo v2.5, style 0.50
+## 4. Avatar Personality
 
----
+**Findings**
+- 3D `Avatar3D.tsx` renders the GLB with Meshopt now. State plumbing exists for `idle | listening | thinking | speaking`. Idle breathing/blink rigs only partial; no thinking/listening signatures.
 
-## 4. Voice Lineup (4 curated personalities)
+**Approach** (incremental, no model swap)
+- `useAvatarAnimator(state, audioLevel)` hook centralizing rAF loop:
+  - **Idle**: chest/neck 0.18Hz sine breathing, asymmetric blinks every 3-7s, micro saccades every 1.2-2.4s.
+  - **Listening**: head tilt 3° toward mic side, brow raise +0.15, blink rate +30%, subtle nod on detected speech RMS peaks.
+  - **Thinking**: eyes look up-left briefly, brow furrow morph 0.2, mouth closed neutral, slight head turn.
+  - **Speaking**: existing viseme map + jaw drop, eye contact returns to camera, occasional emphasis nod tied to `EmotionEngine`.
+- Crossfade between states over 250ms via tweened morph weights to kill the "snap" between modes.
 
-| Slot | ElevenLabs voice | Fallback (OpenAI) |
-|---|---|---|
-| Calm Female (default) | `Sarah` — EXAVITQu4vr4xnSDxMaL | `alloy` |
-| Calm Male | `George` — JBFqnCBsd6RMkjVDRZzb | `onyx` |
-| Warm British | `Charlotte` or `Alice` — Xb7hH8MSUJpSbSDYk0k2 | `nova` |
-| Soft Australian | `Matilda` — XrExE9yKIg1WjnnlVkGX | `shimmer` |
+**Files**: `src/components/companion/Avatar3D.tsx`, `src/lib/companion/avatar-animator.ts` (new), `src/lib/companion/emotion.ts`.
 
-All four pre-QA'd in normal + sleep + morning modes before ship.
+## 5. Voice Improvements
 
----
+**Findings**
+- ElevenLabs path is in place with cache + stall watchdog. Missing: barge-in (interrupt while speaking), faster TTFB via streamed TTS, tighter pause flattening already addressed by `bulletsToProse`.
 
-## 5. Estimated Operating Cost
+**Approach**
+- **Streamed TTS**: switch `/api/tts-elevenlabs` to `stream=true` and pipe chunks into a `MediaSource` / queued `AudioBuffer` chain. Cuts first-audio latency from ~1.5s to ~400ms.
+- **Barge-in**: keep the mic VAD warm during playback at a higher threshold; on detected speech ≥250ms, fade TTS gain to 0 over 120ms, stop source, flip to listening. Recovery: the cut response is marked `interrupted` so the next turn doesn't repeat it verbatim.
+- **Natural pauses**: SSML-ish `<break>` tags inserted by `speech-normalize.ts` at sentence boundaries scaled to comma/period weight.
+- **Lip sync**: drive jaw from streamed PCM analyzer RMS at 60Hz instead of post-hoc viseme guessing during stream gaps.
 
-Assumptions: average user has 6 voice turns/day × ~150 chars = ~900 chars/day.
+**Files**: `src/routes/api/tts-elevenlabs.ts`, `src/lib/companion/speak.ts`, `src/lib/voice/useMicRecorder.ts`, `src/lib/companion/speech-normalize.ts`.
 
-| Users | EL Turbo v2.5 (~$0.10/1K) | OpenAI mini-tts | With 40% cache hit |
-|---|---|---|---|
-| 1,000 | ~$2,700/mo | ~$540/mo | ~$1,620/mo (EL) |
-| 10,000 | ~$27,000/mo | ~$5,400/mo | ~$16,200/mo (EL) |
-| 100,000 | EL Enterprise contract needed — target ~$0.04/1K → ~$108K/mo | ~$54K/mo | ~$65K/mo (EL) |
+## 6. Premium UI Polish
 
-At launch (<10K DAU), EL primary is well within budget. At scale, negotiate EL Enterprise or shift heavy non-emotional traffic (confirmations, timers) to OpenAI mini-tts and reserve EL for emotional content.
+**Approach**
+- Replace `ThinkingShimmer` dots with a 3-word rotating phrase ("thinking…", "checking your sleep…", "pulling your plan…") tied to which tool/intent fired.
+- Message bubbles: spring-in (translateY 8 → 0, opacity 0 → 1, 220ms), assistant messages render token-by-token via `MessageResponse` streaming.
+- Sticky composer with backdrop blur; quick-grid collapses into composer toolbar on scroll.
+- Tighter vertical rhythm (16/24/32 scale), avatar gets a soft aurora floor shadow tying it to the page.
+- Skeleton uses pulsing rings matching the orb palette, not the current generic shimmer.
+
+**Files**: `src/components/companion/ThinkingShimmer.tsx`, `src/routes/companion.tsx`, `src/styles.css` (a few keyframes).
 
 ---
 
-## 6. Risks & Mitigations
+## Implementation Order
+
+1. **Slice A — UI Shell & Quick Actions** (sections 1 + 6). Lowest risk, immediately visible.
+2. **Slice B — Conversation Naturalness** (section 2). Prompt + greeting bank + follow-up hint.
+3. **Slice C — Memory Surface** (section 3). Consent sheet + status chip + server gating.
+4. **Slice D — Avatar Animator** (section 4). Idle/listening/thinking/speaking unified loop.
+5. **Slice E — Voice Latency & Barge-in** (section 5). Highest risk; ship last with feature flag.
+
+## Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| EL outage | Session-scoped fallback to OpenAI (already in code; keep). |
-| EL price hike | Mode-based routing — only sleep/morning forced to EL; confirmations route to OpenAI. |
-| iOS streaming stalls (the bug we just fixed) | Keep TTFB watchdog at 2.5 s; keep `outputWarmed` once-per-session; do NOT re-introduce per-chunk warm-up. |
-| Voice drift over long sessions | Use ElevenLabs request stitching (`previous_text`/`next_text`) for chunked replies. |
-| Licensing | Use only the curated 4 official EL library voices — no cloning, no third-party voice IDs. |
+| Streamed TTS breaks iOS Safari MediaSource gaps | Keep non-streamed fallback; flag `VITE_TTS_STREAM=false` kill switch |
+| Barge-in false triggers on background noise | VAD threshold +6dB during playback, 250ms min duration |
+| Avatar animator regresses iPhone FPS | Cap rAF to 30Hz on devices where `devicePixelRatio>2 && deviceMemory<=4` |
+| Memory consent fatigue | Single sheet, never re-prompts; "Not now" suppresses 30 days |
+| Quick action overload on small screens | Auto-collapse to scroller after 2 turns |
 
----
+## Additional Pre-Launch Enhancements (recommended)
 
-## 7. Final Recommendation
+- **Mood check-in** before bed → feeds one tag into next morning brief.
+- **"What did you mean?"** tap on any assistant sentence → quick clarification turn without retyping.
+- **Conversation export** (Markdown) from companion overflow menu — trust signal.
+- **Haptic taps** on iOS via `navigator.vibrate` on quick-action press and on TTS sentence boundaries (very subtle).
 
-**Adopt ElevenLabs as primary (Turbo v2.5 default, v3 for sleep), OpenAI gpt-4o-mini-tts via Lovable AI Gateway as automatic fallback.** Collapse the two existing TTS routes into one mode-aware router with stall-detect failover and a small content cache. Ship 4 curated voices, each tuned per mode.
-
-This is the highest-realism stack available today, keeps a free first-party safety net, reuses ~80% of the audio pipeline already shipped, and stays within budget through 10K DAU without renegotiation.
-
----
-
-## Next Step
-
-Awaiting approval to proceed to **Phase 2 — Implementation**:
-1. Unified `/api/tts` router + mode-aware voice settings
-2. Curated 4-voice catalog + picker UI
-3. Per-mode prosody presets (sleep whisper, morning energy)
-4. Response cache for repeated phrases
-5. Real-device QA matrix across all 4 voices × 3 modes
+Awaiting approval before implementing Slice A.
