@@ -34,6 +34,16 @@ declare const self: ServiceWorkerGlobalScope & {
 self.skipWaiting();
 clientsClaim();
 
+// Allow the UpdateBanner to activate a waiting worker on demand.
+// `skipWaiting()` above already runs at install time, but if a previous
+// version of the app shipped without it, the waiting worker is stuck
+// until something asks it to skip — this message is that escape hatch.
+self.addEventListener("message", (event: ExtendableMessageEvent) => {
+  if (event.data && (event.data as { type?: string }).type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 // ─── App-shell precache ────────────────────────────────────────────────────
 // `__WB_MANIFEST` is injected by vite-plugin-pwa at build time and contains
 // every hashed asset in the build output. Hashed filenames mean these are

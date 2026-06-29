@@ -10,12 +10,24 @@
  * skill's refuse-list and unregisters any historical SW found in
  * those contexts, so the rollout stays reversible per-environment.
  *
- * Push notifications: the same `/sw.js` file ships push handlers
- * (see `public/sw-src.ts`). On allowed origins, registering it here
+ * Update flow
+ * ───────────
+ *   • `updateViaCache: "none"` — forces the browser to revalidate the
+ *     SW script on every check (iOS otherwise caches it up to 24h, so
+ *     new deploys go undiscovered until the next cold start).
+ *   • `reg.update()` on load + every visibilitychange→visible — catches
+ *     installed PWAs that stay backgrounded for days.
+ *   • `updatefound` / `waiting` → emit on the update channel so the
+ *     UpdateBanner can prompt the user with one tap to activate.
+ *
+ * Push notifications: the same `/sw.js` ships push handlers (see
+ * `public/sw-src.ts`). On allowed origins, registering it here
  * activates both app-shell caching AND push delivery in a single
  * worker, which is required because the browser only allows one
  * registration per scope.
  */
+
+import { emitUpdate } from "./update-channel";
 
 const SW_PATH = "/sw.js";
 
@@ -61,6 +73,40 @@ async function unregisterStale(): Promise<void> {
   }
 }
 
+function announceIfWaiting(reg: ServiceWorkerRegistration): void {
+  // A worker is "waiting" once installed but blocked behind the current
+  // controller. That's the trigger for the update banner.
+  if (reg.waiting && navigator.serviceWorker.controller) {
+    emitUpdate({ type: "available", reg });
+  }
+}
+
+function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
+  // Already-waiting at register time (returning visitor after deploy).
+  announceIfWaiting(reg);
+
+  reg.addEventListener("updatefound", () => {
+    const installing = reg.installing;
+    if (!installing) return;
+    installing.addEventListener("statechange", () => {
+      if (installing.state === "installed" && navigator.serviceWorker.controller) {
+        // First load (no controller yet) → not an "update", just initial install.
+        emitUpdate({ type: "available", reg });
+      }
+    });
+  });
+
+  // When the new SW takes over (after SKIP_WAITING + activation), reload
+  // once so the page is served by the new worker's precache.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    emitUpdate({ type: "activated" });
+    window.location.reload();
+  });
+}
+
 /**
  * Register the app-shell service worker if and only if we are in an
  * allowed environment. In every refused environment, unregister any
@@ -82,7 +128,21 @@ export async function registerAppShell(): Promise<void> {
     return;
   }
   try {
-    await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
+    const reg = await navigator.serviceWorker.register(SW_PATH, {
+      scope: "/",
+      updateViaCache: "none",
+    });
+    wireUpdateDetection(reg);
+
+    // Initial check after hydration settles.
+    setTimeout(() => { reg.update().catch(() => { /* offline ok */ }); }, 4000);
+
+    // Re-check whenever the tab comes back into focus.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        reg.update().catch(() => { /* offline ok */ });
+      }
+    });
   } catch (err) {
     console.warn("[pwa] SW registration failed", err);
   }
