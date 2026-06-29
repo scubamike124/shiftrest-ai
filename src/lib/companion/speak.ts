@@ -18,6 +18,44 @@ import { isQuietModeOn } from "@/lib/quiet-mode";
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
 let lastReqId = 0;
+let primedAudio: HTMLAudioElement | null = null;
+
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+/**
+ * Best-effort iOS/Safari audio unlock. Call synchronously inside a user tap
+ * before the async STT → AI → TTS chain so the later assistant reply can play.
+ * Text still renders if the browser refuses playback.
+ */
+export function prepareVoicePlayback(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!primedAudio) {
+      primedAudio = new Audio();
+      primedAudio.preload = "auto";
+      primedAudio.setAttribute("playsinline", "true");
+    }
+    const audio = primedAudio;
+    audio.src = SILENT_WAV;
+    audio.volume = 0;
+    void audio
+      .play()
+      .then(() => {
+        // Do not interrupt real TTS if the async prime resolves late.
+        if (audio.src === SILENT_WAV || audio.currentSrc === SILENT_WAV) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+        audio.volume = 1;
+      })
+      .catch(() => {
+        audio.volume = 1;
+      });
+  } catch {
+    /* best effort only */
+  }
+}
 
 // ── Voice status events ────────────────────────────────────────────────
 // Companion UI listens on `companion:voice-status` for "started" | "ended"
@@ -257,7 +295,11 @@ async function playOnce(
   if (currentUrl) URL.revokeObjectURL(currentUrl);
 
   const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
+  const audio = primedAudio ?? new Audio();
+  audio.preload = "auto";
+  audio.setAttribute("playsinline", "true");
+  audio.volume = 1;
+  audio.src = url;
   currentAudio = audio;
   currentUrl = url;
   track({ event: "voice_played", chars: text.length });

@@ -38,7 +38,7 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
-import { speak, stopSpeaking, beginSpeakTurn, speakQueued } from "@/lib/companion/speak";
+import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
@@ -173,7 +173,7 @@ function CompanionPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Mic for voice input → fills the composer.
-  const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1200 });
+  const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1000, maxMs: 12_000 });
   const [transcribing, setTranscribing] = useState(false);
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
@@ -267,9 +267,9 @@ function CompanionPage() {
     // begins, even while the model is still streaming the rest of its reply.
     if (micState === "listening") setOrbState("listening");
     else if (voiceStatus === "speaking") setOrbState("speaking");
-    else if (sending) setOrbState("thinking");
+    else if (transcribing || sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, sending, voiceStatus]);
+  }, [micState, transcribing, sending, voiceStatus]);
 
 
   useEffect(() => {
@@ -319,6 +319,8 @@ function CompanionPage() {
       await micStop();
       return;
     }
+    if (micState === "requesting" || micState === "encoding") return;
+    prepareVoicePlayback();
     setInput("");
     cancelMicRef.current = false;
     await micStart(async (blob) => {
@@ -326,7 +328,11 @@ function CompanionPage() {
         cancelMicRef.current = false;
         return; // user pressed Cancel — discard without transcribing
       }
-      if (!blob) return;
+      if (!blob) {
+        toast.info("I didn't catch that. Tap Nova and try again.");
+        track({ event: "voice_turn_empty_audio" });
+        return;
+      }
       setTranscribing(true);
       try {
         const { data: sess } = await supabase.auth.getSession();
@@ -342,10 +348,24 @@ function CompanionPage() {
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
           toast.error(json.error || "Couldn't transcribe");
+          track({ event: "voice_turn_failed", stage: "stt" });
           return;
         }
         const text = (json.text || "").trim();
-        if (text) setInput(text);
+        if (!text) {
+          toast.info("I didn't catch any words. You can try again or type it below.");
+          track({ event: "voice_turn_empty_transcript" });
+          return;
+        }
+        track({ event: "voice_turn_transcribed", chars: text.length });
+        setInput(text);
+        // Complete the voice loop: transcript → thinking → assistant reply.
+        // Previously this only filled the composer, which made Nova appear to
+        // stop after listening. Text is still rendered even when TTS is off or fails.
+        void handleSend(undefined, text);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Voice input failed. You can type instead.");
+        track({ event: "voice_turn_failed", stage: "stt" });
       } finally {
         setTranscribing(false);
       }
@@ -363,13 +383,18 @@ function CompanionPage() {
   // - pointerup after threshold = release-to-send (stops recording)
   const holdStartRef = useRef<number>(0);
   const heldRef = useRef(false);
+  const pointerStartedRecordingRef = useRef(false);
   const HOLD_THRESHOLD_MS = 350;
   function handleMicPointerDown() {
     if (!companionOn || transcribing || sending) return;
     holdStartRef.current = performance.now();
     heldRef.current = false;
+    pointerStartedRecordingRef.current = false;
     // If currently idle, start capture eagerly so audio begins under the gesture.
-    if (micState === "idle") void handleMicTap();
+    if (micState === "idle") {
+      pointerStartedRecordingRef.current = true;
+      void handleMicTap();
+    }
   }
   function handleMicPointerUp() {
     if (holdStartRef.current === 0) return;
@@ -382,6 +407,12 @@ function CompanionPage() {
     // Otherwise let the click handler toggle (tap behavior).
   }
   function handleMicClick() {
+    // Pointer-down already started this tap/hold gesture. Do not let the
+    // follow-up click immediately stop the recorder, especially on mobile.
+    if (pointerStartedRecordingRef.current) {
+      pointerStartedRecordingRef.current = false;
+      return;
+    }
     // Suppress the synthetic click that follows a hold-release.
     if (heldRef.current) {
       heldRef.current = false;
@@ -588,6 +619,10 @@ function CompanionPage() {
 
       if (!resp.ok || !resp.body) {
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
+        const fallback =
+          resp.status === 429
+            ? "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
+            : "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
         if (resp.status === 429) {
           toast.error("Daily AI limit reached.", {
             description: "Upgrade for unlimited conversations.",
@@ -596,6 +631,8 @@ function CompanionPage() {
         } else {
           toast.error(errJson.error || "Companion is unavailable");
         }
+        setMessages([...baseMessages, { role: "assistant", content: fallback }]);
+        track({ event: "voice_turn_failed", stage: "ai" });
         return;
       }
 
@@ -657,6 +694,15 @@ function CompanionPage() {
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         toast.error(e instanceof Error ? e.message : "Something went wrong");
+        setMessages([
+          ...baseMessages,
+          {
+            role: "assistant",
+            content:
+              "I heard you, but the connection dropped before I could answer. Try again in a moment or type below.",
+          },
+        ]);
+        track({ event: "voice_turn_failed", stage: "ai" });
       }
     } finally {
       setSending(false);
