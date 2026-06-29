@@ -197,7 +197,9 @@ function CompanionPage() {
         // leave "Voice unavailable" stuck for the rest of the session.
         if (failTimer) clearTimeout(failTimer);
         failTimer = setTimeout(() => setVoiceStatus("idle"), 6000);
-      } else if (detail.status === "ended") {
+      } else if (detail.status === "ended" || detail.status === "skipped") {
+        // Both "ended" and "skipped" stop the speaking presence cleanly.
+        // We don't downgrade a "failed" badge here — its own timer handles it.
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
@@ -207,6 +209,7 @@ function CompanionPage() {
       if (failTimer) clearTimeout(failTimer);
     };
   }, []);
+
   // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
   const cancelMicRef = useRef(false);
   // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
