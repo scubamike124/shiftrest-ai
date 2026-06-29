@@ -153,15 +153,20 @@ const MONTHS = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ] as const;
+const ORDINAL_ONES = [
+  "zeroth","first","second","third","fourth","fifth","sixth","seventh","eighth","ninth",
+  "tenth","eleventh","twelfth","thirteenth","fourteenth","fifteenth","sixteenth",
+  "seventeenth","eighteenth","nineteenth",
+] as const;
+const ORDINAL_TENS = ["","","twentieth","thirtieth","fortieth","fiftieth"] as const;
 function ordinal(n: number): string {
-  if (n >= 11 && n <= 13) return `${twoDigitWord(n)}th`;
-  const last = n % 10;
-  const base = twoDigitWord(n);
-  if (last === 1) return base.endsWith("one") ? base.replace(/one$/, "first") : `${base}-first`;
-  if (last === 2) return base.endsWith("two") ? base.replace(/two$/, "second") : `${base}-second`;
-  if (last === 3) return base.endsWith("three") ? base.replace(/three$/, "third") : `${base}-third`;
-  return `${base}th`;
+  if (n < 20) return ORDINAL_ONES[n];
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  if (o === 0) return ORDINAL_TENS[t];
+  return `${TENS[t]}-${ORDINAL_ONES[o]}`;
 }
+
 function yearWords(y: number): string {
   if (y >= 2000 && y < 2010) return `two thousand${y === 2000 ? "" : ` ${ONES[y - 2000]}`}`;
   if (y >= 2010 && y < 2100) {
