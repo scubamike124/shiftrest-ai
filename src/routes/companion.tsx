@@ -852,6 +852,10 @@ function CompanionPage() {
       )}
 
       {/* Composer */}
+      {/* Now-playing strip — visible only when sounds are active. */}
+      <NowPlayingStrip />
+
+      {/* Composer */}
       <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
         {localPrefs.voiceInputEnabled && (
           <Button
