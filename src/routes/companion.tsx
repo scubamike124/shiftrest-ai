@@ -45,6 +45,8 @@ import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
+import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
+
 
 
 
@@ -197,7 +199,9 @@ function CompanionPage() {
         // leave "Voice unavailable" stuck for the rest of the session.
         if (failTimer) clearTimeout(failTimer);
         failTimer = setTimeout(() => setVoiceStatus("idle"), 6000);
-      } else if (detail.status === "ended") {
+      } else if (detail.status === "ended" || detail.status === "skipped") {
+        // Both "ended" and "skipped" stop the speaking presence cleanly.
+        // We don't downgrade a "failed" badge here — its own timer handles it.
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
@@ -207,6 +211,7 @@ function CompanionPage() {
       if (failTimer) clearTimeout(failTimer);
     };
   }, []);
+
   // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
   const cancelMicRef = useRef(false);
   // Slice 10 — TTS playback is now serialized in @/lib/companion/speak.ts.
@@ -245,10 +250,15 @@ function CompanionPage() {
   const pendingProposalCount = proposalsQ.data?.length ?? 0;
 
   useEffect(() => {
+    // Priority: listening > speaking > thinking > idle. Speaking wins over
+    // "thinking" so the avatar's alive presence is visible the moment audio
+    // begins, even while the model is still streaming the rest of its reply.
     if (micState === "listening") setOrbState("listening");
+    else if (voiceStatus === "speaking") setOrbState("speaking");
     else if (sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, sending]);
+  }, [micState, sending, voiceStatus]);
+
 
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
@@ -795,6 +805,18 @@ function CompanionPage() {
             label={avatarStateLabel(orbState)}
           />
         </button>
+        {/* Phase E — speaking presence: waveform appears only while audio plays. */}
+        <SpeakingIndicator active={voiceStatus === "speaking"} className="mt-2 h-3 w-24" />
+        {voiceStatus === "failed" && (
+          <p
+            role="status"
+            className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200"
+          >
+            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
+            Voice unavailable — text still works
+          </p>
+        )}
+
         <div className="mt-4 text-center">
           {(() => {
             const g = timeGreeting(firstName(prefs ?? ({} as Prefs), sessionEmail));
