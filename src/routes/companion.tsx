@@ -47,6 +47,7 @@ import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
+import { CompanionQuickGrid, type CompanionQuickActionId } from "@/components/companion/CompanionQuickGrid";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
