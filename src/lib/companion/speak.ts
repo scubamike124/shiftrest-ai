@@ -108,7 +108,7 @@ let graphWired = false;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
-const VOICE_GAIN = 2.2;
+const VOICE_GAIN = 1.9;
 
 function ensureAudioGraph(): boolean {
   if (typeof window === "undefined") return false;
@@ -125,12 +125,14 @@ function ensureAudioGraph(): boolean {
     if (!levelCompressor) {
       levelCompressor = levelCtx.createDynamicsCompressor();
       try {
-        // Softer compressor — only catches true peaks, no pumping.
-        levelCompressor.threshold.value = -12;
-        levelCompressor.knee.value = 18;
-        levelCompressor.ratio.value = 2;
-        levelCompressor.attack.value = 0.006;
-        levelCompressor.release.value = 0.22;
+        // Soft peak limiter — only catches true peaks (>-3 dBFS) and
+        // recovers fast enough that no fade-in is audible. Normal speech
+        // passes through untouched, so the very first syllable is at full volume.
+        levelCompressor.threshold.value = -3;
+        levelCompressor.knee.value = 6;
+        levelCompressor.ratio.value = 6;
+        levelCompressor.attack.value = 0.003;
+        levelCompressor.release.value = 0.08;
       } catch { /* noop */ }
     }
     if (!levelAnalyser) {
