@@ -114,7 +114,7 @@ function SimliPoc() {
         audioRef.current!,
         null,
       );
-      client.on("error", (msg) => {
+      client.on("error", (msg: string) => {
         console.error("[simli] error", msg);
         setError(String(msg));
         setStatus("error");
