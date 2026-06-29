@@ -26,19 +26,42 @@ import { getTtsProvider, getElevenVoice, setTtsProvider } from "./renderer-pref"
 // OpenAI for the rest of the session so the user is never stranded silent.
 let elevenLabsBlocked = false;
 
-// Hard env flag: only allow ElevenLabs at all when explicitly enabled.
-// Default OFF — the streamless MP3 path stalls on iPhone Safari and
-// produces 1-2 s gaps between sentences. Re-enable per-build via
-// VITE_COMPANION_ELEVENLABS=on once true streaming is wired.
+// Hard env flag: explicitly disable ElevenLabs (defaults ON).
+// ElevenLabs is the premium primary; OpenAI is the automatic fallback when
+// EL stalls (2.5 s TTFB watchdog) or returns a non-OK response.
 const ELEVENLABS_FLAG_ON =
-  typeof import.meta !== "undefined" &&
+  typeof import.meta === "undefined" ||
   ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
-    ?.VITE_COMPANION_ELEVENLABS ?? "off") === "on";
+    ?.VITE_COMPANION_ELEVENLABS ?? "on") !== "off";
 
 // Per-session: warm the output device only on the first utterance.
 // Re-running warmOutputDevice() before every chunk added perceptible latency
 // between sentences on iOS Safari (the "stutter" symptom).
 let outputWarmed = false;
+
+// ── Response cache ────────────────────────────────────────────────────
+// Small in-memory LRU keyed by `${provider}|${voiceId}|${mode}|${text}`.
+// Skips the network and provider cost for fixed strings (greetings, brief
+// intros, sleep cues) that repeat across a session.
+const TTS_CACHE_MAX = 30;
+const ttsCache = new Map<string, Blob>();
+function ttsCacheGet(key: string): Blob | null {
+  const hit = ttsCache.get(key);
+  if (!hit) return null;
+  // LRU touch.
+  ttsCache.delete(key);
+  ttsCache.set(key, hit);
+  return hit;
+}
+function ttsCachePut(key: string, blob: Blob): void {
+  if (ttsCache.has(key)) ttsCache.delete(key);
+  ttsCache.set(key, blob);
+  while (ttsCache.size > TTS_CACHE_MAX) {
+    const first = ttsCache.keys().next().value;
+    if (first === undefined) break;
+    ttsCache.delete(first);
+  }
+}
 
 let audioUnlocked = false;
 function markAudioUnlocked() {
@@ -433,26 +456,51 @@ async function playOnce(
   const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
   const voice = provider === "elevenlabs" ? (opts.voice ?? getElevenVoice()) : (opts.voice ?? undefined);
 
-  // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
-  // don't arrive in time, abort and fall through to OpenAI for this session.
-  const ctrl = provider === "elevenlabs" ? new AbortController() : null;
-  const stallTimer = ctrl
-    ? setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, 2500)
-    : null;
-  let resp: Response;
-  try {
-    resp = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ text: spoken, voice, mode }),
-      signal: ctrl?.signal,
-    });
-  } catch (_err) {
-    if (provider === "elevenlabs") {
-      console.warn("[speak] ElevenLabs stalled, falling back to OpenAI for this session");
+  // Response cache — fixed strings (greetings, brief intros, sleep cues)
+  // repeat often; reusing the blob skips the network and provider cost.
+  const cacheKey = `${provider}|${voice ?? "-"}|${mode}|${spoken}`;
+  let blob: Blob | null = ttsCacheGet(cacheKey);
+
+  if (!blob) {
+    // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
+    // don't arrive in time, abort and fall through to OpenAI for this session.
+    const ctrl = provider === "elevenlabs" ? new AbortController() : null;
+    const stallTimer = ctrl
+      ? setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, 2500)
+      : null;
+    let resp: Response;
+    try {
+      resp = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: spoken, voice, mode }),
+        signal: ctrl?.signal,
+      });
+    } catch (_err) {
+      if (provider === "elevenlabs") {
+        console.warn("[speak] ElevenLabs stalled, falling back to OpenAI for this session");
+        elevenLabsBlocked = true;
+        try { setTtsProvider("openai"); } catch { /* noop */ }
+        resp = await fetch("/api/tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
+        });
+      } else {
+        throw _err;
+      }
+    } finally {
+      if (stallTimer) clearTimeout(stallTimer);
+    }
+    // Provider-specific failure → fall back to OpenAI for the rest of the session.
+    if (provider === "elevenlabs" && !resp.ok) {
+      console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
       elevenLabsBlocked = true;
       try { setTtsProvider("openai"); } catch { /* noop */ }
       resp = await fetch("/api/tts", {
@@ -463,36 +511,21 @@ async function playOnce(
         },
         body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
       });
-    } else {
-      throw _err;
     }
-  } finally {
-    if (stallTimer) clearTimeout(stallTimer);
+    if (!resp.ok) {
+      track({ event: "voice_skipped", reason: "tts_error" });
+      emitStatus("failed", "tts_error");
+      return;
+    }
+    if (!stillValid()) {
+      track({ event: "voice_skipped", reason: "superseded" });
+      return;
+    }
+    blob = await resp.blob();
+    // Cache by (post-fallback) provider — speakers may have changed.
+    const finalProvider = elevenLabsBlocked ? "openai" : provider;
+    ttsCachePut(`${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`, blob);
   }
-  // Provider-specific failure → fall back to OpenAI for the rest of the session.
-  if (provider === "elevenlabs" && !resp.ok) {
-    console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
-    elevenLabsBlocked = true;
-    try { setTtsProvider("openai"); } catch { /* noop */ }
-    resp = await fetch("/api/tts", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
-    });
-  }
-  if (!resp.ok) {
-    track({ event: "voice_skipped", reason: "tts_error" });
-    emitStatus("failed", "tts_error");
-    return;
-  }
-  if (!stillValid()) {
-    track({ event: "voice_skipped", reason: "superseded" });
-    return;
-  }
-  const blob = await resp.blob();
   if (!stillValid()) {
     track({ event: "voice_skipped", reason: "superseded" });
     return;

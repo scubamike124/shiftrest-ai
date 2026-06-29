@@ -12,13 +12,13 @@ const RENDERER_KEY = "companion.renderer";
 const TTS_KEY = "companion.tts.provider";
 const ELEVEN_VOICE_KEY = "companion.tts.elevenVoiceId";
 
-// Calm / companion-leaning voices from the ElevenLabs catalog.
+// Curated premium voice lineup — 4 personalities, each professionally tuned.
+// Picked from the ElevenLabs official voice library (commercially licensed).
 export const ELEVEN_VOICES = [
-  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah", tone: "Soft & soothing" },
-  { id: "IKne3meq5aSn9XLyUdCD", label: "Charlie", tone: "Warm male" },
-  { id: "SAz9YHcvj6GT2YYXdXww", label: "River", tone: "Calm neutral" },
-  { id: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam", tone: "Grounded male" },
-  { id: "XrExE9yKIg1WjnnlVkGX", label: "Matilda", tone: "Friendly female" },
+  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah", tone: "Calm female · default" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", label: "George", tone: "Calm male" },
+  { id: "Xb7hH8MSUJpSbSDYk0k2", label: "Alice", tone: "Warm British" },
+  { id: "XrExE9yKIg1WjnnlVkGX", label: "Matilda", tone: "Soft Australian" },
 ] as const;
 export const DEFAULT_ELEVEN_VOICE = "EXAVITQu4vr4xnSDxMaL";
 
@@ -39,8 +39,9 @@ export function getRenderer(): CompanionRenderer {
   return v === "2d" ? "2d" : "3d";
 }
 export function getTtsProvider(): CompanionTtsProvider {
-  const v = readLS(TTS_KEY, "openai");
-  return v === "elevenlabs" ? "elevenlabs" : "openai";
+  // ElevenLabs is now the default premium provider; OpenAI is the auto-fallback.
+  const v = readLS(TTS_KEY, "elevenlabs");
+  return v === "openai" ? "openai" : "elevenlabs";
 }
 export function getElevenVoice(): string {
   return readLS(ELEVEN_VOICE_KEY, DEFAULT_ELEVEN_VOICE);
