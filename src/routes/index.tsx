@@ -138,13 +138,14 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 Start free — 7 days
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <a
-                href="#meet-aura"
+              <Link
+                to="/companion"
+                search={{ intro: 1 }}
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-6 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition hover:bg-card"
               >
                 <Mic className="h-4 w-4 text-indigo-glow" />
                 Meet your Companion
-              </a>
+              </Link>
             </div>
 
             {/* Capability chips — what Aura actually does */}
