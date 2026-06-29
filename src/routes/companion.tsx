@@ -143,6 +143,11 @@ function CompanionPage() {
   const aiName = prefs?.assistantName?.trim() || "RestPilot";
   const memoryOn = Boolean(prefs?.memoryEnabled);
 
+  // Hydration-safe flag: time-aware greeting renders only after mount.
+  const [mountedGreeting, setMountedGreeting] = useState(false);
+  useEffect(() => { setMountedGreeting(true); }, []);
+
+
   const savePref = useMutation({
     mutationFn: (p: Partial<Prefs>) => savePrefs(p),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["prefs"] }),
