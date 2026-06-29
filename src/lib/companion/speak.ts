@@ -506,9 +506,13 @@ async function playOnce(
   // resolves; on iOS Safari `audio.play()` can return while the context is
   // still "suspended", which makes the first few hundred ms silent.
   await ensureContextRunning();
-  // Warm the output device so the first sample of the TTS blob is not
-  // swallowed (iOS Safari drops ~100 ms after a cold play()).
-  await warmOutputDevice();
+  // Warm the output device ONLY for the first utterance of the session.
+  // Re-warming before every chunk added ~50 ms latency between sentences,
+  // which presented as stuttering on iPhone Safari.
+  if (!outputWarmed) {
+    await warmOutputDevice();
+    outputWarmed = true;
+  }
 
   await new Promise<void>((resolve) => {
     audio.onended = () => {
