@@ -114,6 +114,21 @@ function nextOccurrenceISO(hour: number, minute: number): string {
   return t.toISOString();
 }
 
+/** Human-friendly "Tomorrow at 6:30 AM · in 9h 12m" preview for alarms. */
+function nextOccurrenceLabel(hour: number, minute: number): string {
+  const now = new Date();
+  const t = new Date(now);
+  t.setHours(hour, minute, 0, 0);
+  const isTomorrow = t.getTime() <= now.getTime();
+  if (isTomorrow) t.setDate(t.getDate() + 1);
+  const pretty = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const diffMin = Math.max(1, Math.round((t.getTime() - now.getTime()) / 60000));
+  const h = Math.floor(diffMin / 60);
+  const m = diffMin % 60;
+  const inWhen = h > 0 ? `in ${h}h${m ? ` ${m}m` : ""}` : `in ${m}m`;
+  return `${isTomorrow ? "Tomorrow" : "Today"} at ${pretty} · ${inWhen}`;
+}
+
 /** Returns true if an action should always require a confirmation card. */
 export function isDestructive(a: CompanionAction): boolean {
   switch (a.kind) {
@@ -214,7 +229,7 @@ export function describeAction(a: CompanionAction): ActionDescription {
     case "create_alarm":
       return D({
         title: `Set an alarm for ${hhmm(a.hour, a.minute)}?`,
-        body: "I'll save it to your Smart Alarms.",
+        body: `${nextOccurrenceLabel(a.hour, a.minute)}. I'll save it to your Smart Alarms.`,
         confirmLabel: "Set alarm",
       });
     case "delete_alarm":
