@@ -19,6 +19,16 @@ import { inQuietHours } from "./quiet-hours";
 import { loadLocalPrefs } from "./voice-action-prefs";
 import { track } from "./analytics";
 import { isQuietModeOn } from "@/lib/quiet-mode";
+import { normalizeForSpeech } from "./speech-normalize";
+
+let audioUnlocked = false;
+function markAudioUnlocked() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("companion:voice-unlocked"));
+  }
+}
 
 let currentAudio: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
