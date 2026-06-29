@@ -21,6 +21,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbState } from "@/components/PilotOrb";
 import { useAvatar } from "@/lib/companion/use-avatar";
+import { getEyeRig } from "@/lib/companion/avatars";
 import { useRenderer, webglSupported } from "@/lib/companion/renderer-pref";
 import { modelUrlFor } from "@/lib/companion/avatar-models";
 import {
@@ -119,7 +120,10 @@ function CompanionAvatarFace2D({
 }: AvatarProps) {
   const px = SIZE_PX[size];
   const showAura = aura ?? size !== "sm";
-  const { src: portraitUrl } = useAvatar();
+  const { src: portraitUrl, id: avatarId } = useAvatar();
+  const eyeRig = getEyeRig(avatarId);
+  // Local face landmark map — eye coords come from the per-avatar rig.
+  const FL = { ...F, eyeLeft: eyeRig.eyeLeft, eyeRight: eyeRig.eyeRight, eyeW: eyeRig.eyeW, eyeH: eyeRig.eyeH };
 
   // ── Environment ──────────────────────────────────────────────────────
   const [reduced, setReduced] = useState<boolean>(() => prefersReducedMotion());
@@ -153,39 +157,57 @@ function CompanionAvatarFace2D({
   const weights: EmotionWeights = EMOTION_PRESETS[emotion];
   const sleepMode = emotion === "sleep";
 
-  // ── Blink loop — interval driven by emotion preset ───────────────────
-  const [blink, setBlink] = useState(false);
-  const [halfBlinkRight, setHalfBlinkRight] = useState(false);
-  const blinkCfgRef = useRef(weights.blink);
-  useEffect(() => { blinkCfgRef.current = weights.blink; }, [weights.blink]);
+  // ── Blink scheduler ────────────────────────────────────────────────
+  // A single progress ref (0 = fully open, 1 = fully closed) is read by
+  // BOTH eyelids inside the rAF tick — so the two lids are always at the
+  // identical value in the same frame. No per-eye React state, no
+  // asymmetric "half blink." A blink is queued by writing keyframes onto
+  // blinkPlanRef; the rAF loop interpolates between them.
+  const blinkProgressRef = useRef(0);
+  type BlinkFrame = { at: number; v: number };
+  const blinkPlanRef = useRef<BlinkFrame[]>([]);
+
+  function scheduleBlink(opts: { closeMs: number; holdMs: number; openMs: number; doubleBlink: boolean }) {
+    const t0 = performance.now();
+    const { closeMs, holdMs, openMs, doubleBlink } = opts;
+    const frames: BlinkFrame[] = [
+      { at: t0, v: 0 },
+      { at: t0 + closeMs, v: 1 },
+      { at: t0 + closeMs + holdMs, v: 1 },
+      { at: t0 + closeMs + holdMs + openMs, v: 0 },
+    ];
+    if (doubleBlink) {
+      const gap = 90;
+      const base = t0 + closeMs + holdMs + openMs + gap;
+      frames.push(
+        { at: base, v: 0 },
+        { at: base + closeMs * 0.85, v: 1 },
+        { at: base + closeMs * 0.85 + 30, v: 1 },
+        { at: base + closeMs * 0.85 + 30 + openMs * 0.85, v: 0 },
+      );
+    }
+    blinkPlanRef.current = frames;
+  }
+
   useEffect(() => {
     if (hidden) return;
     let cancelled = false;
     let t: number | undefined;
-    const closeOpen = (after: number, holdMs: number, cb: () => void) => {
-      setBlink(true);
-      window.setTimeout(() => {
-        if (cancelled) return;
-        setBlink(false);
-        window.setTimeout(() => { if (!cancelled) cb(); }, after);
-      }, holdMs);
-    };
     const loop = () => {
-      const { min, max } = blinkCfgRef.current;
-      const next = min + Math.random() * (max - min);
+      // Tightened cadence: 3.5–6.5s feels alive without looking nervous.
+      // Sleep mode: slower, longer hold (handled below).
+      const next = 3500 + Math.random() * 3000;
       t = window.setTimeout(() => {
         if (cancelled) return;
-        const doubleBlink = Math.random() < 0.18;
-        const slowBlink = Math.random() < 0.06 || sleepMode;
-        const asymmetric = Math.random() < 0.12;
-        if (asymmetric) {
-          setHalfBlinkRight(true);
-          window.setTimeout(() => setHalfBlinkRight(false), 110);
-        }
-        closeOpen(140, slowBlink ? 280 : 130, () => {
-          if (doubleBlink) closeOpen(80, 120, loop);
-          else loop();
+        const slow = sleepMode || Math.random() < 0.06;
+        const doubleBlink = Math.random() < 0.16;
+        scheduleBlink({
+          closeMs: slow ? 130 : 90,
+          holdMs: slow ? 90 : 40,
+          openMs: slow ? 180 : 130,
+          doubleBlink,
         });
+        loop();
       }, next);
     };
     loop();
@@ -313,6 +335,41 @@ function CompanionAvatarFace2D({
     return () => { cancelled = true; if (t) window.clearTimeout(t); };
   }, [hidden, reduced]);
 
+  // Idle micro-smile — every 9–22s, briefly bias mouth corners up.
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    let rafA = 0, rafB = 0;
+    const ramp = (from: number, to: number, ms: number, onDone?: () => void) => {
+      const start = performance.now();
+      const tick = () => {
+        if (cancelled) return;
+        const k = Math.min(1, (performance.now() - start) / ms);
+        microSmileRef.current = from + (to - from) * (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+        if (k < 1) rafA = requestAnimationFrame(tick);
+        else onDone?.();
+      };
+      tick();
+    };
+    const loop = () => {
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        ramp(0, 1, 380, () => {
+          rafB = window.setTimeout(() => ramp(1, 0, 520, loop), 480) as unknown as number;
+        });
+      }, 9_000 + Math.random() * 13_000);
+    };
+    loop();
+    return () => {
+      cancelled = true;
+      if (t) window.clearTimeout(t);
+      if (rafA) cancelAnimationFrame(rafA);
+      if (rafB) window.clearTimeout(rafB);
+      microSmileRef.current = 0;
+    };
+  }, [hidden, reduced]);
+
   // Idle "swallow" — slight head/throat movement, never feels frozen.
   const [swallow, setSwallow] = useState(false);
   useEffect(() => {
@@ -348,9 +405,13 @@ function CompanionAvatarFace2D({
   const browRightRef = useRef<HTMLDivElement | null>(null);
   const cheekLeftRef = useRef<HTMLDivElement | null>(null);
   const cheekRightRef = useRef<HTMLDivElement | null>(null);
+  const lidLeftRef = useRef<HTMLDivElement | null>(null);
+  const lidRightRef = useRef<HTMLDivElement | null>(null);
   // Mouth SVG refs (single soft inner-mouth shadow — no visible lip lines)
   const innerMouthRef = useRef<SVGEllipseElement | null>(null);
   const mouthGroupRef = useRef<SVGGElement | null>(null);
+  // Idle micro-smile bias (0..1) — read inside the rAF mouth block.
+  const microSmileRef = useRef(0);
 
   // ── rAF — facial rig animation ──────────────────────────────────────
   useEffect(() => {
@@ -392,6 +453,39 @@ function CompanionAvatarFace2D({
       // Blend toward target shape (slow LP for natural transitions).
       shapeLP = blendVisemes(shapeLP, target, 0.22);
 
+      // ── Blink: interpolate the scheduled keyframes and write --lid to
+      //   BOTH lid elements in the SAME frame. Guarantees symmetry.
+      {
+        const plan = blinkPlanRef.current;
+        let p = blinkProgressRef.current;
+        if (plan.length > 0) {
+          if (now >= plan[plan.length - 1].at) {
+            p = plan[plan.length - 1].v;
+            blinkPlanRef.current = [];
+          } else {
+            for (let i = 0; i < plan.length - 1; i++) {
+              const a = plan[i];
+              const b = plan[i + 1];
+              if (now >= a.at && now <= b.at) {
+                const t = (now - a.at) / Math.max(1, b.at - a.at);
+                // Ease in/out so the lid feels like real flesh, not a wipe.
+                const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                p = a.v + (b.v - a.v) * eased;
+                break;
+              }
+            }
+          }
+        }
+        blinkProgressRef.current = p;
+        // Baseline lid coverage from emotion (eyes wider/narrower at rest).
+        const baseline = w.lidOpen * 0.18; // 0..~0.18 at idle
+        const lidValue = Math.max(baseline, p);
+        if (lidLeftRef.current) lidLeftRef.current.style.setProperty("--lid", lidValue.toFixed(3));
+        if (lidRightRef.current) lidRightRef.current.style.setProperty("--lid", lidValue.toFixed(3));
+      }
+
+
+
 
       // Combine viseme openness with live amplitude.
       const ampOpen = s === "speaking" ? gamma : 0;
@@ -400,7 +494,7 @@ function CompanionAvatarFace2D({
       // ── mouth SVG ──
       if (mouthGroupRef.current) {
         // Corner bias: emotion lift + viseme corner.
-        const cornerLift = w.corners * 0.35 + shapeLP.corner * 0.6;
+        const cornerLift = w.corners * 0.35 + shapeLP.corner * 0.6 + microSmileRef.current * 0.45;
         mouthGroupRef.current.setAttribute(
           "transform",
           `translate(0 ${-cornerLift * 0.35}) scale(${shapeLP.wide} 1)`,
@@ -509,13 +603,11 @@ function CompanionAvatarFace2D({
     : state === "speaking"  ? "hsl(190 90% 60% / 0.65)"
     : "hsl(var(--primary) / 0.4)";
 
-  const eyelidColor = "rgb(212, 168, 140)";
   const browColor = "rgba(70, 38, 28, 0.55)";
   const objectPosition = size === "sm" ? "50% 18%" : "50% 20%";
 
-  // Eyelid open ratio from emotion (1 = wide). The closed `blink` overrides.
-  const lidOpenRatio = blink ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
-  const lidOpenRatioRight = (blink || halfBlinkRight) ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
+  // Eyelid is driven from rAF via --lid (0 = open, 1 = closed) on each lid
+  // element. Computed identically for both lids so they can never desync.
 
   return (
     <div
@@ -648,41 +740,48 @@ function CompanionAvatarFace2D({
             }}
           />
 
-          {/* Eyelids */}
+          {/* Eyelids — top-down shutter anchored at the upper lash line.
+              At rest, `--lid` ≈ 0 (invisible thin sliver). On blink the rAF
+              loop ramps `--lid` to 1 on BOTH elements in the same frame, so
+              the lids close downward over the iris in perfect sync. Gaze
+              never translates the lid — the lid stays locked to the eye. */}
           <div
+            ref={lidLeftRef}
             aria-hidden
             className="absolute"
             style={{
-              left: `${F.eyeLeft.x - F.eyeW / 2}%`,
-              top: `${F.eyeLeft.y - F.eyeH / 2}%`,
-              width: `${F.eyeW}%`,
-              height: `${F.eyeH}%`,
-              background: eyelidColor,
-              borderRadius: "40%",
-              transformOrigin: "50% 100%",
-              transform: `scaleY(${lidOpenRatio}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 140ms ease",
-              opacity: 0.95,
-              filter: "blur(0.4px)",
+              left: `${FL.eyeLeft.x - FL.eyeW / 2}%`,
+              top: `${FL.eyeLeft.y - FL.eyeH * 0.85}%`,
+              width: `${FL.eyeW}%`,
+              height: `${FL.eyeH * 1.7}%`,
+              background: `linear-gradient(to bottom, ${eyeRig.lidTop} 0%, ${eyeRig.lidMid} 65%, transparent 100%)`,
+              borderRadius: "55% 55% 50% 50% / 80% 80% 35% 35%",
+              transformOrigin: "50% 0%",
+              transform: "scaleY(var(--lid, 0))",
+              willChange: "transform",
+              filter: "blur(0.5px)",
+              pointerEvents: "none",
             }}
           />
           <div
+            ref={lidRightRef}
             aria-hidden
             className="absolute"
             style={{
-              left: `${F.eyeRight.x - F.eyeW / 2}%`,
-              top: `${F.eyeRight.y - F.eyeH / 2}%`,
-              width: `${F.eyeW}%`,
-              height: `${F.eyeH}%`,
-              background: eyelidColor,
-              borderRadius: "40%",
-              transformOrigin: "50% 100%",
-              transform: `scaleY(${lidOpenRatioRight}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 140ms ease",
-              opacity: 0.95,
-              filter: "blur(0.4px)",
+              left: `${FL.eyeRight.x - FL.eyeW / 2}%`,
+              top: `${FL.eyeRight.y - FL.eyeH * 0.85}%`,
+              width: `${FL.eyeW}%`,
+              height: `${FL.eyeH * 1.7}%`,
+              background: `linear-gradient(to bottom, ${eyeRig.lidTop} 0%, ${eyeRig.lidMid} 65%, transparent 100%)`,
+              borderRadius: "55% 55% 50% 50% / 80% 80% 35% 35%",
+              transformOrigin: "50% 0%",
+              transform: "scaleY(var(--lid, 0))",
+              willChange: "transform",
+              filter: "blur(0.5px)",
+              pointerEvents: "none",
             }}
           />
+
 
           {/* Soft inner-mouth shadow — no visible lip lines.
               Tints existing painted lips via multiply blend; vanishes when closed. */}
