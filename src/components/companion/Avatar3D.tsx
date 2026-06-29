@@ -58,9 +58,8 @@ function HeadModel({ url, state, level, onFail }: {
   level: number;
   onFail?: () => void;
 }) {
-  const gltf = useGLTF(url, true, true, (loader) => {
-    loader.manager.onError = () => onFail?.();
-  });
+  const gltf = useGLTF(url);
+  void onFail;
   const group = useRef<THREE.Group>(null);
   const liveLevelRef = useRef(0);
 
