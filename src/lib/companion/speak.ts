@@ -69,6 +69,7 @@ export function prepareVoicePlayback(): void {
           audio.currentTime = 0;
         }
         audio.volume = 1;
+        markAudioUnlocked();
       })
       .catch(() => {
         audio.volume = 1;
