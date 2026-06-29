@@ -668,41 +668,48 @@ function CompanionAvatarFace2D({
             }}
           />
 
-          {/* Eyelids */}
+          {/* Eyelids — top-down shutter anchored at the upper lash line.
+              At rest, `--lid` ≈ 0 (invisible thin sliver). On blink the rAF
+              loop ramps `--lid` to 1 on BOTH elements in the same frame, so
+              the lids close downward over the iris in perfect sync. Gaze
+              never translates the lid — the lid stays locked to the eye. */}
           <div
+            ref={lidLeftRef}
             aria-hidden
             className="absolute"
             style={{
-              left: `${F.eyeLeft.x - F.eyeW / 2}%`,
-              top: `${F.eyeLeft.y - F.eyeH / 2}%`,
-              width: `${F.eyeW}%`,
-              height: `${F.eyeH}%`,
-              background: eyelidColor,
-              borderRadius: "40%",
-              transformOrigin: "50% 100%",
-              transform: `scaleY(${lidOpenRatio}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 140ms ease",
-              opacity: 0.95,
-              filter: "blur(0.4px)",
+              left: `${FL.eyeLeft.x - FL.eyeW / 2}%`,
+              top: `${FL.eyeLeft.y - FL.eyeH * 0.85}%`,
+              width: `${FL.eyeW}%`,
+              height: `${FL.eyeH * 1.7}%`,
+              background: `linear-gradient(to bottom, ${eyeRig.lidTop} 0%, ${eyeRig.lidMid} 65%, transparent 100%)`,
+              borderRadius: "55% 55% 50% 50% / 80% 80% 35% 35%",
+              transformOrigin: "50% 0%",
+              transform: "scaleY(var(--lid, 0))",
+              willChange: "transform",
+              filter: "blur(0.5px)",
+              pointerEvents: "none",
             }}
           />
           <div
+            ref={lidRightRef}
             aria-hidden
             className="absolute"
             style={{
-              left: `${F.eyeRight.x - F.eyeW / 2}%`,
-              top: `${F.eyeRight.y - F.eyeH / 2}%`,
-              width: `${F.eyeW}%`,
-              height: `${F.eyeH}%`,
-              background: eyelidColor,
-              borderRadius: "40%",
-              transformOrigin: "50% 100%",
-              transform: `scaleY(${lidOpenRatioRight}) translate(${glanceX}px, ${glanceY}px)`,
-              transition: "transform 140ms ease",
-              opacity: 0.95,
-              filter: "blur(0.4px)",
+              left: `${FL.eyeRight.x - FL.eyeW / 2}%`,
+              top: `${FL.eyeRight.y - FL.eyeH * 0.85}%`,
+              width: `${FL.eyeW}%`,
+              height: `${FL.eyeH * 1.7}%`,
+              background: `linear-gradient(to bottom, ${eyeRig.lidTop} 0%, ${eyeRig.lidMid} 65%, transparent 100%)`,
+              borderRadius: "55% 55% 50% 50% / 80% 80% 35% 35%",
+              transformOrigin: "50% 0%",
+              transform: "scaleY(var(--lid, 0))",
+              willChange: "transform",
+              filter: "blur(0.5px)",
+              pointerEvents: "none",
             }}
           />
+
 
           {/* Soft inner-mouth shadow — no visible lip lines.
               Tints existing painted lips via multiply blend; vanishes when closed. */}
