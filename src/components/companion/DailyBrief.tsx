@@ -16,6 +16,7 @@ import { getAfternoonBrief } from "@/lib/companion/afternoon-brief.functions";
 import { getEveningBrief } from "@/lib/companion/evening-brief.functions";
 import type { AfternoonBriefDTO, EveningBriefDTO, AfternoonCardId, EveningCardId } from "@/lib/companion/types";
 import { track } from "@/lib/companion/analytics";
+import { useSession } from "@/hooks/use-session";
 import {
   RemainingCard,
   NextTrafficCard,
@@ -166,20 +167,28 @@ export function DailyBrief({
   const fetchAfternoon = useServerFn(getAfternoonBrief);
   const fetchEvening = useServerFn(getEveningBrief);
 
+  // Gate on a *hydrated* session, not the parent's `signedIn` snapshot —
+  // otherwise on iPhone Safari we fire before the SDK has loaded the token
+  // and hit "Unauthorized: No authorization header provided".
+  const { hasSession, ready } = useSession();
+  const canFetch = signedIn && ready && hasSession && enabled;
+
   const afternoonQ = useQuery({
     queryKey: ["afternoon-brief"],
     queryFn: () => fetchAfternoon(),
-    enabled: signedIn && period === "afternoon" && enabled,
+    enabled: canFetch && period === "afternoon",
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    retry: false,
   });
 
   const eveningQ = useQuery({
     queryKey: ["evening-brief"],
     queryFn: () => fetchEvening(),
-    enabled: signedIn && period === "evening" && enabled,
+    enabled: canFetch && period === "evening",
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    retry: false,
   });
 
   useEffect(() => {

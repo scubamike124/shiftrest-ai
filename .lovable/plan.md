@@ -1,106 +1,63 @@
-## Investigation so far
+# Companion Auth 401 — Root Cause & Fix Plan
 
-The code changes from the last turn are present in source:
+## What the error actually is
 
-- `src/routes/companion.tsx`
-  - line ~303 — `voiceStatus` reset on mount
-  - line ~309 — 2.5s "stuck speaking" watchdog
-  - line ~284 — greeting now renders text only (no autoplay)
-  - line ~386 — transcript auto-submits to `handleSend`
-  - line ~531 — `companionOn` gate removed from `handleSend`
-- `src/components/companion/Avatar.tsx`
-  - line ~94 — 3–8s blink loop with 20% double blink
-  - line ~219 — inner ring dimmed
-  - line ~306 — listening warmth moved to jaw (y:72%), not the eyes
+The string `Unauthorized: No authorization header provided` is thrown in exactly one place: `src/integrations/supabase/auth-middleware.ts` line 34. It fires when a protected `createServerFn` is called from the browser without a `Bearer` token attached.
 
-Typecheck is clean. So the most likely reason "nothing changed" is **not the code** — it is one of:
-
-1. The published site `shift-rest-ai.lovable.app` was never re-published after the fix. Frontend changes only go live when you press **Publish → Update**. The preview URL `id-preview--…lovable.app` is what received the fix.
-2. iPhone Safari is serving the cached PWA shell (we ship a service worker + manifest).
-3. The user is opening the dashboard avatar route, not `/companion`, so a different surface is being tested.
-
-I am not going to guess a code fix again. I will ship a **visible Debug HUD** so the next tap on the real device tells us exactly where the pipeline stops.
-
-## What I will build
-
-### 1. On-screen Debug HUD on `/companion`
-
-A small fixed panel pinned to the bottom-left of the Companion screen, only visible when **any** of these is true:
-- URL has `?debug=1`
-- `localStorage.companion_debug === "1"`
-- a `Cmd/Ctrl+Shift+D` keystroke toggles it on
-
-The HUD shows live values:
+The Companion route (`/companion`) does **not** call any protected serverFn directly. The culprit is the **DailyBrief** widget it renders:
 
 ```
-build       2026-06-29 04:24 · sha <short>
-route       /companion
-signedIn    true
-companionOn false
-prefsLoaded true
-micPerm     granted | prompt | denied
-micState    idle | requesting | listening | encoding
-voiceStatus idle | speaking | failed
-orbState    idle | listening | thinking | speaking
-audioLevel  0.00 (decays)
-ttsCtx      suspended | running
-greetShown  yes
-lastTap     <ms ago>
-transcript  "<last text>" (len)
-aiReq       sent / pending / failed
-aiResp      streaming / done / failed
-ttsStart    yes/no   ttsErr  <kind>
-playback    ok / blocked / ended
+src/routes/companion.tsx  →  <DailyBrief signedIn={signedIn} ... />
+src/components/companion/DailyBrief.tsx
+  → useServerFn(getAfternoonBrief)   ← .middleware([requireSupabaseAuth])
+  → useServerFn(getEveningBrief)     ← .middleware([requireSupabaseAuth])
 ```
 
-Each row updates from the same events the app already emits:
-- `companion:voice-status` (started / ended / failed / skipped)
-- `companion:audio-level` (rms)
-- new lightweight `companion:debug` event the page dispatches at each pipeline step (tap, mic-start, mic-stop, stt-req, stt-ok, ai-req, ai-first-token, ai-done, tts-req, tts-play, tts-end, tts-fail)
+Both calls are gated by `enabled: signedIn`. The race is on **iPhone Safari first-paint**: `signedIn` flips true (set by the auth listener), the query fires immediately, but the `attachSupabaseAuth` client middleware calls `supabase.auth.getSession()` which returns `null` during the brief window where the SDK is still hydrating the session from `localStorage` (or after the Safari "disclaimer" tap when the page was opened pre-auth). No token → no header → 401 → "No authorization header provided" surfaces in the UI/toast. `/api/ai`, `/api/stt`, `/api/tts` all tolerate missing auth (they only gate the budget), so the AI loop itself is **not** the source of this specific error — the brief is.
 
-This is the single source of truth the user can screenshot from their iPhone and send back.
+## Fix (3 small changes, no schema/back-end edits)
 
-### 2. Build-stamp banner
+### 1. Harden the client bearer attacher
+File: `src/integrations/supabase/auth-attacher.ts` (auto-generated — replace its body with the same export so generation-aware tools still find it).
 
-A one-line `BUILD <ISO timestamp>` shown at the very top of the HUD. If the iPhone keeps showing an old timestamp after publish, we have proven it's a cache problem, not a code problem.
+- Call `getSession()`; if it returns no token, wait up to ~600ms for `onAuthStateChange` to fire `INITIAL_SESSION`/`SIGNED_IN`, then try once more.
+- If still no token, call `supabase.auth.refreshSession()` as a last resort (works when the refresh token is in storage but the access token expired).
+- Emit a `companion:auth-status` event with `{ hasSession, hasToken, userId }` for the HUD.
+- Always return `next(...)` — never throw — so unauthenticated calls fail at the server with a clean 401 instead of a network-layer exception.
 
-### 3. Service-worker / cache cache-busting for `/companion`
+### 2. Gate the brief queries on a real session, not just `signedIn`
+File: `src/components/companion/DailyBrief.tsx`.
 
-Add `<meta http-equiv="Cache-Control" content="no-store" />` only on the `/companion` route head, and ensure the service worker (if registered) does **not** cache that route's HTML shell. This makes future fixes appear on the next visit without a hard reload.
+- Replace the `signedIn` prop check with `useQuery({ enabled: hasSession && ... })` where `hasSession` is derived from a lightweight `useSession()` hook (one `supabase.auth.getSession()` + `onAuthStateChange` listener, returns `{ session, ready }`).
+- Don't fire until `ready === true && session != null`. This eliminates the first-paint race entirely.
+- On 401 the query's `onError` shows a soft "Sign in to see your brief" line instead of bubbling the raw error.
 
-### 4. iOS audio unlock on first tap (defensive)
+### 3. Extend the Debug HUD with auth rows
+File: `src/components/companion/DebugHUD.tsx` + `src/lib/companion/debug-bus.ts`.
 
-In `handleMicTap` we already call `prepareVoicePlayback()`. I will also create-and-resume a single shared `AudioContext` synchronously inside the same tap handler (before any `await`), and play a 1-frame silent buffer. This is the documented iOS Safari pattern for letting later TTS audio play without a user gesture. If TTS still fails afterward, the HUD will say `playback blocked` instead of `ttsStart yes`, which tells us exactly that.
+- Add three rows: `Authenticated` (YES/NO), `User Session` (Present/Missing), `Authorization Header` (Attached/Missing — last attempted call).
+- Listen for the new `companion:auth-status` event from the attacher.
+- New debug steps in the event log: `auth-ok`, `auth-missing`, `auth-refresh`, `auth-fail` (never logs the token value, only its presence).
+- Bump `BUILD_STAMP` so the user can confirm the fresh build is loaded.
 
-### 5. Hard reset button in the HUD
+## Verification
 
-A "Reset Nova" button that:
-- calls `stopSpeaking()`
-- forces `voiceStatus = "idle"`, `orbState = "idle"`
-- aborts any in-flight `/api/ai` request
-- clears `messages`
+1. Typecheck.
+2. Cold-load `/companion?debug=1` on iPhone Safari signed-in:
+   - HUD shows `Authenticated: YES`, `User Session: Present`, `Authorization Header: Attached`.
+   - No 401 toast, brief renders.
+3. Cold-load `/companion?debug=1` signed-out:
+   - HUD shows `Authenticated: NO`, `User Session: Missing`, `Authorization Header: Missing`.
+   - Brief silently hides; voice/text loop still works against the public `/api/*` endpoints.
+4. Sign out mid-session → HUD flips to NO/Missing on next call; no crash.
 
-Lets the user un-stick the avatar without reloading.
+## Out of scope (intentionally not touching)
 
-## Files I will touch
+- `/api/ai`, `/api/stt`, `/api/tts`, TTS playback, avatar animation, voice queue — these were fixed last round and are not the source of *this* error.
+- Edge functions / DB / RLS — server side is correct; the bug is purely the client failing to attach a token in time.
 
-- `src/lib/companion/debug-bus.ts` *(new)* — typed `emit(step, payload)` + subscribe.
-- `src/components/companion/DebugHUD.tsx` *(new)* — the panel above.
-- `src/routes/companion.tsx` — mount `<DebugHUD />`, emit debug events at each pipeline step, add iOS audio unlock in the tap handler, add Reset button wiring.
-- `src/lib/companion/speak.ts` — emit `tts-req / tts-play / tts-end / tts-fail` debug events alongside existing `companion:voice-status`.
-- `src/lib/voice/useMicRecorder.ts` — emit `mic-start / mic-stop / mic-error` debug events; expose permission state.
-- `src/routes/__root.tsx` *(tiny)* — add a build-time `BUILD_STAMP` constant injected via Vite `define`, used by the HUD.
+## Technical notes
 
-## What this does NOT change
-
-- No new animation work on the avatar until the HUD tells us blink/eye is actually broken on the device (the current code already moved the glow off the eyes and randomized the blink — if the user still sees the old behavior, the HUD timestamp will prove the build is stale, not the code).
-- No new TTS provider, no API changes.
-
-## After you approve
-
-I will implement steps 1–5, run typecheck, and give you back:
-- the preview URL with `?debug=1` appended
-- a one-line instruction to publish so the published site picks up the fix
-- a short list of what to screenshot from the iPhone so we can read the HUD values together
-
-That screenshot will end the guessing.
+- The auto-generated attacher header comment will stay; the patched implementation keeps the same export name so the build still recognizes it.
+- No new dependencies.
+- `useSession` will live in `src/hooks/use-session.ts` and is reusable anywhere we need to gate on a hydrated session.
