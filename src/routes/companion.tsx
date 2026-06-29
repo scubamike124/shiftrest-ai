@@ -177,6 +177,48 @@ function CompanionPage() {
     }
   }, []);
   const updateLocal = (patch: Partial<CompanionLocalPrefs>) => setLocalPrefs(saveLocalPrefs(patch));
+
+  // Pass 3 + Pass 6 — drive emotion state from user/AI signals.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let cancelled = false;
+    let lastReply = "";
+    const captureReply = () => {
+      // Snapshot last assistant message text for inference on turn end.
+      const last = messagesRef.current?.filter(m => m.role === "assistant").slice(-1)[0];
+      lastReply = last?.content ?? "";
+    };
+    const onTurnEnd = async () => {
+      if (cancelled) return;
+      captureReply();
+      const { inferFromText, setEmotion } = await import("@/lib/companion/emotion");
+      if (localPrefs.companionMode === "sleep") { setEmotion("sleep"); return; }
+      setEmotion(inferFromText(lastReply));
+    };
+    const onStart = async () => {
+      const { setEmotion } = await import("@/lib/companion/emotion");
+      if (localPrefs.companionMode === "sleep") setEmotion("sleep");
+      else setEmotion("listening");
+    };
+    window.addEventListener("companion:turn-ended", onTurnEnd as EventListener);
+    window.addEventListener("companion:voice-status", ((e: Event) => {
+      const d = (e as CustomEvent<{ status: string }>).detail;
+      if (d?.status === "started") onStart();
+    }) as EventListener);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("companion:turn-ended", onTurnEnd as EventListener);
+    };
+  }, [localPrefs.companionMode]);
+
+  // Reflect sleep mode immediately even outside of a turn.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    void import("@/lib/companion/emotion").then(({ setEmotion }) => {
+      if (localPrefs.companionMode === "sleep") setEmotion("sleep");
+      else setEmotion("neutral");
+    });
+  }, [localPrefs.companionMode]);
   // Slice 8 — breathing overlay + action busy state.
   const [breathingOpen, setBreathingOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState<number | null>(null);
