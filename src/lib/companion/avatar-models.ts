@@ -1,26 +1,46 @@
-// Ready Player Me model URLs for each preset. Append the morphTargets query
-// so the GLB exposes ARKit + Oculus visemes for lip-sync.
+// Ready Player Me model URLs for the 3D Companion head.
 //
-// Missing/404 URLs fall back to the 2D portrait renderer.
+// RPM avatars are user-generated, so we don't bundle preset URLs (any baked-in
+// ID is liable to 404). Instead the user creates their own avatar at
+// https://readyplayer.me and pastes the .glb URL into Settings → Companion.
+//
+// When no custom URL is set, the 2D portrait renders.
 
+const CUSTOM_KEY = "companion.modelUrl";
 const RPM_QUERY = "morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024&pose=A&lod=1";
 
-function rpm(id: string): string {
-  return `https://models.readyplayer.me/${id}.glb?${RPM_QUERY}`;
+export function getCustomModelUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(CUSTOM_KEY);
+    return v && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
-// Demo RPM avatars (publicly accessible, head-and-shoulders friendly).
-// These IDs come from RPM's public template gallery; if any 404, the 2D
-// portrait is shown automatically.
-export const AVATAR_MODEL_URLS: Record<string, string> = {
-  aura:  rpm("64bfa15f0e72c63d7c3934a6"),
-  nova:  rpm("65a8dba831b23abb4f401bae"),
-  atlas: rpm("64bfa1c40e72c63d7c39351b"),
-  sage:  rpm("64bfa20c0e72c63d7c393525"),
-};
-
-export function modelUrlFor(id: string | null | undefined): string | null {
-  if (!id) return null;
-  if (id.startsWith("custom:")) return null;
-  return AVATAR_MODEL_URLS[id] ?? null;
+export function setCustomModelUrl(url: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!url) window.localStorage.removeItem(CUSTOM_KEY);
+    else window.localStorage.setItem(CUSTOM_KEY, url.trim());
+    window.dispatchEvent(new CustomEvent("companion:pref-changed", { detail: { key: CUSTOM_KEY, value: url ?? "" } }));
+  } catch { /* ignore */ }
 }
+
+// Append RPM morph-target query if the URL looks like a bare RPM .glb.
+function withMorphTargets(raw: string): string {
+  if (!/readyplayer\.me/.test(raw)) return raw;
+  if (raw.includes("morphTargets=")) return raw;
+  return raw.includes("?") ? `${raw}&${RPM_QUERY}` : `${raw}?${RPM_QUERY}`;
+}
+
+export function modelUrlFor(_id: string | null | undefined): string | null {
+  const custom = getCustomModelUrl();
+  if (custom) return withMorphTargets(custom);
+  return null;
+}
+
+// Kept for backwards compat with the earlier import site.
+export const AVATAR_MODEL_URLS: Record<string, string> = {};
+
