@@ -102,17 +102,31 @@ function Hero({ ctaHref }: { ctaHref: string }) {
               Meet Aura · your AI Sleep Companion
             </span>
             <h1
-              className="mt-6 text-5xl leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl"
+              className="mt-6 text-4xl leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              A real AI{" "}
-              <span className="italic text-indigo-glow">companion</span> for
-              the people who sleep when the world wakes.
+              {/* Mobile: short, punchy */}
+              <span className="sm:hidden">
+                Your AI sleep <span className="italic text-indigo-glow">companion</span>.
+                <br />
+                One tap away.
+              </span>
+              {/* Tablet + desktop: full editorial line */}
+              <span className="hidden sm:inline">
+                A real AI{" "}
+                <span className="italic text-indigo-glow">companion</span> for
+                the people who sleep when the world wakes.
+              </span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              Tap the avatar to talk. Aura plans tonight's sleep, calms you
-              down after shift, runs sleep sounds, sets your smart alarm, and
-              checks in all day — built around your real rotation.
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
+              <span className="sm:hidden">
+                Calmer nights, sharper days — voice or text, built for your shifts.
+              </span>
+              <span className="hidden sm:inline">
+                Tap the avatar to talk. Aura plans tonight's sleep, calms you
+                down after shift, runs sleep sounds, sets your smart alarm, and
+                checks in all day — built around your real rotation.
+              </span>
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
