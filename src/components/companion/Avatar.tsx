@@ -370,9 +370,13 @@ function CompanionAvatarFace2D({
   const browRightRef = useRef<HTMLDivElement | null>(null);
   const cheekLeftRef = useRef<HTMLDivElement | null>(null);
   const cheekRightRef = useRef<HTMLDivElement | null>(null);
+  const lidLeftRef = useRef<HTMLDivElement | null>(null);
+  const lidRightRef = useRef<HTMLDivElement | null>(null);
   // Mouth SVG refs (single soft inner-mouth shadow — no visible lip lines)
   const innerMouthRef = useRef<SVGEllipseElement | null>(null);
   const mouthGroupRef = useRef<SVGGElement | null>(null);
+  // Idle micro-smile bias (0..1) — read inside the rAF mouth block.
+  const microSmileRef = useRef(0);
 
   // ── rAF — facial rig animation ──────────────────────────────────────
   useEffect(() => {
