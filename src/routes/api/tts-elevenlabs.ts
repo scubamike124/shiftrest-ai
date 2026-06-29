@@ -50,11 +50,11 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const voiceId = body.voice && /^[a-zA-Z0-9]+$/.test(body.voice) ? body.voice : DEFAULT_VOICE;
           const mode = body.mode ?? "normal";
 
-          // Sleep mode → softer/slower delivery via voice settings.
-          const stability = mode === "sleep" ? 0.7 : 0.5;
+          // Pacing restored to conversational; sleep mode gets a gentler slowdown.
+          const stability = mode === "sleep" ? 0.65 : 0.5;
           const similarity = 0.78;
-          const style = mode === "sleep" ? 0.15 : 0.45;
-          const speed = mode === "sleep" ? 0.88 : 0.96;
+          const style = mode === "sleep" ? 0.15 : 0.35;
+          const speed = mode === "sleep" ? 0.92 : 1.0;
 
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
