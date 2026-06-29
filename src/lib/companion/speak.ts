@@ -31,6 +31,12 @@ const SILENT_WAV =
 export function prepareVoicePlayback(): void {
   if (typeof window === "undefined") return;
   try {
+    // Prime the WebAudio graph (gain + compressor + analyser) inside the
+    // user gesture so the very first reply is loud and lip-syncs.
+    ensureAudioGraph();
+    if (levelCtx && levelCtx.state === "suspended") {
+      levelCtx.resume().catch(() => undefined);
+    }
     if (!primedAudio) {
       primedAudio = new Audio();
       primedAudio.preload = "auto";
