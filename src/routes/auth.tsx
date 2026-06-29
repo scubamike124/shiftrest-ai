@@ -34,6 +34,7 @@ const SAFE_RETURNS = new Set([
   "/swap",
   "/share",
   "/events",
+  "/companion",
 ]);
 
 function resolveReturn(raw: string | undefined): string {
