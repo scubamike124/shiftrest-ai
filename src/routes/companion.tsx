@@ -417,6 +417,8 @@ function CompanionPage() {
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+    // Phase E — clear any prior "Voice unavailable" badge as a new turn begins.
+    setVoiceStatus((s) => (s === "failed" ? "idle" : s));
 
 
     // Pending text-based yes/no fallback (kept for accessibility & voice flows).
