@@ -76,7 +76,7 @@ export function useAvatar() {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess.session?.user?.id;
       if (uid) {
-        await supabase.from("profiles").update({ companion_avatar_id: newId }).eq("id", uid);
+        await supabase.from("profiles").update({ companion_avatar_id: newId } as never).eq("id", uid);
       }
     } catch { /* best-effort cross-device sync */ }
   }, []);
