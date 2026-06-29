@@ -158,7 +158,7 @@ function CompanionPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Mic for voice input → fills the composer.
-  const { state: micState, level, start: micStart, stop: micStop } = useMicRecorder({ silenceMs: 1000, maxMs: 12_000 });
+  const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 1000, maxMs: 12_000 });
   const [transcribing, setTranscribing] = useState(false);
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
@@ -1013,13 +1013,39 @@ function CompanionPage() {
           <ShieldCheck className={cn("h-3 w-3", memoryOn ? "text-emerald-400" : "text-muted-foreground")} aria-hidden />
           <span className="font-medium text-foreground/90">Memory {memoryOn ? "On" : "Off"}</span>
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors",
+            micState === "listening"
+              ? "bg-rose-500/20 text-rose-100"
+              : micReserved
+                ? "bg-emerald-500/15 text-emerald-100"
+                : "bg-background/60",
+          )}
+          aria-live="polite"
+        >
           {localPrefs.voiceInputEnabled ? (
-            <Mic className="h-3 w-3 text-indigo-glow" aria-hidden />
+            <Mic className={cn("h-3 w-3", micState === "listening" ? "text-rose-300 animate-pulse" : micReserved ? "text-emerald-300" : "text-indigo-glow")} aria-hidden />
           ) : (
             <MicOff className="h-3 w-3 text-muted-foreground" aria-hidden />
           )}
-          <span className="font-medium text-foreground/90">Mic only when you tap</span>
+          <span className="font-medium text-foreground/90">
+            {micState === "listening"
+              ? "Mic on • listening"
+              : micReserved
+                ? "Mic ready"
+                : "Mic only when you tap"}
+          </span>
+          {micReserved && micState !== "listening" && (
+            <button
+              type="button"
+              onClick={() => { micRelease(); toast.success("Microphone released."); }}
+              className="ml-1 rounded-full px-1.5 text-[10px] font-semibold text-emerald-200 underline-offset-2 hover:underline"
+              aria-label="Release microphone"
+            >
+              Release
+            </button>
+          )}
         </span>
       </div>
 
