@@ -8,13 +8,6 @@ import sageSrc from "@/assets/companion-sage.jpg";
 
 export type AvatarGender = "female" | "male";
 
-export type AvatarPreset = {
-  id: string;
-  name: string;
-  gender: AvatarGender;
-  src: string;
-  description: string;
-};
 
 export type EyeRig = {
   /** Centre of each eye, in % of the rendered square. */
