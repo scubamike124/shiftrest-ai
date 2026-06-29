@@ -418,6 +418,39 @@ function CompanionAvatarFace2D({
       // Blend toward target shape (slow LP for natural transitions).
       shapeLP = blendVisemes(shapeLP, target, 0.22);
 
+      // ── Blink: interpolate the scheduled keyframes and write --lid to
+      //   BOTH lid elements in the SAME frame. Guarantees symmetry.
+      {
+        const plan = blinkPlanRef.current;
+        let p = blinkProgressRef.current;
+        if (plan.length > 0) {
+          if (now >= plan[plan.length - 1].at) {
+            p = plan[plan.length - 1].v;
+            blinkPlanRef.current = [];
+          } else {
+            for (let i = 0; i < plan.length - 1; i++) {
+              const a = plan[i];
+              const b = plan[i + 1];
+              if (now >= a.at && now <= b.at) {
+                const t = (now - a.at) / Math.max(1, b.at - a.at);
+                // Ease in/out so the lid feels like real flesh, not a wipe.
+                const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                p = a.v + (b.v - a.v) * eased;
+                break;
+              }
+            }
+          }
+        }
+        blinkProgressRef.current = p;
+        // Baseline lid coverage from emotion (eyes wider/narrower at rest).
+        const baseline = w.lidOpen * 0.18; // 0..~0.18 at idle
+        const lidValue = Math.max(baseline, p);
+        if (lidLeftRef.current) lidLeftRef.current.style.setProperty("--lid", lidValue.toFixed(3));
+        if (lidRightRef.current) lidRightRef.current.style.setProperty("--lid", lidValue.toFixed(3));
+      }
+
+
+
 
       // Combine viseme openness with live amplitude.
       const ampOpen = s === "speaking" ? gamma : 0;
