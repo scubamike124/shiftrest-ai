@@ -107,7 +107,7 @@ function SimliPoc() {
       const { session_token } = await res.json();
       if (!session_token) throw new Error("No session_token returned");
 
-      const { SimliClient } = await import("simli-client");
+      const { SimliClient } = await import("simli-client/dist/client.js");
       const client = new SimliClient(
         session_token,
         videoRef.current!,
