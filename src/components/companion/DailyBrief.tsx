@@ -16,6 +16,7 @@ import { getAfternoonBrief } from "@/lib/companion/afternoon-brief.functions";
 import { getEveningBrief } from "@/lib/companion/evening-brief.functions";
 import type { AfternoonBriefDTO, EveningBriefDTO, AfternoonCardId, EveningCardId } from "@/lib/companion/types";
 import { track } from "@/lib/companion/analytics";
+import { useSession } from "@/hooks/use-session";
 import {
   RemainingCard,
   NextTrafficCard,
