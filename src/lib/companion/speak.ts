@@ -34,7 +34,7 @@ export function prepareVoicePlayback(): void {
     if (!primedAudio) {
       primedAudio = new Audio();
       primedAudio.preload = "auto";
-      primedAudio.playsInline = true;
+      primedAudio.setAttribute("playsinline", "true");
     }
     const audio = primedAudio;
     audio.src = SILENT_WAV;
@@ -294,7 +294,7 @@ async function playOnce(
   const url = URL.createObjectURL(blob);
   const audio = primedAudio ?? new Audio();
   audio.preload = "auto";
-  audio.playsInline = true;
+  audio.setAttribute("playsinline", "true");
   audio.volume = 1;
   audio.src = url;
   currentAudio = audio;
