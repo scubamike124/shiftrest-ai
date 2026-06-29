@@ -56,6 +56,7 @@ import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
 import { Route as ApiSttRouteImport } from './routes/api/stt'
@@ -305,6 +306,11 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
+const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
+  id: '/api/tts-elevenlabs',
+  path: '/api/tts-elevenlabs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTtsRoute = ApiTtsRouteImport.update({
   id: '/api/tts',
   path: '/api/tts',
@@ -409,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -470,6 +477,7 @@ export interface FileRoutesByTo {
   '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -533,6 +541,7 @@ export interface FileRoutesById {
   '/api/stt': typeof ApiSttRoute
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
+  '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -597,6 +606,7 @@ export interface FileRouteTypes {
     | '/api/stt'
     | '/api/swap'
     | '/api/tts'
+    | '/api/tts-elevenlabs'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -658,6 +668,7 @@ export interface FileRouteTypes {
     | '/api/stt'
     | '/api/swap'
     | '/api/tts'
+    | '/api/tts-elevenlabs'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -720,6 +731,7 @@ export interface FileRouteTypes {
     | '/api/stt'
     | '/api/swap'
     | '/api/tts'
+    | '/api/tts-elevenlabs'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -783,6 +795,7 @@ export interface RootRouteChildren {
   ApiSttRoute: typeof ApiSttRoute
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
+  ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
@@ -1126,6 +1139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/api/tts-elevenlabs': {
+      id: '/api/tts-elevenlabs'
+      path: '/api/tts-elevenlabs'
+      fullPath: '/api/tts-elevenlabs'
+      preLoaderRoute: typeof ApiTtsElevenlabsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tts': {
       id: '/api/tts'
       path: '/api/tts'
@@ -1295,6 +1315,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSttRoute: ApiSttRoute,
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
+  ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
@@ -1309,13 +1330,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
