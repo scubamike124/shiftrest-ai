@@ -364,7 +364,8 @@ export function CompanionAvatarFace({
             style={{
               objectFit: "cover",
               objectPosition,
-              transform: `translate(${glanceX * 0.4}px, calc(${glanceY * 0.3}px + var(--jaw, 0px) + ${swallow ? 0.5 : 0}px))`,
+              transform: `translate(${glanceX * 0.4}px, calc(${glanceY * 0.3}px + var(--jaw, 0px) + ${swallow ? 0.5 : 0}px)) scaleY(var(--jaw-sy, 1))`,
+              transformOrigin: "50% 70%",
               transition: "transform 240ms ease",
             }}
           />
