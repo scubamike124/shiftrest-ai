@@ -610,6 +610,34 @@ function CompanionPage() {
         </div>
       </header>
 
+      {/* Trust strip — reassures users that the Companion is private & opt-in. */}
+      <div
+        className="mb-3 flex flex-wrap items-center gap-1.5 rounded-full border border-border/60 bg-card/50 px-2 py-1.5 text-[11px] text-muted-foreground backdrop-blur-sm"
+        aria-label="Privacy summary"
+      >
+        <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
+          <Lock className="h-3 w-3 text-indigo-glow" aria-hidden />
+          <span className="font-medium text-foreground/90">Private</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
+          <ShieldCheck className={cn("h-3 w-3", memoryOn ? "text-emerald-400" : "text-muted-foreground")} aria-hidden />
+          <span className="font-medium text-foreground/90">Memory {memoryOn ? "On" : "Off"}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
+          {localPrefs.voiceInputEnabled ? (
+            <Mic className="h-3 w-3 text-indigo-glow" aria-hidden />
+          ) : (
+            <MicOff className="h-3 w-3 text-muted-foreground" aria-hidden />
+          )}
+          <span className="font-medium text-foreground/90">Mic only when you tap</span>
+        </span>
+      </div>
+
+      {/* First-launch Companion intro (auto-shown once per device). */}
+      <CompanionIntroSheet />
+
+
+
       {/* Avatar + greeting */}
       <section className="flex flex-col items-center gap-3 pb-4 pt-2">
         <button
