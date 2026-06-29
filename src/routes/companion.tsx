@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock } from "lucide-react";
@@ -40,6 +41,9 @@ import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { speak, stopSpeaking } from "@/lib/companion/speak";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
+import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
+
 
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
@@ -82,6 +86,32 @@ function firstName(p: Prefs, email: string | null): string {
   if (email) return email.split("@")[0].split(/[._]/)[0].replace(/^./, (c) => c.toUpperCase());
   return "there";
 }
+
+/**
+ * Time-aware bedside greeting. Returns a short, calm headline + sub-line.
+ * Hours are local to the device; we don't need timezone precision here.
+ */
+function timeGreeting(name: string): { hi: string; sub: string } {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) {
+    return { hi: `Good morning, ${name}.`, sub: "Want help easing into the day?" };
+  }
+  if (h >= 12 && h < 17) {
+    return { hi: `Good afternoon, ${name}.`, sub: "Need a reset before tonight?" };
+  }
+  if (h >= 17 && h < 22) {
+    return { hi: `Good evening, ${name}.`, sub: "Want me to help you wind down?" };
+  }
+  return { hi: `I'm here, ${name}.`, sub: "Want something quiet to help you sleep?" };
+}
+
+/** Suggested first-action chips for an empty conversation. */
+const SUGGESTED_CHIPS: { label: string; text: string }[] = [
+  { label: "Help me wind down", text: "Help me wind down" },
+  { label: "Play rain for 30 minutes", text: "Play rain for 30 minutes" },
+  { label: "Wake me at 6:30", text: "Wake me at 6:30" },
+];
+
 
 function CompanionPage() {
   const qc = useQueryClient();
@@ -301,13 +331,14 @@ function CompanionPage() {
     void speakIfEnabled(content);
   }
 
-  async function handleSend(e?: React.FormEvent) {
+  async function handleSend(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
-    const text = input.trim();
+    const text = (override ?? input).trim();
     if (!text || sending || !companionOn) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
+
 
     // Pending text-based yes/no fallback (kept for accessibility & voice flows).
     if (pendingSoundIntent) {
@@ -659,15 +690,19 @@ function CompanionPage() {
           />
         </button>
         <div className="mt-4 text-center">
-          <p className="text-base font-medium">
-            Hi {firstName(prefs ?? ({} as Prefs), sessionEmail)}, I&apos;m {aiName}.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {companionOn
-              ? "Talk or type — I'm here when you need me."
-              : "Turn on Companion Mode to start chatting."}
-          </p>
+          {(() => {
+            const g = timeGreeting(firstName(prefs ?? ({} as Prefs), sessionEmail));
+            return (
+              <>
+                <p className="text-base font-medium">{g.hi}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {companionOn ? g.sub : "Turn on Companion Mode to start chatting."}
+                </p>
+              </>
+            );
+          })()}
         </div>
+
       </section>
 
       {/* Slice 5 — pending memory proposals (non-intrusive). */}
@@ -729,22 +764,55 @@ function CompanionPage() {
         style={{ minHeight: 220 }}
       >
         {messages.length === 0 && (
-          <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-            {companionOn ? "Say hi or ask anything about your sleep, schedule, or recovery." : "Conversations are paused while Companion Mode is off."}
-          </p>
+          <div className="px-1 py-4">
+            {companionOn ? (
+              <>
+                <p className="mb-3 text-center text-xs text-muted-foreground">
+                  Try one of these — or just say what's on your mind.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {SUGGESTED_CHIPS.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => void handleSend(undefined, chip.text)}
+                      disabled={sending}
+                      className="rounded-full border border-border/60 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground/90 backdrop-blur-sm transition hover:border-primary/60 hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground">
+                Conversations are paused while Companion Mode is off.
+              </p>
+            )}
+          </div>
         )}
+
         {messages.map((m, i) => (
           <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
             <div
               className={cn(
-                "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+                "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground"
+                  ? "whitespace-pre-wrap bg-primary text-primary-foreground"
                   : "bg-muted text-foreground",
               )}
             >
-              {m.content || (sending && i === messages.length - 1 ? "…" : "")}
+              {m.role === "assistant" ? (
+                m.content ? (
+                  <MarkdownMessage content={m.content} />
+                ) : sending && i === messages.length - 1 ? (
+                  <ThinkingShimmer />
+                ) : null
+              ) : (
+                m.content
+              )}
             </div>
+
             {m.role === "assistant" && m.action && (
               <div className="w-full max-w-[85%]">
                 <ActionCard
