@@ -276,6 +276,44 @@ function CompanionPage() {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, sending]);
 
+  // One-time greeting on entry — proves Nova is alive the moment you arrive.
+  // Fires when signed-in + Companion Mode on + the chat is empty, OR when
+  // the URL carries ?greet=1 (the landing-page avatar tap path).
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (greetedRef.current) return;
+    if (signedIn !== true || !companionOn) return;
+    if (messages.length > 0) return;
+    if (!search.greet && !search.intro) {
+      // Without an explicit greet flag, still greet on first mount of a
+      // fresh session so the user never sees a silent avatar.
+    }
+    greetedRef.current = true;
+    const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+    const hour = new Date().getHours();
+    const opener =
+      hour >= 22 || hour < 5
+        ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
+        : `Hi ${name}, I'm here. How can I help tonight?`;
+    setMessages([{ role: "assistant", content: opener }]);
+    // Speak through the centralized gate — silently no-ops when voice is
+    // off or quiet hours are active.
+    void speak(opener, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+    track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
+  }, [signedIn, companionOn, prefs, sessionEmail, messages.length, search.greet, search.intro]);
+
+  // Mic-permission banner state — surfaces a clear message instead of a
+  // silent dead-tap when the user has blocked the microphone.
+  const [micBannerDismissed, setMicBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (micState === "denied") {
+      track({ event: "mic_permission_denied" });
+    } else if (micState === "error") {
+      track({ event: "mic_error" });
+    }
+  }, [micState]);
+
+
   async function handleMicTap() {
     if (micState === "listening") {
       await micStop();
