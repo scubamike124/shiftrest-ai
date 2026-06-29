@@ -525,7 +525,10 @@ function CompanionPage() {
   async function handleSend(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
     const text = (override ?? input).trim();
-    if (!text || sending || !companionOn) return;
+    // Gate only on send-in-flight and empty text. companionOn used to gate
+    // here, which silently swallowed every voice turn for users who hadn't
+    // toggled Companion Mode on — root cause of "Nova never replies".
+    if (!text || sending) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
