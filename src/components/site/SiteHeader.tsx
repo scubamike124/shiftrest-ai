@@ -23,8 +23,8 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
     <header
       className={`sticky top-0 z-50 w-full transition-colors ${
         scrolled
-          ? "border-b border-border/60 bg-background/80 backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent"
+          ? "border-b border-border/60 bg-background/90 backdrop-blur-xl"
+          : "border-b border-border/20 bg-background/60 backdrop-blur-md"
       }`}
     >
       <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-5 lg:h-20 lg:px-10">
