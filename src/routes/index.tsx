@@ -1437,7 +1437,8 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
               Voice or text. Streaming, premium, and tuned to how you actually sleep.
             </p>
             <Link
-              to={ctaHref}
+              to="/companion"
+              search={{ intro: 1 }}
               className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-background/60 px-5 py-2.5 text-sm font-semibold text-foreground backdrop-blur-md transition hover:bg-background/80"
             >
               <Mic className="h-4 w-4 text-indigo-glow" />
