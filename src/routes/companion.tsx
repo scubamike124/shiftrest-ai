@@ -185,16 +185,27 @@ function CompanionPage() {
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let failTimer: ReturnType<typeof setTimeout> | null = null;
     const onStatus = (e: Event) => {
       const detail = (e as CustomEvent<{ status: string }>).detail;
-      if (detail.status === "started") setVoiceStatus("speaking");
-      else if (detail.status === "failed") setVoiceStatus("failed");
-      else if (detail.status === "ended") {
+      if (detail.status === "started") {
+        if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+        setVoiceStatus("speaking");
+      } else if (detail.status === "failed") {
+        setVoiceStatus("failed");
+        // Auto-clear the badge after 6s so a one-off TTS failure doesn't
+        // leave "Voice unavailable" stuck for the rest of the session.
+        if (failTimer) clearTimeout(failTimer);
+        failTimer = setTimeout(() => setVoiceStatus("idle"), 6000);
+      } else if (detail.status === "ended") {
         setVoiceStatus((s) => (s === "failed" ? s : "idle"));
       }
     };
     window.addEventListener("companion:voice-status", onStatus);
-    return () => window.removeEventListener("companion:voice-status", onStatus);
+    return () => {
+      window.removeEventListener("companion:voice-status", onStatus);
+      if (failTimer) clearTimeout(failTimer);
+    };
   }, []);
   // Phase D — hold-to-talk: cancel-before-send flag for the mic recorder.
   const cancelMicRef = useRef(false);
