@@ -31,17 +31,17 @@ import { CompanionAvatarFace } from "@/components/companion/Avatar";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "RestPilot AI — Your AI Sleep Companion for Shift Workers" },
+      { title: "RestPilot AI — Meet the AI companion that helps you sleep better" },
       {
         name: "description",
         content:
-          "Meet Aura — your always-on AI sleep companion. Tap to talk: wind-down after shift, sleep sounds, smart alarm, nightly guidance, and a plan built around your real schedule.",
+          "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, smart alarm, wind-down guidance, and a personal assistant built for shift life.",
       },
-      { property: "og:title", content: "RestPilot AI — Your AI Sleep Companion" },
+      { property: "og:title", content: "Meet the AI companion that helps you unwind, sleep & wake up better" },
       {
         property: "og:description",
         content:
-          "Tap the avatar to open Aura. She plans tonight's sleep, runs sounds, sets your smart alarm, and checks in all day — built for people who work when the world sleeps.",
+          "Tap your companion after work. Ask for calming sounds, start a wind-down routine, or let Aura wake you at the right time.",
       },
       { property: "og:url", content: "https://shift-rest-ai.lovable.app/" },
     ],

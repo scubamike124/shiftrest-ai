@@ -1,65 +1,49 @@
 ## Goal
+Make the landing hero unmistakably sell **Aura, the AI Sleep Companion** — visible, tappable, conversational — using the existing premium portrait avatar as the emotional centerpiece. Mobile-first, no clutter, no functional changes.
 
-Make the public landing page (`/`) immediately sell RestPilot as a **visible AI sleep assistant**, using the same premium portrait avatar from the dashboard. No existing content removed — only added/restructured.
+## Scope (only file edited)
+- `src/routes/index.tsx` — `head()` meta, `Hero`, `HeroStack`, `Trust` chips.
+
+Untouched: pricing, dashboard, onboarding, auth, payments, Companion logic, avatar component, CSS tokens, breakpoints/safe-area work from the last pass.
 
 ## Changes
 
-### 1. Hero — swap right-side visual for the Companion
+### 1. Copy rewrite (mobile + desktop variants kept)
+- **Eyebrow:** `Meet Aura · your AI Sleep Companion` → `Aura · the AI companion you can see, tap & talk to`
+- **Headline (mobile, short):** `Meet the AI companion that helps you unwind, sleep & wake up better.`
+- **Headline (sm+, editorial):** `Meet the AI companion that helps you unwind, sleep, and wake up better.` — "companion" in italic indigo-glow as today.
+- **Subhead (mobile):** `Tap to talk. Sleep sounds, smart alarm, wind-down — one calm assistant for the hours that wreck everyone else.`
+- **Subhead (sm+):** `Tap your companion after work, ask for calming sounds, start a wind-down routine, or let her wake you at the right time — a personal assistant built for shift life.`
+- **Primary CTA:** `Start free — 7 days` (unchanged)
+- **Secondary CTA:** `Meet your Companion` (unchanged, anchors to `#meet-aura`)
 
-In `src/routes/index.tsx > HeroStack`:
-- Keep the existing Sleep-window / circadian dial card, but **shrink it and move it to a secondary floating tile** (bottom-left of the stack).
-- The primary visual becomes a new **CompanionHeroCard**:
-  - Large `CompanionAvatarFace` (size `lg`, aura on) inside a glass card matching the new bento style (`glass-card`, soft purple/blue glow).
-  - Eyebrow: "Your AI Sleep Companion · live".
-  - Headline (display font): "Meet Aura."
-  - Sub: "Tap to talk. She plans tonight's sleep, calms you down after shift, runs sounds, sets your smart alarm, and checks in all day."
-  - Pulsing "Tap to talk" pill linking to `/companion` (or `/auth` if signed out, with `?next=/companion`).
-  - Three micro-chips under the avatar: "Sleep sounds", "Smart alarm", "Wind-down".
-- Add a small "AI Companion" eyebrow chip to the headline column so the H1 narrative ties to the avatar.
+### 2. Hero trust row → companion-selling chips
+Replace the three generic trust pills (Private / Fitbit·Oura / Memory) with four capability chips that match the user-requested support row, each with a Lucide icon already imported:
+- `Mic` — Tap to talk
+- `Waves` — Sleep sounds
+- `BellRing` — Smart alarm
+- `Moon` — Wind-down guidance
 
-### 2. New section — "Meet your Companion" (full bento panel)
+Move "Private by default · Fitbit & Oura sync" into one tiny line below the CTAs (kept, just demoted) so trust signal isn't lost.
 
-Insert immediately after `LogoTicker`, before `DayInLifeSection`, gated behind the same `showBelowFold`:
+### 3. HeroStack — keep premium avatar, tighten messaging
+- Keep the portrait `CompanionAvatarFace size="lg"` and aura ring exactly as-is (premium reference is the strength of the page).
+- Eyebrow inside card: `Your AI Sleep Companion · live` → `Live · Tap to talk to Aura`.
+- Sub-line under "Meet Aura.": add one short whisper line `"Hey — rough shift? Let's wind down."` in muted small text, italic, to make the avatar feel alive without clutter.
+- Inner chip row stays (`Sleep sounds · Smart alarm · Wind-down`) — already matches the brief.
+- Tonight tile unchanged (mobile stacks, desktop floats — already polished).
 
-`<CompanionShowcaseSection />` — premium glass bento with:
-- Left: oversized `CompanionAvatarFace` (lg, aura) on a dark glass card with soft indigo/violet glow, mirroring the dashboard `CompanionHero` styling. Caption: "Tap the avatar anywhere in the app to open your Companion."
-- Right: 2×3 bento grid of capability cards (glass + icon + 1-line copy):
-  - Wind-down after shift
-  - Sleep sounds & mixes
-  - Smart alarm
-  - Nightly guidance & check-ins
-  - Routines & reminders
-  - Personal memory (private to you)
-- Primary CTA: "Meet your Companion" → `ctaHref`; secondary: "See how memory works" → `/memory` (anchor only if signed in, else marketing copy).
+### 4. SEO meta
+Update `title` / `description` / `og:title` / `og:description` to lead with the new headline so social shares match the page.
 
-### 3. Reuse, do not duplicate
+## Premium guardrails
+- Headline kept to **one** line on phones (≤ ~38 chars per line at 390px).
+- Avatar size, aura, breath, blink unchanged — that's the premium hook, don't dilute.
+- Chip row uses existing tokens (`border-border/60 bg-card/50`), no new colors.
+- No new sections, no new images, no layout grid changes — only copy + chip swap inside the existing hero shells.
 
-- Use the existing `CompanionAvatarFace` from `src/components/companion/Avatar.tsx` (already premium portrait + lip-sync engine). No new avatar art.
-- Use existing CSS tokens from the bento redesign (`glass-card`, `glass-card-accent`, `dock-glow`, `card-eyebrow`, `card-title`) — already in `src/styles.css`.
-- All other landing sections (`DayInLifeSection`, `SmartAlarmSection`, `DashboardSection`, `Testimonials`, `PricingPreview`, `CtaBand`) stay **unchanged**.
+## QA
+- Typecheck.
+- Playwright screenshots at 390 / 430 / 768 / 1280 — confirm no overlap, all CTAs tappable, chips wrap cleanly, avatar remains the focal point, no clipped text.
 
-### 4. Mobile-first polish
-
-- On `< sm`, CompanionHeroCard stacks above the dial tile (avatar first, full-width, 240px).
-- Showcase section becomes single column; capability bento becomes a 2-col grid on mobile, 3-col on `lg`.
-- Reduced-motion respected (avatar already does this).
-
-### 5. SEO
-
-Update hero `<head>` meta to mention the Companion:
-- Title: "RestPilot AI — Your AI Sleep Companion for Shift Workers"
-- Description and og:description rewritten to lead with "Meet Aura, your always-on AI sleep companion…".
-
-## Files touched
-
-- `src/routes/index.tsx` — replace `HeroStack`, add `CompanionShowcaseSection`, update `<head>` meta, add `CompanionHeroCard` component.
-
-## Files NOT touched
-
-- All other landing sections, pricing, footer, auth flow, dashboard, Companion route, avatar component itself.
-
-## Acceptance
-
-- Above the fold on mobile: the premium avatar is visible with a clear "Tap to talk" CTA.
-- A visitor scrolling once sees a dedicated Companion section explaining sleep, calming, sounds, alarm, routines, reminders, nightly guidance.
-- Pricing, day-in-life, smart alarm, testimonials all still render as before.
+Ship only if the hero reads as a premium personal-assistant pitch and the avatar still feels like the centerpiece.
