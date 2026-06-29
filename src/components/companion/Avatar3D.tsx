@@ -155,6 +155,30 @@ function HeadModel({ url, state }: {
     brow: findMorphTarget(gltf.scene, BROW_KEYS),
   }), [gltf.scene]);
 
+  // Auto-frame: compute the model's bounding box and derive a uniform scale +
+  // offset so the head/portrait fills the round viewport regardless of the
+  // GLB's authoring units (Ready Player Me vs. gltfpack vs. custom rigs).
+  // Without this, hardcoded RPM offsets (y=-1.45) push non-RPM models out of
+  // view and we render a transparent canvas — the P0 "placeholder" bug.
+  const frame = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    // Camera fov 28° at z=0.85 → visible height ≈ 2*0.85*tan(14°) ≈ 0.424.
+    // We want the model to occupy ~0.46 world units so the face fills.
+    const targetSize = 0.46;
+    const scale = targetSize / maxDim;
+    // Re-center horizontally + depth, bias slightly upward so the eyes/face
+    // sit on the camera axis (heads are top-heavy: face is upper third).
+    const offsetX = -center.x * scale;
+    const offsetY = -center.y * scale + size.y * scale * 0.18;
+    const offsetZ = -center.z * scale;
+    return { scale, offsetX, offsetY, offsetZ };
+  }, [gltf.scene]);
+
   // Blink scheduler — drives a target value the rAF lerps toward.
   const blinkTarget = useRef(0);
   useEffect(() => {
@@ -215,26 +239,21 @@ function HeadModel({ url, state }: {
     if (hiddenRef.current) return; // skip work when tab hidden — battery
     const reduced = reducedRef.current;
     const t = performance.now() / 1000;
-    const s = stateRef.current;
+    const stateNow = stateRef.current;
 
     // Smooth state weights — 220ms ease to target.
     const w = stateWeights.current;
     const lerpK = Math.min(1, dt * 6);
-    w.idle      += ((s === "idle"      ? 1 : 0) - w.idle)      * lerpK;
-    w.listening += ((s === "listening" ? 1 : 0) - w.listening) * lerpK;
-    w.thinking  += ((s === "thinking"  ? 1 : 0) - w.thinking)  * lerpK;
-    w.speaking  += ((s === "speaking"  ? 1 : 0) - w.speaking)  * lerpK;
+    w.idle      += ((stateNow === "idle"      ? 1 : 0) - w.idle)      * lerpK;
+    w.listening += ((stateNow === "listening" ? 1 : 0) - w.listening) * lerpK;
+    w.thinking  += ((stateNow === "thinking"  ? 1 : 0) - w.thinking)  * lerpK;
+    w.speaking  += ((stateNow === "speaking"  ? 1 : 0) - w.speaking)  * lerpK;
 
-    // Breathing — gentle Y scale on the root. Slower if reduced.
+    // Breathing — gentle modulation layered on top of the auto-frame scale.
     const breathRate = reduced ? 0.55 : 1.05;
-    const breath = Math.sin(t * breathRate) * (reduced ? 0.003 : 0.006) + 0.998;
-    group.current.scale.setScalar(breath);
+    const breath = Math.sin(t * breathRate) * (reduced ? 0.003 : 0.006) + 1;
 
     // Head behavior — blend per-state targets.
-    //   listening → slight forward lean + small tilt toward user
-    //   thinking  → tilt up-and-away (looking off, considering)
-    //   speaking  → engaged forward, audio-peak nod
-    //   idle      → gentle drift
     const swayBase = reduced ? 0 : 1;
     const idleSwayX = Math.sin(t * 0.7) * 0.02 * swayBase;
     const idleSwayY = Math.sin(t * 0.5 + 1.2) * 0.025 * swayBase;
@@ -248,6 +267,12 @@ function HeadModel({ url, state }: {
       peakKickRef.current = Math.max(0, peakKickRef.current - dt * 3.2);
     }
     const nod = peakKickRef.current * 0.04 * w.speaking;
+
+    // Apply auto-frame: uniform scale + center offset so any GLB lands inside
+    // the camera frustum, regardless of authoring units.
+    group.current.scale.setScalar(frame.scale * breath);
+    group.current.position.set(frame.offsetX, frame.offsetY, frame.offsetZ);
+
 
     const off = headOffsetLP.current;
     off.tilt = off.tilt + (targetTilt - off.tilt) * Math.min(1, dt * 5);
@@ -287,7 +312,7 @@ function HeadModel({ url, state }: {
   });
 
   return (
-    <group ref={group} position={[0, -1.45, 0]}>
+    <group ref={group}>
       <primitive object={gltf.scene} />
     </group>
   );
