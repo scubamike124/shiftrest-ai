@@ -14,9 +14,21 @@ import defaultModelAsset from "@/assets/companion/companion-default.glb.asset.js
 const CUSTOM_KEY = "companion.modelUrl";
 const RPM_QUERY = "morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024&pose=A&lod=1";
 
-// Bundled default 3D head — ARKit/Oculus blendshapes compatible with
-// Avatar3D.tsx (jawOpen, mouthSmile*, eyeBlinkLeft/Right, browInnerUp).
-export const DEFAULT_MODEL_URL: string = defaultModelAsset.url;
+// Ready Player Me half-body avatar — uncompressed GLB (no KTX2/Basis, no
+// Meshopt). This loads reliably on iOS Safari where the bundled
+// gltfpack-compressed GLB fails to decode textures and Meshopt geometry.
+// The picker / dev override (`companion.modelUrl` in localStorage) can
+// still point at the bundled premium asset for desktop QA.
+const RPM_DEFAULT_HEAD =
+  "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb";
+
+export const DEFAULT_MODEL_URL: string =
+  `${RPM_DEFAULT_HEAD}?${RPM_QUERY}`;
+
+// Kept for parity with any code that needs the bundled premium asset
+// (e.g. when the user opts into a higher-fidelity desktop render).
+export const BUNDLED_PREMIUM_MODEL_URL: string = defaultModelAsset.url;
+
 
 export function getCustomModelUrl(): string | null {
   if (typeof window === "undefined") return null;
