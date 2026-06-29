@@ -805,6 +805,8 @@ export type Database = {
       profiles: {
         Row: {
           companion_avatar_id: string | null
+          companion_renderer: string
+          companion_tts_provider: string
           created_at: string
           display_name: string | null
           email: string | null
@@ -817,6 +819,8 @@ export type Database = {
         }
         Insert: {
           companion_avatar_id?: string | null
+          companion_renderer?: string
+          companion_tts_provider?: string
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -829,6 +833,8 @@ export type Database = {
         }
         Update: {
           companion_avatar_id?: string | null
+          companion_renderer?: string
+          companion_tts_provider?: string
           created_at?: string
           display_name?: string | null
           email?: string | null
