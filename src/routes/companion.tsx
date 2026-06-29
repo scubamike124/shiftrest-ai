@@ -636,6 +636,7 @@ function CompanionPage() {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
+      emitDebug("ai-req");
       const resp = await fetch("/api/ai", {
         method: "POST",
         headers: {
@@ -651,6 +652,7 @@ function CompanionPage() {
       });
 
       if (!resp.ok || !resp.body) {
+        emitDebug("ai-fail", `${resp.status}`);
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
         const fallback =
           resp.status === 429
