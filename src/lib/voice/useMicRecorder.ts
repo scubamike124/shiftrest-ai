@@ -4,27 +4,32 @@ import { encodeWav } from "./wav-encoder";
 export type MicState = "idle" | "requesting" | "listening" | "encoding" | "denied" | "error";
 
 type Options = {
-  /** Auto-stop after this many ms of trailing silence (RMS < threshold). */
   silenceMs?: number;
   silenceThreshold?: number;
-  /** How long to wait for the first spoken sound before ending an empty turn. */
   noSpeechMs?: number;
-  /** Hard ceiling so a forgotten tab can't record forever. */
   maxMs?: number;
 };
 
 /**
- * Web Audio mic capture → WAV blob. iOS-safe: no MediaRecorder, no timeslice,
- * a single complete file per turn. Auto-stops on trailing silence.
+ * Persistent Web Audio mic capture → WAV blob.
  *
- * Call `start()` inside a user gesture. `stop()` returns the encoded WAV Blob
- * (or null if nothing usable was captured).
+ * Permission model: the MediaStream and AudioContext are acquired once and
+ * reused across every conversation turn for the lifetime of the hook. We
+ * never call `track.stop()` between turns — instead the track is muted
+ * (`enabled = false`) and the ScriptProcessor is disconnected, so the
+ * browser does not re-prompt and the OS mic indicator does not re-arm
+ * every conversation.
+ *
+ * Full teardown (`release()`) happens on hook unmount or on explicit user
+ * "Release microphone" action. On page hide we also disconnect the audio
+ * graph but keep the track alive so returning to the tab is instant.
  */
 export function useMicRecorder(opts: Options = {}) {
   const { silenceMs = 1400, silenceThreshold = 0.012, noSpeechMs = 8_000, maxMs = 30_000 } = opts;
   const [state, setState] = useState<MicState>("idle");
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [reserved, setReserved] = useState(false);
   const stateRef = useRef<MicState>("idle");
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -42,29 +47,40 @@ export function useMicRecorder(opts: Options = {}) {
     setState(next);
   }, []);
 
-  const teardown = useCallback(() => {
+  /** Disconnect the audio graph but KEEP the MediaStream and AudioContext. */
+  const pauseGraph = useCallback(() => {
     try { procRef.current?.disconnect(); } catch { /* noop */ }
     try { srcRef.current?.disconnect(); } catch { /* noop */ }
-    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
-    try { ctxRef.current?.close(); } catch { /* noop */ }
     procRef.current = null;
     srcRef.current = null;
-    streamRef.current = null;
-    ctxRef.current = null;
+    // Mute the track so the OS mic indicator turns off between turns.
+    try {
+      streamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
+    } catch { /* noop */ }
   }, []);
 
-  useEffect(() => () => teardown(), [teardown]);
+  /** Full release — stops tracks, closes context. Call on unmount/explicit release. */
+  const release = useCallback(() => {
+    pauseGraph();
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
+    try { ctxRef.current?.close(); } catch { /* noop */ }
+    streamRef.current = null;
+    ctxRef.current = null;
+    setReserved(false);
+  }, [pauseGraph]);
+
+  useEffect(() => () => release(), [release]);
 
   const finalize = useCallback((): Blob | null => {
     const ctx = ctxRef.current;
     const rate = ctx?.sampleRate ?? 48000;
     const all = chunksRef.current;
     chunksRef.current = [];
-    teardown();
+    pauseGraph();
     if (!all.length) return null;
     const blob = encodeWav(all, rate, 16000);
     return blob.size > 2048 ? blob : null;
-  }, [teardown]);
+  }, [pauseGraph]);
 
   const stop = useCallback(async (): Promise<Blob | null> => {
     if (stateRef.current !== "listening") return null;
@@ -78,19 +94,47 @@ export function useMicRecorder(opts: Options = {}) {
     return blob;
   }, [finalize, setMicState]);
 
+  /** Acquire mic once; subsequent calls just resume the existing graph. */
+  const ensureStream = useCallback(async (): Promise<MediaStream> => {
+    if (streamRef.current && streamRef.current.getAudioTracks().some((t) => t.readyState === "live")) {
+      streamRef.current.getAudioTracks().forEach((t) => { t.enabled = true; });
+      return streamRef.current;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    streamRef.current = stream;
+    setReserved(true);
+    return stream;
+  }, []);
+
+  const ensureContext = useCallback(async (): Promise<AudioContext> => {
+    if (ctxRef.current && ctxRef.current.state !== "closed") {
+      if (ctxRef.current.state === "suspended") {
+        await ctxRef.current.resume().catch(() => {});
+      }
+      return ctxRef.current;
+    }
+    const Ctx: typeof AudioContext =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctx();
+    if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+    ctxRef.current = ctx;
+    return ctx;
+  }, []);
+
   const start = useCallback(
     async (onAutoStop?: (blob: Blob | null) => void): Promise<void> => {
       if (stateRef.current === "listening" || stateRef.current === "requesting" || stateRef.current === "encoding") return;
       setError(null);
       setMicState("requesting");
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = stream;
-        const Ctx: typeof AudioContext =
-          window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        const ctx = new Ctx();
-        if (ctx.state === "suspended") await ctx.resume().catch(() => {});
-        ctxRef.current = ctx;
+        const stream = await ensureStream();
+        const ctx = await ensureContext();
 
         const src = ctx.createMediaStreamSource(stream);
         srcRef.current = src;
@@ -105,12 +149,10 @@ export function useMicRecorder(opts: Options = {}) {
 
         proc.onaudioprocess = (e) => {
           const data = e.inputBuffer.getChannelData(0);
-          // copy because the underlying buffer is reused
           const copy = new Float32Array(data.length);
           copy.set(data);
           chunksRef.current.push(copy);
 
-          // RMS level
           let sum = 0;
           for (let i = 0; i < copy.length; i++) sum += copy[i] * copy[i];
           const rms = Math.sqrt(sum / copy.length);
@@ -121,11 +163,8 @@ export function useMicRecorder(opts: Options = {}) {
             hasVoiceRef.current = true;
             lastVoiceRef.current = now;
           }
-
           const elapsed = now - startedRef.current;
           const sinceVoice = now - lastVoiceRef.current;
-          // Auto-stop: trailing silence after at least 600ms of capture,
-          // an empty no-speech timeout, or hard maxMs cap.
           if (
             (hasVoiceRef.current && elapsed > 600 && sinceVoice > silenceMs) ||
             (!hasVoiceRef.current && elapsed > noSpeechMs) ||
@@ -145,7 +184,7 @@ export function useMicRecorder(opts: Options = {}) {
         setMicState("listening");
       } catch (e) {
         const name = e instanceof DOMException ? e.name : "";
-        teardown();
+        pauseGraph();
         if (name === "NotAllowedError" || name === "SecurityError") {
           setMicState("denied");
           setError("Microphone permission denied.");
@@ -155,8 +194,8 @@ export function useMicRecorder(opts: Options = {}) {
         }
       }
     },
-    [silenceMs, silenceThreshold, noSpeechMs, maxMs, finalize, teardown, setMicState],
+    [silenceMs, silenceThreshold, noSpeechMs, maxMs, finalize, pauseGraph, ensureStream, ensureContext, setMicState],
   );
 
-  return { state, level, error, start, stop };
+  return { state, level, error, reserved, start, stop, release };
 }
