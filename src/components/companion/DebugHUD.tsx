@@ -5,17 +5,27 @@
 // from their phone and tell us exactly where the loop stops.
 
 import { useEffect, useRef, useState } from "react";
-import { BUILD_STAMP, isDebugEnabled, onDebug, setDebugEnabled, type DebugStep } from "@/lib/companion/debug-bus";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  BUILD_STAMP,
+  getLastHttpStatus,
+  installDebugNetworkProbe,
+  isDebugEnabled,
+  onDebug,
+  onHttpStatus,
+  setDebugEnabled,
+  type DebugStep,
+} from "@/lib/companion/debug-bus";
 
 export type DebugHUDProps = {
   signedIn: boolean | null;
-  companionOn: boolean;
-  prefsLoaded: boolean;
-  micState: string;
-  voiceStatus: string;
-  orbState: string;
-  greetShown: boolean;
-  onReset: () => void;
+  companionOn?: boolean;
+  prefsLoaded?: boolean;
+  micState?: string;
+  voiceStatus?: string;
+  orbState?: string;
+  greetShown?: boolean;
+  onReset?: () => void;
 };
 
 type StepRow = { step: DebugStep; at: number; info?: string };
@@ -29,6 +39,10 @@ export function DebugHUD(props: DebugHUDProps) {
   const [auth, setAuth] = useState<{ hasSession: boolean; hasToken: boolean; userId: string | null; source: string }>(
     { hasSession: false, hasToken: false, userId: null, source: "—" },
   );
+  const [http, setHttp] = useState<{ endpoint: string; status: number } | null>(() => {
+    const last = getLastHttpStatus();
+    return last ? { endpoint: last.endpoint, status: last.status } : null;
+  });
   const lastTapRef = useRef<number>(0);
   const [, force] = useState(0);
 
@@ -46,6 +60,33 @@ export function DebugHUD(props: DebugHUDProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!enabled) return;
+    installDebugNetworkProbe();
+  }, [enabled]);
+
+  // Local auth snapshot. This makes the HUD useful before the first protected
+  // server call has a chance to run the bearer attacher.
+  useEffect(() => {
+    if (!enabled) return;
+    let mounted = true;
+    const update = (session: { access_token?: string; user?: { id?: string } } | null | undefined, source = "session-local") => {
+      if (!mounted) return;
+      setAuth({
+        hasSession: Boolean(session?.user?.id),
+        hasToken: Boolean(session?.access_token),
+        userId: session?.user?.id ?? null,
+        source,
+      });
+    };
+    supabase.auth.getSession().then(({ data }) => update(data.session, "session-local"));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => update(session, "auth-event"));
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, [enabled]);
+
   // Audio level meter
   useEffect(() => {
     if (!enabled) return;
@@ -55,6 +96,13 @@ export function DebugHUD(props: DebugHUDProps) {
     };
     window.addEventListener("companion:audio-level", onLvl as EventListener);
     return () => window.removeEventListener("companion:audio-level", onLvl as EventListener);
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const last = getLastHttpStatus();
+    if (last) setHttp({ endpoint: last.endpoint, status: last.status });
+    return onHttpStatus((p) => setHttp({ endpoint: p.endpoint, status: p.status }));
   }, [enabled]);
 
   // Auth status from the hardened bearer attacher
@@ -156,16 +204,18 @@ export function DebugHUD(props: DebugHUDProps) {
         {row("User Session", auth.hasSession ? "Present" : "Missing")}
         {row("Auth Header", auth.hasToken ? `Attached (${auth.source})` : "Missing")}
         {row("userId", auth.userId ? `${auth.userId.slice(0, 8)}…` : "—")}
+        {row("Last failing endpoint", http?.endpoint ?? "—")}
+        {row("Last HTTP status", http?.status ?? "—")}
         {row("signedIn", props.signedIn ?? "—")}
-        {row("companionOn", props.companionOn)}
-        {row("prefsLoaded", props.prefsLoaded)}
+        {row("companionOn", props.companionOn ?? "—")}
+        {row("prefsLoaded", props.prefsLoaded ?? "—")}
         {row("micPerm", permission)}
-        {row("micState", props.micState)}
-        {row("voiceStatus", props.voiceStatus)}
-        {row("orbState", props.orbState)}
+        {row("micState", props.micState ?? "—")}
+        {row("voiceStatus", props.voiceStatus ?? "—")}
+        {row("orbState", props.orbState ?? "—")}
         {row("audioLevel", audioLevel.toFixed(2))}
         {row("ttsCtx", ttsCtx)}
-        {row("greetShown", props.greetShown)}
+        {row("greetShown", props.greetShown ?? "—")}
         {row("lastTap", lastTapAgo)}
       </div>
 
@@ -184,7 +234,7 @@ export function DebugHUD(props: DebugHUDProps) {
 
       <button
         type="button"
-        onClick={props.onReset}
+        onClick={() => props.onReset?.()}
         className="mt-2 w-full rounded bg-red-500/80 px-2 py-1 text-[11px] font-medium text-white hover:bg-red-500"
       >Reset Nova</button>
     </div>

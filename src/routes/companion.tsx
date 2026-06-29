@@ -47,7 +47,8 @@ import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
 import { SpeakingIndicator } from "@/components/companion/SpeakingIndicator";
 import { DebugHUD } from "@/components/companion/DebugHUD";
-import { emitDebug } from "@/lib/companion/debug-bus";
+import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
+import { useSession } from "@/hooks/use-session";
 
 
 
@@ -122,38 +123,20 @@ const SUGGESTED_CHIPS: { label: string; text: string }[] = [
 
 function CompanionPage() {
   const qc = useQueryClient();
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const {
+    session,
+    ready: sessionReady,
+    hasSession,
+    hasAccessToken,
+  } = useSession();
+  const sessionEmail = session?.user.email ?? null;
+  const signedIn: boolean | null = sessionReady ? hasSession && hasAccessToken : null;
 
-  useEffect(() => {
-    let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSessionEmail(data.session?.user.email ?? null);
-      setSignedIn(Boolean(data.session));
-    });
-    const sub = supabase.auth.onAuthStateChange((_e, s) => {
-      setSessionEmail(s?.user.email ?? null);
-      setSignedIn(Boolean(s));
-    });
-    return () => {
-      mounted = false;
-      sub.data.subscription.unsubscribe();
-    };
-  }, []);
-
-  // If the user opened /companion while signed-out, bounce to /auth and
-  // bring them right back here once they're in. Avoids the "tap Nova → blank
-  // companion shell" dead-end.
-  const navigateForAuth = useNavigate();
-  useEffect(() => {
-    if (signedIn === false) {
-      const back = `/companion${typeof window !== "undefined" ? window.location.search : ""}`;
-      navigateForAuth({ to: "/auth", search: { return: back } as never }).catch(() => undefined);
-    }
-  }, [signedIn, navigateForAuth]);
-
-  const prefsQ = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, enabled: signedIn === true });
+  const prefsQ = useQuery({
+    queryKey: ["prefs"],
+    queryFn: fetchPrefs,
+    enabled: sessionReady && hasSession && hasAccessToken,
+  });
   const prefs = prefsQ.data;
 
   const companionOn = prefs?.assistantMode === "companion";
@@ -361,19 +344,25 @@ function CompanionPage() {
       }
       setTranscribing(true);
       try {
-        const { data: sess } = await supabase.auth.getSession();
-        const token = sess.session?.access_token;
+        const token = session?.access_token;
+        if (!token) {
+          emitDebug("auth-missing", "stt-no-token");
+          toast.info("Please sign in again before using voice input.");
+          track({ event: "voice_turn_failed", stage: "auth" });
+          return;
+        }
         const fd = new FormData();
         fd.append("file", blob, "recording.wav");
         if (prefs?.voiceLanguage) fd.append("language", prefs.voiceLanguage.split("-")[0]);
         emitDebug("stt-req");
         const resp = await fetch("/api/stt", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
           body: fd,
         });
         const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
         if (!resp.ok) {
+          emitHttpStatus({ endpoint: "/api/stt", status: resp.status, at: Date.now() });
           emitDebug("stt-fail", `${resp.status}`);
           toast.error(json.error || "Couldn't transcribe");
           track({ event: "voice_turn_failed", stage: "stt" });
@@ -634,14 +623,26 @@ function CompanionPage() {
 
 
     try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
+      const token = session?.access_token;
+      if (!token) {
+        emitDebug("auth-missing", "ai-no-token");
+        toast.info("Please sign in again before messaging your Companion.");
+        setMessages([
+          ...baseMessages,
+          {
+            role: "assistant",
+            content: "I need your signed-in session before I can reach the AI backend. Please sign in again, then try once more.",
+          },
+        ]);
+        track({ event: "voice_turn_failed", stage: "auth" });
+        return;
+      }
       emitDebug("ai-req");
       const resp = await fetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         signal: ac.signal,
         body: JSON.stringify({
@@ -652,6 +653,7 @@ function CompanionPage() {
       });
 
       if (!resp.ok || !resp.body) {
+        emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
         const fallback =
@@ -767,13 +769,47 @@ function CompanionPage() {
   }
 
   // ─── Render ─────────────────────────────────────────────────────
+  if (signedIn === null) {
+    return (
+      <main className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center gap-4 px-5 py-12 text-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <h1 className="text-2xl font-semibold">Checking your secure session</h1>
+        <p className="text-sm text-muted-foreground">
+          Nova will not call any protected backend service until your Supabase session and auth token are loaded.
+        </p>
+        <DebugHUD
+          signedIn={null}
+          companionOn={false}
+          prefsLoaded={false}
+          micState="not-mounted"
+          voiceStatus="not-mounted"
+          orbState="auth-loading"
+          greetShown={false}
+          onReset={handleHardReset}
+        />
+      </main>
+    );
+  }
+
   if (signedIn === false) {
     return (
       <main className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center gap-4 px-5 py-12 text-center">
         <Sparkles className="h-10 w-10 text-primary" />
         <h1 className="text-2xl font-semibold">Sign in to meet your Companion</h1>
-        <p className="text-sm text-muted-foreground">Your private AI lives behind your account.</p>
+        <p className="text-sm text-muted-foreground">
+          Your private AI needs an authenticated session before it can load personal guidance.
+        </p>
         <Button asChild><Link to="/auth">Sign in</Link></Button>
+        <DebugHUD
+          signedIn={false}
+          companionOn={false}
+          prefsLoaded={false}
+          micState="not-mounted"
+          voiceStatus="not-mounted"
+          orbState="signed-out"
+          greetShown={false}
+          onReset={handleHardReset}
+        />
       </main>
     );
   }
@@ -1037,7 +1073,7 @@ function CompanionPage() {
       )}
 
       {/* Slice 7 — Smart Day & Evening Intelligence: time-of-day brief */}
-      {signedIn === true && (
+      {signedIn === true && prefsQ.isSuccess && prefs?.onboarded && (
         <DailyBrief
           prefs={prefs ?? null}
           signedIn={true}
