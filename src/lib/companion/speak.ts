@@ -407,22 +407,52 @@ async function playOnce(
   }
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
-  const provider = !elevenLabsBlocked && getTtsProvider() === "elevenlabs" ? "elevenlabs" : "openai";
+  const wantEleven =
+    ELEVENLABS_FLAG_ON && !elevenLabsBlocked && getTtsProvider() === "elevenlabs";
+  const provider = wantEleven ? "elevenlabs" : "openai";
   const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
   const voice = provider === "elevenlabs" ? (opts.voice ?? getElevenVoice()) : (opts.voice ?? undefined);
-  let resp = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ text: spoken, voice, mode }),
-  });
+
+  // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
+  // don't arrive in time, abort and fall through to OpenAI for this session.
+  const ctrl = provider === "elevenlabs" ? new AbortController() : null;
+  const stallTimer = ctrl
+    ? setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, 2500)
+    : null;
+  let resp: Response;
+  try {
+    resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text: spoken, voice, mode }),
+      signal: ctrl?.signal,
+    });
+  } catch (_err) {
+    if (provider === "elevenlabs") {
+      console.warn("[speak] ElevenLabs stalled, falling back to OpenAI for this session");
+      elevenLabsBlocked = true;
+      try { setTtsProvider("openai"); } catch { /* noop */ }
+      resp = await fetch("/api/tts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ text: spoken, voice: opts.voice ?? undefined, mode }),
+      });
+    } else {
+      throw _err;
+    }
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer);
+  }
   // Provider-specific failure → fall back to OpenAI for the rest of the session.
   if (provider === "elevenlabs" && !resp.ok) {
     console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
     elevenLabsBlocked = true;
-    // Best-effort: also flip the saved pref back so the UI reflects reality.
     try { setTtsProvider("openai"); } catch { /* noop */ }
     resp = await fetch("/api/tts", {
       method: "POST",
