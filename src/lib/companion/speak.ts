@@ -169,7 +169,7 @@ function ensureAudioGraph(): boolean {
     }
     if (!levelShaper) {
       levelShaper = levelCtx.createWaveShaper();
-      levelShaper.curve = buildSoftClipCurve() as unknown as Float32Array;
+      (levelShaper as unknown as { curve: Float32Array }).curve = buildSoftClipCurve();
       levelShaper.oversample = "2x";
     }
     if (!levelAnalyser) {
