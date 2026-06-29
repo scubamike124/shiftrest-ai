@@ -39,6 +39,9 @@ import {
 } from "@/lib/companion/visemes";
 
 const Avatar3D = lazy(() => import("./Avatar3D"));
+const Avatar3DSkeleton = lazy(() =>
+  import("./Avatar3D").then((m) => ({ default: m.Avatar3DSkeleton })),
+);
 
 export type AvatarExpression = "neutral" | "smile" | "concerned" | "sleepy";
 
@@ -101,7 +104,7 @@ export function CompanionAvatarFace(props: AvatarProps) {
 
   if (want3D) {
     return (
-      <Suspense fallback={<CompanionAvatarFace2D {...props} />}>
+      <Suspense fallback={<Avatar3DSkeleton size={props.size} className={props.className} />}>
         <div className={cn("relative", props.className)} style={{ width: SIZE_PX[props.size ?? "md"], height: SIZE_PX[props.size ?? "md"] }}>
           <Avatar3D
             state={props.state}

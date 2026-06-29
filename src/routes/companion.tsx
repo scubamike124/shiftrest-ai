@@ -233,7 +233,9 @@ function CompanionPage() {
     if (typeof window === "undefined") return;
     let failTimer: ReturnType<typeof setTimeout> | null = null;
     let unlocked = false;
+    let firstGestureAt = 0;
     const recentFails: number[] = [];
+    const onFirstGesture = () => { firstGestureAt = Date.now(); };
     const onStatus = (e: Event) => {
       const detail = (e as CustomEvent<{ status: string; reason?: string }>).detail;
       if (detail.status === "started") {
@@ -243,17 +245,17 @@ function CompanionPage() {
         recentFails.length = 0;
       } else if (detail.status === "failed") {
         // Only show the persistent "Voice unavailable" banner AFTER audio
-        // has been unlocked by a user gesture. Pre-unlock autoplay
-        // rejections are a browser-policy thing, not a real failure — the
-        // user simply hasn't tapped yet, so the banner would mislead.
-        // Even after unlock we require ≥2 failures in 5s to ride out a
-        // single transient race.
+        // has been unlocked by a user gesture AND we are past the 750ms
+        // grace window that covers the iOS Safari resume race. Pre-unlock
+        // and immediately-post-gesture rejections are a browser-policy
+        // artifact, not a real failure.
         const now = Date.now();
+        const inGrace = firstGestureAt > 0 && now - firstGestureAt < 750;
         recentFails.push(now);
         while (recentFails.length && now - recentFails[0] > 5000) recentFails.shift();
         const persistent = recentFails.length >= 2;
         setVoiceStatus("failed");
-        if (unlocked && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
+        if (unlocked && !inGrace && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
           setVoiceSkipped(detail.reason);
         }
         if (failTimer) clearTimeout(failTimer);
@@ -271,9 +273,11 @@ function CompanionPage() {
       unlocked = true;
       setVoiceSkipped((cur) => (cur === "autoplay_blocked" || cur === "tts_error" ? null : cur));
     };
+    window.addEventListener("companion:first-gesture", onFirstGesture);
     window.addEventListener("companion:voice-status", onStatus);
     window.addEventListener("companion:voice-unlocked", onUnlock);
     return () => {
+      window.removeEventListener("companion:first-gesture", onFirstGesture);
       window.removeEventListener("companion:voice-status", onStatus);
       window.removeEventListener("companion:voice-unlocked", onUnlock);
       if (failTimer) clearTimeout(failTimer);
@@ -360,8 +364,16 @@ function CompanionPage() {
   }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
 
   // First user gesture → unlock audio + speak the greeting aloud once.
-  // Browsers block autoplay, so we wait for the very first pointerdown/click
-  // anywhere on the page before priming the audio context and calling speak().
+  // iOS Safari requires playback to start strictly INSIDE a user gesture and
+  // only after the AudioContext is genuinely resumed. The previous version
+  // called speak() synchronously after prepareVoicePlayback() which raced
+  // the unlock signal and produced spurious "autoplay_blocked" failures →
+  // the false "Voice unavailable" banner. We now:
+  //   1. prime playback,
+  //   2. await the `companion:voice-unlocked` event (or a short fallback),
+  //   3. then speak the greeting.
+  // We also stamp `firstGestureAt` so the voice-status reducer can ignore
+  // any failure events that arrive in the first 750ms after the tap.
   const greetingTextRef = useRef<string | null>(null);
   const greetSpokenRef = useRef(false);
   useEffect(() => {
@@ -370,11 +382,25 @@ function CompanionPage() {
     const onFirstGesture = () => {
       if (greetSpokenRef.current) return;
       greetSpokenRef.current = true;
+      window.dispatchEvent(new CustomEvent("companion:first-gesture"));
       prepareVoicePlayback();
       const text = greetingTextRef.current;
-      if (text) {
+      if (!text) return;
+      const fire = () => {
         void speak(text, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
-      }
+      };
+      let done = false;
+      const onUnlock = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener("companion:voice-unlocked", onUnlock);
+        fire();
+      };
+      window.addEventListener("companion:voice-unlocked", onUnlock);
+      // Fallback: if unlock event never lands (some Safari versions don't
+      // emit it until first playback), fire after 350ms anyway — by then
+      // the AudioContext.resume() inside prepareVoicePlayback() has settled.
+      window.setTimeout(() => { if (!done) { done = true; window.removeEventListener("companion:voice-unlocked", onUnlock); fire(); } }, 350);
     };
     window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
     window.addEventListener("click", onFirstGesture, { once: true });
