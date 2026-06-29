@@ -140,7 +140,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
               </Link>
               <Link
                 to="/companion"
-                search={{ intro: 1 }}
+                search={{ intro: 1, greet: 1 }}
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-6 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition hover:bg-card"
               >
                 <Mic className="h-4 w-4 text-indigo-glow" />
