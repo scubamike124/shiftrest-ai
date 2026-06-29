@@ -200,6 +200,17 @@ async function drainQueue(): Promise<void> {
     while (queue.length > 0) {
       const next = queue.shift()!;
       if (next.turn !== turnId) continue; // stale
+      // Re-check gates at playback time (quiet hours may have started,
+      // or the user may have toggled voice replies off mid-turn).
+      const prefs = loadLocalPrefs();
+      if (!prefs.voiceRepliesEnabled) {
+        emitStatus("skipped", "disabled");
+        continue;
+      }
+      if (inQuietHours(prefs.quietHours) || isQuietModeOn()) {
+        emitStatus("skipped", "quiet_hours");
+        continue;
+      }
       try {
         await playOnce(next.text, next.opts, () => next.turn === turnId);
       } catch {
