@@ -235,6 +235,46 @@ function stripMarkdown(s: string): string {
     .replace(/^>\s?/gm, "");
 }
 
+/** Pre-pass: collapse Markdown bullet lists and headings into flowing prose
+ *  so the streaming TTS chunker doesn't fire a separate request per bullet.
+ *  Each bullet line becomes a sentence, and a bullet "header: value" pattern
+ *  becomes "header, value." Newlines that *aren't* paragraph breaks are
+ *  turned into single spaces — paragraph breaks remain as ". " so the model
+ *  takes a small, natural breath instead of a 2-3s network gap. */
+export function bulletsToProse(input: string): string {
+  if (!input) return input;
+  const lines = input.replace(/\r\n/g, "\n").split("\n");
+  const out: string[] = [];
+  for (let raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) { out.push(""); continue; }
+    // Strip heading hashes and trailing colons → "Title."
+    let line = trimmed.replace(/^#{1,6}\s+/, "").replace(/\s*:\s*$/, ".");
+    // Bullet markers "- ", "* ", "+ ", "1. ", "1) "
+    line = line.replace(/^([-*+]|\d+[.)])\s+/, "");
+    // "Header: value" inside a bullet → "Header, value"
+    line = line.replace(/^([A-Z][\w\s-]{1,40}):\s+/, "$1, ");
+    // Ensure terminal punctuation so the chunker treats each bullet as one
+    // sentence rather than waiting for a period that never comes.
+    if (!/[.!?,;:]$/.test(line)) line = line + ".";
+    out.push(line);
+  }
+  // Collapse runs of empty lines into a single paragraph break, then join
+  // remaining lines with a single space (one continuous flow per paragraph).
+  const paragraphs: string[] = [];
+  let cur: string[] = [];
+  for (const l of out) {
+    if (l === "") {
+      if (cur.length) { paragraphs.push(cur.join(" ")); cur = []; }
+    } else {
+      cur.push(l);
+    }
+  }
+  if (cur.length) paragraphs.push(cur.join(" "));
+  return paragraphs.join(" ").replace(/\s{2,}/g, " ").trim();
+}
+
+
 function tidyPunctuation(s: string): string {
   return s
     .replace(/\.{3,}/g, ", ")
