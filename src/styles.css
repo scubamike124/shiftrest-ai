@@ -248,3 +248,27 @@
 }
 .dock-glow { animation: dock-glow 3.4s ease-in-out infinite; }
 
+/* Companion — soft "thinking" dots used while the assistant streams. */
+@keyframes thinking-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0) scale(0.85); }
+  40% { opacity: 1; transform: translateY(-2px) scale(1); }
+}
+.thinking-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.4;
+  animation: thinking-pulse 1.25s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking-dot { animation: none; opacity: 0.6; }
+}
+
+/* Companion — markdown bubbles inherit color from parent bubble. */
+.markdown-msg { color: inherit; }
+.markdown-msg > :first-child { margin-top: 0; }
+.markdown-msg > :last-child { margin-bottom: 0; }
+
+
