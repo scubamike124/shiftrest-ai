@@ -24,14 +24,25 @@ function LabPicker() {
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Link
           to="/lab/avatar-poc/simli"
-          className="rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-white/20 hover:bg-white/10"
+          preload={false}
+          role="link"
+          aria-label="Open Simli + ElevenLabs POC"
+          className="block cursor-pointer select-none rounded-2xl border border-white/10 bg-white/5 p-5 transition hover:border-white/20 hover:bg-white/10 active:bg-white/15"
+          style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(255,255,255,0.08)" }}
         >
           <div className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">POC #1</div>
           <div className="mt-1 text-lg font-medium">Simli + ElevenLabs Flash v2.5</div>
           <div className="mt-2 text-sm text-foreground/60">
             WebRTC streaming face. Low latency, BYO TTS. Recommended baseline.
           </div>
+          <div className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-emerald-300">
+            Open POC →
+          </div>
         </Link>
+        {/* Fallback plain anchor — guarantees navigation on iOS Safari even if the SPA router click handler is blocked. */}
+        <noscript>
+          <a href="/lab/avatar-poc/simli">Open Simli POC</a>
+        </noscript>
         <div className="rounded-2xl border border-dashed border-white/10 p-5 opacity-60">
           <div className="text-xs uppercase tracking-[0.2em] text-foreground/40">POC #2 — Paused</div>
           <div className="mt-1 text-lg font-medium">HeyGen + ElevenLabs Turbo v2.5</div>
