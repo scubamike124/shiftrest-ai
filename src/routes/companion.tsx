@@ -297,6 +297,7 @@ function CompanionPage() {
         ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
         : `Hi ${name}, I'm here. How can I help tonight?`;
     setMessages([{ role: "assistant", content: opener }]);
+    emitDebug("greet-shown");
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
   }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
 
@@ -346,7 +347,9 @@ function CompanionPage() {
     prepareVoicePlayback();
     setInput("");
     cancelMicRef.current = false;
+    emitDebug("mic-start");
     await micStart(async (blob) => {
+      emitDebug("mic-stop", blob ? `${blob.size}b` : "empty");
       if (cancelMicRef.current) {
         cancelMicRef.current = false;
         return; // user pressed Cancel — discard without transcribing
