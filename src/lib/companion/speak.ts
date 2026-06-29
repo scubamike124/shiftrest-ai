@@ -138,11 +138,16 @@ let levelCtx: AudioContext | null = null;
 let levelAnalyser: AnalyserNode | null = null;
 let levelGain: GainNode | null = null;
 let levelShaper: WaveShaperNode | null = null;
+let levelMakeup: GainNode | null = null;
 let graphWired = false;
 let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
-const VOICE_GAIN = 1.7;
+// Pre-shaper drive — pushes the soft-clip into useful range.
+const VOICE_GAIN = 2.3;
+// Post-shaper makeup — recovers headroom lost to the soft-clip ceiling.
+// Combined effective gain ≈ 2.3 × 1.3 = ~3.0 before tanh rounding.
+const VOICE_MAKEUP = 1.3;
 
 function buildSoftClipCurve(samples = 2048): Float32Array {
   // tanh-shaped soft clip. Linear at low levels, rounds gently toward ±1.0.
@@ -191,15 +196,21 @@ function ensureAudioGraph(): boolean {
       (levelShaper as unknown as { curve: Float32Array }).curve = buildSoftClipCurve();
       levelShaper.oversample = "2x";
     }
+    if (!levelMakeup) {
+      levelMakeup = levelCtx.createGain();
+      levelMakeup.gain.value = VOICE_MAKEUP;
+    }
     if (!levelAnalyser) {
       levelAnalyser = levelCtx.createAnalyser();
       levelAnalyser.fftSize = 256;
       levelAnalyser.smoothingTimeConstant = 0.25;
     }
     if (!graphWired) {
+      // source → Gain → WaveShaper → MakeupGain → destination + Analyser
       levelGain.connect(levelShaper);
-      levelShaper.connect(levelCtx.destination);
-      levelShaper.connect(levelAnalyser);
+      levelShaper.connect(levelMakeup);
+      levelMakeup.connect(levelCtx.destination);
+      levelMakeup.connect(levelAnalyser);
       graphWired = true;
     }
     return true;
@@ -207,6 +218,7 @@ function ensureAudioGraph(): boolean {
     return false;
   }
 }
+
 
 function wireElementIntoGraph(audio: HTMLAudioElement): void {
   if (!ensureAudioGraph() || !levelCtx || !levelGain) return;
