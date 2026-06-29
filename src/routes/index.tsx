@@ -198,13 +198,16 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
 
         <div className="flex flex-col items-center pt-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-glow">
-            Your AI Sleep Companion · live
+            Live · Tap to talk to Aura
           </p>
           <p
             className="mt-2 text-3xl sm:text-4xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Meet Aura.
+          </p>
+          <p className="mt-1.5 max-w-[18rem] text-xs italic text-muted-foreground">
+            "Hey — rough shift? Let's wind down."
           </p>
         </div>
 
