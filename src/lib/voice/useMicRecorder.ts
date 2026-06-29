@@ -23,6 +23,7 @@ export function useMicRecorder(opts: Options = {}) {
   const [state, setState] = useState<MicState>("idle");
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const stateRef = useRef<MicState>("idle");
 
   const streamRef = useRef<MediaStream | null>(null);
   const ctxRef = useRef<AudioContext | null>(null);
@@ -32,6 +33,11 @@ export function useMicRecorder(opts: Options = {}) {
   const lastVoiceRef = useRef<number>(0);
   const startedRef = useRef<number>(0);
   const onStopRef = useRef<((blob: Blob | null) => void) | null>(null);
+
+  const setMicState = useCallback((next: MicState) => {
+    stateRef.current = next;
+    setState(next);
+  }, []);
 
   const teardown = useCallback(() => {
     try { procRef.current?.disconnect(); } catch { /* noop */ }
@@ -58,22 +64,22 @@ export function useMicRecorder(opts: Options = {}) {
   }, [teardown]);
 
   const stop = useCallback(async (): Promise<Blob | null> => {
-    if (state !== "listening") return null;
-    setState("encoding");
+    if (stateRef.current !== "listening") return null;
+    setMicState("encoding");
     const blob = finalize();
-    setState("idle");
+    setMicState("idle");
     setLevel(0);
     const cb = onStopRef.current;
     onStopRef.current = null;
     if (cb) cb(blob);
     return blob;
-  }, [state, finalize]);
+  }, [finalize, setMicState]);
 
   const start = useCallback(
     async (onAutoStop?: (blob: Blob | null) => void): Promise<void> => {
-      if (state === "listening" || state === "requesting") return;
+      if (stateRef.current === "listening" || stateRef.current === "requesting" || stateRef.current === "encoding") return;
       setError(null);
-      setState("requesting");
+      setMicState("requesting");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
@@ -115,7 +121,7 @@ export function useMicRecorder(opts: Options = {}) {
           // or hard maxMs cap.
           if ((elapsed > 600 && sinceVoice > silenceMs) || elapsed > maxMs) {
             const blob = finalize();
-            setState("idle");
+            setMicState("idle");
             setLevel(0);
             const cb = onStopRef.current;
             onStopRef.current = null;
@@ -125,20 +131,20 @@ export function useMicRecorder(opts: Options = {}) {
 
         src.connect(proc);
         proc.connect(ctx.destination);
-        setState("listening");
+        setMicState("listening");
       } catch (e) {
         const name = e instanceof DOMException ? e.name : "";
         teardown();
         if (name === "NotAllowedError" || name === "SecurityError") {
-          setState("denied");
+          setMicState("denied");
           setError("Microphone permission denied.");
         } else {
-          setState("error");
+          setMicState("error");
           setError(e instanceof Error ? e.message : "Couldn't open the microphone.");
         }
       }
     },
-    [state, silenceMs, silenceThreshold, maxMs, finalize, teardown],
+    [silenceMs, silenceThreshold, maxMs, finalize, teardown, setMicState],
   );
 
   return { state, level, error, start, stop };
