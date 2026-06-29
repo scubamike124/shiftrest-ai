@@ -137,17 +137,46 @@ export function CompanionAvatarFace({
   const liveLevel =
     state === "speaking" ? Math.max(audioLevel, level) : state === "listening" ? level : 0;
 
-  // Mouth-open % (height of the dark mouth ellipse, in % of avatar box)
-  const mouthOpen = reduced
-    ? state === "speaking"
-      ? 1.4
-      : 0
-    : state === "speaking"
-      ? Math.max(0.5, Math.min(4.5, liveLevel * 10))
-      : 0;
+  // ── Eye saccades (random tiny glances every 4–9s) ───────────────────────
+  const [saccade, setSaccade] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    if (hidden || reduced) return;
+    let cancelled = false;
+    let t: number | undefined;
+    const loop = () => {
+      const next = 4000 + Math.random() * 5000;
+      t = window.setTimeout(() => {
+        if (cancelled) return;
+        const x = (Math.random() - 0.5) * 1.6;
+        const y = (Math.random() - 0.5) * 0.8;
+        setSaccade({ x, y });
+        window.setTimeout(() => {
+          if (cancelled) return;
+          setSaccade({ x: 0, y: 0 });
+          loop();
+        }, 350 + Math.random() * 600);
+      }, next);
+    };
+    loop();
+    return () => {
+      cancelled = true;
+      if (t) window.clearTimeout(t);
+    };
+  }, [hidden, reduced]);
 
-  // Eye glance (small horizontal shift on thinking)
-  const glanceX = state === "thinking" && !reduced ? 0.6 : 0;
+  // Mouth-open % — drive PURELY by liveLevel so it actually moves with
+  // speech. Floor raised so it's visible even on quiet syllables.
+  const mouthOpen = reduced
+    ? state === "speaking" ? 1.8 : 0
+    : liveLevel > 0.01
+      ? Math.max(1.2, Math.min(6.5, liveLevel * 14))
+      : state === "speaking"
+        ? 1.2
+        : 0;
+
+  // Eye glance (small horizontal shift on thinking) + saccade overlay
+  const glanceX = (state === "thinking" && !reduced ? 0.6 : 0) + saccade.x;
+  const glanceY = saccade.y;
 
   // Aura color per state
   const auraColor =
@@ -167,9 +196,12 @@ export function CompanionAvatarFace({
         ? 1 + Math.min(liveLevel * 1.5, 0.18)
         : 1;
 
-  const idleAnim =
+  // Head sway: gentle in idle, a touch more during listening/speaking.
+  const swayAnim =
     !reduced && !hidden
-      ? "[animation:companion-bob_5.5s_ease-in-out_infinite]"
+      ? state === "listening" || state === "speaking"
+        ? "[animation:companion-sway_6s_ease-in-out_infinite]"
+        : "[animation:companion-bob_5.5s_ease-in-out_infinite]"
       : "";
   const breath =
     !reduced && !hidden
