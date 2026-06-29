@@ -531,13 +531,11 @@ function CompanionAvatarFace2D({
     : state === "speaking"  ? "hsl(190 90% 60% / 0.65)"
     : "hsl(var(--primary) / 0.4)";
 
-  const eyelidColor = "rgb(212, 168, 140)";
   const browColor = "rgba(70, 38, 28, 0.55)";
   const objectPosition = size === "sm" ? "50% 18%" : "50% 20%";
 
-  // Eyelid open ratio from emotion (1 = wide). The closed `blink` overrides.
-  const lidOpenRatio = blink ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
-  const lidOpenRatioRight = (blink || halfBlinkRight) ? 1 : (1 - weights.lidOpen) * 0.96 + 0.04;
+  // Eyelid is driven from rAF via --lid (0 = open, 1 = closed) on each lid
+  // element. Computed identically for both lids so they can never desync.
 
   return (
     <div
