@@ -2,7 +2,7 @@
 // Frontend-only. No analytics, no network. Emit calls are cheap no-ops
 // when the HUD isn't mounted.
 
-export const BUILD_STAMP = "2026-06-29T05:45Z";
+export const BUILD_STAMP = "2026-06-29T06:20Z";
 
 export type DebugStep =
   | "tap"
@@ -40,6 +40,7 @@ export type DebugHttpStatus = {
 
 const EVT = "companion:debug";
 const HTTP_EVT = "companion:http-status";
+const LAST_HTTP_KEY = "companion.debug.lastHttpStatus";
 let fetchProbeInstalled = false;
 
 function endpointFrom(input: RequestInfo | URL): string {
@@ -75,9 +76,23 @@ export function onDebug(cb: (p: DebugPayload) => void): () => void {
 export function emitHttpStatus(status: DebugHttpStatus): void {
   if (typeof window === "undefined") return;
   try {
+    window.sessionStorage.setItem(LAST_HTTP_KEY, JSON.stringify(status));
     window.dispatchEvent(new CustomEvent<DebugHttpStatus>(HTTP_EVT, { detail: status }));
   } catch {
     /* noop */
+  }
+}
+
+export function getLastHttpStatus(): DebugHttpStatus | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(LAST_HTTP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DebugHttpStatus;
+    if (!parsed || typeof parsed.endpoint !== "string" || typeof parsed.status !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
