@@ -20,11 +20,10 @@ function hourBucket(h: number): "early" | "morning" | "midday" {
   return "midday";
 }
 
-function firstName(email: string | null, partnerName: string | null): string {
-  const raw = (partnerName || email || "").trim();
+function greetingName(preferredName: string | null): string {
+  const raw = (preferredName ?? "").trim();
   if (!raw) return "there";
-  const head = raw.includes("@") ? raw.split("@")[0] : raw;
-  return head.split(/[\s._]/)[0].replace(/^./, (c) => c.toUpperCase());
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 function scoreSleep(durationMin: number, efficiency: number | null, targetHours: number): number {
@@ -56,7 +55,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "sleep_hours, lat, lon, partner_name, memory_enabled, memory_learning_paused, brief_layout, commute_minutes_baseline",
+        "sleep_hours, lat, lon, partner_name, preferred_name, memory_enabled, memory_learning_paused, brief_layout, commute_minutes_baseline",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -64,7 +63,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     const sleepHours = Number(prefsRow?.sleep_hours ?? 8);
     const lat = Number(prefsRow?.lat ?? 40.7128);
     const lon = Number(prefsRow?.lon ?? -74.006);
-    const partnerName = (prefsRow?.partner_name as string | null) ?? null;
+    const preferredName = (prefsRow?.preferred_name as string | null) ?? null;
     const layout = (prefsRow?.brief_layout as { hidden?: string[] } | null) ?? null;
     const hidden = new Set(layout?.hidden ?? ["departure"]);
     const baselineMin = (prefsRow?.commute_minutes_baseline as number | null) ?? null;
@@ -72,9 +71,8 @@ export const getMorningBrief = createServerFn({ method: "GET" })
       prefsRow?.memory_enabled && !prefsRow?.memory_learning_paused,
     );
 
-    // 2. Caller email for greeting fallback.
-    const { data: userInfo } = await supabase.auth.getUser();
-    const email = userInfo.user?.email ?? null;
+
+
 
     // 3. Parallel sub-fetches — Promise.allSettled so one failure ≠ whole brief.
     const [wearableRes, eventsRes, weatherRes, memoryRes] = await Promise.allSettled([
@@ -200,7 +198,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     return {
       generatedAtISO: now.toISOString(),
       greeting: {
-        name: firstName(email, partnerName),
+        name: greetingName(preferredName),
         hourBucket: hourBucket(now.getHours()),
         recommendation: pickRecommendation(sleep?.durationMin ?? null, sleepHours),
       },

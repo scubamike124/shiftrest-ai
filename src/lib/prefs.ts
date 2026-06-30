@@ -11,6 +11,8 @@ export type Prefs = {
   lon: number;
   locationLabel: string;
   partnerName: string;
+  /** Name the AI uses to address the user. Independent of email / OAuth display name. */
+  preferredName: string;
   onboarded: boolean;
   /** Rotation length in weeks (1–6). 1 = legacy weekly schedule. */
   cycleWeeks: number;
@@ -94,6 +96,7 @@ export const DEFAULT_PREFS: Prefs = {
   lon: -74.006,
   locationLabel: "",
   partnerName: "",
+  preferredName: "",
   onboarded: false,
   cycleWeeks: 1,
   cycleAnchor: null,
@@ -143,6 +146,7 @@ type Row = {
   lon: number;
   location_label: string;
   partner_name: string;
+  preferred_name?: string | null;
   onboarded_at: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
@@ -217,6 +221,7 @@ function rowToPrefs(r: Row): Prefs {
     lon: r.lon,
     locationLabel: r.location_label,
     partnerName: r.partner_name,
+    preferredName: (r.preferred_name ?? "").trim(),
     onboarded: r.onboarded_at !== null,
     cycleWeeks: Math.max(1, Math.min(6, cw)),
     cycleAnchor: r.cycle_anchor ?? null,
@@ -260,6 +265,7 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.lon !== undefined) out.lon = p.lon;
   if (p.locationLabel !== undefined) out.location_label = p.locationLabel;
   if (p.partnerName !== undefined) out.partner_name = p.partnerName;
+  if (p.preferredName !== undefined) out.preferred_name = p.preferredName.trim().slice(0, 60) || null;
   if (p.cycleWeeks !== undefined)
     out.cycle_weeks = Math.max(1, Math.min(6, Math.round(p.cycleWeeks)));
   if (p.cycleAnchor !== undefined) out.cycle_anchor = p.cycleAnchor;
@@ -314,7 +320,7 @@ export async function fetchPrefs(): Promise<Prefs> {
   const { data, error } = await supabase
     .from("user_prefs")
     .select(
-      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, brief_enabled, home_address, work_address, commute_minutes_baseline",
+      "wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, preferred_name, onboarded_at, cycle_weeks, cycle_anchor, assistant_name, assistant_mode, memory_enabled, memory_learning_paused, predictive_enabled, tomorrow_preview_enabled, daily_review_enabled, feedback_learning_enabled, voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions, brief_layout, brief_enabled, home_address, work_address, commute_minutes_baseline",
     )
     .eq("user_id", uid)
     .maybeSingle();

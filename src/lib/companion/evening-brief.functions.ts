@@ -7,11 +7,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fetchTomorrowWeather } from "@/lib/weather.server";
 import type { EveningBriefDTO } from "./types";
 
-function firstName(email: string | null, partnerName: string | null): string {
-  const raw = (partnerName || email || "").trim();
+function greetingName(preferredName: string | null): string {
+  const raw = (preferredName ?? "").trim();
   if (!raw) return "there";
-  const head = raw.includes("@") ? raw.split("@")[0] : raw;
-  return head.split(/[\s._]/)[0].replace(/^./, (c) => c.toUpperCase());
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 function clothingFor(
@@ -36,14 +35,14 @@ export const getEveningBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "lat, lon, partner_name, brief_layout, sleep_hours, wind_down_min",
+        "lat, lon, partner_name, preferred_name, brief_layout, sleep_hours, wind_down_min",
       )
       .eq("user_id", userId)
       .maybeSingle();
 
     const lat = Number(prefsRow?.lat ?? 40.7128);
     const lon = Number(prefsRow?.lon ?? -74.006);
-    const partnerName = (prefsRow?.partner_name as string | null) ?? null;
+    const preferredName = (prefsRow?.preferred_name as string | null) ?? null;
     const sleepHours = Number(prefsRow?.sleep_hours ?? 8);
     const windDownMin = Number(prefsRow?.wind_down_min ?? 120);
     type Layout = { hidden?: string[] };
@@ -57,8 +56,6 @@ export const getEveningBrief = createServerFn({ method: "GET" })
         : undefined) ?? [],
     );
 
-    const { data: userInfo } = await supabase.auth.getUser();
-    const email = userInfo.user?.email ?? null;
 
     // Tomorrow window in local time.
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -174,7 +171,7 @@ export const getEveningBrief = createServerFn({ method: "GET" })
 
     return {
       generatedAtISO: now.toISOString(),
-      greetingName: firstName(email, partnerName),
+      greetingName: greetingName(preferredName),
       tomorrowFirst,
       tomorrowWeather: tomorrowWeather
         ? {

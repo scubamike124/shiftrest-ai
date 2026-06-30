@@ -3,7 +3,7 @@ import { Moon, Sparkles, ShieldCheck, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DEFAULT_PREFS, fetchPrefs, markOnboarded } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, markOnboarded, savePrefs } from "@/lib/prefs";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
 import { toast } from "sonner";
 import { DebugHUD } from "@/components/companion/DebugHUD";
@@ -46,6 +46,10 @@ export function Onboarding() {
   const [dismissed, setDismissed] = useState(false);
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  useEffect(() => {
+    if (prefs?.preferredName) setNameDraft(prefs.preferredName);
+  }, [prefs?.preferredName]);
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -56,8 +60,13 @@ export function Onboarding() {
   const open = ready && authOk && isSuccess && !prefs.onboarded && !dismissed;
   if (!open) return null;
 
-  const totalSteps = INTRO_SLIDES.length + 1; // + consent step
-  const isConsentStep = step === INTRO_SLIDES.length;
+  const NAME_STEP_INDEX = INTRO_SLIDES.length; // after intro slides
+  const CONSENT_STEP_INDEX = INTRO_SLIDES.length + 1;
+  const totalSteps = INTRO_SLIDES.length + 2; // intro + name + consent
+  const isNameStep = step === NAME_STEP_INDEX;
+  const isConsentStep = step === CONSENT_STEP_INDEX;
+  const trimmedName = nameDraft.trim();
+  const nameOk = trimmedName.length > 0;
   const allAcked = ACK_ITEMS.every((i) => acks[i.key]);
 
   async function finish() {
@@ -87,10 +96,34 @@ export function Onboarding() {
     }
   }
 
+  async function advance() {
+    if (busy) return;
+    if (isNameStep) {
+      if (!nameOk) return;
+      setBusy(true);
+      try {
+        await savePrefs({ preferredName: trimmedName });
+        await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+        setStep(step + 1);
+      } catch (err) {
+        console.error("save preferred name failed", err);
+        toast.error("Couldn't save your name. Please try again.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    if (isConsentStep) {
+      await finish();
+      return;
+    }
+    setStep(step + 1);
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-background/95 backdrop-blur-2xl">
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        {!isConsentStep ? (
+        {!isNameStep && !isConsentStep ? (
           (() => {
             const slide = INTRO_SLIDES[step];
             const Icon = slide.icon;
@@ -104,6 +137,26 @@ export function Onboarding() {
               </>
             );
           })()
+        ) : isNameStep ? (
+          <div className="w-full max-w-sm text-left">
+            <div className="flex items-center gap-2 text-primary">
+              <Sparkles className="h-6 w-6" />
+              <h2 className="text-xl font-semibold">What should I call you?</h2>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This is the name RestPilot uses in briefings, voice, and notifications.
+              You can change it anytime in Profile.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              placeholder="Your first name"
+              className="mt-4 h-12 w-full rounded-xl border border-border bg-input px-3 text-base"
+              maxLength={60}
+            />
+          </div>
         ) : (
           <div className="w-full max-w-md text-left">
             <div className="flex items-center gap-2 text-primary">
@@ -151,14 +204,19 @@ export function Onboarding() {
           ))}
         </div>
         <button
-          onClick={() => (isConsentStep ? finish() : setStep(step + 1))}
-          disabled={busy || (isConsentStep && !allAcked)}
+          onClick={advance}
+          disabled={busy || (isConsentStep && !allAcked) || (isNameStep && !nameOk)}
           className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-50"
         >
-          {isConsentStep ? (busy ? "Saving…" : "I agree — Get started") : "Next"}
-          {!isConsentStep && <ChevronRight className="h-5 w-5" />}
+          {isConsentStep
+            ? busy ? "Saving…" : "I agree — Get started"
+            : isNameStep
+              ? busy ? "Saving…" : "Continue"
+              : "Next"}
+          {!isConsentStep && !isNameStep && <ChevronRight className="h-5 w-5" />}
         </button>
       </div>
+
 
       <DebugHUD
         signedIn={sessionReady ? hasSession : null}

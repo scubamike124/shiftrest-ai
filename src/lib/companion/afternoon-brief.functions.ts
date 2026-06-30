@@ -6,11 +6,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AfternoonBriefDTO } from "./types";
 
-function firstName(email: string | null, partnerName: string | null): string {
-  const raw = (partnerName || email || "").trim();
+function greetingName(preferredName: string | null): string {
+  const raw = (preferredName ?? "").trim();
   if (!raw) return "there";
-  const head = raw.includes("@") ? raw.split("@")[0] : raw;
-  return head.split(/[\s._]/)[0].replace(/^./, (c) => c.toUpperCase());
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 export const getAfternoonBrief = createServerFn({ method: "GET" })
@@ -22,14 +21,14 @@ export const getAfternoonBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "lat, lon, partner_name, brief_layout, commute_minutes_baseline",
+        "lat, lon, partner_name, preferred_name, brief_layout, commute_minutes_baseline",
       )
       .eq("user_id", userId)
       .maybeSingle();
 
     const lat = Number(prefsRow?.lat ?? 40.7128);
     const lon = Number(prefsRow?.lon ?? -74.006);
-    const partnerName = (prefsRow?.partner_name as string | null) ?? null;
+    const preferredName = (prefsRow?.preferred_name as string | null) ?? null;
     const baselineMin = (prefsRow?.commute_minutes_baseline as number | null) ?? null;
     type Layout = { hidden?: string[] };
     type NestedLayout = { afternoon?: Layout } | Layout | null;
@@ -40,8 +39,6 @@ export const getAfternoonBrief = createServerFn({ method: "GET" })
         : undefined) ?? ["nextTraffic"],
     );
 
-    const { data: userInfo } = await supabase.auth.getUser();
-    const email = userInfo.user?.email ?? null;
 
     const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
@@ -162,7 +159,7 @@ export const getAfternoonBrief = createServerFn({ method: "GET" })
 
     return {
       generatedAtISO: now.toISOString(),
-      greetingName: firstName(email, partnerName),
+      greetingName: greetingName(preferredName),
       remaining,
       nextTraffic,
       weatherShift,

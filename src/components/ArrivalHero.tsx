@@ -41,10 +41,10 @@ function timeOfDayGreeting(hour: number): string {
   return "Late night";
 }
 
-function firstName(full: string | null | undefined, email: string | null | undefined): string {
-  if (full && full.trim().length > 0) return full.trim().split(/\s+/)[0];
-  if (email) return email.split("@")[0].split(/[._-]/)[0];
-  return "";
+function firstName(preferred: string | null | undefined): string {
+  const raw = (preferred ?? "").trim();
+  if (!raw) return "";
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
@@ -60,13 +60,13 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
     supabase.auth.getUser().then(async ({ data }) => {
       const user = data.user;
       if (!user || cancelled) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", user.id)
+      const { data: prefsRow } = await supabase
+        .from("user_prefs")
+        .select("preferred_name")
+        .eq("user_id", user.id)
         .maybeSingle();
       if (cancelled) return;
-      setName(firstName(profile?.display_name ?? null, user.email ?? null));
+      setName(firstName(prefsRow?.preferred_name ?? null));
     });
 
     // Listen for RightNowCard updates so the hero refreshes when the AI acts.

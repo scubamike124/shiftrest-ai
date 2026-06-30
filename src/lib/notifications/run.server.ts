@@ -25,6 +25,7 @@ type PrefsRow = {
   lon: number;
   location_label: string;
   partner_name: string;
+  preferred_name: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
 };
@@ -39,6 +40,7 @@ function rowToPrefs(r: PrefsRow): Prefs {
     lon: r.lon,
     locationLabel: r.location_label,
     partnerName: r.partner_name,
+    preferredName: (r.preferred_name ?? "").trim(),
     onboarded: true,
     cycleWeeks: Math.max(1, Math.min(6, r.cycle_weeks ?? 1)),
     cycleAnchor: r.cycle_anchor ?? null,
@@ -106,7 +108,7 @@ export async function runNotificationTick(now: Date) {
     supabaseAdmin
       .from("user_prefs")
       .select(
-        "user_id, wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, cycle_weeks, cycle_anchor",
+        "user_id, wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, preferred_name, cycle_weeks, cycle_anchor",
       )
       .in("user_id", userIds),
     supabaseAdmin
