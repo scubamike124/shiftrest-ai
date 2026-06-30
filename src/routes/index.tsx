@@ -616,6 +616,16 @@ function Mini({ icon: Icon, title, body }: { icon: typeof Bell; title: string; b
 }
 
 function SmartAlarmMock() {
+  const options = [
+    { label: "Exact", active: true },
+    { label: "±5" },
+    { label: "±10" },
+    { label: "±15" },
+    { label: "±20" },
+    { label: "±30" },
+    { label: "Adaptive" },
+  ];
+
   return (
     <div className="relative mx-auto w-full max-w-md">
       <div className="pointer-events-none absolute -inset-6 rounded-[44px] bg-indigo-glow/15 blur-3xl" />
@@ -627,28 +637,22 @@ function SmartAlarmMock() {
         <p className="mt-3 text-5xl tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           5:42 <span className="text-2xl text-muted-foreground">AM</span>
         </p>
-        <p className="text-xs text-muted-foreground">Target window 5:30–6:00 · early-cycle exit detected</p>
+        <p className="text-xs text-muted-foreground">Exact time · Smart Mode analyzes your cycle</p>
 
-        {/* waveform */}
-        <div className="mt-5 flex h-24 items-end gap-1.5">
-          {Array.from({ length: 36 }).map((_, i) => {
-            const h = 22 + Math.round(60 * Math.abs(Math.sin(i * 0.5)));
-            const isWake = i === 24;
-            return (
-              <div
-                key={i}
-                className="wave-bar flex-1 rounded-sm"
-                style={{
-                  height: `${h}%`,
-                  background: isWake
-                    ? "var(--amber)"
-                    : `oklch(0.72 0.16 275 / ${0.25 + (i % 5) * 0.12})`,
-                  animationDelay: `${(i % 8) * 0.15}s`,
-                  boxShadow: isWake ? "0 0 18px var(--amber)" : undefined,
-                }}
-              />
-            );
-          })}
+        {/* adjustment window chips */}
+        <div className="mt-5 flex flex-wrap gap-2">
+          {options.map((opt) => (
+            <span
+              key={opt.label}
+              className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
+                opt.active
+                  ? "border border-primary/40 bg-primary/20 text-primary-foreground"
+                  : "border border-border/60 bg-card/50 text-muted-foreground"
+              }`}
+            >
+              {opt.label}
+            </span>
+          ))}
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[10px]">
