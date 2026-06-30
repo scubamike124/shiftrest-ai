@@ -92,10 +92,8 @@ type Msg = {
   actionDone?: { ok: boolean; message: string } | null;
 };
 
-function firstName(p: Prefs, email: string | null): string {
-  if (p.partnerName?.trim()) return p.partnerName.trim().split(/\s+/)[0];
-  if (email) return email.split("@")[0].split(/[._]/)[0].replace(/^./, (c) => c.toUpperCase());
-  return "there";
+function firstName(p: Prefs): string {
+  return p.preferredName?.trim() || "there";
 }
 
 /**
