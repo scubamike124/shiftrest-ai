@@ -1,70 +1,94 @@
-# Service-Worker Cache Busting & Auto-Update
 
-## What we found
+# Phase 1 — Restore Original Companion + Premium ElevenLabs Audio
 
-Most of what you asked for is already implemented in `public/sw-src.ts` and `vite.config.ts`. The remaining gap is the one that actually causes your "old shell doesn't know about new routes" 404 on iPhone.
+Investigation only. No code changes until you approve.
 
-| You asked for | Status today |
-|---|---|
-| 1. Bump SW cache version per deploy | ✅ Workbox `__WB_MANIFEST` hashes every asset; `cleanupOutdatedCaches()` already runs |
-| 2. Auto-invalidate old route manifests | ✅ `registerType: "autoUpdate"` + `cleanupOutdatedCaches()` |
-| 3. Force newest SW to activate immediately | ⚠️ `skipWaiting()`/`clientsClaim()` are set, but iOS often skips the SW script revalidation entirely, so the new worker is never even discovered until the user hard-refreshes |
-| 4. "Update Available" banner | ❌ Not implemented |
-| 5. New routes available immediately | ⚠️ Works *if* the new SW is discovered; today it can take a stale visit before iOS checks |
-| 6. Every publish invalidates manifests | ✅ Same as #1/#2 |
+## A. Restore plan (avatar rollback)
 
-**Root cause of the 404 you hit:** the cached app-shell `index.html` was served by the old SW, which still pointed at the old JS route-tree bundle. That old bundle had no route at `/lab/avatar-poc/simli`, so the SPA rendered its in-app 404 even though the server-side route was live. Private Safari (no SW) loads it fine — which is exactly what your test will confirm.
+The 3D / Simli avatar work is gated, not the default — the original 2D Companion is still the production path. Concretely:
 
-## What we'll change
+- `src/routes/companion.tsx` already renders the original `CompanionHero` + `Avatar` (2D portrait). The 3D `Avatar3D` only mounts when `?avatar=3d` is in the URL.
+- The Simli POC lives entirely under `/lab/avatar-poc/*` and is reachable only via direct link. It does not affect the production Companion route.
+- `AvatarVideo` / `Avatar3D` are not wired into the default Companion flow.
 
-Three small additions, scoped to the SW path. No edits to Simli, avatar, or app logic.
+Recommended rollback (minimal, reversible):
+1. Remove the `?avatar=3d` branch in `companion.tsx` so the 2D `Avatar` is the only renderer.
+2. Hide the "3D" option from `AvatarPickerChip` (keep Aura/Nova/Atlas/Sage 2D avatars).
+3. Leave `/lab/avatar-poc/*` in the tree for Phase 2 evaluation but unlinked from any user-facing nav.
+4. Keep `Avatar3D.tsx`, `AvatarVideo.tsx`, and `simli/*` files in place (do not delete) — easy to revive in Phase 2.
 
-### 1. Force SW script revalidation on every navigation
-Set `updateViaCache: "none"` when registering `/sw.js`. iOS Safari otherwise caches the SW script itself for up to 24h, which delays discovery of every new deploy.
-- File: `src/lib/pwa/register.ts` — add the option to the existing `navigator.serviceWorker.register("/sw.js", { scope: "/" })` call.
+No DB changes, no package removals.
 
-### 2. Proactively check for updates
-After registration, call `reg.update()` on:
-- initial load (after a short delay so it doesn't compete with hydration)
-- every `visibilitychange` to `visible` (returning to the tab/app after backgrounding)
-- File: `src/lib/pwa/register.ts` only.
+## B. ElevenLabs audio upgrade — recommendation
 
-### 3. One-tap "Update available" banner
-A tiny client component listens for `reg.waiting` / `updatefound` and renders a bottom-right pill when a new SW is installed and ready:
+Current state: `/api/tts-elevenlabs.ts` and `/api/lab/simli/speak.ts` already call ElevenLabs. The lab route is locked to `eleven_flash_v2_5` for latency. The main app TTS path runs through `/api/tts.ts` which currently uses the Lovable AI Gateway (`openai/gpt-4o-mini-tts`), not ElevenLabs.
 
-```text
-┌──────────────────────────────┐
-│  New version ready  · Update │
-└──────────────────────────────┘
+### Model recommendation
+
+| Model | Latency | Quality | Recommendation |
+|---|---|---|---|
+| `eleven_flash_v2_5` | ~75ms | Good | Use for interactive replies (voice command, Q&A) |
+| `eleven_turbo_v2_5` | ~250–300ms | Very good | **Default** for Companion — best quality/latency balance |
+| `eleven_multilingual_v2` | ~800ms+ | Highest | Use for pre-generated nightly briefs, sleep stories (cacheable, not realtime) |
+
+Proposed split:
+- **Realtime voice replies** → `eleven_turbo_v2_5`
+- **Daily/voice briefing (cached)** → `eleven_multilingual_v2`
+- Keep `eleven_flash_v2_5` available behind a "fastest" flag if needed.
+
+### Voice recommendation (calming, sleep/wellness)
+
+From the curated catalog already wired in the project:
+
+| Voice | ID | Best for |
+|---|---|---|
+| **Sarah** | `EXAVITQu4vr4xnSDxMaL` | Warm female, primary default — soft and grounded |
+| **Matilda** | `XrExE9yKIg1WjnnlVkGX` | Soothing female, sleep stories / wind-down |
+| **George** | `JBFqnCBsd6RMkjVDRZzb` | Calm male alternative |
+| Alice | `Xb7hH8MSUJpSbSDYk0k2` | Light female alternative |
+
+Recommended voice settings for sleep/wellness:
 ```
-Tapping it posts `{ type: "SKIP_WAITING" }` to the waiting worker and reloads once `controllerchange` fires.
-- New file: `src/components/pwa/UpdateBanner.tsx`
-- New file: `src/lib/pwa/update-channel.ts` — small event bus the registrar publishes to
-- Mount once in `src/routes/__root.tsx`
-- SW side: add a `message` listener in `public/sw-src.ts` that calls `self.skipWaiting()` on `SKIP_WAITING` (cheap, additive — `skipWaiting()` already runs on install, this just covers the case where the user previously dismissed the banner)
+stability: 0.55, similarity_boost: 0.80, style: 0.25,
+use_speaker_boost: true, speed: 0.95
+```
+(Slightly higher stability + lower style than the lab defaults → less expressive, more calming.)
 
-### Out of scope (intentionally)
-- No edits to the Simli POC, avatar pipeline, or any feature route.
-- No changes to the push-notification handlers in `sw-src.ts`.
-- No removal of `vite-plugin-pwa`, no kill-switch worker — the current PWA is healthy, just slow to discover updates on iOS.
+## C. Reliability verification (to perform before implementing)
 
-## How we verify
+Browser tool checks against production:
+1. Confirm `/companion` loads 2D Avatar with no `?avatar=3d`.
+2. Hit `/api/tts-elevenlabs` with a short utterance, verify MP3 returns, plays on desktop Chrome and iPhone Safari.
+3. Confirm audio unlock gesture still works on iOS (existing `companion:voice-unlocked` event flow).
+4. Confirm service worker does not cache `/api/tts*` responses (it shouldn't — `Cache-Control: no-store` already set in lab route; verify same on main route).
 
-After the changes land and you publish:
+## D. Known risks / regressions to watch
 
-1. **Open in Private Safari** on iPhone → `https://shift-rest-ai.lovable.app/lab/avatar-poc/simli` → should load the Connect/Speak screen. This is the "is the deploy itself healthy?" baseline you're already planning to run.
-2. **Open in normal Safari** (the one with the stuck SW) → should load the cached shell once, then show the "Update available" banner within ~1s, tap it, page reloads, Simli POC loads. No "Clear Website Data" needed.
-3. Subsequent publishes: same banner appears within seconds of opening the app — no manual cache action ever again.
+1. `/api/tts.ts` (Lovable Gateway) and `/api/tts-elevenlabs.ts` currently coexist. Switching Companion to ElevenLabs requires picking one path, not both, to avoid voice inconsistency.
+2. The voice catalog in `src/lib/voice/*` is already keyed to ElevenLabs IDs — but `VoicePlayer.tsx` posts to `/api/tts`. Need to confirm which endpoint the Companion uses today vs. the Voice Briefing.
+3. iOS Safari: MP3 plays reliably, but autoplay still requires a gesture — existing `warmOutputDevice()` + unlock flow must remain intact.
+4. ElevenLabs free-tier rate limits — confirm workspace plan supports turbo_v2_5 concurrency before rollout.
+5. Cost: turbo_v2_5 ≈ 0.5 credits/char vs flash 0.33. Acceptable for premium tier; consider gating long briefings behind cached generation.
 
-## Production URL (unchanged)
+## E. Proposed implementation order (after approval)
 
-`https://shift-rest-ai.lovable.app/lab/avatar-poc/simli`
+One small change per step, verified before the next:
 
-The picker is at `https://shift-rest-ai.lovable.app/lab/avatar-poc`.
+1. Roll back Companion to 2D only (remove `?avatar=3d` branch). Verify on iPhone.
+2. Point Companion's TTS calls to `/api/tts-elevenlabs` using `eleven_turbo_v2_5` + Sarah. Verify single utterance works.
+3. Apply calming voice_settings tuning. Verify on iPhone Safari.
+4. Add response cache for repeated phrases (already partially built — LRU exists). Verify cache hit reduces latency.
+5. (Optional) Pre-render daily voice briefing with `eleven_multilingual_v2` and store in Supabase storage; play cached MP3.
 
-## Technical notes (for reference, skip if not relevant)
+No installs needed — `ELEVENLABS_API_KEY` already configured, no new packages required.
 
-- `updateViaCache: "none"` is the spec-defined way to force the browser to revalidate the SW script on every check; without it iOS uses the HTTP cache (up to 24h).
-- `reg.update()` on `visibilitychange` is the standard pattern for installed PWAs that may stay backgrounded for days.
-- The banner is gated on `import.meta.env.PROD` and the same refuse-list as `registerAppShell()`, so it never renders in Lovable preview or dev.
-- No changes to manifest fields (`start_url`, `id`, `scope`, `display`) — those are install-time sticky on iOS and changing them would require reinstall.
+## F. What I will NOT do
+
+- Touch `/lab/avatar-poc/*` files (keeps Phase 2 path intact).
+- Delete `Avatar3D` / `AvatarVideo` / Simli code.
+- Migrate or change any DB schema.
+- Change subscription tiers or billing.
+
+---
+
+**Awaiting approval to proceed with Step 1 only** (rollback to 2D Companion). Each subsequent step requires verification before the next.
