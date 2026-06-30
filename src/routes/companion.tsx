@@ -92,10 +92,8 @@ type Msg = {
   actionDone?: { ok: boolean; message: string } | null;
 };
 
-function firstName(p: Prefs, email: string | null): string {
-  if (p.partnerName?.trim()) return p.partnerName.trim().split(/\s+/)[0];
-  if (email) return email.split("@")[0].split(/[._]/)[0].replace(/^./, (c) => c.toUpperCase());
-  return "there";
+function firstName(p: Prefs): string {
+  return p.preferredName?.trim() || "there";
 }
 
 /**
@@ -126,7 +124,7 @@ function CompanionPage() {
     hasSession,
     hasAccessToken,
   } = useSession();
-  const sessionEmail = session?.user.email ?? null;
+  // sessionEmail removed: Preferred Name is the sole source for personalization.
   const signedIn: boolean | null = sessionReady ? hasSession && hasAccessToken : null;
 
   const prefsQ = useQuery({
@@ -346,17 +344,20 @@ function CompanionPage() {
     if (!prefsQ.isSuccess && !prefsQ.isError) return;
     if (messages.length > 0) return;
     greetedRef.current = true;
-    const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+    const name = firstName(prefs ?? ({} as Prefs));
     const hour = new Date().getHours();
+    // Soft lead-in ("… ") + comma break = ElevenLabs eases into the opener at
+    // mid-prose loudness instead of a punchy, louder/faster cold start. Mirrors
+    // the fix shipped for the Dashboard Voice Briefing.
     const opener =
       hour >= 22 || hour < 5
-        ? `Hi ${name}, I'm here. Want something calming to help you sleep?`
-        : `Hi ${name}, I'm here. How can I help tonight?`;
+        ? `… Hi ${name}. I'm here — want something calming to help you sleep?`
+        : `… Hi ${name}. I'm here — how can I help tonight?`;
     setMessages([{ role: "assistant", content: opener }]);
     greetingTextRef.current = opener;
     emitDebug("greet-shown");
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
-  }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
+  }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, messages.length, search.greet]);
 
   // First user gesture → unlock audio + speak the greeting aloud once.
   // iOS Safari requires playback to start strictly INSIDE a user gesture and
@@ -1310,7 +1311,7 @@ function CompanionPage() {
 
         <div className="mt-4 text-center">
           {(() => {
-            const name = firstName(prefs ?? ({} as Prefs), sessionEmail);
+            const name = firstName(prefs ?? ({} as Prefs));
             // mountedGreeting is set in a useEffect below — server and first
             // client render show a time-neutral greeting so hydration matches;
             // the time-aware one appears one frame later.
