@@ -525,8 +525,7 @@ function PilotPage() {
     !!lastExchange &&
     !!lastAssistant?.content &&
     orbState === "idle" &&
-    !playingRef.current &&
-    queueRef.current.length === 0;
+    !speakingRef.current;
 
   return (
     <div className="min-h-[calc(100dvh-4rem)] bg-gradient-to-b from-background via-background to-primary/5 pb-24">
