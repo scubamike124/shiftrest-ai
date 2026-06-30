@@ -357,7 +357,7 @@ function CompanionPage() {
     greetingTextRef.current = opener;
     emitDebug("greet-shown");
     track({ event: "companion_greeting_shown", trigger: search.greet ? "url" : "auto" });
-  }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, sessionEmail, messages.length, search.greet]);
+  }, [signedIn, prefs, prefsQ.isSuccess, prefsQ.isError, messages.length, search.greet]);
 
   // First user gesture → unlock audio + speak the greeting aloud once.
   // iOS Safari requires playback to start strictly INSIDE a user gesture and
