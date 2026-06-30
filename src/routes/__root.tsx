@@ -23,6 +23,7 @@ import { Onboarding } from "../components/Onboarding";
 import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
 import { UpdateBanner } from "../components/pwa/UpdateBanner";
+import { PreviewWarningBanner } from "../components/pwa/PreviewWarningBanner";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
