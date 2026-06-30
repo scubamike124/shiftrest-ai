@@ -304,13 +304,22 @@ function SimliPoc() {
                 </button>
               </>
             ) : (
-              <button
-                onClick={connect}
-                disabled={status === "connecting" || !faceIdValid}
-                className="flex-1 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
-              >
-                {status === "connecting" ? "Connecting…" : "Connect"}
-              </button>
+              <>
+                <button
+                  onClick={connect}
+                  disabled={status === "connecting" || !faceIdValid}
+                  className="flex-1 rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black disabled:opacity-50"
+                >
+                  {status === "connecting" ? "Connecting…" : "Connect"}
+                </button>
+                <button
+                  disabled
+                  className="flex-1 rounded-lg bg-emerald-500/50 px-4 py-2 text-sm font-medium text-black opacity-50"
+                  title="Connect first, then Speak"
+                >
+                  Speak
+                </button>
+              </>
             )}
           </div>
 
