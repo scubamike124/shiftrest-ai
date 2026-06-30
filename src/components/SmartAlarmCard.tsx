@@ -119,6 +119,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
     : null;
 
   return (
+    <div className="space-y-3">
+    <SmartAlarmCoach />
     <section className="rounded-2xl border border-border bg-card p-4">
       <header className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
