@@ -353,7 +353,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       {lastResult && wakeLabel && (
         <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            {lastResult.adjusted ? "AI chose" : "Exact time"}
+            {lastResult.adjusted ? (lastResult.maxAdjustmentMin === ADAPTIVE_WINDOW_MIN ? "AI chose (Adaptive)" : "AI chose") : "Exact time"}
           </p>
           <p className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
             {wakeLabel}
