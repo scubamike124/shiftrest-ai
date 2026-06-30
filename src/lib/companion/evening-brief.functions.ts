@@ -35,14 +35,14 @@ export const getEveningBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "lat, lon, partner_name, brief_layout, sleep_hours, wind_down_min",
+        "lat, lon, partner_name, preferred_name, brief_layout, sleep_hours, wind_down_min",
       )
       .eq("user_id", userId)
       .maybeSingle();
 
     const lat = Number(prefsRow?.lat ?? 40.7128);
     const lon = Number(prefsRow?.lon ?? -74.006);
-    const partnerName = (prefsRow?.partner_name as string | null) ?? null;
+    const preferredName = (prefsRow?.preferred_name as string | null) ?? null;
     const sleepHours = Number(prefsRow?.sleep_hours ?? 8);
     const windDownMin = Number(prefsRow?.wind_down_min ?? 120);
     type Layout = { hidden?: string[] };
@@ -56,8 +56,6 @@ export const getEveningBrief = createServerFn({ method: "GET" })
         : undefined) ?? [],
     );
 
-    const { data: userInfo } = await supabase.auth.getUser();
-    const email = userInfo.user?.email ?? null;
 
     // Tomorrow window in local time.
     const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
