@@ -144,8 +144,11 @@ const RE_TIMER =
 
 const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.+))?$/i;
 
+// Match the verb+object FIRST ("set my smart alarm", "create an alarm",
+// "schedule alarm", "wake me up"), then the time. This lets us catch
+// every common phrasing without false positives on bare clock mentions.
 const RE_WAKE =
-  /\bwake\s+(?:me\s+)?(?:up\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
 
 const RE_SLEEP_MODE =
   /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode|bedtime(?:\s+routine)?)\s*$/i;
