@@ -6,11 +6,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AfternoonBriefDTO } from "./types";
 
-function firstName(email: string | null, partnerName: string | null): string {
-  const raw = (partnerName || email || "").trim();
+function greetingName(preferredName: string | null): string {
+  const raw = (preferredName ?? "").trim();
   if (!raw) return "there";
-  const head = raw.includes("@") ? raw.split("@")[0] : raw;
-  return head.split(/[\s._]/)[0].replace(/^./, (c) => c.toUpperCase());
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 export const getAfternoonBrief = createServerFn({ method: "GET" })
