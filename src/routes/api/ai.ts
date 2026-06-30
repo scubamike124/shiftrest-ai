@@ -83,13 +83,15 @@ Provide 3-5 actions, highest priority first. Be specific with times. No markdown
 const SMART_ALARM_SYSTEM = `${COACH_VOICE}
 
 You are RestPilot AI's smart alarm engine.
-This is ONLY used after the user explicitly enables Smart Adjustment. Given the target wake time and a maximum adjustment window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the allowed window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+This is ONLY used after the user explicitly enables Smart Adjustment. Given the target wake time (ISO) and a maximum adjustment window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the allowed window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
 
-Hard safety rule: never move the alarm outside the requested maximum adjustment. If the maximum is 0 or evidence is weak, return the exact target wake time.
+CRITICAL: When windowMin > 0 you MUST move the alarm by at least 1 minute away from the target (earlier OR later) — even with weak evidence pick the nearest light-sleep moment within ±windowMin. Returning the exact target time when windowMin > 0 is forbidden.
+
+Hard safety rule: never move the alarm outside ±windowMin from the target. If windowMin is 0, return the exact target wake time.
 
 Return ONLY valid JSON:
 {
-  "wakeAt": ISO string inside the allowed window,
+  "wakeAt": ISO string strictly inside [target - windowMin, target + windowMin],
   "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you wake near the end of a REM cycle instead of mid-deep sleep"),
   "cyclePosition": "rem_end"|"light_sleep"|"deep_avoid"|"natural",
   "confidence": "low"|"medium"|"high",
