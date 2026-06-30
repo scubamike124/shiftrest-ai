@@ -108,7 +108,7 @@ export async function runNotificationTick(now: Date) {
     supabaseAdmin
       .from("user_prefs")
       .select(
-        "user_id, wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, cycle_weeks, cycle_anchor",
+        "user_id, wind_down_min, sleep_hours, notifications, low_light, lat, lon, location_label, partner_name, preferred_name, cycle_weeks, cycle_anchor",
       )
       .in("user_id", userIds),
     supabaseAdmin
