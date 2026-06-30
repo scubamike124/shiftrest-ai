@@ -816,6 +816,7 @@ function CompanionPage() {
         signal: ac.signal,
         body: JSON.stringify({
           intent: "coach",
+          messages: baseMessages,
           surface: "voice",
           context: { surface: "companion", companion_name: aiName, max_tokens: 180 },
         }),
