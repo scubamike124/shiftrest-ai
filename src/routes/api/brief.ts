@@ -10,6 +10,7 @@ import { createClient } from "@supabase/supabase-js";
 import { AIError, DEFAULT_CHAT_MODEL, chatJSON } from "@/lib/ai/gateway.server";
 import { logAIRequest } from "@/lib/ai/log.server";
 import { BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
+import { buildTimeDirective } from "@/lib/ai/time-directive";
 
 
 type Fallback = {
