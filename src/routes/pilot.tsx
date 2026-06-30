@@ -144,119 +144,71 @@ function PilotPage() {
   const llmAbortRef = useRef<AbortController | null>(null);
 
 
-  // === Audio queue (sentence-streamed TTS) ===
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const queueRef = useRef<string[]>([]); // pending blob URLs
-  const playingRef = useRef(false);
+  // === Audio pipeline ===
+  // Pilot now routes ALL speech through the shared Companion pipeline
+  // (src/lib/companion/speak.ts) so loudness, soft-clip, and Stop semantics
+  // match every other screen. The local sentence buffering / barge-in /
+  // filler behaviour is preserved; only the playback path changed.
   const cancelledRef = useRef(false);
   const streamingRef = useRef(false);
+  // Mirrors speak.ts turn state for UI predicates (canExpand, barge-in).
+  const speakingRef = useRef(false);
 
-  const ensureAudio = useCallback(() => {
-    if (typeof window === "undefined") return null;
-    if (!audioRef.current) {
-      const a = new Audio();
-      a.preload = "auto";
-      audioRef.current = a;
-    }
-    return audioRef.current;
-  }, []);
-
-  const playNext = useCallback(async () => {
-    if (playingRef.current) return;
-    const url = queueRef.current.shift();
-    if (!url) {
-      if (!streamingRef.current) setOrbState("idle");
-      return;
-    }
-    if (cancelledRef.current) {
-      URL.revokeObjectURL(url);
-      return;
-    }
-    const a = ensureAudio();
-    if (!a) return;
-    a.src = url;
-    playingRef.current = true;
-    setOrbState("speaking");
-    try {
-      await a.play();
-    } catch (e) {
-      console.warn("audio.play() rejected", e);
-      setNeedsTap(true);
-      playingRef.current = false;
-      // Put the URL back so a tap can resume.
-      queueRef.current.unshift(url);
-      return;
-    }
-    await new Promise<void>((res) => {
-      a.onended = () => res();
-      a.onerror = () => res();
-    });
-    URL.revokeObjectURL(url);
-    playingRef.current = false;
-    if (cancelledRef.current) {
-      // Flush remaining queue.
-      queueRef.current.forEach((u) => URL.revokeObjectURL(u));
-      queueRef.current = [];
-      setOrbState("idle");
-      return;
-    }
-    if (queueRef.current.length > 0) {
-      void playNext();
-    } else if (!streamingRef.current) {
-      setOrbState("idle");
-    }
-  }, [ensureAudio]);
-
-  const enqueueSpeak = useCallback(
-    async (text: string) => {
-      if (!text || cancelledRef.current) return;
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        const token = sess.session?.access_token;
-        const resp = await fetch("/api/tts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ text: expandForSpeech(text).slice(0, 1200) }),
-        });
-        const ct = resp.headers.get("content-type") || "";
-        if (!resp.ok || ct.includes("application/json")) return;
-        if (cancelledRef.current) return;
-        const blob = await resp.blob();
-        const url = URL.createObjectURL(blob);
-        queueRef.current.push(url);
-        void playNext();
-      } catch (e) {
-        console.warn("enqueueSpeak failed", e);
+  // Subscribe to the shared pipeline's status events so the orb reflects
+  // playback the same way Companion does.
+  useEffect(() => {
+    function onStatus(e: Event) {
+      const detail = (e as CustomEvent).detail as { status: string; reason?: string };
+      if (detail.status === "started") {
+        speakingRef.current = true;
+        setNeedsTap(false);
+        setOrbState("speaking");
+      } else if (detail.status === "failed" && detail.reason === "autoplay_blocked") {
+        speakingRef.current = false;
+        setNeedsTap(true);
       }
-    },
-    [playNext],
-  );
-
-  // Flush only queued audio (used to cut filler when the first real sentence
-  // arrives — must NOT abort the in-flight LLM stream).
-  const flushQueuedAudio = useCallback(() => {
-    const a = audioRef.current;
-    if (a) {
-      try { a.pause(); } catch { /* */ }
-      a.src = "";
     }
-    queueRef.current.forEach((u) => URL.revokeObjectURL(u));
-    queueRef.current = [];
-    playingRef.current = false;
+    function onTurnEnded() {
+      speakingRef.current = false;
+      if (!streamingRef.current) setOrbState("idle");
+    }
+    window.addEventListener("companion:voice-status", onStatus);
+    window.addEventListener("companion:turn-ended", onTurnEnded);
+    return () => {
+      window.removeEventListener("companion:voice-status", onStatus);
+      window.removeEventListener("companion:turn-ended", onTurnEnded);
+    };
   }, []);
 
-  // Full cancel — used by barge-in. Stops audio AND aborts the LLM stream.
+  // Stop the shared pipeline whenever the user leaves the Pilot screen so
+  // we don't leak the current turn into another route.
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
+
+  const enqueueSpeak = useCallback((text: string) => {
+    if (!text || cancelledRef.current) return;
+    speakQueued(expandForSpeech(text).slice(0, 1200), { source: "assistant_reply" });
+  }, []);
+
+  // Cut current + queued speech (used to drop the filler when the first real
+  // sentence arrives). Does NOT abort the in-flight LLM stream.
+  const flushQueuedAudio = useCallback(() => {
+    stopSpeaking();
+  }, []);
+
+  // Full cancel — used by barge-in and error paths. Aborts the LLM AND speech.
   const cancelAllAudio = useCallback(() => {
     cancelledRef.current = true;
     try { llmAbortRef.current?.abort(); } catch { /* */ }
     llmAbortRef.current = null;
     streamingRef.current = false;
-    flushQueuedAudio();
+    stopSpeaking();
     setNeedsTap(false);
-  }, [flushQueuedAudio]);
+  }, []);
+
 
 
 
