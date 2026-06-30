@@ -279,6 +279,8 @@ function SmartAlarmQAPage() {
         </p>
       </section>
 
+      <LongHorizonTester />
+
       <SmartAdjustmentTester />
 
       <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
