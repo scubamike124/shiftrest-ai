@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             mode === "sleep"        ? { stability: 0.75, similarity: 0.85, style: 0.10, speed: 0.88, prefix: "[soft] [slowly] " }
           : mode === "encouraging"  ? { stability: 0.45, similarity: 0.80, style: 0.45, speed: 1.00, prefix: "[warm] " }
           : mode === "thinking"     ? { stability: 0.60, similarity: 0.78, style: 0.15, speed: 0.96, prefix: "[thoughtful] " }
-                                    : { stability: 0.55, similarity: 0.80, style: 0.20, speed: 0.97, prefix: "" };
+                                    : { stability: 0.65, similarity: 0.82, style: 0.12, speed: 0.92, prefix: "" };
 
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
