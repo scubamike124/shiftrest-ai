@@ -71,9 +71,8 @@ export const getMorningBrief = createServerFn({ method: "GET" })
       prefsRow?.memory_enabled && !prefsRow?.memory_learning_paused,
     );
 
-    // 2. Caller email for greeting fallback.
-    const { data: userInfo } = await supabase.auth.getUser();
-    const email = userInfo.user?.email ?? null;
+
+
 
     // 3. Parallel sub-fetches — Promise.allSettled so one failure ≠ whole brief.
     const [wearableRes, eventsRes, weatherRes, memoryRes] = await Promise.allSettled([
