@@ -277,28 +277,49 @@ export function bulletsToProse(input: string): string {
 
 function tidyPunctuation(s: string): string {
   return s
-    .replace(/\.{3,}/g, ", ")
-    .replace(/—|–/g, ", ")
+    // Collapse 3+ dots to a natural breath beat (ellipsis is honored by ElevenLabs).
+    .replace(/\.{3,}/g, "… ")
+    // Em/en dashes between phrases → ellipsis pause beat (was: comma).
+    .replace(/\s+[—–]\s+/g, "… ")
+    // Stray markdown/code symbols.
     .replace(/[#~|>]/g, " ")
+    // Collapse stacked exclamation/question marks: "!!" / "??" → single.
+    .replace(/([!?])\1{1,}/g, "$1")
+    // No space before punctuation.
     .replace(/\s+([,.!?;:])/g, "$1")
+    // Collapse runs of whitespace.
     .replace(/\s{2,}/g, " ")
     .trim();
 }
 
+/** Soften ALL-CAPS shouted words (4+ letters) to Title Case so the model
+ *  doesn't bark them. Preserves short acronyms like "AM", "PM", "OK", "USA". */
+function softenAllCaps(s: string): string {
+  return s.replace(/\b[A-Z]{4,}\b/g, (word) => {
+    return word.charAt(0) + word.slice(1).toLowerCase();
+  });
+}
+
+/** Insert a comma after conversational lead-ins ("Okay", "Alright", "So",
+ *  "Well", "Look", "Now") when followed by a clause. Adds a tiny natural
+ *  beat, makes Sarah sound less robotic. */
+function addLeadInCommas(s: string): string {
+  return s.replace(
+    /(^|[.!?…]\s+)(Okay|Alright|So|Well|Look|Now|Hey|Right)\s+(?=[A-Za-z])/g,
+    "$1$2, ",
+  );
+}
+
 /** Pass 2 — Cadence padding. The TTS model honours punctuation density for
  *  breath pacing; we lightly amplify natural pauses without changing wording.
- *    - collapse stacked "!!" → single "!"
  *    - " , " sub-comma after every coordinating conjunction at clause start
- *    - sentence end "?" / "." gets a trailing space we already keep
  *    - sleep mode: insert ellipses between clauses for hushed cadence
  */
 function applyCadence(s: string, mode: "normal" | "sleep"): string {
   // Only add a sub-comma when the conjunction actually starts a clause,
   // i.e. preceded by sentence-ending punctuation. Avoids breaking natural
   // phrases like "seven and a half hours" or "rock and roll".
-  let out = s
-    .replace(/([!?]){2,}/g, "$1")
-    .replace(/([.!?;:])\s+(and|but|so|then)\b\s+/gi, "$1 $2, ");
+  let out = s.replace(/([.!?;:])\s+(and|but|so|then)\b\s+/gi, "$1 $2, ");
   if (mode === "sleep") {
     out = out
       .replace(/([.?!])\s+/g, "$1 … ")
@@ -325,9 +346,11 @@ export function normalizeForSpeech(input: string, mode: "normal" | "sleep" = "no
     s = normalizeTemps(s);
     s = normalizeAbbreviations(s);
     s = expandForSpeech(s);
+    s = softenAllCaps(s);
     s = tidyPunctuation(s);
+    s = addLeadInCommas(s);
     s = applyCadence(s, mode);
-    if (s && !/[.!?]$/.test(s)) s = `${s}.`;
+    if (s && !/[.!?…]$/.test(s)) s = `${s}.`;
     return s;
   } catch {
     return input;
