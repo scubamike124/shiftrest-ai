@@ -519,17 +519,24 @@ export const Route = createFileRoute("/api/ai")({
               const wakeMs = Date.parse(String(parsed.wakeAt ?? ""));
               const windowMs = body.windowMin * 60_000;
               const cycleMs = 90 * 60_000;
-              if (!Number.isFinite(wakeMs) || Math.abs(wakeMs - targetMs) > windowMs || wakeMs === targetMs) {
-                const candidates = [
-                  targetMs - cycleMs * 0.25,
-                  targetMs + cycleMs * 0.25,
-                  targetMs - cycleMs * 0.5,
-                  targetMs + cycleMs * 0.5,
-                ];
-                const clamped = candidates
+              // Fire whenever the model failed to meaningfully move the alarm
+              // (out of window, or within 60s of target). The previous check
+              // only caught wakeMs === targetMs, so models that echoed the
+              // target offset by a few seconds slipped through unmodified.
+              const driftMs = Number.isFinite(wakeMs) ? Math.abs(wakeMs - targetMs) : Infinity;
+              if (!Number.isFinite(wakeMs) || driftMs > windowMs || driftMs < 60_000) {
+                // Cap each candidate by the smaller of the user window or a
+                // quarter-cycle so ±5 picks ±5 but ±30 picks ±22.5 instead of
+                // always saturating at the edge.
+                const offsetCap = Math.min(windowMs, cycleMs * 0.25);
+                const offsets = [-offsetCap, offsetCap, -offsetCap * 0.6, offsetCap * 0.6];
+                const candidates = offsets
+                  .map((o) => targetMs + o)
                   .map((c) => Math.max(targetMs - windowMs, Math.min(targetMs + windowMs, c)))
-                  .filter((c) => c !== targetMs);
-                const pick = clamped[0] ?? (targetMs + Math.min(windowMs, 5 * 60_000));
+                  .filter((c) => Math.abs(c - targetMs) >= 60_000);
+                const pick =
+                  candidates[0] ??
+                  targetMs - Math.max(60_000, Math.min(windowMs, 5 * 60_000));
                 parsed.wakeAt = new Date(pick).toISOString();
                 const deltaMin = Math.round((pick - targetMs) / 60_000);
                 parsed.reason = `Adjusted ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} to land closer to a light-sleep boundary in your cycle.`;
