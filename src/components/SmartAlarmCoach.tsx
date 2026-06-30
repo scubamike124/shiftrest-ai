@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BellRing, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
-import { requestPermission, canPromptHere } from "@/lib/notify";
+import { requestPermission, canRequestNotificationPermission } from "@/lib/notify";
 
 const KEY = "rp.smartAlarmCoach.dismissed.v1";
 
