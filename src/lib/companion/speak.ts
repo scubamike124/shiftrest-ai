@@ -167,13 +167,12 @@ let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
 // Pre-shaper drive — pushes the soft-clip into useful range.
-const VOICE_GAIN = 2.3;
-// Pre-shaper makeup — boosts quiet utterances into the shaper's linear range.
-// Placed BEFORE the shaper (was post-shaper at 1.3, which pushed peaks to 1.3
-// and hard-clipped at the destination on loud syllables). With makeup ahead
-// of the shaper, the tanh curve soft-clips the combined drive instead of
-// clipping at the destination. Combined pre-shaper drive ≈ 2.3 × 1.3 = 2.99.
-const VOICE_MAKEUP = 1.3;
+// Lowered for sleep/wind-down context (was 2.3 × 1.3 ≈ +9.5 dB, which was
+// uncomfortably loud). 1.3 × 1.0 ≈ +2.3 dB — calm, audible, soft-clipper still active.
+const VOICE_GAIN = 1.3;
+// Pre-shaper makeup — kept in the graph at unity so the soft-clip curve
+// still receives the same signal path; raise to bring back headroom if needed.
+const VOICE_MAKEUP = 1.0;
 // Ceiling trim baked into the shaper curve — keeps absolute peak ≤ 0.97
 // (the audit target was < 0.98) so the destination never sees a sample at
 // the digital ceiling, even on a pathological full-scale sine input.
