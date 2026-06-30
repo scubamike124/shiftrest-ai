@@ -33,13 +33,16 @@ import { useSession } from "@/hooks/use-session";
 const MARKETING_ROUTES = new Set(["/", "/pricing", "/features", "/privacy", "/terms"]);
 const MARKETING_PREFIXES = ["/legal"];
 const BARE_ROUTES = ["/auth", "/reset-password", "/share"];
+const BARE_PREFIXES = ["/lab"];
 
 function surfaceFor(pathname: string): "marketing" | "app" | "bare" {
   if (BARE_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "bare";
+  if (BARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "bare";
   if (MARKETING_ROUTES.has(pathname)) return "marketing";
   if (MARKETING_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return "marketing";
   return "app";
 }
+
 
 
 function NotFoundComponent() {
