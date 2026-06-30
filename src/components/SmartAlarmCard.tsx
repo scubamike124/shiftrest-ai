@@ -463,3 +463,167 @@ function defaultTomorrowWake(): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Alarm audio settings: sound picker, volume slider, fade-in, vibrate, snooze.
+// All preferences persist to localStorage and feed the foreground alarm path.
+// ─────────────────────────────────────────────────────────────────────
+function AlarmAudioSettings() {
+  const [prefs, setPrefs] = useState(() => loadAlarmPrefs());
+  const [previewing, setPreviewing] = useState<AlarmSoundId | null>(null);
+  const [stopPreview, setStopPreview] = useState<(() => void) | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => () => { if (stopPreview) stopPreview(); }, [stopPreview]);
+
+  function update<K extends keyof typeof prefs>(key: K, value: (typeof prefs)[K]) {
+    const next = saveAlarmPrefs({ [key]: value } as Partial<typeof prefs>);
+    setPrefs(next);
+  }
+
+  function preview(id: AlarmSoundId) {
+    if (stopPreview) { stopPreview(); }
+    if (previewing === id) {
+      setPreviewing(null);
+      setStopPreview(null);
+      return;
+    }
+    const stop = previewAlarmSound(id, prefs.volume);
+    setPreviewing(id);
+    setStopPreview(() => () => { stop(); setPreviewing(null); });
+    // Auto-clear after preview ends
+    setTimeout(() => setPreviewing((curr) => (curr === id ? null : curr)), 6200);
+  }
+
+  return (
+    <div className="mt-2 space-y-3 rounded-2xl border border-border bg-background/40 p-3">
+      <header className="flex items-center gap-2">
+        <Volume2 className="h-4 w-4 text-primary" />
+        <h4 className="text-xs font-semibold uppercase tracking-wide">Alarm sound &amp; volume</h4>
+      </header>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Volume</span>
+          <span className="font-semibold tabular-nums text-foreground">{prefs.volume}%</span>
+        </div>
+        <Slider
+          value={[prefs.volume]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={(v) => update("volume", v[0] ?? prefs.volume)}
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-semibold text-muted-foreground">Sound</p>
+        <ul className="grid gap-1.5">
+          {ALARM_SOUNDS.map((s) => {
+            const selected = prefs.sound === s.id;
+            const isPreviewing = previewing === s.id;
+            return (
+              <li
+                key={s.id}
+                className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition ${
+                  selected ? "border-primary bg-primary/10" : "border-border bg-background/60"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => update("sound", s.id)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  aria-pressed={selected}
+                >
+                  <span className="text-base">{s.emoji}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-semibold">{s.label}</span>
+                    <span className="block truncate text-[10px] text-muted-foreground">{s.description}</span>
+                  </span>
+                </button>
+                {selected && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                <button
+                  type="button"
+                  onClick={() => preview(s.id)}
+                  className="ml-auto flex h-7 shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 text-[10px] font-semibold"
+                  aria-label={isPreviewing ? `Stop preview of ${s.label}` : `Preview ${s.label}`}
+                >
+                  {isPreviewing ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  {isPreviewing ? "Stop" : "Preview"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] font-semibold"
+      >
+        Advanced
+        <ChevronDown className={`h-3 w-3 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="space-y-3">
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground">Fade-in</p>
+            <div className="mt-1 grid grid-cols-4 gap-1.5">
+              {([0, 15, 30, 60] as FadeInSec[]).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => update("fadeInSec", v)}
+                  className={`h-9 rounded-lg border text-[11px] font-semibold ${
+                    prefs.fadeInSec === v
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  {v === 0 ? "Off" : `${v}s`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3 py-2">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <Vibrate className="h-3.5 w-3.5 text-primary" />
+              Vibrate
+              {!vibrateSupported() && (
+                <span className="text-[10px] font-normal text-muted-foreground">(not supported)</span>
+              )}
+            </div>
+            <Switch
+              checked={prefs.vibrate && vibrateSupported()}
+              disabled={!vibrateSupported()}
+              onCheckedChange={(c) => update("vibrate", c)}
+            />
+          </div>
+
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground">Snooze length</p>
+            <div className="mt-1 grid grid-cols-4 gap-1.5">
+              {([5, 9, 10, 15] as SnoozeMin[]).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => update("snoozeMin", v)}
+                  className={`h-9 rounded-lg border text-[11px] font-semibold ${
+                    prefs.snoozeMin === v
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border bg-background text-muted-foreground"
+                  }`}
+                >
+                  {v} min
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
