@@ -12,6 +12,7 @@ import { addAlarm, cancelAlarm, stopRinging } from "@/lib/alarm/foreground";
 import { loadAlarmPrefs, vibrateSupported, type AlarmAudioPrefs } from "@/lib/alarm/prefs";
 import { ALARM_SOUNDS } from "@/lib/alarm/sounds";
 import { prepareVoicePlayback } from "@/lib/companion/speak";
+import { aiSmartAlarm } from "@/lib/ai-client";
 
 export const Route = createFileRoute("/qa/smart-alarm")({
   head: () => ({
@@ -278,6 +279,8 @@ function SmartAlarmQAPage() {
         </p>
       </section>
 
+      <SmartAdjustmentTester />
+
       <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide">Manual checklist</h2>
         <p className="text-[11px] text-muted-foreground">Persists across reloads. Use after the +60s test passes.</p>
@@ -313,6 +316,98 @@ function SmartAlarmQAPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto w-full max-w-[480px] space-y-4 p-4 pb-24">{children}</div>;
+}
+
+type SmartTestRow = {
+  windowMin: number;
+  label: string;
+  status: "pending" | "running" | "pass" | "fail";
+  deltaMin?: number;
+  reason?: string;
+  error?: string;
+};
+
+function SmartAdjustmentTester() {
+  const [rows, setRows] = useState<SmartTestRow[]>([
+    { windowMin: 5, label: "±5", status: "pending" },
+    { windowMin: 10, label: "±10", status: "pending" },
+    { windowMin: 15, label: "±15", status: "pending" },
+    { windowMin: 60, label: "Full ±60", status: "pending" },
+  ]);
+  const [busy, setBusy] = useState(false);
+
+  async function runAll() {
+    setBusy(true);
+    const target = new Date(Date.now() + 8 * 3600 * 1000); // +8h
+    const targetIso = target.toISOString();
+    setRows((prev) => prev.map((r) => ({ ...r, status: "running", deltaMin: undefined, reason: undefined, error: undefined })));
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      try {
+        const res = await aiSmartAlarm({ targetWakeIso: targetIso, windowMin: r.windowMin });
+        const wake = Date.parse(res.wakeAt);
+        const deltaMin = Math.round((wake - target.getTime()) / 60_000);
+        const inWindow = Math.abs(deltaMin) <= r.windowMin;
+        const moved = Math.abs(deltaMin) >= 1;
+        const pass = inWindow && moved;
+        setRows((prev) => prev.map((x, idx) =>
+          idx === i ? { ...x, status: pass ? "pass" : "fail", deltaMin, reason: res.reason } : x,
+        ));
+      } catch (e) {
+        setRows((prev) => prev.map((x, idx) =>
+          idx === i ? { ...x, status: "fail", error: e instanceof Error ? e.message : "request failed" } : x,
+        ));
+      }
+    }
+    setBusy(false);
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-wide">Smart Adjustment</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Calls the real AI endpoint with a target 8h out. PASS = returned wake is ≥1 min
+            from target and within the requested window.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={runAll}
+          disabled={busy}
+          className="h-9 shrink-0 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {busy ? "Running…" : "Run all"}
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        {rows.map((r) => (
+          <li key={r.windowMin} className="rounded-xl border border-border bg-background/60 p-2.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">{r.label}</span>
+              <span className={
+                r.status === "pass" ? "text-emerald-500 font-semibold" :
+                r.status === "fail" ? "text-rose-500 font-semibold" :
+                r.status === "running" ? "text-primary" : "text-muted-foreground"
+              }>
+                {r.status === "pass" ? "PASS" :
+                 r.status === "fail" ? "FAIL" :
+                 r.status === "running" ? "…" : "—"}
+                {r.deltaMin != null && (
+                  <span className="ml-2 tabular-nums text-muted-foreground">
+                    Δ {r.deltaMin >= 0 ? "+" : ""}{r.deltaMin} min
+                  </span>
+                )}
+              </span>
+            </div>
+            {r.reason && <p className="mt-1 text-[11px] text-muted-foreground">{r.reason}</p>}
+            {r.error && <p className="mt-1 text-[11px] text-rose-500">{r.error}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function StatusBadge({ status }: { status: RunStatus }) {
