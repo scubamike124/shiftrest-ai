@@ -206,6 +206,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <PreviewWarningBanner />
       {surface === "marketing" && (
         <div className="flex min-h-screen flex-col">
           <SiteHeader signedIn={signedIn} />
