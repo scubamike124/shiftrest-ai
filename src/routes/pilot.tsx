@@ -356,15 +356,15 @@ function PilotPage() {
   const onMicTap = useCallback(async () => {
     if (busy) return;
     // Barge-in: stop speaking and reopen the mic.
-    if (orbState === "speaking" || playingRef.current || queueRef.current.length > 0) {
+    if (orbState === "speaking" || speakingRef.current) {
       cancelAllAudio();
       setOrbState("idle");
       return;
     }
     if (needsTap) {
-      // Resume queued audio from a fresh tap (autoplay was blocked).
+      // Re-arm audio under a fresh user gesture so the next reply plays.
       setNeedsTap(false);
-      void playNext();
+      prepareVoicePlayback();
       return;
     }
     if (orbState === "listening") {
@@ -375,14 +375,14 @@ function PilotPage() {
     }
 
     // Arm audio inside the user gesture so iOS Safari lets us play later.
-    ensureAudio();
+    prepareVoicePlayback();
     setOrbState("listening");
     await mic.start(async (blob) => {
       setBusy(true);
       setOrbState("idle");
       await handleRecording(blob);
     });
-  }, [busy, orbState, mic, ensureAudio, cancelAllAudio, needsTap, playNext]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [busy, orbState, mic, cancelAllAudio, needsTap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRecording(blob: Blob | null) {
     try {
