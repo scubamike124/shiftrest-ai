@@ -171,7 +171,7 @@ export const getEveningBrief = createServerFn({ method: "GET" })
 
     return {
       generatedAtISO: now.toISOString(),
-      greetingName: firstName(email, partnerName),
+      greetingName: greetingName(preferredName),
       tomorrowFirst,
       tomorrowWeather: tomorrowWeather
         ? {
