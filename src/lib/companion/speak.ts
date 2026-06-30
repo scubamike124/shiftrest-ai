@@ -20,7 +20,7 @@ import { loadLocalPrefs } from "./voice-action-prefs";
 import { track } from "./analytics";
 import { isQuietModeOn } from "@/lib/quiet-mode";
 import { normalizeForSpeech } from "./speech-normalize";
-import { getTtsProvider, getElevenVoice, setTtsProvider } from "./renderer-pref";
+import { getTtsProvider, getElevenVoice, setTtsProvider, ELEVEN_VOICES } from "./renderer-pref";
 
 // Session-level kill switch — if ElevenLabs errors once, fall back to
 // OpenAI for the rest of the session so the user is never stranded silent.
@@ -454,7 +454,14 @@ async function playOnce(
     ELEVENLABS_FLAG_ON && !elevenLabsBlocked && getTtsProvider() === "elevenlabs";
   const provider = wantEleven ? "elevenlabs" : "openai";
   const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
-  const voice = provider === "elevenlabs" ? (opts.voice ?? getElevenVoice()) : (opts.voice ?? undefined);
+  // Guard against legacy OpenAI voice IDs (e.g. "verse") leaking into the
+  // ElevenLabs endpoint. Only accept opts.voice if it matches a curated
+  // ElevenLabs voice; otherwise fall back to the user's preferred voice.
+  const isValidElevenVoice = (v: string | null | undefined): v is string =>
+    !!v && ELEVEN_VOICES.some((entry) => entry.id === v);
+  const voice = provider === "elevenlabs"
+    ? (isValidElevenVoice(opts.voice) ? opts.voice : getElevenVoice())
+    : (opts.voice ?? undefined);
 
   // Response cache — fixed strings (greetings, brief intros, sleep cues)
   // repeat often; reusing the blob skips the network and provider cost.
@@ -499,7 +506,12 @@ async function playOnce(
       if (stallTimer) clearTimeout(stallTimer);
     }
     // Provider-specific failure → fall back to OpenAI for the rest of the session.
-    if (provider === "elevenlabs" && !resp.ok) {
+    // Treat non-audio content-types as failures too: the ElevenLabs route may
+    // return a JSON fallback envelope with HTTP 200, which would otherwise be
+    // played as corrupt audio.
+    const elevenContentType = resp.headers.get("content-type") ?? "";
+    const elevenAudioOk = resp.ok && elevenContentType.toLowerCase().startsWith("audio/");
+    if (provider === "elevenlabs" && !elevenAudioOk) {
       console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
       elevenLabsBlocked = true;
       try { setTtsProvider("openai"); } catch { /* noop */ }

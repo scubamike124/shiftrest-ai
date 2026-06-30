@@ -10,7 +10,13 @@ type Fallback = {
 };
 
 function fallback(reason: Fallback["reason"], message: string): Response {
-  return Response.json({ fallback: true, reason, message } satisfies Fallback);
+  // Return non-2xx so the client's `!resp.ok` fallback branch kicks in and
+  // routes to OpenAI instead of treating this JSON envelope as audio bytes.
+  const status = reason === "credits" ? 402 : reason === "rate_limit" ? 429 : 502;
+  return Response.json(
+    { fallback: true, reason, message } satisfies Fallback,
+    { status, headers: { "x-tts-provider": "elevenlabs", "x-tts-reason": reason } },
+  );
 }
 
 function messageFromReason(reason: Fallback["reason"]): string {
