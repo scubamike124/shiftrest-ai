@@ -30,14 +30,37 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
 };
 
+// ─── Cache version ─────────────────────────────────────────────────────────
+// Bump on releases that need to evict stale app-shell caches from installed
+// PWAs (iOS Home-Screen apps are the canonical victim). On activate, any
+// Cache Storage bucket we own that does NOT include this token is deleted,
+// so returning visitors get the new precache instead of a stale shell.
+const CACHE_VERSION = "v2-2026-06-30-smart-alarm";
+
 // ─── Lifecycle ─────────────────────────────────────────────────────────────
 self.skipWaiting();
 clientsClaim();
 
-// Allow the UpdateBanner to activate a waiting worker on demand.
-// `skipWaiting()` above already runs at install time, but if a previous
-// version of the app shipped without it, the waiting worker is stuck
-// until something asks it to skip — this message is that escape hatch.
+// Purge stale app-shell caches on activation. We only touch caches we own
+// (prefix `rpai-`) so unrelated origin-mates (Firebase Messaging, etc.)
+// are untouched.
+self.addEventListener("activate", (event: ExtendableEvent) => {
+  event.waitUntil(
+    (async () => {
+      const names = await caches.keys();
+      await Promise.allSettled(
+        names
+          .filter((n) => n.startsWith("rpai-") && !n.includes(CACHE_VERSION))
+          .map((n) => caches.delete(n)),
+      );
+    })(),
+  );
+});
+
+// Allow the UpdateBanner (or auto-activation in register.ts) to activate
+// a waiting worker on demand. `skipWaiting()` above already runs at
+// install time, but if a previous version shipped without it, the
+// waiting worker is stuck until something asks it to skip.
 self.addEventListener("message", (event: ExtendableMessageEvent) => {
   if (event.data && (event.data as { type?: string }).type === "SKIP_WAITING") {
     self.skipWaiting();
