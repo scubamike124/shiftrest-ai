@@ -346,7 +346,7 @@ function PilotPage() {
       const finalText = assistant.trim();
       if (finalText) {
         if (signedIn) saveCoachMessage("assistant", finalText).catch(() => {});
-      } else if (queueRef.current.length === 0 && !playingRef.current) {
+      } else if (!speakingRef.current) {
         setOrbState("idle");
       }
     },
