@@ -20,11 +20,10 @@ function hourBucket(h: number): "early" | "morning" | "midday" {
   return "midday";
 }
 
-function firstName(email: string | null, partnerName: string | null): string {
-  const raw = (partnerName || email || "").trim();
+function greetingName(preferredName: string | null): string {
+  const raw = (preferredName ?? "").trim();
   if (!raw) return "there";
-  const head = raw.includes("@") ? raw.split("@")[0] : raw;
-  return head.split(/[\s._]/)[0].replace(/^./, (c) => c.toUpperCase());
+  return raw.split(/\s+/)[0].replace(/^./, (c) => c.toUpperCase());
 }
 
 function scoreSleep(durationMin: number, efficiency: number | null, targetHours: number): number {
