@@ -8,7 +8,7 @@
 import { createFileRoute, useRouter, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { addAlarm, cancelAlarm, stopRinging } from "@/lib/alarm/foreground";
+import { addAlarm, cancelAlarm, stopRinging, listScheduled } from "@/lib/alarm/foreground";
 import { loadAlarmPrefs, vibrateSupported, type AlarmAudioPrefs } from "@/lib/alarm/prefs";
 import { ALARM_SOUNDS } from "@/lib/alarm/sounds";
 import { prepareVoicePlayback } from "@/lib/companion/speak";
