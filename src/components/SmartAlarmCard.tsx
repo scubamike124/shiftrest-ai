@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Sparkles, ChevronDown, BellRing, Square } from "lucide-react";
+import { AlarmClock, Sparkles, ChevronDown, BellRing, Square, Play, Check, Volume2, Vibrate } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
-import { addAlarm, syncAlarms, stopRinging, testAlarm } from "@/lib/alarm/foreground";
+import { addAlarm, syncAlarms, stopRinging, testAlarm, previewAlarmSound } from "@/lib/alarm/foreground";
+import { ALARM_SOUNDS, type AlarmSoundId } from "@/lib/alarm/sounds";
+import { loadAlarmPrefs, saveAlarmPrefs, vibrateSupported, type FadeInSec, type SnoozeMin } from "@/lib/alarm/prefs";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 type AdjustmentMode = "exact" | "smart";
@@ -16,7 +20,6 @@ const ADAPTIVE_WINDOW_MIN = 60;
 const PREFS_KEY = "restpilot:smart-alarm:prefs";
 
 const ADJUSTMENT_OPTIONS = [
-  { value: 0, label: "Exact Time (analyze only)" },
   { value: 5, label: "±5 min" },
   { value: 10, label: "±10 min" },
   { value: 15, label: "±15 min" },
