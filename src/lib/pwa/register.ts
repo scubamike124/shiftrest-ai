@@ -76,13 +76,18 @@ async function unregisterStale(): Promise<void> {
 // One-time auto-activation token. When a waiting worker is detected we
 // post SKIP_WAITING automatically so installed PWAs (iOS Home-Screen)
 // pick up the new release without the user having to tap the banner.
-// The sessionStorage guard ensures we only do this once per tab session
-// per release — if activation somehow loops, the second attempt is a
-// no-op and the UpdateBanner remains as a manual fallback.
-const AUTO_SKIP_KEY = "rpai:sw-auto-skip:v2-2026-06-30-smart-alarm";
+//
+// The token is keyed by `__BUILD_ID__` (injected at build time via Vite
+// `define`), so every deploy gets a fresh sessionStorage key. iOS PWAs
+// keep sessionStorage alive across reopens for the lifetime of the
+// home-screen window, which is why a hardcoded key would silently
+// refuse to auto-activate on the 2nd+ deploy of the same session and
+// leave users stranded on the previous build.
+declare const __BUILD_ID__: string;
+const AUTO_SKIP_KEY = `rpai:sw-auto-skip:${__BUILD_ID__}`;
 
 function autoActivateIfPossible(reg: ServiceWorkerRegistration): void {
-  if (!reg.waiting || !navigator.serviceWorker.controller) return;
+  if (!reg.waiting) return;
   try {
     if (sessionStorage.getItem(AUTO_SKIP_KEY) === "1") return;
     sessionStorage.setItem(AUTO_SKIP_KEY, "1");

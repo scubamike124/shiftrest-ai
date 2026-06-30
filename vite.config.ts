@@ -81,6 +81,16 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // Build-time identifier baked into both the client bundle and the
+    // service worker source. Used by:
+    //   • src/lib/pwa/register.ts — keys the auto-skip-waiting token so
+    //     every new deploy is allowed to auto-activate once per session
+    //     on installed PWAs (iOS Home-Screen).
+    //   • public/sw-src.ts — included in CACHE_VERSION so the activate
+    //     handler purges every prior release's caches.
+    define: {
+      __BUILD_ID__: JSON.stringify(`b-${Date.now()}`),
+    },
     plugins: [
       // App-shell PWA. injectManifest mode lets us keep the existing push
       // notification handlers in `public/sw-src.ts` (Smart Alarm depends on
