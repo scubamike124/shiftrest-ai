@@ -73,11 +73,31 @@ async function unregisterStale(): Promise<void> {
   }
 }
 
+// One-time auto-activation token. When a waiting worker is detected we
+// post SKIP_WAITING automatically so installed PWAs (iOS Home-Screen)
+// pick up the new release without the user having to tap the banner.
+// The sessionStorage guard ensures we only do this once per tab session
+// per release — if activation somehow loops, the second attempt is a
+// no-op and the UpdateBanner remains as a manual fallback.
+const AUTO_SKIP_KEY = "rpai:sw-auto-skip:v2-2026-06-30-smart-alarm";
+
+function autoActivateIfPossible(reg: ServiceWorkerRegistration): void {
+  if (!reg.waiting || !navigator.serviceWorker.controller) return;
+  try {
+    if (sessionStorage.getItem(AUTO_SKIP_KEY) === "1") return;
+    sessionStorage.setItem(AUTO_SKIP_KEY, "1");
+  } catch {
+    /* private mode — fall through; controllerchange reload is still gated */
+  }
+  reg.waiting.postMessage({ type: "SKIP_WAITING" });
+}
+
 function announceIfWaiting(reg: ServiceWorkerRegistration): void {
   // A worker is "waiting" once installed but blocked behind the current
   // controller. That's the trigger for the update banner.
   if (reg.waiting && navigator.serviceWorker.controller) {
     emitUpdate({ type: "available", reg });
+    autoActivateIfPossible(reg);
   }
 }
 
@@ -92,12 +112,15 @@ function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
       if (installing.state === "installed" && navigator.serviceWorker.controller) {
         // First load (no controller yet) → not an "update", just initial install.
         emitUpdate({ type: "available", reg });
+        autoActivateIfPossible(reg);
       }
     });
   });
 
   // When the new SW takes over (after SKIP_WAITING + activation), reload
-  // once so the page is served by the new worker's precache.
+  // once so the page is served by the new worker's precache. The
+  // `reloading` guard plus the sessionStorage token above together
+  // prevent any reload loop even if controllerchange fires twice.
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (reloading) return;
@@ -106,6 +129,7 @@ function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
     window.location.reload();
   });
 }
+
 
 /**
  * Register the app-shell service worker if and only if we are in an
