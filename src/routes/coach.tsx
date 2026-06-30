@@ -195,7 +195,14 @@ function Coach() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ intent: "coach", messages: baseMessages, context: coachContext }),
+        body: JSON.stringify({
+          intent: "coach",
+          messages: baseMessages,
+          context: coachContext,
+          surface: "text",
+          localTime: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
 
       if (!resp.ok || !resp.body) {

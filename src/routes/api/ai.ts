@@ -34,18 +34,20 @@ import { buildTimeDirective } from "@/lib/ai/time-directive";
 
 
 type Body =
-  | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
-  | { intent: "brief"; plan: string }
-  | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
-  | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
-  | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
-  | { intent: "coach_tip"; context?: string }
-  | { intent: "right_now"; context?: string }
-  | { intent: "adjust_plan"; observation: string; context?: string }
-  | { intent: "tomorrow_preview"; context?: string }
-  | { intent: "daily_review"; context?: string }
-  | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string }
-  | { intent: "jetlag_plan"; tripId?: string; phase?: "pre" | "arrival" | "post"; context?: string };
+  ({ localTime?: string; timezone?: string } & (
+    | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
+    | { intent: "brief"; plan: string }
+    | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
+    | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
+    | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
+    | { intent: "coach_tip"; context?: string }
+    | { intent: "right_now"; context?: string }
+    | { intent: "adjust_plan"; observation: string; context?: string }
+    | { intent: "tomorrow_preview"; context?: string }
+    | { intent: "daily_review"; context?: string }
+    | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string }
+    | { intent: "jetlag_plan"; tripId?: string; phase?: "pre" | "arrival" | "post"; context?: string }
+  ));
 
 // Shared voice contract — every JSON intent inherits this tone so the AI
 // sounds like the same trusted coach, not a stack of disconnected widgets.
@@ -81,11 +83,13 @@ Provide 3-5 actions, highest priority first. Be specific with times. No markdown
 const SMART_ALARM_SYSTEM = `${COACH_VOICE}
 
 You are RestPilot AI's smart alarm engine.
-Given the target wake time and a ± window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+This is ONLY used after the user explicitly enables Smart Adjustment. Given the target wake time and a maximum adjustment window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the allowed window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+
+Hard safety rule: never move the alarm outside the requested maximum adjustment. If the maximum is 0 or evidence is weak, return the exact target wake time.
 
 Return ONLY valid JSON:
 {
-  "wakeAt": ISO string inside the window,
+  "wakeAt": ISO string inside the allowed window,
   "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you wake near the end of a REM cycle instead of mid-deep sleep"),
   "cyclePosition": "rem_end"|"light_sleep"|"deep_avoid"|"natural",
   "confidence": "low"|"medium"|"high",
@@ -281,6 +285,10 @@ export const Route = createFileRoute("/api/ai")({
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
+            const timeDirective = buildTimeDirective({
+              localTime: body.localTime,
+              timezone: body.timezone,
+            }).directive;
 
             const system = await buildSystemPrompt({
               admin,
@@ -291,10 +299,6 @@ export const Route = createFileRoute("/api/ai")({
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
             });
-            const timeDirective = buildTimeDirective({
-              localTime: (body as { localTime?: string }).localTime,
-              timezone: (body as { timezone?: string }).timezone,
-            }).directive;
             const systemWithTime = system + timeDirective;
 
             const trimmed = body.messages.slice(-20);
@@ -341,7 +345,10 @@ export const Route = createFileRoute("/api/ai")({
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
             const briefSystem =
-              languageDirective(briefProfile.language, briefProfile.accent) + BRIEF_SYSTEM;
+              languageDirective(briefProfile.language, briefProfile.accent) + BRIEF_SYSTEM + buildTimeDirective({
+                localTime: body.localTime,
+                timezone: body.timezone,
+              }).directive;
             const result = await chatJSON({
               messages: [
                 { role: "system", content: briefSystem },
@@ -378,6 +385,10 @@ export const Route = createFileRoute("/api/ai")({
               liveContext: ctxString,
               intent: body.intent,
             });
+            const timeDirective = buildTimeDirective({
+              localTime: body.localTime,
+              timezone: body.timezone,
+            }).directive;
 
             let intentSystem = "";
             let userPayload = "";
@@ -392,6 +403,7 @@ export const Route = createFileRoute("/api/ai")({
                 userPayload = JSON.stringify({
                   targetWakeIso: body.targetWakeIso,
                   windowMin: body.windowMin,
+                  maxAdjustmentMin: body.windowMin,
                   nowIso: new Date().toISOString(),
                 });
                 break;
@@ -473,6 +485,7 @@ export const Route = createFileRoute("/api/ai")({
             const result = await chatJSON({
               messages: [
                 { role: "system", content: `${system}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
+                { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
                 { role: "user", content: userPayload },
               ],
             });

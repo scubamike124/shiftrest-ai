@@ -42,6 +42,18 @@ class OfflineAiError extends Error {
   }
 }
 
+function localTimePayload(): { localTime?: string; timezone?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    return {
+      localTime: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+  } catch {
+    return { localTime: new Date().toISOString() };
+  }
+}
+
 async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
   const { headers, userId } = await authHeaders();
   const scope = aiCacheScope(payload);
@@ -59,7 +71,7 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
     const res = await fetch("/api/ai", {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...localTimePayload(), ...payload }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));

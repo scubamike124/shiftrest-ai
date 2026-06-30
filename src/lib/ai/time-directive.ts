@@ -66,11 +66,17 @@ export function buildTimeDirective(input: TimeDirectiveInput): TimeDirectiveReso
   }
 
   const greeting = greetingForHour(hour);
+  const morningGuard =
+    greeting === "Good morning"
+      ? ` MORNING STRICTNESS: Because it is morning, do not say "Good evening", "tonight", "this evening", or any evening-coded greeting anywhere in this reply.`
+      : greeting === "Good afternoon"
+      ? ` AFTERNOON STRICTNESS: Because it is afternoon, do not open with "Good morning" or "Good evening".`
+      : "";
   const directive =
     `\n\nCURRENT LOCAL TIME for the user: ${pretty}${input.timezone ? ` (${input.timezone})` : ""}.` +
     (greeting
       ? ` Time-of-day greeting MUST be "${greeting}" — never use a different time-of-day greeting ` +
-        `(no "Good evening" in the morning, no "tonight" in the morning, etc.).`
+        `(no "Good evening" in the morning, no "tonight" in the morning, etc.).${morningGuard}`
       : "");
 
   return { directive, hour, pretty, greeting };
