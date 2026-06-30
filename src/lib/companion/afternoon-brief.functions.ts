@@ -159,7 +159,7 @@ export const getAfternoonBrief = createServerFn({ method: "GET" })
 
     return {
       generatedAtISO: now.toISOString(),
-      greetingName: firstName(email, partnerName),
+      greetingName: greetingName(preferredName),
       remaining,
       nextTraffic,
       weatherShift,
