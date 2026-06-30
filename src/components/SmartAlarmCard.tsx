@@ -145,10 +145,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       const exactLabel = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const isSmart = adjustmentMode === "smart";
       const isAdaptive = isSmart && maxAdjustmentMin === ADAPTIVE_WINDOW_MIN;
-      const analyzeOnly = isSmart && maxAdjustmentMin === 0;
-      const canAdjust = isSmart && maxAdjustmentMin > 0;
+      const canAdjust = isSmart; // all valid options now move the alarm
       let res: SmartAlarmResponse;
-      if (canAdjust || analyzeOnly) {
+      if (canAdjust) {
         res = await aiSmartAlarm({
           targetWakeIso: target.toISOString(),
           windowMin: isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin,
@@ -166,16 +165,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       }
       let wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
-      if (analyzeOnly) {
-        // AI analyzed but the user did not permit any movement.
-        wake = target;
-        res = {
-          ...res,
-          wakeAt: target.toISOString(),
-          reason:
-            "AI analyzed your sleep but Exact Time is on inside Smart Mode, so the wake time was not changed.",
-        };
-      } else if (canAdjust) {
+      if (canAdjust) {
         const cap = isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin;
         const delta = Math.abs(wake.getTime() - target.getTime());
         if (delta > cap * 60_000 + 999) {
@@ -191,8 +181,6 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       const notePayload = [
         isAdaptive
           ? "Full Smart Mode (Adaptive)"
-          : analyzeOnly
-          ? "Smart Mode · analyze only"
           : canAdjust
           ? `Smart Adjustment up to ${maxAdjustmentMin} min`
           : "Exact Time",
