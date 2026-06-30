@@ -78,6 +78,22 @@ const TRACK_ALIASES: Record<string, string> = {
   crickets: "crickets",
   "night crickets": "crickets",
   cabin: "cabin",
+  // Phase 1 polish — broad "music / sleep sounds / nature" requests map to a
+  // calm default so the Companion can fulfil them instead of replying "I can't".
+  music: "brown_noise",
+  "relaxing music": "brown_noise",
+  "sleep music": "brown_noise",
+  "calming music": "brown_noise",
+  "soft music": "brown_noise",
+  "sleep sounds": "brown_noise",
+  "sleep sound": "brown_noise",
+  "calming sounds": "brown_noise",
+  "relaxing sounds": "brown_noise",
+  "nature sounds": "forest",
+  nature: "forest",
+  "something calming": "brown_noise",
+  "something relaxing": "brown_noise",
+  "something soothing": "brown_noise",
 };
 
 function normalize(s: string): string {
@@ -262,7 +278,7 @@ export function parseIntent(input: string): ParsedIntent {
     }
   }
 
-  // Play <track>
+  // Play <track> — explicit play verb is high-confidence regardless of phrasing.
   const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
@@ -275,10 +291,14 @@ export function parseIntent(input: string): ParsedIntent {
     };
   }
 
-  // Bare track name ("rain") — only acceptable as a low-confidence play hint.
+  // Bare track name ("rain", "ocean sounds") — upgrade to high confidence
+  // when the whole utterance unambiguously matches a known sound noun
+  // (with optional "sound(s)" / leading filler stripped by normalize()).
   const bare = resolveTrack(text);
-  if (bare && text.split(" ").length <= 3) {
-    return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: 0.6, raw };
+  if (bare) {
+    const stripped = text.replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim();
+    const shortAndClean = stripped.split(" ").length <= 3;
+    return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: shortAndClean ? 0.9 : 0.65, raw };
   }
 
   return { intent: { kind: "unknown" }, confidence: 0, raw };

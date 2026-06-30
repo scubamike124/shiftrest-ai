@@ -59,14 +59,17 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const mode = reqBody.mode ?? "normal";
           const textLen = text.length;
 
-          // Per-mode prosody presets (Step 3a — premium tuning).
-          // Higher stability + lower style = warmer, less robotic Sarah.
-          // Sleep drops [whisper] (caused volume dropouts); uses [soft]+slow.
+          // Per-mode prosody presets (Final polish — bedtime tuning).
+          // - normal: slower (0.88), softer (style 0.05), more stable (0.72),
+          //   speaker_boost OFF so loudness stays flat turn-to-turn.
+          // - sleep: drops [soft] (caused volume dropouts vs normal); keeps [slowly].
+          // - encouraging: keeps speaker_boost for clarity in louder moments.
+          // - thinking: same flat profile as normal.
           const preset =
-            mode === "sleep"        ? { stability: 0.75, similarity: 0.85, style: 0.10, speed: 0.88, prefix: "[soft] [slowly] " }
-          : mode === "encouraging"  ? { stability: 0.45, similarity: 0.80, style: 0.45, speed: 1.00, prefix: "[warm] " }
-          : mode === "thinking"     ? { stability: 0.60, similarity: 0.78, style: 0.15, speed: 0.96, prefix: "[thoughtful] " }
-                                    : { stability: 0.65, similarity: 0.82, style: 0.12, speed: 0.92, prefix: "" };
+            mode === "sleep"        ? { stability: 0.78, similarity: 0.82, style: 0.05, speed: 0.86, prefix: "[slowly] ", boost: false }
+          : mode === "encouraging"  ? { stability: 0.50, similarity: 0.80, style: 0.40, speed: 1.00, prefix: "[warm] ",   boost: true  }
+          : mode === "thinking"     ? { stability: 0.70, similarity: 0.80, style: 0.08, speed: 0.92, prefix: "",          boost: false }
+                                    : { stability: 0.72, similarity: 0.80, style: 0.05, speed: 0.88, prefix: "",          boost: false };
 
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
@@ -83,7 +86,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
                   stability: preset.stability,
                   similarity_boost: preset.similarity,
                   style: preset.style,
-                  use_speaker_boost: true,
+                  use_speaker_boost: preset.boost,
                   speed: preset.speed,
                 },
               }),
