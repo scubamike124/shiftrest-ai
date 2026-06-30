@@ -45,6 +45,23 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
     [events],
   );
 
+  // Foreground fallback: while the tab is open, ring locally when each
+  // upcoming alarm hits. Re-syncs whenever the alarm list changes.
+  useEffect(() => {
+    syncAlarms(
+      alarms.map((a) => ({
+        id: a.id,
+        firesAt: new Date(a.startsAt).getTime(),
+        label: a.title.replace(/^alarm:\s*/i, ""),
+      })),
+    );
+  }, [alarms]);
+
+  const notifGranted =
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    Notification.permission === "granted";
+
   const del = useMutation({
     mutationFn: (id: string) => deleteEvent(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["events"] }),
