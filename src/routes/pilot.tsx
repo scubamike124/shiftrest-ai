@@ -459,6 +459,8 @@ function PilotPage() {
         ],
         surface: "voice",
         expand: true,
+        localTime: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     });
     if (!resp.ok || !resp.body) {
