@@ -265,6 +265,7 @@ function prefsToRowPartial(p: Partial<Prefs>): Record<string, unknown> {
   if (p.lon !== undefined) out.lon = p.lon;
   if (p.locationLabel !== undefined) out.location_label = p.locationLabel;
   if (p.partnerName !== undefined) out.partner_name = p.partnerName;
+  if (p.preferredName !== undefined) out.preferred_name = p.preferredName.trim().slice(0, 60) || null;
   if (p.cycleWeeks !== undefined)
     out.cycle_weeks = Math.max(1, Math.min(6, Math.round(p.cycleWeeks)));
   if (p.cycleAnchor !== undefined) out.cycle_anchor = p.cycleAnchor;
