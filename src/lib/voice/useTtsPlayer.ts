@@ -118,7 +118,11 @@ export function useTtsPlayer(opts: Options = {}) {
           const briefRes = await fetch("/api/brief", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plan: text }),
+            body: JSON.stringify({
+              plan: text,
+              localTime: new Date().toISOString(),
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
           });
           let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
           try {

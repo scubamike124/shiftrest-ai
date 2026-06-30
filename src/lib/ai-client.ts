@@ -28,7 +28,7 @@ async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | n
 function aiCacheScope(payload: Record<string, unknown>): string {
   const intent = String(payload.intent ?? "unknown");
   const keyFields: Record<string, unknown> = {};
-  for (const k of ["patternKey", "horizon", "phase", "tripId"]) {
+  for (const k of ["patternKey", "horizon", "phase", "tripId", "targetWakeIso", "windowMin"]) {
     if (payload[k] !== undefined) keyFields[k] = payload[k];
   }
   const tail = Object.keys(keyFields).length ? `:${JSON.stringify(keyFields)}` : "";
@@ -39,6 +39,18 @@ class OfflineAiError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "OfflineAiError";
+  }
+}
+
+function localTimePayload(): { localTime?: string; timezone?: string } {
+  if (typeof window === "undefined") return {};
+  try {
+    return {
+      localTime: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    };
+  } catch {
+    return { localTime: new Date().toISOString() };
   }
 }
 
@@ -59,7 +71,7 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
     const res = await fetch("/api/ai", {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...localTimePayload(), ...payload }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));

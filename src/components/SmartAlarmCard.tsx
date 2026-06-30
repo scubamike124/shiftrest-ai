@@ -7,8 +7,18 @@ import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
-import { syncAlarms, stopRinging, testAlarm } from "@/lib/alarm/foreground";
+import { addAlarm, syncAlarms, stopRinging, testAlarm } from "@/lib/alarm/foreground";
 import { SmartAlarmCoach } from "./SmartAlarmCoach";
+
+type AdjustmentMode = "exact" | "smart";
+
+const ADJUSTMENT_OPTIONS = [
+  { value: 0, label: "Never adjust" },
+  { value: 5, label: "Up to 5 minutes" },
+  { value: 10, label: "Up to 10 minutes" },
+  { value: 15, label: "Up to 15 minutes" },
+  { value: 30, label: "Full Smart Mode" },
+] as const;
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
@@ -18,7 +28,8 @@ const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, stri
 };
 
 /**
- * SmartAlarmCard — schedule an AI-optimized wake inside a ±window.
+ * SmartAlarmCard — schedules exact-time alarms by default. AI adjustment is
+ * opt-in only, with an explicit maximum movement selected by the user.
  * Stored as a "personal" user_event with title prefix "Alarm:" so the
  * notification scheduler treats it as a critical alarm.
  */
@@ -26,9 +37,15 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const qc = useQueryClient();
   const tomorrow = useMemo(() => defaultTomorrowWake(), []);
   const [targetLocal, setTargetLocal] = useState(tomorrow);
-  const [windowMin, setWindowMin] = useState(30);
+  const [adjustmentMode, setAdjustmentMode] = useState<AdjustmentMode>("exact");
+  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<(typeof ADJUSTMENT_OPTIONS)[number]["value"]>(0);
   const [busy, setBusy] = useState(false);
-  const [lastResult, setLastResult] = useState<{ res: SmartAlarmResponse; targetIso: string } | null>(null);
+  const [lastResult, setLastResult] = useState<{
+    res: SmartAlarmResponse;
+    targetIso: string;
+    adjusted: boolean;
+    maxAdjustmentMin: number;
+  } | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   const { data: events = [] } = useQuery({
@@ -89,30 +106,63 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         toast.error("Pick a future wake time.");
         return;
       }
-      const res = await aiSmartAlarm({
-        targetWakeIso: target.toISOString(),
-        windowMin,
-      });
-      const wake = new Date(res.wakeAt);
+      const exactLabel = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const canAdjust = adjustmentMode === "smart" && maxAdjustmentMin > 0;
+      let res: SmartAlarmResponse;
+      if (canAdjust) {
+        res = await aiSmartAlarm({
+          targetWakeIso: target.toISOString(),
+          windowMin: maxAdjustmentMin,
+        });
+      } else {
+        res = {
+          wakeAt: target.toISOString(),
+          reason: "Exact Time is on, so RestPilot will ring at the time you selected.",
+          cyclePosition: "natural",
+          confidence: "high",
+          confidenceReason: "No smart adjustment was permitted for this alarm.",
+          message: `Your ${exactLabel} alarm is ringing.`,
+          recommendationId: null,
+        };
+      }
+      let wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
+      if (canAdjust) {
+        const delta = Math.abs(wake.getTime() - target.getTime());
+        if (delta > maxAdjustmentMin * 60_000 + 999) {
+          wake = target;
+          res = {
+            ...res,
+            wakeAt: target.toISOString(),
+            reason: `Smart Adjustment stayed at your selected time because the AI result exceeded your ${maxAdjustmentMin}-minute limit.`,
+          };
+        }
+      }
       const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const notePayload = [
+        canAdjust ? `Smart Adjustment up to ${maxAdjustmentMin} min` : "Exact Time",
         res.cyclePosition ? CYCLE_LABEL[res.cyclePosition] : null,
         res.confidence ? `${res.confidence} confidence` : null,
         res.reason,
       ]
         .filter(Boolean)
         .join(" · ");
-      await createEvent({
+      const saved = await createEvent({
         kind: "personal",
         title: `Alarm: ${labelTime}`,
         startsAt: wake.toISOString(),
         reminderMin: 0,
         notes: notePayload,
       });
+      addAlarm({ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label: labelTime });
       qc.invalidateQueries({ queryKey: ["events"] });
-      setLastResult({ res, targetIso: target.toISOString() });
-      toast.success(`Smart alarm set for ${labelTime}`);
+      setLastResult({
+        res,
+        targetIso: target.toISOString(),
+        adjusted: canAdjust,
+        maxAdjustmentMin,
+      });
+      toast.success(canAdjust ? `Smart alarm set for ${labelTime}` : `Alarm set for exactly ${labelTime}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
     } finally {
@@ -139,7 +189,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         <div>
           <h3 className="text-sm font-semibold">Smart alarm</h3>
           <p className="text-[11px] text-muted-foreground">
-            AI picks the lightest sleep moment inside your window.
+            Rings at your exact time unless you allow adjustment.
           </p>
         </div>
       </header>
@@ -154,27 +204,64 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
           />
         </label>
-        <div>
-          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
-            <span>Window</span>
-            <span>± {windowMin} min</span>
-          </div>
-          <input
-            type="range"
-            min={10}
-            max={45}
-            step={5}
-            value={windowMin}
-            onChange={(e) => setWindowMin(Number(e.target.value))}
-            className="mt-2 w-full"
-          />
+        <div className="grid grid-cols-2 gap-2" aria-label="Alarm timing mode">
+          <button
+            type="button"
+            onClick={() => setAdjustmentMode("exact")}
+            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+              adjustmentMode === "exact"
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-background text-muted-foreground"
+            }`}
+            aria-pressed={adjustmentMode === "exact"}
+          >
+            Exact Time
+            <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Default</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdjustmentMode("smart");
+              setMaxAdjustmentMin((v) => (v === 0 ? 5 : v));
+            }}
+            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+              adjustmentMode === "smart"
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-background text-muted-foreground"
+            }`}
+            aria-pressed={adjustmentMode === "smart"}
+          >
+            Smart Adjustment
+            <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Optional</span>
+          </button>
+        </div>
+        {adjustmentMode === "smart" && (
+          <label className="block text-xs font-semibold text-muted-foreground">
+            Maximum adjustment
+            <select
+              value={maxAdjustmentMin}
+              onChange={(e) => setMaxAdjustmentMin(Number(e.target.value) as typeof maxAdjustmentMin)}
+              className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"
+            >
+              {ADJUSTMENT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          {adjustmentMode === "smart" && maxAdjustmentMin > 0
+            ? `RestPilot may move this alarm by up to ${maxAdjustmentMin} minutes only because Smart Adjustment is enabled.`
+            : adjustmentMode === "smart"
+            ? "Never adjust is selected. RestPilot will not move this alarm."
+            : "Exact Time is on. RestPilot will not move this alarm."}
         </div>
         <button
           onClick={schedule}
           disabled={busy || !signedIn}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
-          <Sparkles className="h-4 w-4" /> {busy ? "Optimizing…" : "Set smart alarm"}
+          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? "Set smart alarm" : "Set exact alarm"}
         </button>
         <div className="flex items-center gap-2">
           <button
@@ -201,7 +288,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       {lastResult && wakeLabel && (
         <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            AI chose
+            {lastResult.adjusted ? "AI chose" : "Exact time"}
           </p>
           <p className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
             {wakeLabel}
@@ -233,8 +320,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
               headline={`Wake at ${wakeLabel}`}
               why={lastResult.res.reason}
               confidence={lastResult.res.confidence}
-              sources={["Your wake window", "Sleep-cycle model", "Connected wearable"]}
-              expectedOutcome="You'll wake closer to a cycle boundary, lowering grogginess."
+              sources={lastResult.adjusted ? ["Your allowed adjustment", "Sleep-cycle model", "Connected wearable"] : ["Your selected wake time", "Exact Time setting"]}
+              expectedOutcome={lastResult.adjusted ? "You'll wake closer to a cycle boundary while staying inside your chosen limit." : "You'll wake at the time you explicitly selected."}
             />
           </div>
           {expanded && (
@@ -246,10 +333,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
                 </p>
               )}
               <p className="rounded-lg bg-background/60 p-2 text-[11px] leading-snug text-muted-foreground">
-                Sleep happens in roughly 90-minute cycles. Waking near the end of a cycle — when REM
-                naturally tapers — leaves you alert instead of groggy. RestPilot scans your ±{windowMin}
-                -min window for the moment most likely to land at a cycle boundary using your wake-up
-                time and recent wearable data.
+                {lastResult.adjusted
+                  ? `Sleep happens in roughly 90-minute cycles. RestPilot scanned only the ${lastResult.maxAdjustmentMin}-minute limit you allowed and will never move the alarm outside that permission.`
+                  : "Exact Time is the default. RestPilot did not optimize, nudge, or move this alarm."}
               </p>
             </div>
           )}

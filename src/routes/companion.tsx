@@ -106,12 +106,12 @@ function timeGreeting(name: string): { hi: string; sub: string } {
     return { hi: `Good morning, ${name}.`, sub: "Want help easing into the day?" };
   }
   if (h >= 12 && h < 17) {
-    return { hi: `Good afternoon, ${name}.`, sub: "Need a reset before tonight?" };
+    return { hi: `Good afternoon, ${name}.`, sub: "Need a reset before the next part of your day?" };
   }
-  if (h >= 17 && h < 22) {
+  if (h >= 17) {
     return { hi: `Good evening, ${name}.`, sub: "Want me to help you wind down?" };
   }
-  return { hi: `I'm here, ${name}.`, sub: "Want something quiet to help you sleep?" };
+  return { hi: `Good evening, ${name}.`, sub: "Want something quiet to help you sleep?" };
 }
 
 
@@ -350,9 +350,13 @@ function CompanionPage() {
     // mid-prose loudness instead of a punchy, louder/faster cold start. Mirrors
     // the fix shipped for the Dashboard Voice Briefing.
     const opener =
-      hour >= 22 || hour < 5
-        ? `… Hi ${name}. I'm here — want something calming to help you sleep?`
-        : `… Hi ${name}. I'm here — how can I help tonight?`;
+      hour >= 5 && hour < 12
+        ? `… Good morning, ${name}. I'm here — how can I help this morning?`
+        : hour >= 12 && hour < 17
+        ? `… Good afternoon, ${name}. I'm here — how can I help this afternoon?`
+        : hour >= 17 && hour < 22
+        ? `… Good evening, ${name}. I'm here — how can I help this evening?`
+        : `… Good evening, ${name}. I'm here — want something calming to help you sleep?`;
     setMessages([{ role: "assistant", content: opener }]);
     greetingTextRef.current = opener;
     emitDebug("greet-shown");

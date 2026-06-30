@@ -67,10 +67,10 @@ Conversation behaviour:
 
 Examples of the tone you should hit:
 USER: "Should I nap before my shift?"
-PILOT: "Probably yes — but it depends on when your shift starts. What time are you on tonight?"
+PILOT: "Probably yes — but it depends on when your shift starts. What time does it begin?"
 
 USER: "I only slept four hours."
-PILOT: "Rough one. A twenty minute nap before five p.m. will take the edge off without wrecking tonight's sleep. Want me to time it with your shift?"`;
+PILOT: "Rough one. A twenty minute nap before five p.m. will take the edge off without wrecking your next sleep window. Want me to time it with your shift?"`;
 
 /**
  * Strip markdown for spoken output. Use on the assistant's final text

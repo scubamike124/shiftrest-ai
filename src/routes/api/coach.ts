@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/coach")({
     handlers: {
       POST: async ({ request }) => {
         const body = await request.text();
-        let parsed: { messages?: unknown; context?: string } = {};
+        let parsed: { messages?: unknown; context?: string; localTime?: string; timezone?: string } = {};
         try {
           parsed = JSON.parse(body);
         } catch {
@@ -32,6 +32,8 @@ export const Route = createFileRoute("/api/coach")({
             intent: "coach",
             messages: parsed.messages,
             context: parsed.context,
+            localTime: parsed.localTime,
+            timezone: parsed.timezone,
           }),
         });
         return new Response(forward.body, {
