@@ -68,7 +68,7 @@ import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
-import { Route as LabAvatarPocToolRouteImport } from './routes/lab.avatar-poc.$tool'
+import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -373,9 +373,9 @@ const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
   path: '/simli',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
-const LabAvatarPocToolRoute = LabAvatarPocToolRouteImport.update({
-  id: '/$tool',
-  path: '/$tool',
+const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
@@ -480,7 +480,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
-  '/lab/avatar-poc/$tool': typeof LabAvatarPocToolRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -548,7 +548,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
-  '/lab/avatar-poc/$tool': typeof LabAvatarPocToolRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -619,7 +619,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
-  '/lab/avatar-poc/$tool': typeof LabAvatarPocToolRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -691,7 +691,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
-    | '/lab/avatar-poc/$tool'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
@@ -759,7 +759,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
-    | '/lab/avatar-poc/$tool'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc'
     | '/api/lab/simli/session'
@@ -829,7 +829,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
-    | '/lab/avatar-poc/$tool'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
@@ -1309,11 +1309,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocSimliRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
-    '/lab/avatar-poc/$tool': {
-      id: '/lab/avatar-poc/$tool'
-      path: '/$tool'
-      fullPath: '/lab/avatar-poc/$tool'
-      preLoaderRoute: typeof LabAvatarPocToolRouteImport
+    '/lab/avatar-poc/debug': {
+      id: '/lab/avatar-poc/debug'
+      path: '/debug'
+      fullPath: '/lab/avatar-poc/debug'
+      preLoaderRoute: typeof LabAvatarPocDebugRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
     '/api/public/wearables/cron': {
@@ -1416,13 +1416,13 @@ const LegalRouteChildren: LegalRouteChildren = {
 const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 
 interface LabAvatarPocRouteChildren {
-  LabAvatarPocToolRoute: typeof LabAvatarPocToolRoute
+  LabAvatarPocDebugRoute: typeof LabAvatarPocDebugRoute
   LabAvatarPocSimliRoute: typeof LabAvatarPocSimliRoute
   LabAvatarPocIndexRoute: typeof LabAvatarPocIndexRoute
 }
 
 const LabAvatarPocRouteChildren: LabAvatarPocRouteChildren = {
-  LabAvatarPocToolRoute: LabAvatarPocToolRoute,
+  LabAvatarPocDebugRoute: LabAvatarPocDebugRoute,
   LabAvatarPocSimliRoute: LabAvatarPocSimliRoute,
   LabAvatarPocIndexRoute: LabAvatarPocIndexRoute,
 }

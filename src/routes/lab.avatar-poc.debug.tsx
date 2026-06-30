@@ -11,7 +11,7 @@ type DebugState = {
   simliRoute: string;
 };
 
-export const Route = createFileRoute("/lab/avatar-poc/$tool")({
+export const Route = createFileRoute("/lab/avatar-poc/debug")({
   head: () => ({
     meta: [
       { title: "Avatar POC Debug — RestPilot Lab" },
