@@ -460,8 +460,8 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
         }
         // Wire it into the foreground scheduler immediately so it actually rings.
         try {
-          const { syncAlarms } = await import("@/lib/alarm/foreground");
-          syncAlarms([{ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label }]);
+          const { addAlarm } = await import("@/lib/alarm/foreground");
+          addAlarm({ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label });
         } catch { /* non-fatal */ }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("companion:alarms-changed"));
@@ -489,8 +489,8 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
           travelBufferMin: 0,
         });
         try {
-          const { syncAlarms } = await import("@/lib/alarm/foreground");
-          syncAlarms([{ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label: hhmm(t.getHours(), t.getMinutes()) }]);
+          const { addAlarm } = await import("@/lib/alarm/foreground");
+          addAlarm({ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label: hhmm(t.getHours(), t.getMinutes()) });
         } catch { /* non-fatal */ }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("companion:alarms-changed"));
