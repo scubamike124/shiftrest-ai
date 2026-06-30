@@ -29,13 +29,6 @@ function isPeriodFresh(): boolean {
   }
 }
 
-function firstNameFromEmail(email: string | null | undefined): string {
-  if (!email) return "";
-  const local = email.split("@")[0] ?? "";
-  const part = local.split(/[._-]/)[0] ?? "";
-  if (!part) return "";
-  return part.charAt(0).toUpperCase() + part.slice(1);
-}
 
 export function CompanionHero() {
   const online = useOnline();
