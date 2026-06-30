@@ -55,7 +55,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "sleep_hours, lat, lon, partner_name, memory_enabled, memory_learning_paused, brief_layout, commute_minutes_baseline",
+        "sleep_hours, lat, lon, partner_name, preferred_name, memory_enabled, memory_learning_paused, brief_layout, commute_minutes_baseline",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -63,7 +63,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     const sleepHours = Number(prefsRow?.sleep_hours ?? 8);
     const lat = Number(prefsRow?.lat ?? 40.7128);
     const lon = Number(prefsRow?.lon ?? -74.006);
-    const partnerName = (prefsRow?.partner_name as string | null) ?? null;
+    const preferredName = (prefsRow?.preferred_name as string | null) ?? null;
     const layout = (prefsRow?.brief_layout as { hidden?: string[] } | null) ?? null;
     const hidden = new Set(layout?.hidden ?? ["departure"]);
     const baselineMin = (prefsRow?.commute_minutes_baseline as number | null) ?? null;
