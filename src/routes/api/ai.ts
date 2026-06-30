@@ -291,12 +291,17 @@ export const Route = createFileRoute("/api/ai")({
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
             });
+            const timeDirective = buildTimeDirective({
+              localTime: (body as { localTime?: string }).localTime,
+              timezone: (body as { timezone?: string }).timezone,
+            }).directive;
+            const systemWithTime = system + timeDirective;
 
             const trimmed = body.messages.slice(-20);
             const isVoice = (body.surface ?? "text") === "voice";
             const upstream = await chatStream({
               model: DEFAULT_CHAT_MODEL,
-              messages: [{ role: "system", content: system }, ...trimmed],
+              messages: [{ role: "system", content: systemWithTime }, ...trimmed],
               maxTokens: isVoice && !body.expand ? 180 : undefined,
             });
 
