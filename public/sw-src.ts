@@ -35,7 +35,12 @@ declare const self: ServiceWorkerGlobalScope & {
 // PWAs (iOS Home-Screen apps are the canonical victim). On activate, any
 // Cache Storage bucket we own that does NOT include this token is deleted,
 // so returning visitors get the new precache instead of a stale shell.
-const CACHE_VERSION = "v2-2026-06-30-smart-alarm";
+// `__BUILD_ID__` is injected by Vite's `define` (see vite.config.ts) on
+// every build, so this token changes per deploy without anyone having
+// to hand-bump a literal. That guarantees the activate handler below
+// purges the prior release's caches on every publish.
+declare const __BUILD_ID__: string;
+const CACHE_VERSION = __BUILD_ID__;
 
 // ─── Lifecycle ─────────────────────────────────────────────────────────────
 self.skipWaiting();
