@@ -819,6 +819,8 @@ function CompanionPage() {
           intent: "coach",
           messages: baseMessages,
           surface: "voice",
+          localTime: new Date().toISOString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           context: { surface: "companion", companion_name: aiName, max_tokens: 180 },
         }),
       });
