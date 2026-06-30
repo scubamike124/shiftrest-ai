@@ -279,7 +279,6 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             type="button"
             onClick={() => {
               setAdjustmentMode("smart");
-              setMaxAdjustmentMin((v) => (v === 0 ? 5 : v));
             }}
             className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
               adjustmentMode === "smart"
@@ -297,7 +296,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             Maximum adjustment
             <select
               value={maxAdjustmentMin}
-              onChange={(e) => setMaxAdjustmentMin(Number(e.target.value) as typeof maxAdjustmentMin)}
+              onChange={(e) => setMaxAdjustmentMin(Number(e.target.value) as AdjustmentValue)}
               className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"
             >
               {ADJUSTMENT_OPTIONS.map((opt) => (
@@ -306,20 +305,29 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             </select>
           </label>
         )}
+        {adjustmentMode === "smart" && maxAdjustmentMin === 0 && (
+          <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+            Exact Time — AI will analyze but won't move your alarm.
+          </div>
+        )}
         <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-          {adjustmentMode === "smart" && maxAdjustmentMin > 0
-            ? `RestPilot may move this alarm by up to ${maxAdjustmentMin} minutes only because Smart Adjustment is enabled.`
-            : adjustmentMode === "smart"
-            ? "Never adjust is selected. RestPilot will not move this alarm."
-            : "Exact Time is on. RestPilot will not move this alarm."}
+          {adjustmentMode === "exact"
+            ? "RestPilot will ring at the exact time you selected."
+            : maxAdjustmentMin === 0
+            ? "AI will analyze your sleep but will not change your scheduled wake time."
+            : maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
+            ? `Full Smart Mode — AI may move your alarm by up to ~${ADAPTIVE_WINDOW_MIN} minutes to find the optimal wake moment in your sleep cycle.`
+            : `AI may move your alarm by up to ${maxAdjustmentMin} minutes earlier or later to land on a better sleep moment.`}
         </div>
         <button
           onClick={schedule}
           disabled={busy || !signedIn}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
-          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? "Set smart alarm" : "Set exact alarm"}
+          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? (maxAdjustmentMin === ADAPTIVE_WINDOW_MIN ? "Set adaptive alarm" : "Set smart alarm") : "Set exact alarm"}
         </button>
+
         <div className="flex items-center gap-2">
           <button
             type="button"
