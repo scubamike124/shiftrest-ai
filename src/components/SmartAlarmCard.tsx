@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Sparkles, ChevronDown, BellRing, Square, Play, Check, Volume2, Vibrate } from "lucide-react";
+import { AlarmClock, Sparkles, ChevronDown, BellRing, Square, Play, Check, Volume2, Vibrate, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
@@ -12,6 +12,7 @@ import { ALARM_SOUNDS, type AlarmSoundId } from "@/lib/alarm/sounds";
 import { loadAlarmPrefs, saveAlarmPrefs, vibrateSupported, type FadeInSec, type SnoozeMin } from "@/lib/alarm/prefs";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 type AdjustmentMode = "exact" | "smart";
