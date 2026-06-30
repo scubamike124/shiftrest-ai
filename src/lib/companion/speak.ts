@@ -169,7 +169,7 @@ const sourcedAudios = new WeakSet<HTMLAudioElement>();
 // Pre-shaper drive — pushes the soft-clip into useful range.
 // Lowered for sleep/wind-down context (was 2.3 × 1.3 ≈ +9.5 dB, which was
 // uncomfortably loud). 1.3 × 1.0 ≈ +2.3 dB — calm, audible, soft-clipper still active.
-const VOICE_GAIN = 1.3;
+const VOICE_GAIN = 1.15;
 // Pre-shaper makeup — kept in the graph at unity so the soft-clip curve
 // still receives the same signal path; raise to bring back headroom if needed.
 const VOICE_MAKEUP = 1.0;
