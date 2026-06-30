@@ -64,11 +64,22 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
 
     setLoading(true);
     try {
+      // Send the user's local time + tz so the model greets with the correct
+      // time of day (no UTC drift on the server).
+      let localTime: string | undefined;
+      let timezone: string | undefined;
+      try {
+        localTime = new Date().toISOString();
+        timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        /* best effort */
+      }
+
       // 1. Rewrite into conversational script.
       const briefRes = await fetch("/api/brief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, localTime, timezone }),
       });
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
       try {
@@ -92,7 +103,9 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
 
       // 2. Speak via the shared Companion pipeline — identical TTS provider,
       // voice preset, normalization, gain, and soft-clip as every other reply.
-      const spoken = expandForSpeech(script).slice(0, 1200);
+      // Prepend a soft lead-in ("… ") so ElevenLabs starts the very first
+      // utterance with a half-breath instead of a cold, louder/faster opener.
+      const spoken = "… " + expandForSpeech(script).slice(0, 1200);
       speakQueued(spoken, { source: "assistant_reply" });
     } catch (e) {
       console.error("VoicePlayer error", e);
