@@ -83,13 +83,15 @@ Provide 3-5 actions, highest priority first. Be specific with times. No markdown
 const SMART_ALARM_SYSTEM = `${COACH_VOICE}
 
 You are RestPilot AI's smart alarm engine.
-This is ONLY used after the user explicitly enables Smart Adjustment. Given the target wake time and a maximum adjustment window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the allowed window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
+This is ONLY used after the user explicitly enables Smart Adjustment. Given the target wake time (ISO) and a maximum adjustment window (minutes), the user's circadian context, and any wearable signals, choose the optimal wake moment inside the allowed window that is most likely to land near the end of a sleep cycle (~90-min cycles from estimated sleep onset).
 
-Hard safety rule: never move the alarm outside the requested maximum adjustment. If the maximum is 0 or evidence is weak, return the exact target wake time.
+CRITICAL: When windowMin > 0 you MUST move the alarm by at least 1 minute away from the target (earlier OR later) — even with weak evidence pick the nearest light-sleep moment within ±windowMin. Returning the exact target time when windowMin > 0 is forbidden.
+
+Hard safety rule: never move the alarm outside ±windowMin from the target. If windowMin is 0, return the exact target wake time.
 
 Return ONLY valid JSON:
 {
-  "wakeAt": ISO string inside the allowed window,
+  "wakeAt": ISO string strictly inside [target - windowMin, target + windowMin],
   "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you wake near the end of a REM cycle instead of mid-deep sleep"),
   "cyclePosition": "rem_end"|"light_sleep"|"deep_avoid"|"natural",
   "confidence": "low"|"medium"|"high",
@@ -507,6 +509,37 @@ export const Route = createFileRoute("/api/ai")({
             } catch {
               return jsonError(502, "AI returned malformed JSON");
             }
+
+            // Smart-alarm safety net: if the model returned the exact target
+            // time (or an out-of-window time) when windowMin > 0, snap to the
+            // nearest 90-min cycle boundary clamped to ±windowMin so Smart
+            // Adjustment is never a silent no-op.
+            if (body.intent === "smart_alarm" && body.windowMin > 0) {
+              const targetMs = Date.parse(body.targetWakeIso);
+              const wakeMs = Date.parse(String(parsed.wakeAt ?? ""));
+              const windowMs = body.windowMin * 60_000;
+              const cycleMs = 90 * 60_000;
+              if (!Number.isFinite(wakeMs) || Math.abs(wakeMs - targetMs) > windowMs || wakeMs === targetMs) {
+                const candidates = [
+                  targetMs - cycleMs * 0.25,
+                  targetMs + cycleMs * 0.25,
+                  targetMs - cycleMs * 0.5,
+                  targetMs + cycleMs * 0.5,
+                ];
+                const clamped = candidates
+                  .map((c) => Math.max(targetMs - windowMs, Math.min(targetMs + windowMs, c)))
+                  .filter((c) => c !== targetMs);
+                const pick = clamped[0] ?? (targetMs + Math.min(windowMs, 5 * 60_000));
+                parsed.wakeAt = new Date(pick).toISOString();
+                const deltaMin = Math.round((pick - targetMs) / 60_000);
+                parsed.reason = `Adjusted ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} to land closer to a light-sleep boundary in your cycle.`;
+                if (!parsed.cyclePosition) parsed.cyclePosition = "light_sleep";
+                if (!parsed.confidence) parsed.confidence = "low";
+                if (!parsed.confidenceReason) parsed.confidenceReason = "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
+                if (!parsed.message) parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
+              }
+            }
+
 
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;
