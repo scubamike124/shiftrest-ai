@@ -146,6 +146,7 @@ type Row = {
   lon: number;
   location_label: string;
   partner_name: string;
+  preferred_name?: string | null;
   onboarded_at: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
