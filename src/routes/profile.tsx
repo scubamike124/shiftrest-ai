@@ -80,6 +80,9 @@ function Profile() {
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
   useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
+  // Preferred name — what the AI calls you across briefings, voice, notifications.
+  const [preferredDraft, setPreferredDraft] = useState(prefs.preferredName);
+  useEffect(() => setPreferredDraft(prefs.preferredName), [prefs.preferredName]);
   const [cityDraft, setCityDraft] = useState("");
   const [geocoding, setGeocoding] = useState(false);
 
