@@ -296,17 +296,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             </select>
           </label>
         )}
-        {adjustmentMode === "smart" && maxAdjustmentMin === 0 && (
-          <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-            Exact Time — AI will analyze but won't move your alarm.
-          </div>
-        )}
         <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
           {adjustmentMode === "exact"
             ? "RestPilot will ring at the exact time you selected."
-            : maxAdjustmentMin === 0
-            ? "AI will analyze your sleep but will not change your scheduled wake time."
             : maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
             ? `Full Smart Mode — AI may move your alarm by up to ~${ADAPTIVE_WINDOW_MIN} minutes to find the optimal wake moment in your sleep cycle.`
             : `AI may move your alarm by up to ${maxAdjustmentMin} minutes earlier or later to land on a better sleep moment.`}
