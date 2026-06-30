@@ -12,13 +12,21 @@ import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 type AdjustmentMode = "exact" | "smart";
 
+const ADAPTIVE_WINDOW_MIN = 60;
+const PREFS_KEY = "restpilot:smart-alarm:prefs";
+
 const ADJUSTMENT_OPTIONS = [
-  { value: 0, label: "Never adjust" },
-  { value: 5, label: "Up to 5 minutes" },
-  { value: 10, label: "Up to 10 minutes" },
-  { value: 15, label: "Up to 15 minutes" },
-  { value: 30, label: "Full Smart Mode" },
+  { value: 0, label: "Exact Time (analyze only)" },
+  { value: 5, label: "±5 min" },
+  { value: 10, label: "±10 min" },
+  { value: 15, label: "±15 min" },
+  { value: 20, label: "±20 min" },
+  { value: 30, label: "±30 min" },
+  { value: ADAPTIVE_WINDOW_MIN, label: "Full Smart Mode (Adaptive)" },
 ] as const;
+
+type AdjustmentValue = (typeof ADJUSTMENT_OPTIONS)[number]["value"];
+
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
