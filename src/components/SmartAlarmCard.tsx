@@ -49,7 +49,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const tomorrow = useMemo(() => defaultTomorrowWake(), []);
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [adjustmentMode, setAdjustmentMode] = useState<AdjustmentMode>("exact");
-  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<AdjustmentValue>(0);
+  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<AdjustmentValue>(5);
 
   // Rehydrate the user's last Smart Alarm picker preference (local-only).
   useEffect(() => {
