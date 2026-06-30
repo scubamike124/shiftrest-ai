@@ -8,6 +8,7 @@ import { PilotOrb, type OrbState } from "@/components/PilotOrb";
 import { avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { expandForSpeech } from "@/lib/voice-rewriter";
+import { speakQueued, stopSpeaking, prepareVoicePlayback } from "@/lib/companion/speak";
 import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-history";
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
