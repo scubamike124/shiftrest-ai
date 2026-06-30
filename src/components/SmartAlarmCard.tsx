@@ -8,6 +8,7 @@ import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
 import { syncAlarms, stopRinging, testAlarm } from "@/lib/alarm/foreground";
+import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
@@ -119,6 +120,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
     : null;
 
   return (
+    <div className="space-y-3">
+    <SmartAlarmCoach />
     <section className="rounded-2xl border border-border bg-card p-4">
       <header className="flex items-center gap-2">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
@@ -291,6 +294,13 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       )}
     <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
+    <p className="px-1 text-[11px] leading-snug text-muted-foreground">
+      Foreground alarms ring while RestPilot is open. Background alarms on iPhone require
+      Home Screen installation and notification permission. Due to Apple platform limits,
+      web alarms may not be as reliable as the native Clock app — RestPilot uses the best
+      capabilities currently available on iPhone web apps.
+    </p>
+    </div>
   );
 }
 
