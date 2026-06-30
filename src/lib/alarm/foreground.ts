@@ -67,6 +67,8 @@ export function addAlarm(alarm: AlarmInput): void {
     fireAlarm(alarm.label);
   }, delay);
   timers.set(alarm.id, t);
+}
+
 
 export function cancelAlarm(id: string): void {
   const t = timers.get(id);
