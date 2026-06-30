@@ -67,6 +67,7 @@ import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
+import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -366,6 +367,11 @@ const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
   path: '/simli',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
+const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -468,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -535,6 +542,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -604,6 +612,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -674,6 +683,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -741,6 +751,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -809,6 +820,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -1280,6 +1292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocSimliRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
+    '/lab/avatar-poc/debug': {
+      id: '/lab/avatar-poc/debug'
+      path: '/debug'
+      fullPath: '/lab/avatar-poc/debug'
+      preLoaderRoute: typeof LabAvatarPocDebugRouteImport
+      parentRoute: typeof LabAvatarPocRoute
+    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -1380,10 +1399,12 @@ const LegalRouteChildren: LegalRouteChildren = {
 const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 
 interface LabAvatarPocRouteChildren {
+  LabAvatarPocDebugRoute: typeof LabAvatarPocDebugRoute
   LabAvatarPocSimliRoute: typeof LabAvatarPocSimliRoute
 }
 
 const LabAvatarPocRouteChildren: LabAvatarPocRouteChildren = {
+  LabAvatarPocDebugRoute: LabAvatarPocDebugRoute,
   LabAvatarPocSimliRoute: LabAvatarPocSimliRoute,
 }
 
