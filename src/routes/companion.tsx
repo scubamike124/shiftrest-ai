@@ -42,7 +42,7 @@ import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback 
 import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
-import { AvatarPickerChip } from "@/components/companion/AvatarPickerChip";
+
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
