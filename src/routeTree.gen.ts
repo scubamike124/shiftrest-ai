@@ -25,6 +25,7 @@ import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as PaywallRouteImport } from './routes/paywall'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
+import { Route as LabDebugRouteImport } from './routes/lab-debug'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as HealthRouteImport } from './routes/health'
 import { Route as FeaturesRouteImport } from './routes/features'
@@ -68,7 +69,6 @@ import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
-import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -156,6 +156,11 @@ const MemoryRoute = MemoryRouteImport.update({
 const LegalRoute = LegalRouteImport.update({
   id: '/legal',
   path: '/legal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabDebugRoute = LabDebugRouteImport.update({
+  id: '/lab-debug',
+  path: '/lab-debug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -373,11 +378,6 @@ const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
   path: '/simli',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
-const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
-  id: '/debug',
-  path: '/debug',
-  getParentRoute: () => LabAvatarPocRoute,
-} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -434,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/features': typeof FeaturesRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
+  '/lab-debug': typeof LabDebugRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
@@ -480,7 +481,6 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
-  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -504,6 +504,7 @@ export interface FileRoutesByTo {
   '/features': typeof FeaturesRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
+  '/lab-debug': typeof LabDebugRoute
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
   '/pilot': typeof PilotRoute
@@ -548,7 +549,6 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
-  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -573,6 +573,7 @@ export interface FileRoutesById {
   '/features': typeof FeaturesRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
+  '/lab-debug': typeof LabDebugRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
   '/paywall': typeof PaywallRoute
@@ -619,7 +620,6 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
-  '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
@@ -645,6 +645,7 @@ export interface FileRouteTypes {
     | '/features'
     | '/health'
     | '/inbox'
+    | '/lab-debug'
     | '/legal'
     | '/memory'
     | '/paywall'
@@ -691,7 +692,6 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
-    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
@@ -715,6 +715,7 @@ export interface FileRouteTypes {
     | '/features'
     | '/health'
     | '/inbox'
+    | '/lab-debug'
     | '/memory'
     | '/paywall'
     | '/pilot'
@@ -759,7 +760,6 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
-    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc'
     | '/api/lab/simli/session'
@@ -783,6 +783,7 @@ export interface FileRouteTypes {
     | '/features'
     | '/health'
     | '/inbox'
+    | '/lab-debug'
     | '/legal'
     | '/memory'
     | '/paywall'
@@ -829,7 +830,6 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
-    | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
@@ -854,6 +854,7 @@ export interface RootRouteChildren {
   FeaturesRoute: typeof FeaturesRoute
   HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
+  LabDebugRoute: typeof LabDebugRoute
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
   PaywallRoute: typeof PaywallRoute
@@ -1006,6 +1007,13 @@ declare module '@tanstack/react-router' {
       path: '/legal'
       fullPath: '/legal'
       preLoaderRoute: typeof LegalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lab-debug': {
+      id: '/lab-debug'
+      path: '/lab-debug'
+      fullPath: '/lab-debug'
+      preLoaderRoute: typeof LabDebugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -1309,13 +1317,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocSimliRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
-    '/lab/avatar-poc/debug': {
-      id: '/lab/avatar-poc/debug'
-      path: '/debug'
-      fullPath: '/lab/avatar-poc/debug'
-      preLoaderRoute: typeof LabAvatarPocDebugRouteImport
-      parentRoute: typeof LabAvatarPocRoute
-    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -1416,13 +1417,11 @@ const LegalRouteChildren: LegalRouteChildren = {
 const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 
 interface LabAvatarPocRouteChildren {
-  LabAvatarPocDebugRoute: typeof LabAvatarPocDebugRoute
   LabAvatarPocSimliRoute: typeof LabAvatarPocSimliRoute
   LabAvatarPocIndexRoute: typeof LabAvatarPocIndexRoute
 }
 
 const LabAvatarPocRouteChildren: LabAvatarPocRouteChildren = {
-  LabAvatarPocDebugRoute: LabAvatarPocDebugRoute,
   LabAvatarPocSimliRoute: LabAvatarPocSimliRoute,
   LabAvatarPocIndexRoute: LabAvatarPocIndexRoute,
 }
@@ -1443,6 +1442,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeaturesRoute: FeaturesRoute,
   HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
+  LabDebugRoute: LabDebugRoute,
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
   PaywallRoute: PaywallRoute,
