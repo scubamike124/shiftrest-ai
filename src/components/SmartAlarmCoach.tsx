@@ -24,7 +24,7 @@ export function SmartAlarmCoach() {
   if (hidden) return null;
 
   async function enable() {
-    const guard = canPromptHere();
+    const guard = canRequestNotificationPermission();
     if (!guard.ok) {
       setShowInstall(true);
       return;
