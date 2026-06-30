@@ -140,12 +140,15 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         return;
       }
       const exactLabel = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const canAdjust = adjustmentMode === "smart" && maxAdjustmentMin > 0;
+      const isSmart = adjustmentMode === "smart";
+      const isAdaptive = isSmart && maxAdjustmentMin === ADAPTIVE_WINDOW_MIN;
+      const analyzeOnly = isSmart && maxAdjustmentMin === 0;
+      const canAdjust = isSmart && maxAdjustmentMin > 0;
       let res: SmartAlarmResponse;
-      if (canAdjust) {
+      if (canAdjust || analyzeOnly) {
         res = await aiSmartAlarm({
           targetWakeIso: target.toISOString(),
-          windowMin: maxAdjustmentMin,
+          windowMin: isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin,
         });
       } else {
         res = {
@@ -160,20 +163,36 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       }
       let wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
-      if (canAdjust) {
+      if (analyzeOnly) {
+        // AI analyzed but the user did not permit any movement.
+        wake = target;
+        res = {
+          ...res,
+          wakeAt: target.toISOString(),
+          reason:
+            "AI analyzed your sleep but Exact Time is on inside Smart Mode, so the wake time was not changed.",
+        };
+      } else if (canAdjust) {
+        const cap = isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin;
         const delta = Math.abs(wake.getTime() - target.getTime());
-        if (delta > maxAdjustmentMin * 60_000 + 999) {
+        if (delta > cap * 60_000 + 999) {
           wake = target;
           res = {
             ...res,
             wakeAt: target.toISOString(),
-            reason: `Smart Adjustment stayed at your selected time because the AI result exceeded your ${maxAdjustmentMin}-minute limit.`,
+            reason: `Smart Adjustment stayed at your selected time because the AI result exceeded your ${cap}-minute limit.`,
           };
         }
       }
       const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const notePayload = [
-        canAdjust ? `Smart Adjustment up to ${maxAdjustmentMin} min` : "Exact Time",
+        isAdaptive
+          ? "Full Smart Mode (Adaptive)"
+          : analyzeOnly
+          ? "Smart Mode · analyze only"
+          : canAdjust
+          ? `Smart Adjustment up to ${maxAdjustmentMin} min`
+          : "Exact Time",
         res.cyclePosition ? CYCLE_LABEL[res.cyclePosition] : null,
         res.confidence ? `${res.confidence} confidence` : null,
         res.reason,
@@ -193,9 +212,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         res,
         targetIso: target.toISOString(),
         adjusted: canAdjust,
-        maxAdjustmentMin,
+        maxAdjustmentMin: isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin,
       });
-      toast.success(canAdjust ? `Smart alarm set for ${labelTime}` : `Alarm set for exactly ${labelTime}`);
+      toast.success(
+        canAdjust
+          ? `Smart alarm set for ${labelTime}${isAdaptive ? " (Adaptive)" : ""}`
+          : `Alarm set for exactly ${labelTime}`,
+      );
+
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
     } finally {
