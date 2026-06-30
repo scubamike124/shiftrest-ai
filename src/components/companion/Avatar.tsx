@@ -112,11 +112,14 @@ export function CompanionAvatarFace(props: AvatarProps) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  const wantVideo = mounted && !videoUnavailable && hasVideoAvatar(id);
+  // Phase 1 rollback: force 2D-only Companion. Video + 3D paths are kept in
+  // the codebase for Phase 2 re-evaluation but disabled at the renderer.
+  const wantVideo = false;
   const has3DModel = !!modelUrlFor(id);
   const queryOptIn = mounted && threeDQueryOptIn();
-  const want3D =
-    mounted && !wantVideo && (renderer === "3d" || queryOptIn) && webgl && has3DModel && !threeDFailed;
+  const want3D = false;
+  void renderer; void webgl; void threeDFailed; void videoUnavailable; void has3DModel; void queryOptIn;
+
 
   if (wantVideo) {
     return (
