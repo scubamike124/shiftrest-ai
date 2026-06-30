@@ -5,6 +5,12 @@
 // open we schedule setTimeout()s for upcoming alarms and ring an
 // audible chime + speak the alarm label at fire time.
 //
+// Long-horizon alarms (e.g. "tomorrow 7am" scheduled tonight at 10pm)
+// exceed the browser's per-timer limit (~24.8d) AND the practical
+// reliability of any single setTimeout. We chain intermediate hops so
+// each individual timer stays inside MAX_HOP_MS, then arm the real
+// fire timer when we land inside the safe window.
+//
 // All scheduling is local to the tab. Safe to call repeatedly — the
 // scheduler de-dupes by alarm id.
 
@@ -14,67 +20,129 @@ import { startAlarmSound, type AlarmSoundId } from "./sounds";
 
 type AlarmInput = { id: string; firesAt: number; label?: string };
 
-const timers = new Map<string, ReturnType<typeof setTimeout>>();
+type Entry = {
+  firesAt: number;
+  label?: string;
+  timer: ReturnType<typeof setTimeout>;
+  /** Total number of intermediate hops armed before the final fire timer. */
+  rearmCount: number;
+  /** When the currently-armed timer is expected to wake. */
+  nextHopAt: number;
+};
+
+const entries = new Map<string, Entry>();
 let ringingCtx: AudioContext | null = null;
 let ringingStop: (() => void) | null = null;
 let ringingVibrate: ReturnType<typeof setInterval> | null = null;
 
-// setTimeout in browsers clamps to ~24.8 days; keep ours conservative.
-const MAX_DELAY_MS = 6 * 60 * 60 * 1000; // 6h
+// Per-hop ceiling. Browsers clamp setTimeout to ~24.8 days; keep ours
+// well under that and short enough that throttled tabs still service
+// the hop within a reasonable wall-clock window.
+const MAX_HOP_MS = 6 * 60 * 60 * 1000; // 6h
+const HOP_LEAD_MS = 60_000; // re-arm 60s before the hop limit
 const MIN_FIRE_LEAD_MS = 250;
+
+function debugEnabled(): boolean {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem("restpilot:debug-alarm") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function log(event: string, payload: Record<string, unknown>): void {
+  if (!debugEnabled()) return;
+  try {
+    // eslint-disable-next-line no-console
+    console.log(`[alarm] ${event}`, payload);
+  } catch { /* noop */ }
+}
+
+function armEntry(id: string, firesAt: number, label?: string, rearmCount = 0): void {
+  const existing = entries.get(id);
+  if (existing) clearTimeout(existing.timer);
+
+  const now = Date.now();
+  const delay = firesAt - now;
+
+  if (delay <= MIN_FIRE_LEAD_MS) {
+    // In the past or imminent — fire ASAP.
+    const timer = setTimeout(() => {
+      entries.delete(id);
+      log("fired", { id, label, scheduledAt: firesAt, actualAt: Date.now(), rearmCount });
+      fireAlarm(label, firesAt);
+    }, Math.max(0, delay));
+    entries.set(id, { firesAt, label, timer, rearmCount, nextHopAt: now + Math.max(0, delay) });
+    log("scheduled", { id, label, firesAt, delayMs: Math.max(0, delay), mode: "direct", rearmCount });
+    return;
+  }
+
+  if (delay <= MAX_HOP_MS) {
+    const timer = setTimeout(() => {
+      entries.delete(id);
+      log("fired", { id, label, scheduledAt: firesAt, actualAt: Date.now(), rearmCount });
+      fireAlarm(label, firesAt);
+    }, delay);
+    entries.set(id, { firesAt, label, timer, rearmCount, nextHopAt: firesAt });
+    log("scheduled", { id, label, firesAt, delayMs: delay, mode: "direct", rearmCount });
+    return;
+  }
+
+  // Long-horizon: hop forward, then re-arm.
+  const hopDelay = MAX_HOP_MS - HOP_LEAD_MS;
+  const hopAt = now + hopDelay;
+  const timer = setTimeout(() => {
+    // Re-arm — entry still represents the same final firesAt.
+    log("re-armed", { id, label, firesAt, hopAt: Date.now(), rearmCount: rearmCount + 1 });
+    armEntry(id, firesAt, label, rearmCount + 1);
+  }, hopDelay);
+  entries.set(id, { firesAt, label, timer, rearmCount, nextHopAt: hopAt });
+  log("scheduled", { id, label, firesAt, delayMs: hopDelay, mode: "re-arm", rearmCount, hopAt });
+}
 
 export function syncAlarms(alarms: AlarmInput[]): void {
   const wanted = new Set<string>();
   for (const a of alarms) {
     wanted.add(a.id);
-    const existing = timers.get(a.id);
-    const delay = Math.max(MIN_FIRE_LEAD_MS, a.firesAt - Date.now());
-    if (delay > MAX_DELAY_MS) {
-      if (existing) {
-        clearTimeout(existing);
-        timers.delete(a.id);
-      }
-      continue;
-    }
-    if (existing) clearTimeout(existing);
-    const t = setTimeout(() => {
-      timers.delete(a.id);
-      fireAlarm(a.label);
-    }, delay);
-    timers.set(a.id, t);
+    armEntry(a.id, a.firesAt, a.label);
   }
-  for (const [id, t] of timers) {
+  for (const [id, e] of entries) {
     if (!wanted.has(id)) {
-      clearTimeout(t);
-      timers.delete(id);
+      clearTimeout(e.timer);
+      entries.delete(id);
+      log("skipped", { id, reason: "cancelled-by-sync" });
     }
   }
 }
 
 export function addAlarm(alarm: AlarmInput): void {
-  const existing = timers.get(alarm.id);
-  const delay = Math.max(MIN_FIRE_LEAD_MS, alarm.firesAt - Date.now());
-  if (delay > MAX_DELAY_MS) {
-    if (existing) {
-      clearTimeout(existing);
-      timers.delete(alarm.id);
-    }
-    return;
-  }
-  if (existing) clearTimeout(existing);
-  const t = setTimeout(() => {
-    timers.delete(alarm.id);
-    fireAlarm(alarm.label);
-  }, delay);
-  timers.set(alarm.id, t);
+  armEntry(alarm.id, alarm.firesAt, alarm.label);
 }
 
 export function cancelAlarm(id: string): void {
-  const t = timers.get(id);
-  if (t) {
-    clearTimeout(t);
-    timers.delete(id);
+  const e = entries.get(id);
+  if (e) {
+    clearTimeout(e.timer);
+    entries.delete(id);
+    log("skipped", { id, reason: "cancelled" });
   }
+}
+
+/** Snapshot of currently-armed alarms — for QA/debug surfaces. */
+export function listScheduled(): Array<{
+  id: string;
+  firesAt: number;
+  nextHopAt: number;
+  rearmCount: number;
+  label?: string;
+}> {
+  return Array.from(entries.entries()).map(([id, e]) => ({
+    id,
+    firesAt: e.firesAt,
+    nextHopAt: e.nextHopAt,
+    rearmCount: e.rearmCount,
+    label: e.label,
+  }));
 }
 
 export function stopRinging(): void {
@@ -98,11 +166,7 @@ export function stopRinging(): void {
 export function testAlarm(seconds = 10, label = "Test alarm"): void {
   prepareVoicePlayback();
   const id = `__test_${Date.now()}`;
-  const t = setTimeout(() => {
-    timers.delete(id);
-    fireAlarm(label);
-  }, seconds * 1000);
-  timers.set(id, t);
+  armEntry(id, Date.now() + seconds * 1000, label);
 }
 
 /** Preview a single alarm sound at the given volume (0–100). Returns a stop fn. */
@@ -128,10 +192,12 @@ export function previewAlarmSound(soundId: AlarmSoundId, volume: number): () => 
   }
 }
 
-function fireAlarm(label?: string): void {
+function fireAlarm(label?: string, scheduledAt?: number): void {
   const prefs = loadAlarmPrefs();
   try {
-    window.dispatchEvent(new CustomEvent("alarm:fired", { detail: { label, at: Date.now() } }));
+    window.dispatchEvent(new CustomEvent("alarm:fired", {
+      detail: { label, at: Date.now(), scheduledAt },
+    }));
   } catch { /* noop */ }
   startChime(prefs.sound, prefs.volume, prefs.fadeInSec);
 

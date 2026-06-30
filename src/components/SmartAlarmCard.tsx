@@ -450,12 +450,16 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         <ul className="mt-4 space-y-2 border-t border-border pt-3">
           {alarms.map((a) => {
             const ms = new Date(a.startsAt).getTime() - Date.now();
-            const inForeground = ms > 0 && ms <= 6 * 60 * 60 * 1000;
-            const status = inForeground
-              ? "Will ring in this tab"
-              : notifGranted
-              ? "Background notification ready"
-              : "Enable notifications for background";
+            const hours = ms / 3_600_000;
+            const longHorizon = hours > 6;
+            const status =
+              ms <= 0
+                ? "Past"
+                : longHorizon && !notifGranted
+                ? `Rings in ~${Math.round(hours)}h — keep app open or enable notifications`
+                : longHorizon
+                ? `Rings in ~${Math.round(hours)}h — background notification ready`
+                : "Will ring in this tab";
             return (
               <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
                 <div className="min-w-0">
