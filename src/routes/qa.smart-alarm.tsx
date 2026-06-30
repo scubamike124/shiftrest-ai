@@ -433,3 +433,86 @@ function formatTime(ms: number): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${(d.getMilliseconds()).toString().padStart(3, "0")}`;
 }
+
+// Long-horizon alarm tester — schedules a real foreground alarm 7h out and
+// verifies the re-arm chain produces an entry whose final fire time matches
+// (within ±10s) and that an intermediate hop is armed (rearmCount or hop
+// strictly earlier than firesAt).
+function LongHorizonTester() {
+  const [status, setStatus] = useState<"idle" | "armed" | "pass" | "fail">("idle");
+  const [detail, setDetail] = useState<string>("");
+  const idRef = useRef<string | null>(null);
+
+  function arm() {
+    if (idRef.current) cancelAlarm(idRef.current);
+    const id = `__qa_long_${Date.now()}`;
+    idRef.current = id;
+    const firesAt = Date.now() + 7 * 3_600_000; // +7h
+    addAlarm({ id, firesAt, label: "Long-horizon self-test" });
+    const snapshot = listScheduled().find((s) => s.id === id);
+    if (!snapshot) {
+      setStatus("fail");
+      setDetail("Alarm did not appear in the scheduler snapshot.");
+      return;
+    }
+    const driftMs = Math.abs(snapshot.firesAt - firesAt);
+    const hopEarly = snapshot.nextHopAt < snapshot.firesAt - 60_000;
+    const pass = driftMs <= 10_000 && hopEarly;
+    setStatus(pass ? "pass" : "fail");
+    setDetail(
+      `firesAt drift ${(driftMs / 1000).toFixed(2)}s · ` +
+      `next hop at ${new Date(snapshot.nextHopAt).toLocaleTimeString()} · ` +
+      `rearms ${snapshot.rearmCount} · hopEarly=${hopEarly}`,
+    );
+  }
+
+  function clear() {
+    if (idRef.current) cancelAlarm(idRef.current);
+    idRef.current = null;
+    setStatus("idle");
+    setDetail("");
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-wide">Long-horizon alarm (+7h)</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Verifies the scheduler re-arms past the 6-hour per-timer cap. PASS = entry exists,
+            final fire time matches within ±10s, and an intermediate hop is armed.
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-1.5">
+          <button
+            type="button"
+            onClick={arm}
+            className="h-9 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground"
+          >
+            Run
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            className="h-9 rounded-xl border border-border bg-background px-3 text-xs font-semibold"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className={
+          status === "pass" ? "font-semibold text-emerald-500" :
+          status === "fail" ? "font-semibold text-rose-500" :
+          status === "armed" ? "text-primary" : "text-muted-foreground"
+        }>
+          {status === "pass" ? "PASS" : status === "fail" ? "FAIL" : status === "armed" ? "Armed" : "—"}
+        </span>
+        {detail && <span className="text-[11px] text-muted-foreground">{detail}</span>}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Enable verbose logs with <code className="rounded bg-muted px-1">localStorage.setItem("restpilot:debug-alarm","1")</code> and watch the console for <code>[alarm]</code> events.
+      </p>
+    </section>
+  );
+}
