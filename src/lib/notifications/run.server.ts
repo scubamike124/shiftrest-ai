@@ -25,6 +25,7 @@ type PrefsRow = {
   lon: number;
   location_label: string;
   partner_name: string;
+  preferred_name: string | null;
   cycle_weeks: number | null;
   cycle_anchor: string | null;
 };
