@@ -1209,17 +1209,14 @@ function CompanionPage() {
         </div>
       )}
 
-      {/* Avatar + greeting */}
+      {/* Companion orb + greeting */}
       <section className="flex flex-col items-center gap-3 pb-4 pt-2">
         <div className="relative">
-          <AvatarPickerChip />
           <button
             type="button"
             onClick={() => {
               emitDebug("tap", `mic=${micState}`);
               if (!localPrefs.voiceInputEnabled || micState === "denied") {
-                // Voice off or mic blocked — fall back to text composer instead
-                // of a silent dead-tap.
                 track({ event: "avatar_tap_to_talk", result: "fallback" });
                 const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
                   '[data-companion-composer] textarea, [data-companion-composer] input',
@@ -1227,7 +1224,6 @@ function CompanionPage() {
                 el?.focus();
                 return;
               }
-              // Synchronous gesture chain — required for iOS Safari getUserMedia.
               track({
                 event: "avatar_tap_to_talk",
                 result: micState === "listening" ? "stopped" : "started",
@@ -1240,21 +1236,25 @@ function CompanionPage() {
             }
             aria-pressed={micState === "listening"}
           >
-            <CompanionAvatarFace
-              state={orbState}
-              level={level}
-              size="lg"
-              label={micState === "listening" ? "Listening…" : "Tap to talk"}
-            />
+            <PilotOrb state={orbState} level={level} />
           </button>
         </div>
-        {/* Phase E — reserved presence slot. Fixed height prevents the
-            column from reflowing when the waveform or failure pill toggle. */}
-        <div className="mt-2 flex h-6 items-center justify-center">
-          {voiceStatus === "speaking" && (
-            <SpeakingIndicator active className="h-4 w-24" />
-          )}
-          {voiceStatus === "failed" && (
+        {/* Reserved presence slot — fixed height prevents column reflow. */}
+        <div className="mt-2 flex h-9 items-center justify-center">
+          {voiceStatus === "speaking" ? (
+            <button
+              type="button"
+              onClick={() => {
+                stopSpeaking();
+                setVoiceStatus("idle");
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm transition active:scale-[0.97]"
+              aria-label="Stop speaking"
+            >
+              <Square className="h-3 w-3" aria-hidden />
+              Stop
+            </button>
+          ) : voiceStatus === "failed" ? (
             <p
               role="status"
               className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200"
@@ -1262,8 +1262,9 @@ function CompanionPage() {
               <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
               Voice unavailable — text still works
             </p>
-          )}
+          ) : null}
         </div>
+
 
         {voiceSkipped && (
           <button
