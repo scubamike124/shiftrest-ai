@@ -246,6 +246,8 @@ function PilotPage() {
             intent: "coach",
             messages: baseMessages,
             surface: "voice",
+            localTime: new Date().toISOString(),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
           signal: ac.signal,
         });
