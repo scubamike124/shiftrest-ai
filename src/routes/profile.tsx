@@ -538,6 +538,32 @@ function Profile() {
         <div className="flex flex-col gap-2 p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Preferred name</p>
+              <p className="text-xs text-muted-foreground">
+                What RestPilot calls you in briefings, voice, and notifications.
+              </p>
+            </div>
+          </div>
+          <input
+            type="text"
+            placeholder="What should I call you?"
+            value={preferredDraft}
+            onChange={(e) => setPreferredDraft(e.target.value)}
+            onBlur={() => {
+              if (preferredDraft !== prefs.preferredName) update("preferredName", preferredDraft);
+            }}
+            className="h-11 rounded-xl border border-border bg-input px-3 text-sm"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card">
+        <div className="flex flex-col gap-2 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
               <Users className="h-5 w-5" />
             </span>
             <div>
