@@ -484,7 +484,6 @@ export const Route = createFileRoute("/api/ai")({
 
             const result = await chatJSON({
               messages: [
-                { role: "system", content: `${system}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
                 { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
                 { role: "user", content: userPayload },
               ],
