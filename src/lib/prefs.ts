@@ -221,6 +221,7 @@ function rowToPrefs(r: Row): Prefs {
     lon: r.lon,
     locationLabel: r.location_label,
     partnerName: r.partner_name,
+    preferredName: (r.preferred_name ?? "").trim(),
     onboarded: r.onboarded_at !== null,
     cycleWeeks: Math.max(1, Math.min(6, cw)),
     cycleAnchor: r.cycle_anchor ?? null,
