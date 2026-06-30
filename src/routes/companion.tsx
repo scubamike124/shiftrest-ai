@@ -124,7 +124,7 @@ function CompanionPage() {
     hasSession,
     hasAccessToken,
   } = useSession();
-  const sessionEmail = session?.user.email ?? null;
+  // sessionEmail removed: Preferred Name is the sole source for personalization.
   const signedIn: boolean | null = sessionReady ? hasSession && hasAccessToken : null;
 
   const prefsQ = useQuery({
