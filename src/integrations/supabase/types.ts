@@ -1324,6 +1324,7 @@ export type Database = {
           onboarded_at: string | null
           partner_name: string
           predictive_enabled: boolean
+          preferred_name: string | null
           sleep_hours: number
           tomorrow_preview_enabled: boolean
           travel_mode_enabled: boolean
@@ -1370,6 +1371,7 @@ export type Database = {
           onboarded_at?: string | null
           partner_name?: string
           predictive_enabled?: boolean
+          preferred_name?: string | null
           sleep_hours?: number
           tomorrow_preview_enabled?: boolean
           travel_mode_enabled?: boolean
@@ -1416,6 +1418,7 @@ export type Database = {
           onboarded_at?: string | null
           partner_name?: string
           predictive_enabled?: boolean
+          preferred_name?: string | null
           sleep_hours?: number
           tomorrow_preview_enabled?: boolean
           travel_mode_enabled?: boolean
