@@ -164,6 +164,26 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         >
           <Sparkles className="h-4 w-4" /> {busy ? "Optimizing…" : "Set smart alarm"}
         </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              testAlarm(10);
+              toast.message("Test alarm in 10s", { description: "Keep this tab open." });
+            }}
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-background text-xs font-semibold"
+          >
+            <BellRing className="h-3.5 w-3.5" /> Test alarm (10s)
+          </button>
+          <button
+            type="button"
+            onClick={stopRinging}
+            className="flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-background px-3 text-xs font-semibold"
+            aria-label="Stop ringing"
+          >
+            <Square className="h-3.5 w-3.5" /> Stop
+          </button>
+        </div>
       </div>
 
       {lastResult && wakeLabel && (
