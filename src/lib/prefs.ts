@@ -11,6 +11,8 @@ export type Prefs = {
   lon: number;
   locationLabel: string;
   partnerName: string;
+  /** Name the AI uses to address the user. Independent of email / OAuth display name. */
+  preferredName: string;
   onboarded: boolean;
   /** Rotation length in weeks (1–6). 1 = legacy weekly schedule. */
   cycleWeeks: number;
