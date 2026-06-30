@@ -22,11 +22,18 @@ function LabPicker() {
         Not linked from the app. Not indexed.
       </p>
       <a
-        href="/lab/avatar-poc/simli"
+        href="https://shift-rest-ai.lovable.app/lab/avatar-poc/simli"
         className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/40 active:bg-emerald-400/30"
         style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(16,185,129,0.25)" }}
       >
-        Direct link → /lab/avatar-poc/simli
+        Open Simli Test
+      </a>
+      <a
+        href="/lab/avatar-poc/debug"
+        className="ml-3 mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-foreground/80 active:bg-white/10"
+        style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(255,255,255,0.12)" }}
+      >
+        Open Debug
       </a>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Link

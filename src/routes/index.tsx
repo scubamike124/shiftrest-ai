@@ -138,6 +138,14 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 Start free — 7 days
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
+              <a
+                href="https://shift-rest-ai.lovable.app/lab/avatar-poc/simli"
+                className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-6 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition hover:bg-primary/20 active:bg-primary/25"
+                style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(255,255,255,0.12)" }}
+              >
+                Open Simli Test
+                <ArrowRight className="h-4 w-4" />
+              </a>
               <Link
                 to="/companion"
                 search={{ intro: 1, greet: 1 }}
