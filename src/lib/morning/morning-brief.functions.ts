@@ -199,7 +199,7 @@ export const getMorningBrief = createServerFn({ method: "GET" })
     return {
       generatedAtISO: now.toISOString(),
       greeting: {
-        name: firstName(email, partnerName),
+        name: greetingName(preferredName),
         hourBucket: hourBucket(now.getHours()),
         recommendation: pickRecommendation(sleep?.durationMin ?? null, sleepHours),
       },
