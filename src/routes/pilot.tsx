@@ -612,7 +612,7 @@ function PilotPage() {
             </p>
           )}
           {needsTap && (
-            <Button size="sm" className="mt-3" onClick={() => { setNeedsTap(false); void playNext(); }}>
+            <Button size="sm" className="mt-3" onClick={() => { setNeedsTap(false); prepareVoicePlayback(); }}>
               <Phone className="mr-1.5 h-4 w-4" /> Tap to hear reply
             </Button>
           )}
