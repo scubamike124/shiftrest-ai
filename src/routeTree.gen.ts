@@ -42,6 +42,7 @@ import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
 import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
 import { Route as QaVoiceRouteImport } from './routes/qa.voice'
+import { Route as QaSmartAlarmRouteImport } from './routes/qa.smart-alarm'
 import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
 import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
 import { Route as LegalTermsRouteImport } from './routes/legal.terms'
@@ -241,6 +242,11 @@ const SettingsAvatarRoute = SettingsAvatarRouteImport.update({
 const QaVoiceRoute = QaVoiceRouteImport.update({
   id: '/qa/voice',
   path: '/qa/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QaSmartAlarmRoute = QaSmartAlarmRouteImport.update({
+  id: '/qa/smart-alarm',
+  path: '/qa/smart-alarm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
@@ -474,6 +480,7 @@ export interface FileRoutesByFullPath {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/smart-alarm': typeof QaSmartAlarmRoute
   '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
@@ -542,6 +549,7 @@ export interface FileRoutesByTo {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/smart-alarm': typeof QaSmartAlarmRoute
   '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
@@ -613,6 +621,7 @@ export interface FileRoutesById {
   '/legal/terms': typeof LegalTermsRoute
   '/legal/third-parties': typeof LegalThirdPartiesRoute
   '/legal/trademark': typeof LegalTrademarkRoute
+  '/qa/smart-alarm': typeof QaSmartAlarmRoute
   '/qa/voice': typeof QaVoiceRoute
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
@@ -685,6 +694,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/smart-alarm'
     | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
@@ -753,6 +763,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/smart-alarm'
     | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
@@ -823,6 +834,7 @@ export interface FileRouteTypes {
     | '/legal/terms'
     | '/legal/third-parties'
     | '/legal/trademark'
+    | '/qa/smart-alarm'
     | '/qa/voice'
     | '/settings/avatar'
     | '/settings/companion'
@@ -879,6 +891,7 @@ export interface RootRouteChildren {
   ApiTtsRoute: typeof ApiTtsRoute
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
   LabAvatarPocRoute: typeof LabAvatarPocRouteWithChildren
+  QaSmartAlarmRoute: typeof QaSmartAlarmRoute
   QaVoiceRoute: typeof QaVoiceRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
@@ -1125,6 +1138,13 @@ declare module '@tanstack/react-router' {
       path: '/qa/voice'
       fullPath: '/qa/voice'
       preLoaderRoute: typeof QaVoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/qa/smart-alarm': {
+      id: '/qa/smart-alarm'
+      path: '/qa/smart-alarm'
+      fullPath: '/qa/smart-alarm'
+      preLoaderRoute: typeof QaSmartAlarmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/trademark': {
@@ -1468,6 +1488,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsRoute: ApiTtsRoute,
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
   LabAvatarPocRoute: LabAvatarPocRouteWithChildren,
+  QaSmartAlarmRoute: QaSmartAlarmRoute,
   QaVoiceRoute: QaVoiceRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
@@ -1485,13 +1506,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -130,7 +130,11 @@ export function previewAlarmSound(soundId: AlarmSoundId, volume: number): () => 
 
 function fireAlarm(label?: string): void {
   const prefs = loadAlarmPrefs();
+  try {
+    window.dispatchEvent(new CustomEvent("alarm:fired", { detail: { label, at: Date.now() } }));
+  } catch { /* noop */ }
   startChime(prefs.sound, prefs.volume, prefs.fadeInSec);
+
   if (prefs.vibrate && vibrateSupported()) {
     try {
       const pattern = [400, 200, 400, 200, 600];
