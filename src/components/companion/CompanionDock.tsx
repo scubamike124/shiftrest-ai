@@ -1,7 +1,7 @@
 // Persistent corner avatar — always visible inside the app surface.
 // Tap → opens the full Companion experience.
 import { Link, useRouterState } from "@tanstack/react-router";
-import { CompanionAvatarFace } from "@/components/companion/Avatar";
+import { OrbBadge } from "@/components/PilotOrb";
 import { cn } from "@/lib/utils";
 
 const HIDE_ON = new Set<string>([
@@ -41,7 +41,7 @@ export function CompanionDock() {
       }}
     >
       <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-primary/25 via-transparent to-transparent" />
-      <CompanionAvatarFace state="idle" size="sm" aura={false} />
+      <OrbBadge state="idle" size="sm" />
       <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />
     </Link>
   );

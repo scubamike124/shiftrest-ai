@@ -167,12 +167,15 @@ let levelRaf = 0;
 const sourcedAudios = new WeakSet<HTMLAudioElement>();
 
 // Pre-shaper drive — pushes the soft-clip into useful range.
-// Lowered for sleep/wind-down context (was 2.3 × 1.3 ≈ +9.5 dB, which was
-// uncomfortably loud). 1.3 × 1.0 ≈ +2.3 dB — calm, audible, soft-clipper still active.
-const VOICE_GAIN = 1.15;
+// Bumped slightly (1.15 → 1.20) to compensate for ElevenLabs speaker_boost
+// being disabled in normal/sleep presets. Still calm bedtime-level loudness.
+const VOICE_GAIN = 1.20;
 // Pre-shaper makeup — kept in the graph at unity so the soft-clip curve
 // still receives the same signal path; raise to bring back headroom if needed.
 const VOICE_MAKEUP = 1.0;
+// OpenAI gpt-4o-mini-tts is mastered ~2–3 dB hotter than ElevenLabs turbo v2.5.
+// When we fall back to OpenAI mid-session, attenuate the element to match.
+const OPENAI_FALLBACK_ATTEN = 0.82;
 // Ceiling trim baked into the shaper curve — keeps absolute peak ≤ 0.97
 // (the audit target was < 0.98) so the destination never sees a sample at
 // the digital ceiling, even on a pathological full-scale sine input.
@@ -558,7 +561,9 @@ async function playOnce(
   const audio = primedAudio;
   audio.preload = "auto";
   audio.setAttribute("playsinline", "true");
-  audio.volume = 1;
+  // Match perceived loudness across providers: OpenAI fallback is hotter
+  // than ElevenLabs, so attenuate the element when EL is blocked.
+  audio.volume = elevenLabsBlocked || provider === "openai" ? OPENAI_FALLBACK_ATTEN : 1;
   const url = URL.createObjectURL(blob);
   audio.src = url;
   currentAudio = audio;

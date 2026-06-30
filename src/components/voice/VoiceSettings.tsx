@@ -112,6 +112,9 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
       const url = URL.createObjectURL(blob);
       urlRef.current = url;
       audio.src = url;
+      // Match Companion conversation loudness — raw preview audio is hotter
+      // than the Companion's gated/soft-clipped path. 0.55 ≈ chat level.
+      audio.volume = 0.55;
       audio.onended = () => setPreviewing(null);
       audio.onpause = () => setPreviewing((p) => (p === voiceId ? null : p));
       try {

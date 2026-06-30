@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CompanionAvatarFace } from "@/components/companion/Avatar";
+import { OrbBadge } from "@/components/PilotOrb";
 
 function greeting(hour: number, name: string) {
   const part = hour < 5 ? "Still up" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 22 ? "Good evening" : "Winding down";
@@ -31,7 +31,7 @@ export function GreetingHeader({ name, now, dateLabel }: { name: string; now: Da
         className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/15 bg-card/70 backdrop-blur-xl"
       >
         <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-primary/30 via-transparent to-transparent" />
-        <CompanionAvatarFace state="idle" size="sm" aura={false} />
+        <OrbBadge state="idle" size="sm" />
       </Link>
     </header>
   );
