@@ -66,6 +66,7 @@ import { Route as ApiInsightsRouteImport } from './routes/api/insights'
 import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
+import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
@@ -362,6 +363,11 @@ const ApiAiRoute = ApiAiRouteImport.update({
   path: '/api/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LabAvatarPocIndexRoute = LabAvatarPocIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
 const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
   id: '/simli',
   path: '/simli',
@@ -476,6 +482,7 @@ export interface FileRoutesByFullPath {
   '/legal/': typeof LegalIndexRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
@@ -520,7 +527,6 @@ export interface FileRoutesByTo {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
-  '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -544,6 +550,7 @@ export interface FileRoutesByTo {
   '/legal': typeof LegalIndexRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lab/avatar-poc': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
@@ -614,6 +621,7 @@ export interface FileRoutesById {
   '/legal/': typeof LegalIndexRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
   '/api/public/hooks/ai-learn': typeof ApiPublicHooksAiLearnRoute
@@ -685,6 +693,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
@@ -729,7 +738,6 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
-    | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -753,6 +761,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lab/avatar-poc'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
@@ -822,6 +831,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
     | '/api/public/hooks/ai-learn'
@@ -1285,6 +1295,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lab/avatar-poc/': {
+      id: '/lab/avatar-poc/'
+      path: '/'
+      fullPath: '/lab/avatar-poc/'
+      preLoaderRoute: typeof LabAvatarPocIndexRouteImport
+      parentRoute: typeof LabAvatarPocRoute
+    }
     '/lab/avatar-poc/simli': {
       id: '/lab/avatar-poc/simli'
       path: '/simli'
@@ -1401,11 +1418,13 @@ const LegalRouteWithChildren = LegalRoute._addFileChildren(LegalRouteChildren)
 interface LabAvatarPocRouteChildren {
   LabAvatarPocDebugRoute: typeof LabAvatarPocDebugRoute
   LabAvatarPocSimliRoute: typeof LabAvatarPocSimliRoute
+  LabAvatarPocIndexRoute: typeof LabAvatarPocIndexRoute
 }
 
 const LabAvatarPocRouteChildren: LabAvatarPocRouteChildren = {
   LabAvatarPocDebugRoute: LabAvatarPocDebugRoute,
   LabAvatarPocSimliRoute: LabAvatarPocSimliRoute,
+  LabAvatarPocIndexRoute: LabAvatarPocIndexRoute,
 }
 
 const LabAvatarPocRouteWithChildren = LabAvatarPocRoute._addFileChildren(
