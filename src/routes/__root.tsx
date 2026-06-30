@@ -221,7 +221,9 @@ function RootComponent() {
         <div className="flex min-h-screen w-full overflow-x-clip">
           <AppSidebar />
           <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
-            <Outlet />
+            <div className="mx-auto w-full max-w-[480px] px-4 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
+              <Outlet />
+            </div>
           </div>
           <BottomNav />
           <CompanionDock />
