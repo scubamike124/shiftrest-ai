@@ -12,13 +12,21 @@ import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 type AdjustmentMode = "exact" | "smart";
 
+const ADAPTIVE_WINDOW_MIN = 60;
+const PREFS_KEY = "restpilot:smart-alarm:prefs";
+
 const ADJUSTMENT_OPTIONS = [
-  { value: 0, label: "Never adjust" },
-  { value: 5, label: "Up to 5 minutes" },
-  { value: 10, label: "Up to 10 minutes" },
-  { value: 15, label: "Up to 15 minutes" },
-  { value: 30, label: "Full Smart Mode" },
+  { value: 0, label: "Exact Time (analyze only)" },
+  { value: 5, label: "±5 min" },
+  { value: 10, label: "±10 min" },
+  { value: 15, label: "±15 min" },
+  { value: 20, label: "±20 min" },
+  { value: 30, label: "±30 min" },
+  { value: ADAPTIVE_WINDOW_MIN, label: "Full Smart Mode (Adaptive)" },
 ] as const;
+
+type AdjustmentValue = (typeof ADJUSTMENT_OPTIONS)[number]["value"];
+
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
@@ -38,7 +46,32 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const tomorrow = useMemo(() => defaultTomorrowWake(), []);
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [adjustmentMode, setAdjustmentMode] = useState<AdjustmentMode>("exact");
-  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<(typeof ADJUSTMENT_OPTIONS)[number]["value"]>(0);
+  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<AdjustmentValue>(0);
+
+  // Rehydrate the user's last Smart Alarm picker preference (local-only).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(PREFS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { adjustmentMode?: AdjustmentMode; maxAdjustmentMin?: number };
+      if (parsed.adjustmentMode === "exact" || parsed.adjustmentMode === "smart") {
+        setAdjustmentMode(parsed.adjustmentMode);
+      }
+      const allowed = ADJUSTMENT_OPTIONS.map((o) => o.value);
+      if (typeof parsed.maxAdjustmentMin === "number" && allowed.includes(parsed.maxAdjustmentMin as AdjustmentValue)) {
+        setMaxAdjustmentMin(parsed.maxAdjustmentMin as AdjustmentValue);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(PREFS_KEY, JSON.stringify({ adjustmentMode, maxAdjustmentMin }));
+    } catch {}
+  }, [adjustmentMode, maxAdjustmentMin]);
+
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState<{
     res: SmartAlarmResponse;
@@ -107,12 +140,15 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         return;
       }
       const exactLabel = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const canAdjust = adjustmentMode === "smart" && maxAdjustmentMin > 0;
+      const isSmart = adjustmentMode === "smart";
+      const isAdaptive = isSmart && maxAdjustmentMin === ADAPTIVE_WINDOW_MIN;
+      const analyzeOnly = isSmart && maxAdjustmentMin === 0;
+      const canAdjust = isSmart && maxAdjustmentMin > 0;
       let res: SmartAlarmResponse;
-      if (canAdjust) {
+      if (canAdjust || analyzeOnly) {
         res = await aiSmartAlarm({
           targetWakeIso: target.toISOString(),
-          windowMin: maxAdjustmentMin,
+          windowMin: isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin,
         });
       } else {
         res = {
@@ -127,20 +163,36 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       }
       let wake = new Date(res.wakeAt);
       if (isNaN(wake.getTime())) throw new Error("AI returned an invalid time.");
-      if (canAdjust) {
+      if (analyzeOnly) {
+        // AI analyzed but the user did not permit any movement.
+        wake = target;
+        res = {
+          ...res,
+          wakeAt: target.toISOString(),
+          reason:
+            "AI analyzed your sleep but Exact Time is on inside Smart Mode, so the wake time was not changed.",
+        };
+      } else if (canAdjust) {
+        const cap = isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin;
         const delta = Math.abs(wake.getTime() - target.getTime());
-        if (delta > maxAdjustmentMin * 60_000 + 999) {
+        if (delta > cap * 60_000 + 999) {
           wake = target;
           res = {
             ...res,
             wakeAt: target.toISOString(),
-            reason: `Smart Adjustment stayed at your selected time because the AI result exceeded your ${maxAdjustmentMin}-minute limit.`,
+            reason: `Smart Adjustment stayed at your selected time because the AI result exceeded your ${cap}-minute limit.`,
           };
         }
       }
       const labelTime = wake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       const notePayload = [
-        canAdjust ? `Smart Adjustment up to ${maxAdjustmentMin} min` : "Exact Time",
+        isAdaptive
+          ? "Full Smart Mode (Adaptive)"
+          : analyzeOnly
+          ? "Smart Mode · analyze only"
+          : canAdjust
+          ? `Smart Adjustment up to ${maxAdjustmentMin} min`
+          : "Exact Time",
         res.cyclePosition ? CYCLE_LABEL[res.cyclePosition] : null,
         res.confidence ? `${res.confidence} confidence` : null,
         res.reason,
@@ -160,9 +212,14 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         res,
         targetIso: target.toISOString(),
         adjusted: canAdjust,
-        maxAdjustmentMin,
+        maxAdjustmentMin: isAdaptive ? ADAPTIVE_WINDOW_MIN : maxAdjustmentMin,
       });
-      toast.success(canAdjust ? `Smart alarm set for ${labelTime}` : `Alarm set for exactly ${labelTime}`);
+      toast.success(
+        canAdjust
+          ? `Smart alarm set for ${labelTime}${isAdaptive ? " (Adaptive)" : ""}`
+          : `Alarm set for exactly ${labelTime}`,
+      );
+
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
     } finally {
@@ -222,7 +279,6 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             type="button"
             onClick={() => {
               setAdjustmentMode("smart");
-              setMaxAdjustmentMin((v) => (v === 0 ? 5 : v));
             }}
             className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
               adjustmentMode === "smart"
@@ -240,7 +296,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             Maximum adjustment
             <select
               value={maxAdjustmentMin}
-              onChange={(e) => setMaxAdjustmentMin(Number(e.target.value) as typeof maxAdjustmentMin)}
+              onChange={(e) => setMaxAdjustmentMin(Number(e.target.value) as AdjustmentValue)}
               className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"
             >
               {ADJUSTMENT_OPTIONS.map((opt) => (
@@ -249,20 +305,29 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             </select>
           </label>
         )}
+        {adjustmentMode === "smart" && maxAdjustmentMin === 0 && (
+          <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
+            Exact Time — AI will analyze but won't move your alarm.
+          </div>
+        )}
         <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-          {adjustmentMode === "smart" && maxAdjustmentMin > 0
-            ? `RestPilot may move this alarm by up to ${maxAdjustmentMin} minutes only because Smart Adjustment is enabled.`
-            : adjustmentMode === "smart"
-            ? "Never adjust is selected. RestPilot will not move this alarm."
-            : "Exact Time is on. RestPilot will not move this alarm."}
+          {adjustmentMode === "exact"
+            ? "RestPilot will ring at the exact time you selected."
+            : maxAdjustmentMin === 0
+            ? "AI will analyze your sleep but will not change your scheduled wake time."
+            : maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
+            ? `Full Smart Mode — AI may move your alarm by up to ~${ADAPTIVE_WINDOW_MIN} minutes to find the optimal wake moment in your sleep cycle.`
+            : `AI may move your alarm by up to ${maxAdjustmentMin} minutes earlier or later to land on a better sleep moment.`}
         </div>
         <button
           onClick={schedule}
           disabled={busy || !signedIn}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
-          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? "Set smart alarm" : "Set exact alarm"}
+          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? (maxAdjustmentMin === ADAPTIVE_WINDOW_MIN ? "Set adaptive alarm" : "Set smart alarm") : "Set exact alarm"}
         </button>
+
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -288,7 +353,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       {lastResult && wakeLabel && (
         <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
-            {lastResult.adjusted ? "AI chose" : "Exact time"}
+            {lastResult.adjusted ? (lastResult.maxAdjustmentMin === ADAPTIVE_WINDOW_MIN ? "AI chose (Adaptive)" : "AI chose") : "Exact time"}
           </p>
           <p className="mt-1 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
             {wakeLabel}
