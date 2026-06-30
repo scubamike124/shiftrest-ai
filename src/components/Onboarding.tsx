@@ -3,7 +3,7 @@ import { Moon, Sparkles, ShieldCheck, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DEFAULT_PREFS, fetchPrefs, markOnboarded } from "@/lib/prefs";
+import { DEFAULT_PREFS, fetchPrefs, markOnboarded, savePrefs } from "@/lib/prefs";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
 import { toast } from "sonner";
 import { DebugHUD } from "@/components/companion/DebugHUD";
