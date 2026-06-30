@@ -28,7 +28,7 @@ async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | n
 function aiCacheScope(payload: Record<string, unknown>): string {
   const intent = String(payload.intent ?? "unknown");
   const keyFields: Record<string, unknown> = {};
-  for (const k of ["patternKey", "horizon", "phase", "tripId"]) {
+  for (const k of ["patternKey", "horizon", "phase", "tripId", "targetWakeIso", "windowMin"]) {
     if (payload[k] !== undefined) keyFields[k] = payload[k];
   }
   const tail = Object.keys(keyFields).length ? `:${JSON.stringify(keyFields)}` : "";

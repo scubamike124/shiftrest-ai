@@ -121,7 +121,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           cyclePosition: "natural",
           confidence: "high",
           confidenceReason: "No smart adjustment was permitted for this alarm.",
-          message: `Good morning. Your ${exactLabel} alarm is ringing.`,
+          message: `Your ${exactLabel} alarm is ringing.`,
           recommendationId: null,
         };
       }
@@ -252,6 +252,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
           {adjustmentMode === "smart" && maxAdjustmentMin > 0
             ? `RestPilot may move this alarm by up to ${maxAdjustmentMin} minutes only because Smart Adjustment is enabled.`
+            : adjustmentMode === "smart"
+            ? "Never adjust is selected. RestPilot will not move this alarm."
             : "Exact Time is on. RestPilot will not move this alarm."}
         </div>
         <button
