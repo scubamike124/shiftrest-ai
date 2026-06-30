@@ -96,6 +96,7 @@ export const DEFAULT_PREFS: Prefs = {
   lon: -74.006,
   locationLabel: "",
   partnerName: "",
+  preferredName: "",
   onboarded: false,
   cycleWeeks: 1,
   cycleAnchor: null,
