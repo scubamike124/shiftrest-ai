@@ -308,13 +308,6 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           disabled={busy || !signedIn}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
-          <Sparkles className="h-4 w-4" /> {busy ? "Setting…" : adjustmentMode === "smart" && maxAdjustmentMin > 0 ? (maxAdjustmentMin === ADAPTIVE_WINDOW_MIN ? "Set adaptive alarm" : "Set smart alarm") : "Set exact alarm"}
-        </button>
-        <button
-          onClick={schedule}
-          disabled={busy || !signedIn}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-60"
-        >
           <Sparkles className="h-4 w-4" />{" "}
           {busy
             ? "Setting…"
