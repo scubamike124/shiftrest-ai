@@ -46,6 +46,10 @@ export function Onboarding() {
   const [dismissed, setDismissed] = useState(false);
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  useEffect(() => {
+    if (prefs?.preferredName) setNameDraft(prefs.preferredName);
+  }, [prefs?.preferredName]);
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -56,8 +60,13 @@ export function Onboarding() {
   const open = ready && authOk && isSuccess && !prefs.onboarded && !dismissed;
   if (!open) return null;
 
-  const totalSteps = INTRO_SLIDES.length + 1; // + consent step
-  const isConsentStep = step === INTRO_SLIDES.length;
+  const NAME_STEP_INDEX = INTRO_SLIDES.length; // after intro slides
+  const CONSENT_STEP_INDEX = INTRO_SLIDES.length + 1;
+  const totalSteps = INTRO_SLIDES.length + 2; // intro + name + consent
+  const isNameStep = step === NAME_STEP_INDEX;
+  const isConsentStep = step === CONSENT_STEP_INDEX;
+  const trimmedName = nameDraft.trim();
+  const nameOk = trimmedName.length > 0;
   const allAcked = ACK_ITEMS.every((i) => acks[i.key]);
 
   async function finish() {
