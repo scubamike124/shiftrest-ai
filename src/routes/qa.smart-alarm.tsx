@@ -12,6 +12,7 @@ import { addAlarm, cancelAlarm, stopRinging } from "@/lib/alarm/foreground";
 import { loadAlarmPrefs, vibrateSupported, type AlarmAudioPrefs } from "@/lib/alarm/prefs";
 import { ALARM_SOUNDS } from "@/lib/alarm/sounds";
 import { prepareVoicePlayback } from "@/lib/companion/speak";
+import { aiSmartAlarm } from "@/lib/ai-client";
 
 export const Route = createFileRoute("/qa/smart-alarm")({
   head: () => ({
