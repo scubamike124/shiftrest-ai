@@ -279,6 +279,8 @@ function SmartAlarmQAPage() {
         </p>
       </section>
 
+      <SmartAdjustmentTester />
+
       <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide">Manual checklist</h2>
         <p className="text-[11px] text-muted-foreground">Persists across reloads. Use after the +60s test passes.</p>
