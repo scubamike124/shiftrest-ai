@@ -73,9 +73,17 @@ export const Route = createFileRoute("/api/brief")({
         const started = Date.now();
 
         let plan: string | undefined;
+        let localTime: string | undefined;
+        let timezone: string | undefined;
         try {
-          const body = (await request.json()) as { plan?: string };
+          const body = (await request.json()) as {
+            plan?: string;
+            localTime?: string;
+            timezone?: string;
+          };
           plan = typeof body?.plan === "string" ? body.plan.trim() : undefined;
+          localTime = typeof body?.localTime === "string" ? body.localTime : undefined;
+          timezone = typeof body?.timezone === "string" ? body.timezone : undefined;
         } catch {
           return new Response(
             JSON.stringify({ error: "Invalid JSON body" }),
@@ -92,6 +100,55 @@ export const Route = createFileRoute("/api/brief")({
         if (!process.env.LOVABLE_API_KEY) {
           console.error("[brief] LOVABLE_API_KEY missing");
           return fallback("config", messageFromReason("config"));
+        }
+
+        // Build a "current local time" directive so the greeting always
+        // matches the user's actual time of day. If the client didn't send
+        // localTime/timezone we silently skip — the original prompt still
+        // works, just without the time pin.
+        let timeDirective = "";
+        if (localTime) {
+          let hour: number | null = null;
+          let pretty = localTime;
+          try {
+            const d = new Date(localTime);
+            if (!isNaN(d.getTime())) {
+              if (timezone) {
+                const fmt = new Intl.DateTimeFormat("en-US", {
+                  timeZone: timezone,
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                });
+                pretty = fmt.format(d);
+                const hourStr = new Intl.DateTimeFormat("en-US", {
+                  timeZone: timezone,
+                  hour: "2-digit",
+                  hour12: false,
+                }).format(d);
+                const h = parseInt(hourStr, 10);
+                if (!isNaN(h)) hour = h;
+              } else {
+                hour = d.getHours();
+                pretty = d.toLocaleTimeString();
+              }
+            }
+          } catch {
+            /* best effort */
+          }
+          const greeting =
+            hour === null
+              ? null
+              : hour < 12
+                ? "Good morning"
+                : hour < 17
+                  ? "Good afternoon"
+                  : "Good evening";
+          timeDirective =
+            `\n\nCurrent local time for the user: ${pretty}${timezone ? ` (${timezone})` : ""}.` +
+            (greeting
+              ? ` Open the briefing with "${greeting}" — do NOT use any other time-of-day greeting.`
+              : "");
         }
 
         try {
@@ -114,7 +171,7 @@ export const Route = createFileRoute("/api/brief")({
             language = row?.voice_language || "en-US";
             accent = row?.voice_accent || null;
           }
-          const system = languageDirective(language, accent) + BRIEF_SYSTEM;
+          const system = languageDirective(language, accent) + BRIEF_SYSTEM + timeDirective;
 
           const result = await chatJSON({
             messages: [
