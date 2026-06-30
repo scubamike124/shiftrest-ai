@@ -46,7 +46,32 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const tomorrow = useMemo(() => defaultTomorrowWake(), []);
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [adjustmentMode, setAdjustmentMode] = useState<AdjustmentMode>("exact");
-  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<(typeof ADJUSTMENT_OPTIONS)[number]["value"]>(0);
+  const [maxAdjustmentMin, setMaxAdjustmentMin] = useState<AdjustmentValue>(0);
+
+  // Rehydrate the user's last Smart Alarm picker preference (local-only).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(PREFS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { adjustmentMode?: AdjustmentMode; maxAdjustmentMin?: number };
+      if (parsed.adjustmentMode === "exact" || parsed.adjustmentMode === "smart") {
+        setAdjustmentMode(parsed.adjustmentMode);
+      }
+      const allowed = ADJUSTMENT_OPTIONS.map((o) => o.value);
+      if (typeof parsed.maxAdjustmentMin === "number" && allowed.includes(parsed.maxAdjustmentMin as AdjustmentValue)) {
+        setMaxAdjustmentMin(parsed.maxAdjustmentMin as AdjustmentValue);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(PREFS_KEY, JSON.stringify({ adjustmentMode, maxAdjustmentMin }));
+    } catch {}
+  }, [adjustmentMode, maxAdjustmentMin]);
+
   const [busy, setBusy] = useState(false);
   const [lastResult, setLastResult] = useState<{
     res: SmartAlarmResponse;
