@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { X, Settings2, BellOff, WifiOff } from "lucide-react";
-import { CompanionAvatarFace } from "@/components/companion/Avatar";
+import { OrbBadge } from "@/components/PilotOrb";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
@@ -133,7 +133,7 @@ export function CompanionHero() {
       <div className="flex items-stretch gap-4 p-4 sm:p-5">
         {/* Avatar */}
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl sm:h-20 sm:w-20">
-          <CompanionAvatarFace state="idle" size="md" />
+          <OrbBadge state="idle" size="md" />
           {(view.state === "morning_brief" || view.state === "afternoon_check" || view.state === "evening_wind") && (
             <span className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none" />

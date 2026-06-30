@@ -26,7 +26,7 @@ import {
   Lock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { CompanionAvatarFace } from "@/components/companion/Avatar";
+import { OrbBadge } from "@/components/PilotOrb";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -228,7 +228,7 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
         </div>
 
         <div className="relative">
-          <CompanionAvatarFace state="idle" size="lg" aura label="Tap to talk" />
+          <OrbBadge state="idle" size="lg" />
         </div>
 
         <div className="flex w-full flex-col items-center gap-3">
@@ -1440,7 +1440,7 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
               Tap the avatar — anywhere in the app
             </p>
             <div className="my-8">
-              <CompanionAvatarFace state="idle" size="lg" aura />
+              <OrbBadge state="idle" size="lg" />
             </div>
             <p
               className="text-2xl leading-tight"

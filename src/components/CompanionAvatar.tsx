@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CompanionAvatarFace } from "@/components/companion/Avatar";
+import { OrbBadge } from "@/components/PilotOrb";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
 import { track } from "@/lib/companion/analytics";
@@ -54,7 +54,7 @@ export function CompanionAvatar() {
       )}
       data-testid="companion-avatar"
     >
-      <CompanionAvatarFace state="idle" size="sm" aura={false} />
+      <OrbBadge state="idle" size="sm" />
       {pulse && (
         <span aria-hidden className="absolute -right-0.5 -top-0.5 inline-flex h-2.5 w-2.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75 motion-reduce:animate-none" />
