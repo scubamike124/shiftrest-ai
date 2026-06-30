@@ -8,6 +8,7 @@ import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
 import { syncAlarms, stopRinging, testAlarm } from "@/lib/alarm/foreground";
+import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 const CYCLE_LABEL: Record<NonNullable<SmartAlarmResponse["cyclePosition"]>, string> = {
   rem_end: "End of REM cycle",
