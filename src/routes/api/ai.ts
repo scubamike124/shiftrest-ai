@@ -510,6 +510,37 @@ export const Route = createFileRoute("/api/ai")({
               return jsonError(502, "AI returned malformed JSON");
             }
 
+            // Smart-alarm safety net: if the model returned the exact target
+            // time (or an out-of-window time) when windowMin > 0, snap to the
+            // nearest 90-min cycle boundary clamped to ±windowMin so Smart
+            // Adjustment is never a silent no-op.
+            if (body.intent === "smart_alarm" && body.windowMin > 0) {
+              const targetMs = Date.parse(body.targetWakeIso);
+              const wakeMs = Date.parse(String(parsed.wakeAt ?? ""));
+              const windowMs = body.windowMin * 60_000;
+              const cycleMs = 90 * 60_000;
+              if (!Number.isFinite(wakeMs) || Math.abs(wakeMs - targetMs) > windowMs || wakeMs === targetMs) {
+                const candidates = [
+                  targetMs - cycleMs * 0.25,
+                  targetMs + cycleMs * 0.25,
+                  targetMs - cycleMs * 0.5,
+                  targetMs + cycleMs * 0.5,
+                ];
+                const clamped = candidates
+                  .map((c) => Math.max(targetMs - windowMs, Math.min(targetMs + windowMs, c)))
+                  .filter((c) => c !== targetMs);
+                const pick = clamped[0] ?? (targetMs + Math.min(windowMs, 5 * 60_000));
+                parsed.wakeAt = new Date(pick).toISOString();
+                const deltaMin = Math.round((pick - targetMs) / 60_000);
+                parsed.reason = `Adjusted ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} to land closer to a light-sleep boundary in your cycle.`;
+                if (!parsed.cyclePosition) parsed.cyclePosition = "light_sleep";
+                if (!parsed.confidence) parsed.confidence = "low";
+                if (!parsed.confidenceReason) parsed.confidenceReason = "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
+                if (!parsed.message) parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
+              }
+            }
+
+
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;
             if (userId) {
