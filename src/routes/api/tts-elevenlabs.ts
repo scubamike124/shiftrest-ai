@@ -53,12 +53,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const mode = reqBody.mode ?? "normal";
           const textLen = text.length;
 
-          // Per-mode prosody presets (Phase 1 voice system).
+          // Per-mode prosody presets (Step 3a — premium tuning).
+          // Higher stability + lower style = warmer, less robotic Sarah.
+          // Sleep drops [whisper] (caused volume dropouts); uses [soft]+slow.
           const preset =
-            mode === "sleep"        ? { stability: 0.65, similarity: 0.80, style: 0.15, speed: 0.92, prefix: "[whisper] [soft] " }
-          : mode === "encouraging"  ? { stability: 0.40, similarity: 0.78, style: 0.55, speed: 1.02, prefix: "" }
-          : mode === "thinking"     ? { stability: 0.55, similarity: 0.75, style: 0.20, speed: 0.98, prefix: "" }
-                                    : { stability: 0.45, similarity: 0.78, style: 0.35, speed: 1.00, prefix: "" };
+            mode === "sleep"        ? { stability: 0.75, similarity: 0.85, style: 0.10, speed: 0.88, prefix: "[soft] [slowly] " }
+          : mode === "encouraging"  ? { stability: 0.45, similarity: 0.80, style: 0.45, speed: 1.00, prefix: "[warm] " }
+          : mode === "thinking"     ? { stability: 0.60, similarity: 0.78, style: 0.15, speed: 0.96, prefix: "[thoughtful] " }
+                                    : { stability: 0.55, similarity: 0.80, style: 0.20, speed: 0.97, prefix: "" };
 
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
