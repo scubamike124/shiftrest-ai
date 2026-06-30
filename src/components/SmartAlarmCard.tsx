@@ -58,6 +58,15 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
     );
   }, [alarms]);
 
+  // Refresh the alarm list when any surface (Companion, Pilot) creates or
+  // deletes an alarm so the user sees it appear immediately without a reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onChanged = () => qc.invalidateQueries({ queryKey: ["events"] });
+    window.addEventListener("companion:alarms-changed", onChanged);
+    return () => window.removeEventListener("companion:alarms-changed", onChanged);
+  }, [qc]);
+
   const notifGranted =
     typeof window !== "undefined" &&
     "Notification" in window &&
