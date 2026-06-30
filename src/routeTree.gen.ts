@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VersionRouteImport } from './routes/version'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as SmartHomeRouteImport } from './routes/smart-home'
@@ -70,6 +71,7 @@ import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
+import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -79,6 +81,11 @@ import { Route as ApiLabSimliSessionRouteImport } from './routes/api/lab/simli/s
 import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
 import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/api/public/wearables/fitbit/callback'
 
+const VersionRoute = VersionRouteImport.update({
+  id: '/version',
+  path: '/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -384,6 +391,11 @@ const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
   path: '/debug',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
+const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
+  id: '/api/public/version',
+  path: '/api/public/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -456,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
@@ -487,6 +500,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
@@ -526,6 +540,7 @@ export interface FileRoutesByTo {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
@@ -556,6 +571,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc': typeof LabAvatarPocIndexRoute
@@ -597,6 +613,7 @@ export interface FileRoutesById {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
   '/api/coach': typeof ApiCoachRoute
@@ -628,6 +645,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
@@ -670,6 +688,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/version'
     | '/api/ai'
     | '/api/brief'
     | '/api/coach'
@@ -701,6 +720,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
@@ -740,6 +760,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/version'
     | '/api/ai'
     | '/api/brief'
     | '/api/coach'
@@ -770,6 +791,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc'
@@ -810,6 +832,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/version'
     | '/api/ai'
     | '/api/brief'
     | '/api/coach'
@@ -841,6 +864,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
     | '/lab/avatar-poc/'
@@ -882,6 +906,7 @@ export interface RootRouteChildren {
   SmartHomeRoute: typeof SmartHomeRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
+  VersionRoute: typeof VersionRoute
   ApiAiRoute: typeof ApiAiRoute
   ApiBriefRoute: typeof ApiBriefRoute
   ApiCoachRoute: typeof ApiCoachRoute
@@ -897,6 +922,7 @@ export interface RootRouteChildren {
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiLabSimliSessionRoute: typeof ApiLabSimliSessionRoute
   ApiLabSimliSpeakRoute: typeof ApiLabSimliSpeakRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
@@ -909,6 +935,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/version': {
+      id: '/version'
+      path: '/version'
+      fullPath: '/version'
+      preLoaderRoute: typeof VersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -1336,6 +1369,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocDebugRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
+    '/api/public/version': {
+      id: '/api/public/version'
+      path: '/api/public/version'
+      fullPath: '/api/public/version'
+      preLoaderRoute: typeof ApiPublicVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -1479,6 +1519,7 @@ const rootRouteChildren: RootRouteChildren = {
   SmartHomeRoute: SmartHomeRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
+  VersionRoute: VersionRoute,
   ApiAiRoute: ApiAiRoute,
   ApiBriefRoute: ApiBriefRoute,
   ApiCoachRoute: ApiCoachRoute,
@@ -1494,6 +1535,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiLabSimliSessionRoute: ApiLabSimliSessionRoute,
   ApiLabSimliSpeakRoute: ApiLabSimliSpeakRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
