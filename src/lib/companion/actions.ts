@@ -440,17 +440,33 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
         const uid = await requireAuth();
         if (!uid) return fail("unauthenticated", "Sign in to set an alarm.", { label: "Sign in", href: "/auth" });
         const iso = nextOccurrenceISO(a.hour, a.minute);
-        await createEvent({
-          kind: "personal",
-          title: `alarm:${hhmm(a.hour, a.minute)}`,
-          startsAt: iso,
-          reminderMin: 0,
-          travelBufferMin: 0,
-        });
+        const label = hhmm(a.hour, a.minute);
+        let saved;
+        try {
+          saved = await createEvent({
+            kind: "personal",
+            title: `alarm:${label}`,
+            startsAt: iso,
+            reminderMin: 0,
+            travelBufferMin: 0,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Couldn't save alarm.";
+          return fail("unknown", `I couldn't save that alarm: ${msg}`);
+        }
+        // Verify the row exists before confirming to the user.
+        if (!saved?.id) {
+          return fail("unknown", "I tried to save that alarm, but the server didn't confirm it — please try again.");
+        }
+        // Wire it into the foreground scheduler immediately so it actually rings.
+        try {
+          const { addAlarm } = await import("@/lib/alarm/foreground");
+          addAlarm({ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label });
+        } catch { /* non-fatal */ }
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("companion:alarms-changed"));
         }
-        return done(`Alarm set for ${hhmm(a.hour, a.minute)}.`);
+        return done(`Alarm set for ${label}. It's saved and ready.`);
       }
       case "delete_alarm": {
         const uid = await requireAuth();
@@ -465,13 +481,20 @@ export async function executeAction(a: CompanionAction, ctx: ActionContext): Pro
         const uid = await requireAuth();
         if (!uid) return fail("unauthenticated", "Sign in to snooze.", { label: "Sign in", href: "/auth" });
         const t = new Date(Date.now() + a.minutes * 60_000);
-        await createEvent({
+        const saved = await createEvent({
           kind: "personal",
           title: `alarm:${hhmm(t.getHours(), t.getMinutes())}`,
           startsAt: t.toISOString(),
           reminderMin: 0,
           travelBufferMin: 0,
         });
+        try {
+          const { addAlarm } = await import("@/lib/alarm/foreground");
+          addAlarm({ id: saved.id, firesAt: new Date(saved.startsAt).getTime(), label: hhmm(t.getHours(), t.getMinutes()) });
+        } catch { /* non-fatal */ }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("companion:alarms-changed"));
+        }
         return done(`Snoozed ${a.minutes} min.`);
       }
       case "recommend_smart_alarm": {

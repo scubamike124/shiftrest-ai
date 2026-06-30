@@ -50,6 +50,26 @@ export function syncAlarms(alarms: AlarmInput[]): void {
   }
 }
 
+/** Add or refresh a single alarm without clearing other scheduled timers. */
+export function addAlarm(alarm: AlarmInput): void {
+  const existing = timers.get(alarm.id);
+  const delay = Math.max(MIN_FIRE_LEAD_MS, alarm.firesAt - Date.now());
+  if (delay > MAX_DELAY_MS) {
+    if (existing) {
+      clearTimeout(existing);
+      timers.delete(alarm.id);
+    }
+    return;
+  }
+  if (existing) clearTimeout(existing);
+  const t = setTimeout(() => {
+    timers.delete(alarm.id);
+    fireAlarm(alarm.label);
+  }, delay);
+  timers.set(alarm.id, t);
+}
+
+
 export function cancelAlarm(id: string): void {
   const t = timers.get(id);
   if (t) {
