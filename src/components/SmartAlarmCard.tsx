@@ -254,27 +254,39 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
 
       {alarms.length > 0 && (
         <ul className="mt-4 space-y-2 border-t border-border pt-3">
-          {alarms.map((a) => (
-            <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{a.title}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {new Date(a.startsAt).toLocaleString([], {
-                    weekday: "short",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                  {a.notes ? ` · ${a.notes}` : ""}
-                </p>
-              </div>
-              <button
-                onClick={() => del.mutate(a.id)}
-                className="rounded-lg px-2 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10"
-              >
-                Cancel
-              </button>
-            </li>
-          ))}
+          {alarms.map((a) => {
+            const ms = new Date(a.startsAt).getTime() - Date.now();
+            const inForeground = ms > 0 && ms <= 6 * 60 * 60 * 1000;
+            const status = inForeground
+              ? "Will ring in this tab"
+              : notifGranted
+              ? "Background notification ready"
+              : "Enable notifications for background";
+            return (
+              <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-secondary/60 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{a.title}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {new Date(a.startsAt).toLocaleString([], {
+                      weekday: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                    {a.notes ? ` · ${a.notes}` : ""}
+                  </p>
+                  <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-glow">
+                    {status}
+                  </p>
+                </div>
+                <button
+                  onClick={() => del.mutate(a.id)}
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10"
+                >
+                  Cancel
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
     <div className="mt-3 flex justify-end"><SafetyNote /></div>
