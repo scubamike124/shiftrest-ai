@@ -439,6 +439,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           )}
           {lastResult.res.recommendationId && (
             <div className="mt-3 border-t border-primary/15 pt-3">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Feedback on this suggestion
+              </p>
               <RecommendationActions
                 recommendationId={lastResult.res.recommendationId}
                 signedIn={signedIn}
