@@ -13,6 +13,7 @@ import { loadAlarmPrefs, vibrateSupported, type AlarmAudioPrefs } from "@/lib/al
 import { ALARM_SOUNDS } from "@/lib/alarm/sounds";
 import { prepareVoicePlayback } from "@/lib/companion/speak";
 import { aiSmartAlarm } from "@/lib/ai-client";
+import { ADVANCED_ADJUSTMENT_ENABLED } from "@/components/SmartAlarmCard";
 
 export const Route = createFileRoute("/qa/smart-alarm")({
   head: () => ({
