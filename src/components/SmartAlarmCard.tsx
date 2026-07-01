@@ -21,13 +21,16 @@ const ADAPTIVE_WINDOW_MIN = 60;
 const PREFS_KEY = "restpilot:smart-alarm:prefs";
 
 const ADJUSTMENT_OPTIONS = [
-  { value: 5, label: "±5 min" },
-  { value: 10, label: "±10 min" },
-  { value: 15, label: "±15 min" },
-  { value: 20, label: "±20 min" },
-  { value: 30, label: "±30 min" },
-  { value: ADAPTIVE_WINDOW_MIN, label: "Full Smart Mode (Adaptive)" },
+  { value: 5, label: "5 min" },
+  { value: 10, label: "10 min" },
+  { value: 15, label: "15 min" },
+  { value: 20, label: "20 min" },
+  { value: 30, label: "30 min" },
+  { value: ADAPTIVE_WINDOW_MIN, label: "Full" },
 ] as const;
+
+const SMART_ALARM_CARD_VERSION = "v2";
+
 
 type AdjustmentValue = (typeof ADJUSTMENT_OPTIONS)[number]["value"];
 
