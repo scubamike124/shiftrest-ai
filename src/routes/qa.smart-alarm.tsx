@@ -13,6 +13,7 @@ import { loadAlarmPrefs, vibrateSupported, type AlarmAudioPrefs } from "@/lib/al
 import { ALARM_SOUNDS } from "@/lib/alarm/sounds";
 import { prepareVoicePlayback } from "@/lib/companion/speak";
 import { aiSmartAlarm } from "@/lib/ai-client";
+import { ADVANCED_ADJUSTMENT_ENABLED } from "@/components/SmartAlarmCard";
 
 export const Route = createFileRoute("/qa/smart-alarm")({
   head: () => ({
@@ -281,7 +282,7 @@ function SmartAlarmQAPage() {
 
       <LongHorizonTester />
 
-      <SmartAdjustmentTester />
+      {ADVANCED_ADJUSTMENT_ENABLED && <SmartAdjustmentTester />}
 
       <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide">Manual checklist</h2>

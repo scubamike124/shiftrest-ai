@@ -1,53 +1,61 @@
-# Phase 4 — Push Enrollment on Alarm Create
 
-## Final Readiness Review
+# Smart Alarm V1 — Simplify to Exact Time Only
 
-1. **Reuses existing infra.** Uses `pushSupported()`, `ensureServiceWorker()`, `ensurePushSubscription()`, `subscriptionPayload()` from `src/lib/notifications/client.ts` and the existing `subscribePush` server fn in `src/lib/push/subscribe.functions.ts`. No new VAPID, SW, or table work.
-2. **No duplicate subscriptions.** `subscribePush` upserts on `(user_id, endpoint)`. `pushManager.getSubscription()` short-circuits if a subscription already exists, so a repeat schedule is a no-op upsert.
-3. **Existing notification features unchanged.** `NotificationsSection` continues to use the same helpers. No edits to `sw-src.ts`, `web-push.server.ts`, `dispatch-alarms.ts`, cron, or `notification_prefs`.
-4. **Alarm scheduling is decoupled.** Enrollment runs in `scheduleMutation.onSuccess` inside a try/catch — a push failure never blocks alarm creation. The row already exists in `user_events`; the foreground timer path is untouched.
-5. **Denied permission fails gracefully.** If `Notification.permission === "denied"`, we show a single non-blocking toast ("Notifications blocked — enable in Settings → Safari → Notifications to get locked-screen alarms") and return. No re-prompt loop.
-6. **Non-installed Safari.** If `pushSupported()` is false or (iOS Safari AND not standalone), we show a one-time "Add to Home Screen for reliable alarms" toast with a link opening the existing `SmartAlarmCoach` install instructions. Detection: `/iP(hone|ad|od)/.test(ua)` + `!window.matchMedia('(display-mode: standalone)').matches && !navigator.standalone`.
-7. **No migration for existing users.** Purely additive client behavior gated on next alarm create. Users with an existing push subscription simply re-upsert the same row.
+## Product decision & impact
 
-## Implementation Scope
+Ship an alarm that always rings at exactly the time the user picks. AI wake-time shifting is removed from the UI for V1 but kept in the codebase behind an off-by-default flag so it can be reintroduced later as an "Advanced" option.
 
-Single file touched: `src/components/SmartAlarmCard.tsx`.
+**Risk / reliability impact — net positive:**
+- Removes an entire class of "why did it fire at 6:52 instead of 7:00?" support issues.
+- Removes the AI call from the critical scheduling path — one fewer network dependency between "tap Set" and "row in `user_events`".
+- Fewer UI states to QA (one mode instead of two × 6 window sizes).
+- No effect on the reliability work we just completed: `dispatched_at` claim, `pg_cron` minute tick, push enrollment, snooze/stop, foreground re-arm — all continue to operate on the exact `starts_at` the user picked.
+- AI bedtime/wind-down/sleep advice is unaffected (separate surfaces: coach, brief, companion).
 
-Add a helper `ensureAlarmPushEnrollment()` (local to the file or as `src/lib/alarm/push-enroll.ts` if cleaner) that:
+## Files involved
 
-```
-if (!signedIn) return;
-if (!pushSupported()) { maybeShowInstallToast(); return; }
-if (Notification.permission === "denied") { showBlockedToast(); return; }
-if (Notification.permission === "default") {
-  const res = await Notification.requestPermission();
-  if (res !== "granted") { if (res === "denied") showBlockedToast(); return; }
-}
-const sub = await ensurePushSubscription();
-if (!sub) return;
-await subscribePush({ data: subscriptionPayload(sub) });
-```
+1. **`src/components/SmartAlarmCard.tsx`** — primary UI change.
+   - Delete the Exact/Smart segmented control, adjustment chip row, `SmartAlarmCoach` result panel (or hide when not applicable), and the `aiSmartAlarm` call in the mutation.
+   - Keep: time picker, Set button, list of scheduled alarms, snooze/stop, sound/volume/fade/vibrate Sheet, push enrollment call, foreground `addAlarm`.
+   - Keep `adjustmentMode`/`maxAdjustmentMin` state + `PREFS_KEY` behind an internal `ADVANCED_ADJUSTMENT_ENABLED = false` constant so re-enabling later is a one-line flip.
 
-Wire it into `scheduleMutation.onSuccess` (after the existing `createEvent` success path near line 197), wrapped in try/catch that only `console.warn`s — never toasts an error on top of the "Alarm set" success toast.
+2. **`src/routes/index.tsx`** — `SmartAlarmMock` on the marketing/home card.
+   - Remove the "Smart adjustment" chip row from the mock to match shipped UI. No logic.
 
-**Not in scope (per request):**
-- No Snooze, no Stop.
-- No SW `notificationclick` action changes.
-- No dispatch route changes.
-- No cron changes.
-- No `notification_prefs` UI changes.
+3. **`src/routes/qa.smart-alarm.tsx`** — QA harness.
+   - Hide/remove the `SmartAdjustmentTester` section (or gate it on the same flag). Keep the +60s self-test, long-horizon +7h tester, and manual checklist — those validate the reliability path we're keeping.
 
-## Rollback
+4. **`src/lib/ai-client.ts`** — leave `aiSmartAlarm` export in place (unused by UI, still used by QA if we keep it flagged). Zero change required.
 
-Revert the single `SmartAlarmCard.tsx` diff (and delete `push-enroll.ts` if extracted). Nothing server-side changes.
+5. **`src/routes/api/ai.ts`** — leave the smart-alarm handler in place. Dead code from V1 UI's perspective, live for future flag flip and for the QA harness. Zero change required.
 
-## Verification After Implementation
+6. **`SmartAlarmCoach.tsx`, `ai/trust/*`** — no change; simply not rendered when adjustment is off.
 
-- `tsgo` typecheck green.
-- Publish → Update.
-- `curl https://shift-rest-ai.lovable.app/api/public/version` → new `buildId`, report it.
-- On iPhone PWA: schedule an alarm, tap Allow at the prompt, then check `select count(*) from push_subscriptions where user_id = <me>` returned ≥ 1 with fresh `last_seen_at`.
-- Seed a due alarm 60s out, invoke dispatch route manually, expect response to move from `{noSubs:1}` → `{sent:1}`.
+**Not touched (reliability layer stays intact):**
+- `src/lib/alarm/foreground.ts`
+- `src/lib/alarm/push-enroll.ts`
+- `src/routes/api/public/hooks/dispatch-alarms.ts`
+- `public/sw-src.ts` (snooze/stop actions)
+- `user_events` schema, `dispatched_at`, cron job
 
-STOP after report. Await approval + your locked-screen device test before Phase 5.
+## Smallest safe implementation plan (one PR)
+
+1. Add `const ADVANCED_ADJUSTMENT_ENABLED = false;` at the top of `SmartAlarmCard.tsx`.
+2. In `onSubmit`, when the flag is false: skip `aiSmartAlarm`, compute `wakeAt = targetLocal` directly, `createEvent` with the exact target ISO, then `addAlarm` + `ensureAlarmPushEnrollment` as today.
+3. Conditionally render the mode toggle, chip row, and Coach result on `ADVANCED_ADJUSTMENT_ENABLED`. Button label becomes just "Set alarm".
+4. Update the marketing mock in `src/routes/index.tsx` to drop the adjustment chips.
+5. Gate `SmartAdjustmentTester` in `qa.smart-alarm.tsx` on the same flag (import the constant or duplicate as `false`).
+6. Typecheck. No migration, no cron change, no publish gating needed beyond a standard Publish → Update.
+
+## Re-introduction path (future)
+
+Flip `ADVANCED_ADJUSTMENT_ENABLED` to `true` (or promote it to a per-user preference / entitlement check for a paid tier). All existing code — the mode toggle, chip row, `aiSmartAlarm` call, Coach panel, QA tester, and server route — comes back with no re-authoring. Recommended future gate: `useSubscription().tier === 'elite'` or a Settings toggle stored in `prefs`.
+
+## Verification after implementation
+
+- Typecheck green.
+- Manual: pick 7:00, tap Set → row in `user_events` has `starts_at` exactly 7:00, `title` starts with `alarm:`, no AI network call in devtools.
+- QA harness +60s test still PASS.
+- Locked-screen push still delivers via the cron path (unchanged).
+
+Awaiting approval before coding.
