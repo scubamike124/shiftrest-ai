@@ -11,6 +11,7 @@ import { quoteForToday } from "@/lib/morning/quotes";
 import type { Prefs } from "@/lib/prefs";
 import type { BriefCardId, MorningBriefDTO } from "@/lib/morning/types";
 import { track } from "@/lib/companion/analytics";
+import { SMART_ALARM_ENABLED } from "@/lib/flags";
 import { GreetingCard } from "./cards/GreetingCard";
 import { SleepCard } from "./cards/SleepCard";
 import { AlarmCard } from "./cards/AlarmCard";
@@ -134,6 +135,7 @@ export function MorningBrief({
 
       {order.map((id) => {
         if (hidden.has(id)) return null;
+        if (id === "alarm" && !SMART_ALARM_ENABLED) return null;
         if (!dto && query.isLoading) return <CardSkeleton key={id} />;
         if (!dto) return null;
         switch (id) {

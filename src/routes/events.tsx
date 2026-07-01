@@ -3,16 +3,15 @@ import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EventsList } from "@/components/EventsList";
-import { SmartAlarmCard } from "@/components/SmartAlarmCard";
 
 export const Route = createFileRoute("/events")({
   head: () => ({
     meta: [
-      { title: "Events & Smart Alarm — RestPilot AI" },
+      { title: "Events — RestPilot AI" },
       {
         name: "description",
         content:
-          "Manage calendar events, commute reminders, and AI-optimized smart alarms.",
+          "Manage calendar events and commute reminders around your circadian window.",
       },
     ],
   }),
@@ -44,7 +43,7 @@ function EventsPage() {
           <CalendarDays className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-lg font-semibold">Events & Smart Alarm</h1>
+          <h1 className="text-lg font-semibold">Events</h1>
           <p className="text-xs text-muted-foreground">
             Schedule what matters — RestPilot times reminders around your circadian window.
           </p>
@@ -52,7 +51,6 @@ function EventsPage() {
       </header>
 
       <div className="space-y-4">
-        <SmartAlarmCard signedIn={is} />
         <EventsList signedIn={is} />
       </div>
     </main>

@@ -26,7 +26,7 @@ const tiers = [
     trial: "7-day free trial",
     perks: [
       "AI coach with memory",
-      "Smart Alarm + Long Clock",
+      "Long Clock (7-day plan)",
       "Wearable sync (Fitbit · Oura)",
       "Recovery playbooks",
       "Multi-employer rotations",
@@ -63,7 +63,7 @@ const tiers = [
 
 const matrix = [
   { label: "AI Coach with memory", values: [true, true, true] },
-  { label: "Smart Alarm", values: [true, true, true] },
+  
   { label: "Long Clock (7-day plan)", values: [true, true, true] },
   { label: "Wearable sync", values: [true, true, true] },
   { label: "Multi-employer rotations", values: [true, true, true] },

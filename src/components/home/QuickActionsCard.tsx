@@ -1,12 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { Sun, CalendarClock, MessageSquare, Moon, Activity, Mic } from "lucide-react";
+import { Sun, MessageSquare, Moon, Activity, Mic, CalendarDays } from "lucide-react";
 import { HomeCard, HomeCardHeader } from "./HomeCard";
 
 const ACTIONS = [
   { to: "/plan", label: "Light Plan", icon: Sun },
   { to: "/sleep", label: "Sleep Mode", icon: Moon },
   { to: "/pilot", label: "Voice Pilot", icon: Mic },
-  { to: "/events", label: "Smart Alarm", icon: CalendarClock },
+  { to: "/events", label: "Events", icon: CalendarDays },
   { to: "/health", label: "Wellness", icon: Activity },
   { to: "/coach", label: "AI Coach", icon: MessageSquare },
 ] as const;

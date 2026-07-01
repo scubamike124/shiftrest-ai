@@ -6,7 +6,8 @@ import { SleepSoundsCard } from "@/components/home/SleepSoundsCard";
 import { HydrationCard } from "@/components/home/HydrationCard";
 import { SleepStreakCard } from "@/components/home/SleepStreakCard";
 import { QuickActionsCard } from "@/components/home/QuickActionsCard";
-import { SmartAlarmCard } from "@/components/SmartAlarmCard";
+// Smart Alarm hidden for Phase 1; card preserved for Phase 2 restore.
+// import { SmartAlarmCard } from "@/components/SmartAlarmCard";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
@@ -376,10 +377,7 @@ function Dashboard() {
         </HomeCard>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <HomeCard className="!p-0">
-          <SmartAlarmCard signedIn={signedIn === true} />
-        </HomeCard>
+      <div className="grid grid-cols-1 gap-4">
         <SleepSoundsCard />
       </div>
 
