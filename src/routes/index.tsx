@@ -159,7 +159,6 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             <div className="mt-7 flex flex-wrap gap-2">
               <CapChip icon={Mic} label="Tap to talk" />
               <CapChip icon={Waves} label="Sleep sounds" />
-              <CapChip icon={BellRing} label="Smart alarm" />
               <CapChip icon={Moon} label="Wind-down guidance" />
             </div>
 
@@ -1171,13 +1170,6 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
 
 const dayMoments = [
   {
-    time: "6:00 AM",
-    icon: Bell,
-    headline: "Alarm moved 20 min later",
-    body: "Your Oura HRV dropped overnight. RestPilot delayed the alarm to end your last REM cycle naturally instead of cutting it short.",
-    tag: "Smart alarm · recovery-aware",
-  },
-  {
     time: "8:15 AM",
     icon: Coffee,
     headline: "Hold caffeine 90 minutes",
@@ -1309,7 +1301,6 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
   const skills: { icon: typeof Moon; title: string; body: string }[] = [
     { icon: Heart, title: "Wind-down after shift", body: "Decompress with paced breathing and a calm voice that knows your night." },
     { icon: Waves, title: "Sleep sounds & mixes", body: "Rain, jet, ocean — start by voice, save your perfect mix." },
-    { icon: BellRing, title: "Smart alarm", body: "Wakes you in your lightest cycle inside the window you choose." },
     { icon: MessageCircle, title: "Nightly guidance", body: "Checks in before bed and again at wake — never preachy." },
     { icon: Repeat, title: "Routines & reminders", body: "‘Goodnight’ runs your full wind-down. One word, one tap." },
     { icon: Lock, title: "Private memory", body: "Yours alone. View it, export it, wipe it — anytime." },
