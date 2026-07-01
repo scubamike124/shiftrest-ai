@@ -617,13 +617,12 @@ function Mini({ icon: Icon, title, body }: { icon: typeof Bell; title: string; b
 
 function SmartAlarmMock() {
   const options = [
-    { label: "Exact", active: true },
-    { label: "±5" },
-    { label: "±10" },
-    { label: "±15" },
-    { label: "±20" },
-    { label: "±30" },
-    { label: "Adaptive" },
+    { value: 5, label: "5 min", active: true },
+    { value: 10, label: "10 min" },
+    { value: 15, label: "15 min" },
+    { value: 20, label: "20 min" },
+    { value: 30, label: "30 min" },
+    { value: 60, label: "Full" },
   ];
 
   return (
@@ -640,20 +639,25 @@ function SmartAlarmMock() {
         <p className="text-xs text-muted-foreground">Exact time · Smart Mode analyzes your cycle</p>
 
         {/* adjustment window chips */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          {options.map((opt) => (
-            <span
-              key={opt.label}
-              className={`rounded-full px-3 py-1.5 text-[11px] font-semibold transition ${
-                opt.active
-                  ? "border border-primary/40 bg-primary/20 text-primary-foreground"
-                  : "border border-border/60 bg-card/50 text-muted-foreground"
-              }`}
-            >
-              {opt.label}
-            </span>
-          ))}
+        <div className="mt-5">
+          <p className="mb-1 text-xs font-semibold text-muted-foreground">Adjustment window (earlier or later)</p>
+          <div className="grid grid-cols-5 gap-1.5">
+            {options.map((opt) => (
+              <span
+                key={opt.value}
+                className={`flex h-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold leading-tight ${
+                  opt.active
+                    ? "border-primary/40 bg-primary/20 text-primary-foreground"
+                    : "border-border/60 bg-card/50 text-muted-foreground"
+                }`}
+              >
+                <span>{opt.label}</span>
+                {opt.value !== 60 && <span className="text-[9px] font-normal opacity-80">± earlier/later</span>}
+              </span>
+            ))}
+          </div>
         </div>
+
 
         <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[10px]">
           <CycleChip label="Cycle 1" sub="deep" />
