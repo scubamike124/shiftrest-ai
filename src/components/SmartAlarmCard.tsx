@@ -204,7 +204,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         .join(" · ");
       const saved = await createEvent({
         kind: "personal",
-        title: `Alarm: ${labelTime}`,
+        title: `alarm: ${labelTime}`,
         startsAt: wake.toISOString(),
         reminderMin: 0,
         notes: notePayload,
