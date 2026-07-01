@@ -8,6 +8,7 @@ import { aiSmartAlarm, type SmartAlarmResponse } from "@/lib/ai-client";
 import { ConfidenceBadge, WhyButton } from "./ai/trust";
 import { RecommendationActions } from "./ai/trust/RecommendationActions";
 import { addAlarm, syncAlarms, stopRinging, testAlarm, previewAlarmSound } from "@/lib/alarm/foreground";
+import { ensureAlarmPushEnrollment } from "@/lib/alarm/push-enroll";
 import { ALARM_SOUNDS, type AlarmSoundId } from "@/lib/alarm/sounds";
 import { loadAlarmPrefs, saveAlarmPrefs, vibrateSupported, type FadeInSec, type SnoozeMin } from "@/lib/alarm/prefs";
 import { Slider } from "@/components/ui/slider";
@@ -214,6 +215,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           ? `Smart alarm set for ${labelTime}${isAdaptive ? " (Adaptive)" : ""}`
           : `Alarm set for exactly ${labelTime}`,
       );
+      // Best-effort: enroll this device for Web Push so the alarm can wake
+      // the phone on the lock screen. Never blocks or errors the schedule.
+      void ensureAlarmPushEnrollment({ signedIn });
 
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't schedule alarm.");
