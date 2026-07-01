@@ -252,9 +252,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           <AlarmClock className="h-4 w-4" />
         </span>
         <div>
-          <h3 className="text-sm font-semibold">Smart alarm</h3>
+          <h3 className="text-sm font-semibold">Alarm</h3>
           <p className="text-[11px] text-muted-foreground">
-            Rings at your exact time unless you allow adjustment.
+            Rings at the exact time you select.
           </p>
         </div>
       </header>
