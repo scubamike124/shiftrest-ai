@@ -155,7 +155,7 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         return;
       }
       const exactLabel = target.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const isSmart = adjustmentMode === "smart";
+      const isSmart = ADVANCED_ADJUSTMENT_ENABLED && adjustmentMode === "smart";
       const isAdaptive = isSmart && maxAdjustmentMin === ADAPTIVE_WINDOW_MIN;
       const canAdjust = isSmart; // all valid options now move the alarm
       let res: SmartAlarmResponse;
