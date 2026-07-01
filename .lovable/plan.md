@@ -47,3 +47,26 @@ Update `.lovable/plan.md` roadmap section:
 Very low. Flag-gated hide; no schema/cron/push changes. Restore = flip `SMART_ALARM_ENABLED` and re-add the ~9 gated JSX blocks (or wrap them in `{SMART_ALARM_ENABLED && ...}` now so Phase 2 is a one-line toggle — recommended, and included in the plan above).
 
 Awaiting approval before implementing.
+---
+
+## Phase 1 / Phase 2 Roadmap (updated)
+
+**Phase 1 (launch scope):**
+- AI Companion
+- Sleep Coaching
+- Sleep Tracking
+- AI Insights
+- Bedtime Guidance
+- Relaxation Features
+- Ambient Sounds
+- Wearable Integration (approved items)
+- All other previously approved Phase 1 features
+
+**Phase 2 (deferred):**
+- Smart Alarm
+- Intelligent Wake Experience
+- AI Wake Routines
+- Smart Alarm Integrations
+- Advanced Wake Automation
+
+Smart Alarm code preserved and gated by `SMART_ALARM_ENABLED` in `src/lib/flags.ts`. Restore = flip flag to `true` and un-comment the ~4 mount points (dashboard card, /events mount, marketing SmartAlarmSection, MorningBrief alarm slot). Server dispatch route, push enrollment, DB, and QA harness remain intact.
