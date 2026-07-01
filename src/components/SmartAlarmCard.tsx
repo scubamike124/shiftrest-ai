@@ -269,72 +269,76 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
             className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm"
           />
         </label>
-        <div className="grid grid-cols-2 gap-2" aria-label="Alarm timing mode">
-          <button
-            type="button"
-            onClick={() => setAdjustmentMode("exact")}
-            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
-              adjustmentMode === "exact"
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border bg-background text-muted-foreground"
-            }`}
-            aria-pressed={adjustmentMode === "exact"}
-          >
-            Exact Time
-            <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Default</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAdjustmentMode("smart");
-            }}
-            className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
-              adjustmentMode === "smart"
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border bg-background text-muted-foreground"
-            }`}
-            aria-pressed={adjustmentMode === "smart"}
-          >
-            Smart Adjustment
-            <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Optional</span>
-          </button>
-        </div>
-        {adjustmentMode === "smart" && (
-          <div>
-            <p className="mb-1 text-xs font-semibold text-muted-foreground">Adjustment window (earlier or later)</p>
-            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Adjustment window">
-              {ADJUSTMENT_OPTIONS.map((opt) => {
-                const selected = maxAdjustmentMin === opt.value;
-                const isFull = opt.value === ADAPTIVE_WINDOW_MIN;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    aria-label={isFull ? "Full smart window" : `Up to ${opt.value} minutes earlier or later`}
-                    onClick={() => setMaxAdjustmentMin(opt.value as AdjustmentValue)}
-                    className={`flex h-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold leading-tight ${
-                      selected
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border bg-background text-muted-foreground"
-                    }`}
-                  >
-                    <span>{isFull ? "Full" : `${opt.value} min`}</span>
-                    {!isFull && <span className="text-[9px] font-normal opacity-80">± earlier/later</span>}
-                  </button>
-                );
-              })}
+        {ADVANCED_ADJUSTMENT_ENABLED && (
+          <>
+            <div className="grid grid-cols-2 gap-2" aria-label="Alarm timing mode">
+              <button
+                type="button"
+                onClick={() => setAdjustmentMode("exact")}
+                className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+                  adjustmentMode === "exact"
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-background text-muted-foreground"
+                }`}
+                aria-pressed={adjustmentMode === "exact"}
+              >
+                Exact Time
+                <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Default</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdjustmentMode("smart");
+                }}
+                className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
+                  adjustmentMode === "smart"
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-background text-muted-foreground"
+                }`}
+                aria-pressed={adjustmentMode === "smart"}
+              >
+                Smart Adjustment
+                <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">Optional</span>
+              </button>
             </div>
-          </div>
+            {adjustmentMode === "smart" && (
+              <div>
+                <p className="mb-1 text-xs font-semibold text-muted-foreground">Adjustment window (earlier or later)</p>
+                <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Adjustment window">
+                  {ADJUSTMENT_OPTIONS.map((opt) => {
+                    const selected = maxAdjustmentMin === opt.value;
+                    const isFull = opt.value === ADAPTIVE_WINDOW_MIN;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={isFull ? "Full smart window" : `Up to ${opt.value} minutes earlier or later`}
+                        onClick={() => setMaxAdjustmentMin(opt.value as AdjustmentValue)}
+                        className={`flex h-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold leading-tight ${
+                          selected
+                            ? "border-primary bg-primary/15 text-primary"
+                            : "border-border bg-background text-muted-foreground"
+                        }`}
+                      >
+                        <span>{isFull ? "Full" : `${opt.value} min`}</span>
+                        {!isFull && <span className="text-[9px] font-normal opacity-80">± earlier/later</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+              {adjustmentMode === "exact"
+                ? "RestPilot will ring at the exact time you selected."
+                : maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
+                ? `Full Smart Mode — AI may move your alarm by up to ~${ADAPTIVE_WINDOW_MIN} minutes to find the optimal wake moment in your sleep cycle.`
+                : `AI may move your alarm by up to ${maxAdjustmentMin} minutes earlier or later to land on a better sleep moment.`}
+            </div>
+          </>
         )}
-        <div className="rounded-xl border border-border bg-background/60 px-3 py-2 text-[11px] leading-snug text-muted-foreground">
-          {adjustmentMode === "exact"
-            ? "RestPilot will ring at the exact time you selected."
-            : maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
-            ? `Full Smart Mode — AI may move your alarm by up to ~${ADAPTIVE_WINDOW_MIN} minutes to find the optimal wake moment in your sleep cycle.`
-            : `AI may move your alarm by up to ${maxAdjustmentMin} minutes earlier or later to land on a better sleep moment.`}
-        </div>
         <button
           onClick={schedule}
           disabled={busy || !signedIn}
@@ -343,12 +347,13 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
           <Sparkles className="h-4 w-4" />{" "}
           {busy
             ? "Setting…"
-            : adjustmentMode === "smart"
+            : ADVANCED_ADJUSTMENT_ENABLED && adjustmentMode === "smart"
               ? maxAdjustmentMin === ADAPTIVE_WINDOW_MIN
                 ? "Set adaptive alarm"
                 : "Set smart alarm"
-              : "Set exact alarm"}
+              : "Set alarm"}
         </button>
+
 
         <div className="flex items-center gap-2">
           <button
