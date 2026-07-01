@@ -1,100 +1,63 @@
+# Smart Alarm Web Push Backstop — Phased Execution Plan
 
-# Smart Alarm — Root Cause Investigation (No Code Changes)
+## Implementation Readiness Review
 
-## End-to-end flow (as it exists today)
+1. **Dependencies already present**
+   - `push_subscriptions` table with VAPID keys (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) — confirmed in secrets.
+   - `web-push` helpers already used by existing notification routes.
+   - `user_events` table exists (holds alarms with `firesAt`).
+   - `pg_cron` + `pg_net` extensions already enabled (used by existing `ai-learn` nightly job).
+   - Service worker (`sw-src.ts`) already handles `push` events for other notification kinds.
+   - No new npm packages required.
 
-```text
-User picks time  ─▶  SmartAlarmCard.schedule()
-                        │
-                        ├─▶ aiSmartAlarm()   (server /api/ai — snap + sign logic)
-                        │       returns wakeAt (final displayed time)
-                        │
-                        ├─▶ createEvent(...)  (Supabase user_events row)
-                        │
-                        └─▶ addAlarm({firesAt})  ──▶ foreground.ts armEntry()
-                                                       │
-                                                       └─▶ setTimeout in THIS TAB
-                                                            │
-                                                            └─▶ fireAlarm()
-                                                                   ├─ new AudioContext() + startChime()
-                                                                   ├─ navigator.vibrate()
-                                                                   └─ speakQueued("Alarm.")
-Stop  ─▶ stopRinging()   Snooze ─▶ (no dedicated path — user re-sets)
-```
+2. **No duplicate delivery paths**
+   - Foreground `setTimeout` chime stays unchanged as best-effort.
+   - New path = server push → SW notification. The SW `notificationclick` handler focuses the app; the foreground chime only rings if the app is already open.
+   - `dispatched_at` column guarantees each alarm event is pushed exactly once (idempotent guard in dispatch route).
 
-## Reproduction
+3. **Existing users unaffected during rollout**
+   - Migration only **adds** a nullable `dispatched_at timestamptz` column — no data rewrite, no default backfill needed.
+   - Existing alarms continue to fire via current foreground path.
+   - Push backstop only activates for users who (a) have a `push_subscriptions` row and (b) schedule a new alarm after Phase 4 client wiring ships. Phases 1–3 are server-only and inert to end users.
 
-- Set alarm for T+2 min, keep tab **foreground and unlocked** → rings.
-- Set alarm for T+2 min, **lock the iPhone** (or background the PWA) → does **not** ring at T. On unlock after T, either silent, or a late/immediate chirp only if the AudioContext survives.
-- Set alarm for T+8 hours overnight → almost never fires on iOS PWA.
+4. **Rollback per phase**
+   - Phase 1: `ALTER TABLE user_events DROP COLUMN dispatched_at;` (safe — no code reads it yet).
+   - Phase 2: Delete route file `src/routes/api/public/hooks/dispatch-alarms.ts`. No client references.
+   - Phase 3: `SELECT cron.unschedule('dispatch-smart-alarms');`. Dispatch route becomes dormant.
 
-## Root cause
+5. **Independent phase testing**
+   - Phase 1: verify column exists via `\d user_events`; typecheck passes (types regen after migration).
+   - Phase 2: `curl -X POST` the dispatch route with a manually seeded near-future `user_events` row → confirm push received on a subscribed test device, `dispatched_at` set.
+   - Phase 3: query `cron.job_run_details` after 2 minutes → confirm scheduled invocations return HTTP 200; leave one seeded row to verify end-to-end dispatch on the tick.
 
-**The delivery layer is a single foreground `setTimeout` in `src/lib/alarm/foreground.ts`.**
-There is **no OS-level scheduled notification** and **no server-triggered push** at the alarm's fire time.
+---
 
-Two hard constraints break it on iOS PWA (the target device):
+## Phase Sequence (execute one at a time, wait for approval between)
 
-1. **iOS Safari / standalone PWA suspends JS timers** when the tab is backgrounded or the screen is locked. `setTimeout` does not fire at wall-clock time; it fires (late, coalesced, or not at all) only when the tab is next foregrounded. The 6-hour "hop / re-arm" chain in `foreground.ts` cannot survive a lock — every hop lives in the same suspended event loop.
-2. **WebAudio + speech require a fresh user gesture** after long suspension. Even in the lucky case the timer does fire on resume, `new AudioContext()` / `speakQueued()` typically produce no audible sound because the gesture-unlock has expired.
+### Phase 1 — Database migration
+- Add `dispatched_at timestamptz NULL` to `public.user_events`.
+- Add partial index: `CREATE INDEX ON user_events (fires_at) WHERE dispatched_at IS NULL AND kind = 'smart-alarm';`
+- **Rollback:** `DROP COLUMN dispatched_at` + `DROP INDEX`.
+- **Verify:** column present, index present, typecheck green.
 
-Snooze/Stop:
-- **Stop** works only while the audio is currently ringing in the same tab (calls `stopRinging()` — fine).
-- **Snooze** is not wired at all in the UI — no snooze button in `SmartAlarmCard.tsx`, no snooze consumer in `foreground.ts`. `SnoozeMin` exists in prefs but is unused by the fire path. This is a second, independent gap.
+### Phase 2 — Dispatch route
+- New file: `src/routes/api/public/hooks/dispatch-alarms.ts`.
+- Behavior: select `user_events` where `kind='smart-alarm'`, `dispatched_at IS NULL`, `fires_at BETWEEN now() AND now() + interval '90 seconds'`. For each, look up user's `push_subscriptions`, send Web Push payload `{type:'alarm', firesAt, eventId, label}`, then `UPDATE user_events SET dispatched_at = now()`.
+- Auth: `apikey` header must equal Supabase anon key (per public-hook convention).
+- **Rollback:** delete file.
+- **Verify:** manual `curl` with seeded row → push arrives; row marked dispatched; second call is a no-op.
 
-## Why every previous fix missed
+### Phase 3 — Cron scheduling
+- `SELECT cron.schedule('dispatch-smart-alarms','* * * * *', $$ SELECT net.http_post(url:='https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/hooks/dispatch-alarms', headers:='{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb, body:='{}'::jsonb); $$);`
+- **Rollback:** `cron.unschedule('dispatch-smart-alarms')`.
+- **Verify:** `cron.job_run_details` shows minute-tick 200 responses.
 
-Prior fixes touched:
-- Time **computation** — `api/ai.ts` snap-window, sign handling, `±5` → `5 min` labels.
-- Time **displayed** — `SmartAlarmCard` labels, `SmartAlarmMock` on `/`.
-- **Chunk cache** — `data-smart-alarm-card-version="v2"` marker.
-- **Long-horizon math** — 6-hour hop chain in `foreground.ts`.
+## STOP — end of Phase 3 report will include
+- Typecheck status
+- Migration status (column + index)
+- Dispatch verification (curl + `dispatched_at` proof)
+- Cron verification (`job_run_details` sample)
+- Any unexpected issues
+- **Locked-screen device test to run:** Install PWA on iPhone → grant notifications → seed an alarm 2 min out via `/qa.smart-alarm` → lock the phone → wait → confirm notification appears at ±10s of target with the phone still locked.
 
-None of these changed **how the alarm is delivered**. The displayed time is correct; the alarm just isn't firing because the only mechanism that could fire it is a JS timer inside a suspended tab. That's why "publish succeeds, UI looks correct, still doesn't ring."
-
-## Files responsible
-
-| File | Role in bug |
-| --- | --- |
-| `src/lib/alarm/foreground.ts` | Sole delivery path — foreground `setTimeout` + WebAudio. Cannot fire when locked/backgrounded. |
-| `src/components/SmartAlarmCard.tsx` | Only registers the foreground timer; no SW notification, no snooze UI, no permission prompt gate before scheduling. |
-| `public/sw-src.ts` (service worker) | Does **not** register a `showTrigger` notification or listen for a push at fire time. |
-| `src/routes/api/ai.ts` | Correct today for time math — **not** the cause of "doesn't ring." |
-
-## Smallest possible fix (staged)
-
-**Fix A — OS-level backstop (primary, unblocks the bug):**
-At `schedule()` success, in addition to `addAlarm(...)`, register a **Web Push** wake via the existing server (pg_cron / edge function) that POSTs a push message at `wakeAt` targeting the user's subscription; the service worker's `push` handler calls `self.registration.showNotification(...)` with `requireInteraction: true` and a sound. This is the only path that survives iOS lock/background on an installed PWA.
-
-Requirements already partially present: service worker exists, notification permission check exists in `SmartAlarmCard`. Missing pieces:
-- Ensure a `push_subscriptions` row is created on alarm scheduling if not present (prompt for permission first).
-- One-shot scheduled push job at `wakeAt` (pg_cron minute-tick or `pg_net` + scheduled row).
-- `push` + `notificationclick` handlers in `sw-src.ts` that focus the app and start the in-app chime (WebAudio then works because the notification interaction is a user gesture).
-
-**Fix B — Snooze wiring (small, independent):**
-Add a `Snooze` button next to `Stop` that calls `stopRinging()` then `addAlarm({ firesAt: Date.now() + snoozeMin*60_000 })`. Also expose the same action from the `notificationclick` handler once Fix A lands.
-
-**Fix C — Keep foreground path as-is** (already works when tab is foreground). No change.
-
-## What "done" looks like — the verification I will run after approval
-
-Real-device (iPhone PWA) matrix, repeated 3×:
-
-1. Alarm at T+2 min, screen unlocked, app foreground → rings at exact displayed time.
-2. Alarm at T+2 min, screen **locked** → OS notification wakes device at exact time; tapping starts chime.
-3. Alarm at T+8h overnight → fires at exact time with locked screen.
-4. Stop button silences instantly.
-5. Snooze button re-fires exactly `snoozeMin` later; loop works.
-6. Displayed final time === actual fire wall-clock time (±2 s).
-
-Only after all six pass 3× in a row will I report the bug fixed.
-
-## Ask before implementing
-
-You said "reproduce the exact issue yourself" — my sandbox can't drive an iPhone PWA. Before I implement Fix A, please confirm which failure you're seeing so I don't rebuild the wrong layer:
-
-- **(a)** Doesn't ring when phone is **locked or app is backgrounded** (my primary hypothesis → Fix A).
-- **(b)** Doesn't ring even with app **open and foreground** (different bug — AudioContext/permission race, not push).
-- **(c)** Rings at the **wrong wall-clock time** vs. what the card displays (time-math bug — different file).
-
-Reply with a/b/c (and whether Snooze is also required in this pass) and I'll implement the minimal fix and run the verification matrix.
+Phase 4 (client subscribe + SW `notificationclick` + Snooze) will not start until you confirm the locked-screen push arrived.
