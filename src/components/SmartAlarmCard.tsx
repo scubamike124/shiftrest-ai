@@ -18,8 +18,15 @@ import { SmartAlarmCoach } from "./SmartAlarmCoach";
 
 type AdjustmentMode = "exact" | "smart";
 
+// V1: ship exact-time-only. Flip to true (or gate on entitlement) to bring
+// back the AI wake-time adjustment UI, adjustment chip row, and Coach panel.
+// All supporting code (aiSmartAlarm, /api/ai smart-alarm handler, QA tester)
+// is intentionally kept so re-enabling is a one-line change.
+export const ADVANCED_ADJUSTMENT_ENABLED = false;
+
 const ADAPTIVE_WINDOW_MIN = 60;
 const PREFS_KEY = "restpilot:smart-alarm:prefs";
+
 
 const ADJUSTMENT_OPTIONS = [
   { value: 5, label: "5 min" },
