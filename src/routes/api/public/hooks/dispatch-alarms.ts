@@ -31,18 +31,11 @@ export const Route = createFileRoute("/api/public/hooks/dispatch-alarms")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushToUser } = await import("@/lib/push/web-push.server");
 
-        // Phase 1: atomically claim due, undispatched alarm rows.
-        // Window: [now - 30s, now + 90s] so a minute-tick cron can never miss one.
-        const { data: claimed, error: claimErr } = await supabaseAdmin.rpc(
-          "exec_sql_return_json" as never,
-          {} as never,
-        ).then(() => ({ data: null, error: null })).catch(() => ({ data: null, error: null }));
-        void claimed; void claimErr; // placeholder — real claim below via .from() + RETURNING
-
-        // Direct SQL claim via PostgREST isn't available; use a two-step but
-        // still-atomic approach: SELECT candidate ids, then UPDATE only rows
-        // that are still NULL. Per-row UPDATE with WHERE dispatched_at IS NULL
-        // is atomic in Postgres and guarantees no double-claim.
+        // Two-step atomic claim: SELECT candidate ids, then per-row UPDATE
+        // with WHERE dispatched_at IS NULL. Per-row conditional UPDATE is
+        // atomic in Postgres, so concurrent dispatchers cannot both claim
+        // the same row. Window [now-30s, now+90s] means a minute-tick cron
+        // never misses a due alarm.
         const nowIso = new Date().toISOString();
         const upperIso = new Date(Date.now() + 90_000).toISOString();
         const lowerIso = new Date(Date.now() - 30_000).toISOString();
