@@ -89,7 +89,7 @@ export const Route = createFileRoute("/api/public/hooks/dispatch-alarms")({
               title: "⏰ Alarm",
               body: label,
               tag: `alarm:${row.id}`,
-              kind: "alarm",
+              kind: "smart-alarm",
               url: "/",
             });
             if (result.sent >= 1) {

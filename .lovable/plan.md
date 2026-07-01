@@ -1,61 +1,53 @@
+# Backend Delivery Fix (Two Changes Only)
 
-# Smart Alarm V1 — Simplify to Exact Time Only
+Scope is strictly backend/delivery. No UI, no scheduling, no exact-time behavior changes.
 
-## Product decision & impact
+## Change 1 — Dispatcher payload `kind`
 
-Ship an alarm that always rings at exactly the time the user picks. AI wake-time shifting is removed from the UI for V1 but kept in the codebase behind an off-by-default flag so it can be reintroduced later as an "Advanced" option.
+File: `src/routes/api/public/hooks/dispatch-alarms.ts` (line 92)
 
-**Risk / reliability impact — net positive:**
-- Removes an entire class of "why did it fire at 6:52 instead of 7:00?" support issues.
-- Removes the AI call from the critical scheduling path — one fewer network dependency between "tap Set" and "row in `user_events`".
-- Fewer UI states to QA (one mode instead of two × 6 window sizes).
-- No effect on the reliability work we just completed: `dispatched_at` claim, `pg_cron` minute tick, push enrollment, snooze/stop, foreground re-arm — all continue to operate on the exact `starts_at` the user picked.
-- AI bedtime/wind-down/sleep advice is unaffected (separate surfaces: coach, brief, companion).
+- Replace `kind: "alarm"` with `kind: "smart-alarm"` in the `sendPushToUser` payload.
+- This is the only line changed in the file. Everything else (auth, atomic claim, ilike filter, rollback) stays as-is.
 
-## Files involved
+Reason: the service worker's alarm-notification branch keys off `kind === "smart-alarm"`. With `"alarm"`, the SW falls through to the default push branch — Apple accepts the push (`sent:2`) but iOS surfaces it as a plain notification (or silently), not as the locked-screen alarm.
 
-1. **`src/components/SmartAlarmCard.tsx`** — primary UI change.
-   - Delete the Exact/Smart segmented control, adjustment chip row, `SmartAlarmCoach` result panel (or hide when not applicable), and the `aiSmartAlarm` call in the mutation.
-   - Keep: time picker, Set button, list of scheduled alarms, snooze/stop, sound/volume/fade/vibrate Sheet, push enrollment call, foreground `addAlarm`.
-   - Keep `adjustmentMode`/`maxAdjustmentMin` state + `PREFS_KEY` behind an internal `ADVANCED_ADJUSTMENT_ENABLED = false` constant so re-enabling later is a one-line flip.
+## Change 2 — Cron target → production URL
 
-2. **`src/routes/index.tsx`** — `SmartAlarmMock` on the marketing/home card.
-   - Remove the "Smart adjustment" chip row from the mock to match shipped UI. No logic.
+Currently cron job `restpilot-dispatch-alarms` (jobid 3) targets:
+`https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313-dev.lovable.app/api/public/hooks/dispatch-alarms`
 
-3. **`src/routes/qa.smart-alarm.tsx`** — QA harness.
-   - Hide/remove the `SmartAdjustmentTester` section (or gate it on the same flag). Keep the +60s self-test, long-horizon +7h tester, and manual checklist — those validate the reliability path we're keeping.
+Repoint to the stable production URL:
+`https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/hooks/dispatch-alarms`
 
-4. **`src/lib/ai-client.ts`** — leave `aiSmartAlarm` export in place (unused by UI, still used by QA if we keep it flagged). Zero change required.
+Applied via `supabase--insert` (not a migration — contains project-specific URL + key):
 
-5. **`src/routes/api/ai.ts`** — leave the smart-alarm handler in place. Dead code from V1 UI's perspective, live for future flag flip and for the QA harness. Zero change required.
+```sql
+select cron.unschedule('restpilot-dispatch-alarms');
+select cron.schedule(
+  'restpilot-dispatch-alarms',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url:='https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/hooks/dispatch-alarms',
+    headers:='{"Content-Type":"application/json","apikey":"<SUPABASE_PUBLISHABLE_KEY>"}'::jsonb,
+    body:='{}'::jsonb
+  ) as request_id;
+  $$
+);
+```
 
-6. **`SmartAlarmCoach.tsx`, `ai/trust/*`** — no change; simply not rendered when adjustment is off.
+## Verification
 
-**Not touched (reliability layer stays intact):**
-- `src/lib/alarm/foreground.ts`
-- `src/lib/alarm/push-enroll.ts`
-- `src/routes/api/public/hooks/dispatch-alarms.ts`
-- `public/sw-src.ts` (snooze/stop actions)
-- `user_events` schema, `dispatched_at`, cron job
+1. `tsgo` typecheck.
+2. Publish → Update (server-route change deploys automatically, but the payload change affects what the SW receives; SW is unchanged so no SW rotation needed. Still confirm Build ID rotates after Update so the new server bundle is live).
+3. Confirm new cron job row targets the production URL; watch `net._http_response` for a 200.
+4. Set a 2-minute alarm on the iPhone PWA, lock the phone.
+5. Query `user_events` + `net._http_response`; expect `scanned:1, claimed:1, sent:≥1`.
+6. Confirm the locked-screen alarm notification appears with the smart-alarm behavior.
 
-## Smallest safe implementation plan (one PR)
+## Files touched
 
-1. Add `const ADVANCED_ADJUSTMENT_ENABLED = false;` at the top of `SmartAlarmCard.tsx`.
-2. In `onSubmit`, when the flag is false: skip `aiSmartAlarm`, compute `wakeAt = targetLocal` directly, `createEvent` with the exact target ISO, then `addAlarm` + `ensureAlarmPushEnrollment` as today.
-3. Conditionally render the mode toggle, chip row, and Coach result on `ADVANCED_ADJUSTMENT_ENABLED`. Button label becomes just "Set alarm".
-4. Update the marketing mock in `src/routes/index.tsx` to drop the adjustment chips.
-5. Gate `SmartAdjustmentTester` in `qa.smart-alarm.tsx` on the same flag (import the constant or duplicate as `false`).
-6. Typecheck. No migration, no cron change, no publish gating needed beyond a standard Publish → Update.
+- `src/routes/api/public/hooks/dispatch-alarms.ts` — one-line payload change.
+- Cron config in Postgres — unschedule + reschedule with production URL.
 
-## Re-introduction path (future)
-
-Flip `ADVANCED_ADJUSTMENT_ENABLED` to `true` (or promote it to a per-user preference / entitlement check for a paid tier). All existing code — the mode toggle, chip row, `aiSmartAlarm` call, Coach panel, QA tester, and server route — comes back with no re-authoring. Recommended future gate: `useSubscription().tier === 'elite'` or a Settings toggle stored in `prefs`.
-
-## Verification after implementation
-
-- Typecheck green.
-- Manual: pick 7:00, tap Set → row in `user_events` has `starts_at` exactly 7:00, `title` starts with `alarm:`, no AI network call in devtools.
-- QA harness +60s test still PASS.
-- Locked-screen push still delivers via the cron path (unchanged).
-
-Awaiting approval before coding.
+Nothing else is modified.
