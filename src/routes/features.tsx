@@ -19,7 +19,7 @@ export const Route = createFileRoute("/features")({
       {
         name: "description",
         content:
-          "Every feature inside RestPilot — AI coach with memory, Smart Alarm, Long Clock, wearable sync, multi-employer rotations, recovery playbooks.",
+          "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks.",
       },
       { property: "og:title", content: "Features — RestPilot AI" },
       { property: "og:url", content: "https://shift-rest-ai.lovable.app/features" },
@@ -64,11 +64,6 @@ const groups = [
         icon: Sun,
         title: "Multi-employer aware",
         body: "Two jobs? Three? RestPilot keeps them straight and warns when they collide.",
-      },
-      {
-        icon: Bell,
-        title: "Smart Alarm",
-        body: "Wake at the lightest point of your sleep cycle — and bypass quiet hours when it matters.",
       },
     ],
   },

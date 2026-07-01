@@ -1,53 +1,72 @@
-# Backend Delivery Fix (Two Changes Only)
+# Phase 1 Scope Change — Remove Smart Alarm (Hide, Don't Delete)
 
-Scope is strictly backend/delivery. No UI, no scheduling, no exact-time behavior changes.
+## Approach
 
-## Change 1 — Dispatcher payload `kind`
+Introduce **one feature flag** — `SMART_ALARM_ENABLED = false` in a new `src/lib/flags.ts` — and gate every user-facing entry point on it. Server/cron/DB/push code stays intact but becomes dormant because no alarm rows will be created. Restoring for Phase 2 = flipping the flag to `true`.
 
-File: `src/routes/api/public/hooks/dispatch-alarms.ts` (line 92)
+No file deletions. No database/cron changes. No refactor of `SmartAlarmCard.tsx`, `dispatch-alarms.ts`, push enrollment, or the QA harness.
 
-- Replace `kind: "alarm"` with `kind: "smart-alarm"` in the `sendPushToUser` payload.
-- This is the only line changed in the file. Everything else (auth, atomic claim, ilike filter, rollback) stays as-is.
+## Files to change (surface removal only)
 
-Reason: the service worker's alarm-notification branch keys off `kind === "smart-alarm"`. With `"alarm"`, the SW falls through to the default push branch — Apple accepts the push (`sent:2`) but iOS surfaces it as a plain notification (or silently), not as the locked-screen alarm.
+1. **`src/lib/flags.ts`** — new file. Export `SMART_ALARM_ENABLED = false`.
+2. **`src/routes/events.tsx`** — remove `<SmartAlarmCard />` mount + drop "& Smart Alarm" from title/heading/meta. Page becomes Events-only.
+3. **`src/routes/dashboard.tsx`** — remove `<SmartAlarmCard />` render (~line 381) and its import.
+4. **`src/routes/index.tsx`** — remove `<SmartAlarmMock />` from the marketing homepage (~line 582) and the mock component definition (~line 618).
+5. **`src/components/home/QuickActionsCard.tsx`** — drop the "Smart Alarm" tile.
+6. **`src/components/site/AppSidebar.tsx`** — rename "Events & Alarm" → "Events" (icon unchanged).
+7. **`src/components/morning/MorningBrief.tsx`** — filter `"alarm"` out of `visibleCards` when flag is off (keeps the card type registered for Phase 2).
+8. **`src/routes/settings.morning.tsx`** — hide the "Smart Alarm" card toggle when flag is off.
+9. **`src/routes/features.tsx`** — remove the Smart Alarm feature block and the bullet in the "Every feature" description.
+10. **`src/routes/pricing.tsx`** — remove "Smart Alarm + Long Clock" bullet and the Smart Alarm comparison row.
+11. **`src/routes/qa.smart-alarm.tsx`** — leave the file in place (dev-only QA); no nav link points to it. No change needed.
 
-## Change 2 — Cron target → production URL
+## What stays untouched (Phase 2 restore surface)
 
-Currently cron job `restpilot-dispatch-alarms` (jobid 3) targets:
-`https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313-dev.lovable.app/api/public/hooks/dispatch-alarms`
+- `src/components/SmartAlarmCard.tsx`, `SmartAlarmCoach.tsx`, `morning/cards/AlarmCard.tsx`
+- `src/lib/alarm/*` (foreground, push-enroll, prefs, sounds)
+- `src/routes/api/public/hooks/dispatch-alarms.ts` + `pg_cron` job
+- Push subscription plumbing
+- DB tables and `user_events` schema
+- `notifications/*`, `voice/intent-*` alarm intents (dormant; no user path reaches them once UI is hidden)
 
-Repoint to the stable production URL:
-`https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/hooks/dispatch-alarms`
+## Roadmap update
 
-Applied via `supabase--insert` (not a migration — contains project-specific URL + key):
-
-```sql
-select cron.unschedule('restpilot-dispatch-alarms');
-select cron.schedule(
-  'restpilot-dispatch-alarms',
-  '* * * * *',
-  $$
-  select net.http_post(
-    url:='https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/hooks/dispatch-alarms',
-    headers:='{"Content-Type":"application/json","apikey":"<SUPABASE_PUBLISHABLE_KEY>"}'::jsonb,
-    body:='{}'::jsonb
-  ) as request_id;
-  $$
-);
-```
+Update `.lovable/plan.md` roadmap section:
+- **Phase 1:** AI Companion, Sleep Coaching, Sleep Tracking, AI Insights, Bedtime Guidance, Relaxation, Ambient Sounds, Wearable Integration, previously approved items.
+- **Phase 2:** Smart Alarm, Intelligent Wake Experience, AI Wake Routines, Smart Alarm Integrations, Advanced Wake Automation.
 
 ## Verification
 
-1. `tsgo` typecheck.
-2. Publish → Update (server-route change deploys automatically, but the payload change affects what the SW receives; SW is unchanged so no SW rotation needed. Still confirm Build ID rotates after Update so the new server bundle is live).
-3. Confirm new cron job row targets the production URL; watch `net._http_response` for a 200.
-4. Set a 2-minute alarm on the iPhone PWA, lock the phone.
-5. Query `user_events` + `net._http_response`; expect `scanned:1, claimed:1, sent:≥1`.
-6. Confirm the locked-screen alarm notification appears with the smart-alarm behavior.
+1. `tsgo` typecheck clean.
+2. Grep confirms no remaining user-visible "Smart Alarm" / "Alarm Clock" strings outside gated code and legal pages.
+3. Playwright: load `/`, `/dashboard`, `/events`, `/features`, `/pricing` — no Smart Alarm UI; nav has no broken links; `/events` still lists events.
+4. Confirm `SmartAlarmCard` file still compiles (imported nowhere at runtime, but preserved).
 
-## Files touched
+## Risk
 
-- `src/routes/api/public/hooks/dispatch-alarms.ts` — one-line payload change.
-- Cron config in Postgres — unschedule + reschedule with production URL.
+Very low. Flag-gated hide; no schema/cron/push changes. Restore = flip `SMART_ALARM_ENABLED` and re-add the ~9 gated JSX blocks (or wrap them in `{SMART_ALARM_ENABLED && ...}` now so Phase 2 is a one-line toggle — recommended, and included in the plan above).
 
-Nothing else is modified.
+Awaiting approval before implementing.
+---
+
+## Phase 1 / Phase 2 Roadmap (updated)
+
+**Phase 1 (launch scope):**
+- AI Companion
+- Sleep Coaching
+- Sleep Tracking
+- AI Insights
+- Bedtime Guidance
+- Relaxation Features
+- Ambient Sounds
+- Wearable Integration (approved items)
+- All other previously approved Phase 1 features
+
+**Phase 2 (deferred):**
+- Smart Alarm
+- Intelligent Wake Experience
+- AI Wake Routines
+- Smart Alarm Integrations
+- Advanced Wake Automation
+
+Smart Alarm code preserved and gated by `SMART_ALARM_ENABLED` in `src/lib/flags.ts`. Restore = flip flag to `true` and un-comment the ~4 mount points (dashboard card, /events mount, marketing SmartAlarmSection, MorningBrief alarm slot). Server dispatch route, push enrollment, DB, and QA harness remain intact.

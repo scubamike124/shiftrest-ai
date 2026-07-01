@@ -73,7 +73,6 @@ function Landing() {
         <>
           <CompanionShowcaseSection ctaHref={ctaHref} />
           <DayInLifeSection />
-          <SmartAlarmSection />
           <DashboardSection />
           <Testimonials />
           <PricingPreview ctaHref={ctaHref} />
@@ -160,7 +159,6 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             <div className="mt-7 flex flex-wrap gap-2">
               <CapChip icon={Mic} label="Tap to talk" />
               <CapChip icon={Waves} label="Sleep sounds" />
-              <CapChip icon={BellRing} label="Smart alarm" />
               <CapChip icon={Moon} label="Wind-down guidance" />
             </div>
 
@@ -572,81 +570,10 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-/* ============================================================ SMART ALARM */
+/* Smart Alarm section removed for Phase 1 launch. Restored in Phase 2 via
+   src/lib/flags.ts (SMART_ALARM_ENABLED). See git history for the original
+   SmartAlarmSection + SmartAlarmMock components. */
 
-function SmartAlarmSection() {
-  return (
-    <section className="py-24 lg:py-32">
-      <div className="mx-auto w-full max-w-7xl px-5 lg:px-10">
-        <div className="grid items-center gap-14 lg:grid-cols-[1fr_1.1fr]">
-          <SmartAlarmMock />
-          <div>
-            <Eyebrow>Smart alarm</Eyebrow>
-            <h2 className="mt-3 text-4xl leading-tight tracking-tight lg:text-5xl">
-              Wake at the lightest point of your cycle — not by accident.
-            </h2>
-            <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground">
-              RestPilot watches your cycles and triggers the alarm inside a
-              window you choose. If you fall asleep late or your wearable
-              reports poor REM, it shifts automatically.
-            </p>
-            <div className="mt-7 grid grid-cols-2 gap-3">
-              <Mini icon={Bell} title="Window-based" body="Fires in a 30-min sweet spot, not a hard time." />
-              <Mini icon={Watch} title="Wearable aware" body="Adapts to last night's sleep stages." />
-              <Mini icon={Sun} title="Light-synced" body="Pairs wake with bright-light prompt." />
-              <Mini icon={Sparkles} title="Auto-rescue" body="Misses a shift? It re-plans the day." />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Mini({ icon: Icon, title, body }: { icon: typeof Bell; title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
-      <div className="flex items-center gap-2 text-indigo-glow">
-        <Icon className="h-4 w-4" />
-        <span className="text-sm font-semibold text-foreground">{title}</span>
-      </div>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{body}</p>
-    </div>
-  );
-}
-
-function SmartAlarmMock() {
-  return (
-    <div className="relative mx-auto w-full max-w-md">
-      <div className="pointer-events-none absolute -inset-6 rounded-[44px] bg-indigo-glow/15 blur-3xl" />
-      <div className="relative overflow-hidden rounded-[32px] border border-border bg-card/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-widest text-indigo-glow">Alarm</span>
-          <span className="text-muted-foreground">Friday wake</span>
-        </div>
-        <p className="mt-3 text-5xl tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          5:42 <span className="text-2xl text-muted-foreground">AM</span>
-        </p>
-        <p className="text-xs text-muted-foreground">Rings at your exact time · locked-screen delivery</p>
-
-        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[10px]">
-          <CycleChip label="Bedtime" sub="9:42 PM" />
-          <CycleChip label="Wind-down" sub="AI coach" />
-          <CycleChip label="Wake" sub="5:42 AM" active />
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-primary/30 p-3" style={{ background: "var(--gradient-cta)" }}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/80">
-            On wake
-          </p>
-          <p className="mt-1 text-sm text-primary-foreground">
-            10,000 lux light · espresso OK · brief plays in 2 min
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 function CycleChip({ label, sub, active }: { label: string; sub: string; active?: boolean }) {
@@ -1243,13 +1170,6 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
 
 const dayMoments = [
   {
-    time: "6:00 AM",
-    icon: Bell,
-    headline: "Alarm moved 20 min later",
-    body: "Your Oura HRV dropped overnight. RestPilot delayed the alarm to end your last REM cycle naturally instead of cutting it short.",
-    tag: "Smart alarm · recovery-aware",
-  },
-  {
     time: "8:15 AM",
     icon: Coffee,
     headline: "Hold caffeine 90 minutes",
@@ -1381,7 +1301,6 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
   const skills: { icon: typeof Moon; title: string; body: string }[] = [
     { icon: Heart, title: "Wind-down after shift", body: "Decompress with paced breathing and a calm voice that knows your night." },
     { icon: Waves, title: "Sleep sounds & mixes", body: "Rain, jet, ocean — start by voice, save your perfect mix." },
-    { icon: BellRing, title: "Smart alarm", body: "Wakes you in your lightest cycle inside the window you choose." },
     { icon: MessageCircle, title: "Nightly guidance", body: "Checks in before bed and again at wake — never preachy." },
     { icon: Repeat, title: "Routines & reminders", body: "‘Goodnight’ runs your full wind-down. One word, one tap." },
     { icon: Lock, title: "Private memory", body: "Yours alone. View it, export it, wipe it — anytime." },

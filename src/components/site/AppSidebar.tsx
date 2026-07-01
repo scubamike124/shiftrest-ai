@@ -24,7 +24,7 @@ const nav = [
   { to: "/plan", label: "Today's Plan", icon: Sun },
   { to: "/sleep", label: "Sleep Sounds", icon: Waves },
   { to: "/coach", label: "AI Coach", icon: MessageCircle },
-  { to: "/events", label: "Events & Alarm", icon: Calendar },
+  { to: "/events", label: "Events", icon: Calendar },
   { to: "/memory", label: "Memory", icon: Brain },
   { to: "/playbooks", label: "Playbooks", icon: BookOpen },
   { to: "/swap", label: "Shift Swap", icon: Repeat },

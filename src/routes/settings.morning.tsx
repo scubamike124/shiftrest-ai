@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_BRIEF_LAYOUT, fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import type { BriefCardId } from "@/lib/morning/types";
+import { SMART_ALARM_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/settings/morning")({
   head: () => ({
@@ -125,7 +126,7 @@ function MorningSettings() {
 
       <Card className="p-3">
         <ul className="flex flex-col gap-2">
-          {order.map((id, i) => (
+          {order.filter((id) => SMART_ALARM_ENABLED || id !== "alarm").map((id, i) => (
             <li
               key={id}
               className="flex items-center gap-2 rounded-md border border-border/60 bg-background/40 p-2"
