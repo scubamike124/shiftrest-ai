@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/public/hooks/dispatch-alarms")({
           .select("id, user_id, title, starts_at")
           .is("dispatched_at", null)
           .eq("kind", "personal")
-          .like("title", "alarm:%")
+          .ilike("title", "alarm:%")
           .gte("starts_at", lowerIso)
           .lte("starts_at", upperIso)
           .limit(200);
