@@ -281,7 +281,7 @@ function SmartAlarmQAPage() {
 
       <LongHorizonTester />
 
-      <SmartAdjustmentTester />
+      {ADVANCED_ADJUSTMENT_ENABLED && <SmartAdjustmentTester />}
 
       <section className="rounded-2xl border border-border bg-background/60 p-4 space-y-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide">Manual checklist</h2>
