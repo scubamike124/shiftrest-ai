@@ -285,8 +285,8 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
         </div>
         {adjustmentMode === "smart" && (
           <div>
-            <p className="mb-1 text-xs font-semibold text-muted-foreground">Maximum adjustment</p>
-            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Maximum adjustment">
+            <p className="mb-1 text-xs font-semibold text-muted-foreground">Adjustment window (earlier or later)</p>
+            <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Adjustment window">
               {ADJUSTMENT_OPTIONS.map((opt) => {
                 const selected = maxAdjustmentMin === opt.value;
                 const isFull = opt.value === ADAPTIVE_WINDOW_MIN;
@@ -296,14 +296,16 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
                     type="button"
                     role="radio"
                     aria-checked={selected}
+                    aria-label={isFull ? "Full smart window" : `Up to ${opt.value} minutes earlier or later`}
                     onClick={() => setMaxAdjustmentMin(opt.value as AdjustmentValue)}
-                    className={`h-10 rounded-xl border text-[11px] font-semibold leading-tight ${
+                    className={`flex h-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold leading-tight ${
                       selected
                         ? "border-primary bg-primary/15 text-primary"
                         : "border-border bg-background text-muted-foreground"
                     }`}
                   >
-                    {isFull ? "Full" : `±${opt.value}`}
+                    <span>{isFull ? "Full" : `${opt.value} min`}</span>
+                    {!isFull && <span className="text-[9px] font-normal opacity-80">± earlier/later</span>}
                   </button>
                 );
               })}
