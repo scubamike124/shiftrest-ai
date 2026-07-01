@@ -1248,6 +1248,7 @@ export type Database = {
       user_events: {
         Row: {
           created_at: string
+          dispatched_at: string | null
           ends_at: string | null
           id: string
           kind: string
@@ -1263,6 +1264,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dispatched_at?: string | null
           ends_at?: string | null
           id?: string
           kind: string
@@ -1278,6 +1280,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dispatched_at?: string | null
           ends_at?: string | null
           id?: string
           kind?: string
