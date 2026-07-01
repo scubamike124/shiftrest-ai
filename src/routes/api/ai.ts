@@ -525,18 +525,26 @@ export const Route = createFileRoute("/api/ai")({
               // target offset by a few seconds slipped through unmodified.
               const driftMs = Number.isFinite(wakeMs) ? Math.abs(wakeMs - targetMs) : Infinity;
               if (!Number.isFinite(wakeMs) || driftMs > windowMs || driftMs < 60_000) {
-                // Cap each candidate by the smaller of the user window or a
-                // quarter-cycle so ±5 picks ±5 but ±30 picks ±22.5 instead of
-                // always saturating at the edge.
+                // Cap the magnitude by the smaller of the user window or a
+                // quarter-cycle so ±5 picks ±5 but ±30 picks ±22.5.
                 const offsetCap = Math.min(windowMs, cycleMs * 0.25);
-                const offsets = [-offsetCap, offsetCap, -offsetCap * 0.6, offsetCap * 0.6];
-                const candidates = offsets
-                  .map((o) => targetMs + o)
-                  .map((c) => Math.max(targetMs - windowMs, Math.min(targetMs + windowMs, c)))
-                  .filter((c) => Math.abs(c - targetMs) >= 60_000);
-                const pick =
-                  candidates[0] ??
-                  targetMs - Math.max(60_000, Math.min(windowMs, 5 * 60_000));
+                const magnitude = Math.max(60_000, offsetCap);
+                // Pick a direction with an actual signal instead of always
+                // biasing earlier. Priority:
+                //   1. If the model returned a wake time within the window
+                //      but too close to target, honor the sign it chose.
+                //   2. Otherwise alternate deterministically per calendar day
+                //      of the target (hash) so it isn't perpetually earlier.
+                let sign = 0;
+                if (Number.isFinite(wakeMs) && driftMs <= windowMs) {
+                  sign = wakeMs >= targetMs ? 1 : -1;
+                }
+                if (sign === 0) {
+                  const d = new Date(targetMs);
+                  const dayKey = d.getUTCFullYear() * 372 + (d.getUTCMonth() + 1) * 31 + d.getUTCDate();
+                  sign = dayKey % 2 === 0 ? 1 : -1;
+                }
+                const pick = targetMs + sign * magnitude;
                 parsed.wakeAt = new Date(pick).toISOString();
                 const deltaMin = Math.round((pick - targetMs) / 60_000);
                 parsed.reason = `Adjusted ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} to land closer to a light-sleep boundary in your cycle.`;
