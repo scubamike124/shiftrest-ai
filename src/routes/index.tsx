@@ -616,53 +616,23 @@ function Mini({ icon: Icon, title, body }: { icon: typeof Bell; title: string; b
 }
 
 function SmartAlarmMock() {
-  const options = [
-    { value: 5, label: "5 min", active: true },
-    { value: 10, label: "10 min" },
-    { value: 15, label: "15 min" },
-    { value: 20, label: "20 min" },
-    { value: 30, label: "30 min" },
-    { value: 60, label: "Full" },
-  ];
-
   return (
     <div className="relative mx-auto w-full max-w-md">
       <div className="pointer-events-none absolute -inset-6 rounded-[44px] bg-indigo-glow/15 blur-3xl" />
       <div className="relative overflow-hidden rounded-[32px] border border-border bg-card/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-widest text-indigo-glow">Smart alarm</span>
+          <span className="font-semibold uppercase tracking-widest text-indigo-glow">Alarm</span>
           <span className="text-muted-foreground">Friday wake</span>
         </div>
         <p className="mt-3 text-5xl tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           5:42 <span className="text-2xl text-muted-foreground">AM</span>
         </p>
-        <p className="text-xs text-muted-foreground">Exact time · Smart Mode analyzes your cycle</p>
-
-        {/* adjustment window chips */}
-        <div className="mt-5">
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">Adjustment window (earlier or later)</p>
-          <div className="grid grid-cols-5 gap-1.5">
-            {options.map((opt) => (
-              <span
-                key={opt.value}
-                className={`flex h-11 flex-col items-center justify-center rounded-xl border text-[11px] font-semibold leading-tight ${
-                  opt.active
-                    ? "border-primary/40 bg-primary/20 text-primary-foreground"
-                    : "border-border/60 bg-card/50 text-muted-foreground"
-                }`}
-              >
-                <span>{opt.label}</span>
-                {opt.value !== 60 && <span className="text-[9px] font-normal opacity-80">± earlier/later</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-
+        <p className="text-xs text-muted-foreground">Rings at your exact time · locked-screen delivery</p>
 
         <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[10px]">
-          <CycleChip label="Cycle 1" sub="deep" />
-          <CycleChip label="Cycle 4" sub="REM" />
-          <CycleChip label="Wake" sub="light" active />
+          <CycleChip label="Bedtime" sub="9:42 PM" />
+          <CycleChip label="Wind-down" sub="AI coach" />
+          <CycleChip label="Wake" sub="5:42 AM" active />
         </div>
 
         <div className="mt-5 rounded-2xl border border-primary/30 p-3" style={{ background: "var(--gradient-cta)" }}>
@@ -677,6 +647,7 @@ function SmartAlarmMock() {
     </div>
   );
 }
+
 
 function CycleChip({ label, sub, active }: { label: string; sub: string; active?: boolean }) {
   return (
