@@ -67,7 +67,7 @@ function AuthCallbackPage() {
         setStatus("error");
         setMessage(err instanceof Error ? err.message : "Verification failed.");
       });
-  }, [navigate]);
+  }, []);
 
   return (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
