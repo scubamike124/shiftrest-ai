@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
+import { supabase } from "@/integrations/supabase/client";
+
 
 const ICONS: Record<string, typeof Sun> = {
   sun: Sun,
@@ -50,17 +52,25 @@ type AIBrief = {
 };
 
 async function fetchBrief(context: string): Promise<AIBrief> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Sign in to load your brief");
   const resp = await fetch("/api/insights", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
     const e = await resp.json().catch(() => ({}));
+    if (resp.status === 401) throw new Error("Sign in to load your brief");
     throw new Error(e.error || "Brief unavailable");
   }
   return resp.json();
 }
+
 
 export function AIBriefCard({
   insights,
@@ -70,6 +80,20 @@ export function AIBriefCard({
   recommendations?: Recommendation[];
 }) {
   const context = insights.contextString;
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setHasSession(!!data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setHasSession(!!session);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
   // Cache by context string so the AI cost is paid once per day shape.
   const queryKey = useMemo(() => ["ai-brief", context], [context]);
 
@@ -78,8 +102,9 @@ export function AIBriefCard({
     queryFn: () => fetchBrief(context),
     staleTime: 1000 * 60 * 60 * 4, // 4 hours
     retry: 1,
-    enabled: !!context,
+    enabled: !!context && hasSession === true,
   });
+
 
   const fatigueColor =
     insights.fatigueToday.band === "extreme"
@@ -218,17 +243,23 @@ export function AIBriefCard({
 
       {/* AI body */}
       <div className="relative z-10 mt-4 min-h-[120px]">
-        {isLoading && (
+        {hasSession === false && (
+          <div className="rounded-xl border border-border/60 bg-card/60 p-3 text-xs text-muted-foreground">
+            Sign in to load your brief.
+          </div>
+        )}
+        {hasSession !== false && isLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-indigo-glow" />
             Reading your week…
           </div>
         )}
-        {isError && (
+        {hasSession !== false && isError && (
           <div className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-xs text-amber">
             {error instanceof Error ? error.message : "Brief unavailable."}
           </div>
         )}
+
         {data && (
           <div className="flex flex-col gap-3">
             <div>
