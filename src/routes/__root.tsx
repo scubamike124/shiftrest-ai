@@ -209,6 +209,22 @@ function RootComponent() {
     }
   }, [signedIn, pathname, navigate]);
 
+  // Cross-tab session sync: if another tab verifies / signs in / signs out,
+  // the Supabase SDK writes the new session to localStorage under a
+  // sb-<project>-auth-token key. We invalidate the trial/billing cache so
+  // every tab reflects the fresh state without a manual refresh.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || !event.key.startsWith("sb-") || !event.key.endsWith("-auth-token")) return;
+      queryClient.invalidateQueries({ queryKey: ["subscription-state"] });
+      queryClient.invalidateQueries({ queryKey: ["prefs"] });
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [queryClient]);
+
+
   return (
     <QueryClientProvider client={queryClient}>
       <PreviewWarningBanner />
