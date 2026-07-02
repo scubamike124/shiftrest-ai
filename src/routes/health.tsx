@@ -31,6 +31,7 @@ import {
   type TrendDirection,
 } from "@/lib/health/trends";
 import { PROVIDER_LABEL } from "@/lib/wearables/types";
+import { HIDE_PLANNED_PROVIDERS_ON_HEALTH } from "@/lib/flags";
 
 export const Route = createFileRoute("/health")({
   head: () => ({
