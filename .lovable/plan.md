@@ -1,98 +1,130 @@
 
-# Batch B — AI Companion Polish (Investigation & Plan)
+# Pre-Launch Polish & Stability — Investigation Report
 
-Investigation-first. Scope: Home focal point, portrait + orb visuals, richer greetings, voice/persona UX. No animated avatar, no wearables, no Smart Alarm.
+Investigation only. No code will be written until you approve a batch.
+
+---
 
 ## 1. Investigation Findings
 
-**Files involved (existing, no new subsystems needed):**
-- Home: `src/routes/dashboard.tsx` (886 lines), `src/components/home/GreetingHeader.tsx` (34), `src/components/AIBriefCard.tsx`.
-- Companion visual: `src/components/PilotOrb.tsx` (conic-gradient orb + `OrbBadge`), `src/components/companion/SpeakingIndicator.tsx`.
-- Pilot: `src/routes/pilot.tsx` (670), `src/routes/companion.tsx` (1603).
-- Voice/persona UX: `src/components/voice/VoiceSettings.tsx` (354), `src/routes/settings.companion.tsx` (573).
-- Prompts: `src/lib/ai/context.server.ts` (mode overlays already exist), `src/routes/api/brief.ts`, `src/lib/ai/prompts.server.ts`.
+### Batch A — Home & AI Companion
 
-**What's reusable:**
-- `OrbBadge` / `PilotOrb` — already on-brand (aurora conic gradient), just needs a bigger role on Home.
-- 9 mode overlays in `context.server.ts` already exist; the 6 user-facing presets map cleanly.
-- `greetingWithName()` in `src/lib/time/day-part.ts` handles time-of-day.
-- `AIBriefCard` already renders insights/recommendations.
+**A1. Greeting truncation on small phones (375px iPhone SE / mini)**
+`src/components/home/CompanionHero.tsx` uses `text-2xl` + `truncate` on the H1 in a `grid-cols-[auto_minmax(0,1fr)]` next to a 144px (`h-36 w-36`) portrait. On 375px viewports the text column is ~180px, so "Good evening, Christopher" truncates to "Good evening, Chri…". The sub-line uses `line-clamp-2`, hiding the second half of context on small screens.
 
-**What should be redesigned:**
-- `GreetingHeader` — small 14×14 orb tucked in the corner. Elevate to a full-width "Companion Hero" card as Home's first block.
-- Greeting copy — currently only `${dayPart}, ${name}`. Add one contextual line (shift + recovery + sleep-debt aware).
-- `VoiceSettings` list — checkmark-only selected state; add pinned "Current" card at top + inline preview button per row.
-- Persona overlays — tighten wording so Calm/Coach/Motivational read distinctly out loud.
+**A2. "scubamike124" username showing up**
+`src/lib/user/display-name.*` correctly returns only `user_prefs.preferred_name` (no email fallback). The leak is upstream:
+- `handle_new_user` DB trigger writes `split_part(email,'@',1)` into `profiles.display_name`.
+- `src/lib/welcome-email.functions.ts` reads `profiles.display_name` and injects it into the welcome email as `{{name}}` → "Hi scubamike124".
+- Any component still reading `profiles.display_name` (a few older components / potentially AI context assembly) will echo it. Needs a full grep sweep + a "no email-derived names, ever" rule.
 
-**Performance:** all changes are presentation-layer; no new API calls. Greeting context reads data already fetched for the dashboard (shifts, insights, sleep). Animations use existing Tailwind keyframes + one CSS `@keyframes breathe` — GPU-only (transform/opacity). Portrait image is a single generated 1024² JPG imported statically (LCP-friendly).
+**A3. Generic AI Companion replies**
+`src/lib/ai/context.server.ts` assembles context but the persona overlay is short and the model rarely gets: recent memory highlights, last brief summary, current shift phase, user's own words from the last 24h. Replies feel generic because the prompt is generic. Needs richer context injection + persona-tuned opening patterns per day-part.
 
-**Mobile:** Hero card uses `grid-cols-[auto_1fr]`, 375px verified. Tap targets ≥44px. `dvh` where needed.
+**A4. Portrait life**
+`PilotPortrait.tsx` has a `breathe` class + speaking `animate-ping`. It does NOT have: idle micro-drift, thinking shimmer, or state cross-fade. Adding a slower secondary glow layer + `will-change: transform` keeps it 60fps on iOS.
 
-**A11y:** All decorative glow layers get `aria-hidden`. Speaking indicator gets `role="status" aria-live="polite"`. Persona radio group gets `role="radiogroup"` with keyboard navigation.
+**A5. Greeting quality**
+`src/lib/greeting/context.ts` + `src/lib/time/day-part.ts` produce solid but formulaic lines ("You've recovered well"). Needs variety pool + weighting by data confidence so it doesn't repeat.
 
-## 2. Home Experience — Companion Hero
+---
 
-Replace `GreetingHeader` with `CompanionHero` at the top of `dashboard.tsx`:
-- Left: `OrbBadge size="lg"` with idle breathing glow.
-- Right: greeting line ("Good evening, Joe"), one contextual sub-line ("Early shift tomorrow — 05:00"), and a large primary "Talk to Pilot" button linking to `/companion`.
-- Below the hero: existing `AIBriefCard` (daily summary), a compact 3-stat strip (recommended bedtime · sleep debt · recovery) pulled from data already in dashboard scope.
+### Batch B — Mobile UI Audit (planned method)
 
-No new queries — reuses `insights`, `recommendations`, next-shift, and sleep aggregates already fetched.
+I will run Playwright at 375×812 (iPhone SE), 390×844 (iPhone 14), and 430×932 (iPhone 15 Pro Max) across every authenticated route, capture screenshots into `/tmp/browser/mobile-qa/`, and produce a defect list with file:line references. Known suspects from static review:
+- Dashboard: employer picker chip row can horizontal-overflow with >3 employers.
+- `/pilot` and `/companion`: header controls may clip behind iOS status bar without `pt-[env(safe-area-inset-top)]` on the outer wrapper.
+- `BottomNav.tsx`: verify 44×44 min touch target on all icons.
+- Legal pages: `prose` typography inconsistent with rest of app.
+- Cards using `text-xs` for values (should be ≥14px per iOS HIG).
 
-## 3. AI Visual Identity — Portrait + Orb
+Deliverable: single markdown defect table with severity + screenshot link.
 
-- Generate one premium abstract "Pilot" portrait (soft aurora nebula + suggested silhouette, no face detail — matches "no animated avatar" constraint). Save to `src/assets/pilot-portrait.jpg`.
-- New `<PilotPortrait state="idle|speaking" size />` component: portrait image + soft radial glow layer + idle breathing animation + speaking-indicator pulse ring when `state="speaking"`. Reused on Home hero and Pilot page header.
-- Keep `OrbBadge` for nav/inline uses.
+---
 
-## 4. Greeting Personality
+### Batch C — Regression Test (planned method)
 
-Extend `src/lib/time/day-part.ts` (or add `src/lib/greeting/context.ts`) with `buildGreetingLine({ name, now, nextShift, sleepDebtMin, recoveryScore, prevBedtime })` returning one short contextual sentence. Pure function, unit-testable, no network. Rules:
-- Prioritise: shift-in-<12h > poor recovery > sleep debt > bedtime nudge > neutral affirmation.
-- Never more than one clause. Example outputs match the user's spec.
+Scripted flows via Playwright + a manual matrix. Deliverable is a pass/fail table, not fixes.
 
-Applied in the new `CompanionHero` and (as `pilotGreeting()`) at top of `/pilot` route.
+Flows to script: Sign Up → Verify Email → Login → Session persistence across reload → Password reset → Logout → Delete Account. Feature flows: AI Coach Brief, Voice playback (with bearer), Smart Light Plan, Schedule CRUD, Partner Mode share code round-trip, Memory purge, Data export, Notification enroll, Upgrade → Stripe Checkout → webhook → premium unlock → portal → cancel.
 
-## 5. Voice Experience — VoiceSettings redesign
+---
 
-- Pin the currently-selected voice as a large "Now speaking" card at the top with waveform + Play preview + Change action.
-- Below: horizontally-scrollable filter chips (Language, Accent), then a vertical list where each row has: avatar dot, name, 1-line description, ▶︎ preview icon, big radio target (whole row tappable).
-- Reduce taps: no modal — inline preview, single-tap select. Optimistic UI.
-- Preview button shows loading spinner while TTS streams; auto-stops previous preview.
+### Batch D — Production Readiness (planned method)
 
-## 6. Personality Presets — 6 canonical
+Audit checklist against actual code, not a fresh implementation. Focus:
+- Missing `errorComponent` / `notFoundComponent` on any route with a loader (grep).
+- Empty states on: `/memory`, `/inbox`, `/decisions`, `/plan`, `/schedule` when no data.
+- Offline: verify SW `warm-offline` covers `/dashboard`, `/pilot`, `/companion`, static assets.
+- AI timeout: confirm `/api/ai` has abort + fallback message; TTS has retry cap.
+- Owner alerts: verify `notifyOwner` fires on Stripe webhook failure, email queue DLQ, AI 5xx bursts.
+- Lighthouse mobile pass on `/` and `/dashboard` — record baseline.
 
-Consolidate to the 6 requested presets and tighten copy in `MODE_OVERLAYS`:
-- **Calm** (maps to `warm`) — soft, slower cadence, no exclamations.
-- **Companion** (`companion`) — conversational, one follow-up question.
-- **Coach** (`coach`) — action-first, timings + wins.
-- **Friendly** (`friend`) — casual, light humour.
-- **Professional** (`professional`) — precise, structured, minimal small talk.
-- **Motivational** (`motivational`) — high-energy, single challenge.
+---
 
-Each overlay gets a distinctive cadence rule + example opener so the model produces audibly different output. Preset picker in `settings.companion.tsx` becomes a card grid (2×3) with a short sample line under each name and a "Preview voice" button that TTS-reads the sample in the current voice.
+## 2. Root Cause Summary
 
-## 7. Performance & Regression Guardrails
+| # | Symptom | Root Cause |
+|---|---|---|
+| A1 | Greeting truncates | `text-2xl` + fixed 144px portrait on 375px viewport |
+| A2 | "scubamike124" name | `handle_new_user` seeds `profiles.display_name` from email; welcome email reads it |
+| A3 | Generic AI replies | Thin context payload + short persona overlay |
+| A4 | Portrait feels static | Only breathe + ping; no thinking/idle drift |
+| A5 | Repetitive greetings | Single-line-per-condition template, no variety |
 
-- No new server calls in the Home path.
-- Portrait image ≤180KB JPG, statically imported (Vite hashes + preloads).
-- Animations: transform/opacity only, `will-change` avoided.
-- Behind-the-scenes prompt changes gated so the brief/coach APIs still return existing JSON shape.
-- TypeScript strict clean, security scan re-run pre-publish.
+---
 
-## 8. Out of Scope (confirmed)
+## 3. Files That Will Change (per batch)
 
-Animated talking avatar, Smart Alarm, Fitbit, Oura, Apple Health, Garmin, Whoop, smart-home.
+**Batch A1 (greeting fit):** `src/components/home/CompanionHero.tsx`, `src/components/companion/PilotPortrait.tsx` (responsive size prop).
 
-## 9. Delivery Order (small batches)
+**Batch A2 (name cleanup):** `supabase/migrations/*` (new — stop email-seeding display_name), `src/lib/welcome-email.functions.ts` (use preferred_name first, then a neutral fallback), grep-driven small edits to any component still reading `display_name`.
 
-1. **B-1 Visual foundation** — generate portrait, ship `PilotPortrait`, breathing keyframe, add speaking-ring variant to `OrbBadge`.
-2. **B-2 Home hero** — `CompanionHero` in `dashboard.tsx`, retire old `GreetingHeader` layout, add 3-stat strip.
-3. **B-3 Greeting engine** — `buildGreetingLine()` + unit tests; wire into Home + Pilot.
-4. **B-4 Persona overlays** — rewrite 6 overlays in `context.server.ts`, redesign preset picker.
-5. **B-5 Voice selector** — pinned current voice + inline preview redesign in `VoiceSettings.tsx`.
-6. **B-6 QA + publish** — typecheck, mobile pass at 375/390/430, security scan, publish.
+**Batch A3 (richer AI):** `src/lib/ai/context.server.ts`, `src/lib/ai/prompts.server.ts`.
 
-Each sub-batch lands independently and is safe to revert.
+**Batch A4 (portrait life):** `src/components/companion/PilotPortrait.tsx`, `src/styles.css` (new keyframes).
 
-Reply **"go B-1"** to start with the visual foundation, or approve the full sequence with **"go B"** and I'll ship B-1 → B-6 in order, pausing after each for your ack.
+**Batch A5 (greeting variety):** `src/lib/greeting/context.ts`.
+
+**Batch B:** UI-only edits to files surfaced by the audit; list finalized in the report.
+
+**Batch C:** No code changes unless a P0 defect blocks launch — those become separate mini-batches.
+
+**Batch D:** Add missing boundaries, empty states, and owner-alert hooks only where audit shows gaps.
+
+---
+
+## 4. Risks
+
+- **A2 migration** — changing `handle_new_user` doesn't retroactively fix existing rows. Need a one-time UPDATE to null out `display_name` where it equals `split_part(email,'@',1)`.
+- **A3 prompt changes** — richer context = more tokens. Must respect `has_ai_budget` and keep p50 latency <2s.
+- **A4 animations** — layered blurs on iOS Safari can jank; will test on real device viewport before commit.
+- **B fixes** — global spacing/typography changes risk regressions elsewhere; keep edits scoped to individual components.
+- **Batch C** may surface Stripe/email issues that expand scope. If so, we stop and re-plan.
+
+---
+
+## 5. Recommended Implementation Order
+
+Smallest, safest, most visible first:
+
+1. **A1** — greeting fits on 375px (5-min visual win)
+2. **A2** — kill "scubamike124" everywhere (trust win)
+3. **A5** — greeting variety (cheap quality bump)
+4. **A4** — portrait life (perceived polish)
+5. **A3** — richer AI context (highest impact, highest risk)
+6. **B**  — mobile audit → fix P0s → publish
+7. **C**  — regression matrix → fix any P0s
+8. **D**  — production-readiness gaps
+
+Each batch: implement → typecheck → mobile Playwright verify → report → wait for "go" → next.
+
+---
+
+## 6. Out of Scope (confirmed postponed)
+
+Fitbit, Oura, Apple Health, Smart Alarm, wearables, HRV, full AI avatar.
+
+---
+
+**Awaiting approval.** Reply "go A1" (or any batch) to begin. I will not touch code until then.
