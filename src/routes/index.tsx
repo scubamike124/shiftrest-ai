@@ -394,7 +394,7 @@ function CoachMock() {
             </ul>
             <div className="mt-4 flex gap-2 text-[11px]">
               <ChipBtn>Add to plan</ChipBtn>
-              <ChipBtn>Set smart alarm</ChipBtn>
+              <ChipBtn>Start wind-down</ChipBtn>
               <ChipBtn>Brief me by voice</ChipBtn>
             </div>
           </div>
