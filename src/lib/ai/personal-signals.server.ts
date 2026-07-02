@@ -16,6 +16,8 @@ type PrefsRow = {
 
 type WearableRow = {
   date: string;
+  sleep_start: string | null;
+  sleep_end: string | null;
   sleep_duration_min: number | null;
   sleep_efficiency: number | null;
   hrv_ms: number | null;
@@ -28,6 +30,12 @@ type ShiftRow = {
   title: string | null;
   shift_type: string | null;
 };
+
+type AlarmRow = {
+  starts_at: string;
+  title: string | null;
+};
+
 
 function fmtHm(min: number): string {
   const h = Math.floor(min / 60);
