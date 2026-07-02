@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VersionRouteImport } from './routes/version'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as SmartHomeRouteImport } from './routes/smart-home'
@@ -93,6 +94,11 @@ import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/a
 const VersionRoute = VersionRouteImport.update({
   id: '/version',
   path: '/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -527,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -608,6 +615,7 @@ export interface FileRoutesByTo {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -690,6 +698,7 @@ export interface FileRoutesById {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -774,6 +783,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -855,6 +865,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -936,6 +947,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -1019,6 +1031,7 @@ export interface RootRouteChildren {
   SmartHomeRoute: typeof SmartHomeRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   VersionRoute: typeof VersionRoute
   ApiAiRoute: typeof ApiAiRoute
   ApiBriefRoute: typeof ApiBriefRoute
@@ -1061,6 +1074,13 @@ declare module '@tanstack/react-router' {
       path: '/version'
       fullPath: '/version'
       preLoaderRoute: typeof VersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -1704,6 +1724,7 @@ const rootRouteChildren: RootRouteChildren = {
   SmartHomeRoute: SmartHomeRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   VersionRoute: VersionRoute,
   ApiAiRoute: ApiAiRoute,
   ApiBriefRoute: ApiBriefRoute,
