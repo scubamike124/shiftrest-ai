@@ -19,12 +19,18 @@ export type TimeDirectiveResolved = {
   greeting: string | null;
 };
 
+import { DAY_PART_LABEL, getDayPart } from "@/lib/time/day-part";
+
 export function greetingForHour(hour: number | null): string | null {
   if (hour === null || Number.isNaN(hour)) return null;
-  if (hour < 5) return "Good evening";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  // Build a Date whose local hour matches the provided hour so we can defer
+  // to the canonical getDayPart() bucket boundaries used app-wide.
+  const d = new Date();
+  d.setHours(hour, 30, 0, 0);
+  const part = getDayPart(d);
+  // Model output space only distinguishes morning / afternoon / evening.
+  // "night" collapses back to "Good evening" to match spoken openers.
+  return part === "night" ? "Good evening" : DAY_PART_LABEL[part];
 }
 
 export function buildTimeDirective(input: TimeDirectiveInput): TimeDirectiveResolved {
