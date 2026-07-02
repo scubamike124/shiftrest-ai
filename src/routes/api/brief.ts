@@ -152,6 +152,11 @@ export const Route = createFileRoute("/api/brief")({
 
           if (!result.text) {
             console.error("[brief] empty model response");
+            notifyOwnerAsync({
+              severity: "error",
+              service: "brief",
+              message: "empty_response",
+            });
             return fallback("unavailable", messageFromReason("unavailable"));
           }
 
