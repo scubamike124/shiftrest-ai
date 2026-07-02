@@ -48,19 +48,19 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
     [],
   );
 
-  const filteredVoices = useMemo(() => {
+  const currentVoice = useMemo(
+    () => VOICE_OPTIONS.find((v) => v.id === prefs.voiceId) ?? null,
+    [prefs.voiceId],
+  );
+
+  const otherVoices = useMemo(() => {
     const base =
       genderFilter === "all"
         ? VOICE_OPTIONS
         : VOICE_OPTIONS.filter((v) => v.gender === genderFilter);
-    // Pin the currently selected voice to the top so the "favorite" is always visible.
-    const selectedId = prefs.voiceId;
-    return [...base].sort((a, b) => {
-      if (a.id === selectedId) return -1;
-      if (b.id === selectedId) return 1;
-      return 0;
-    });
+    return base.filter((v) => v.id !== prefs.voiceId);
   }, [genderFilter, prefs.voiceId]);
+
 
   const accents = accentsForLanguage(prefs.voiceLanguage);
   const language = LANGUAGE_OPTIONS.find((l) => l.code === prefs.voiceLanguage) ?? LANGUAGE_OPTIONS[0];
