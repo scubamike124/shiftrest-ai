@@ -31,10 +31,23 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "shift-rest-ai"
+const SITE_NAME = "RestPilot AI"
 const SENDER_DOMAIN = "notify.restpilotai.com"
 const ROOT_DOMAIN = "restpilotai.com"
 const FROM_DOMAIN = "notify.restpilotai.com"
+const REPLY_TO = "support@restpilotai.com"
+
+function buildBrandedUrl(emailType: string, data: any): string {
+  const tokenHash = data.token_hash || data.token_hash_new
+  if (!tokenHash) return data.url // fallback
+  const params = new URLSearchParams({
+    token_hash: tokenHash,
+    type: emailType === 'email_change' ? 'email_change' : emailType,
+    next: emailType === 'recovery' ? '/reset-password?fromRecovery=1' : '/dashboard',
+  })
+  return `https://${ROOT_DOMAIN}/auth/callback?${params.toString()}`
+}
+
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -131,17 +144,21 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
-        // Build template props from payload.data (HookData structure)
+        // Build template props from payload.data (HookData structure).
+        // Rewrite the confirmation URL to our branded /auth/callback handler
+        // so recipients never see raw supabase.co links (Gmail flags mismatches).
+        const brandedUrl = buildBrandedUrl(emailType, payload.data)
         const templateProps = {
           siteName: SITE_NAME,
           siteUrl: `https://${ROOT_DOMAIN}`,
           recipient: payload.data.email,
-          confirmationUrl: payload.data.url,
+          confirmationUrl: brandedUrl,
           token: payload.data.token,
           email: payload.data.email,
           oldEmail: payload.data.old_email,
           newEmail: payload.data.new_email,
         }
+
 
         // Render React Email to HTML and plain text
         const element = React.createElement(EmailTemplate, templateProps)
@@ -178,6 +195,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             message_id: messageId,
             to: payload.data.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            reply_to: REPLY_TO,
             sender_domain: SENDER_DOMAIN,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
@@ -186,6 +204,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             label: emailType,
             queued_at: new Date().toISOString(),
           },
+
         })
 
         if (enqueueError) {
