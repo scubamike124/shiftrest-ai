@@ -123,9 +123,8 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 Tap to talk. Sleep sounds and wind-down guidance — one calm assistant for the hours that wreck everyone else.
               </span>
               <span className="hidden sm:inline">
-                Tap your companion after work, ask for calming sounds, start a
-                wind-down routine, or let her wake you at the right time —
-                a personal assistant built for shift life.
+                Tap your companion after work, ask for calming sounds, or start
+                a wind-down routine — a personal assistant built for shift life.
               </span>
             </p>
 
