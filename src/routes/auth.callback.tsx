@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Moon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -24,9 +25,10 @@ export const Route = createFileRoute("/auth/callback")({
 });
 
 function AuthCallbackPage() {
-  
   const [status, setStatus] = useState<"working" | "error">("working");
   const [message, setMessage] = useState("Verifying your link…");
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -40,13 +42,14 @@ function AuthCallbackPage() {
       return;
     }
 
-    // Recovery flow → send user to reset-password screen after session is set.
-    const target =
-      rawType === "recovery" ? "/reset-password?fromRecovery=1" : next;
+    const isRecovery = rawType === "recovery";
 
-    supabase.auth
-      .verifyOtp({ token_hash: tokenHash, type: rawType as any })
-      .then(({ error }) => {
+    (async () => {
+      try {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: rawType as any,
+        });
         if (error) {
           setStatus("error");
           setMessage(
@@ -56,17 +59,45 @@ function AuthCallbackPage() {
           );
           return;
         }
+
+        // Force the SDK to re-fetch the confirmed user + refresh the access
+        // token BEFORE we hand off to the destination route. Without this the
+        // dashboard can boot with a pre-verify session on iOS PWAs and keep
+        // showing "please verify" chrome until the next hard reload.
+        try {
+          await supabase.auth.getUser();
+          await supabase.auth.refreshSession();
+        } catch {
+          /* non-fatal — auth event listener will still fire */
+        }
+
+        // Drop cached "trial / please verify" reads so every screen picks up
+        // the freshly-confirmed profile on first paint.
+        queryClient.invalidateQueries({ queryKey: ["subscription-state"] });
+        queryClient.invalidateQueries({ queryKey: ["prefs"] });
+        queryClient.invalidateQueries({ queryKey: ["employers"] });
+
         toast.success(
-          rawType === "recovery" ? "Verified — set a new password." : "You're signed in.",
+          isRecovery ? "Verified — set a new password." : "You're signed in.",
         );
-        // Use full navigation for the query-string target so TanStack's typed
-        // router doesn't reject the raw path.
-        window.location.assign(target);
-      })
-      .catch((err) => {
+
+        if (isRecovery) {
+          navigate({
+            to: "/reset-password",
+            search: { fromRecovery: "1" } as any,
+            replace: true,
+          });
+        } else if (next.startsWith("/") && !next.startsWith("//")) {
+          navigate({ to: next as any, replace: true });
+        } else {
+          navigate({ to: "/dashboard", replace: true });
+        }
+      } catch (err) {
         setStatus("error");
         setMessage(err instanceof Error ? err.message : "Verification failed.");
-      });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
