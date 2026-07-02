@@ -6,6 +6,7 @@ import { template as paymentReceipt } from './payment-receipt'
 import { template as paymentFailed } from './payment-failed'
 import { template as subscriptionCanceled } from './subscription-canceled'
 import { template as subscriptionExpired } from './subscription-expired'
+import { template as trialEnding } from './trial-ending'
 import { template as accountDeletion } from './account-deletion'
 import { template as dataExportReady } from './data-export-ready'
 import { template as contactReceived } from './contact-received'
@@ -27,6 +28,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'payment-failed': paymentFailed,
   'subscription-canceled': subscriptionCanceled,
   'subscription-expired': subscriptionExpired,
+  'trial-ending': trialEnding,
   'account-deletion': accountDeletion,
   'data-export-ready': dataExportReady,
   'contact-received': contactReceived,

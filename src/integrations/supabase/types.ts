@@ -1174,12 +1174,14 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           environment: string
+          expired_notified_at: string | null
           id: string
           price_id: string
           product_id: string
           status: string
           stripe_customer_id: string
           stripe_subscription_id: string
+          trial_ending_notified_at: string | null
           updated_at: string | null
           user_id: string
         }
@@ -1189,12 +1191,14 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          expired_notified_at?: string | null
           id?: string
           price_id: string
           product_id: string
           status?: string
           stripe_customer_id: string
           stripe_subscription_id: string
+          trial_ending_notified_at?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -1204,12 +1208,14 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          expired_notified_at?: string | null
           id?: string
           price_id?: string
           product_id?: string
           status?: string
           stripe_customer_id?: string
           stripe_subscription_id?: string
+          trial_ending_notified_at?: string | null
           updated_at?: string | null
           user_id?: string
         }
