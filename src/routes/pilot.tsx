@@ -114,11 +114,12 @@ function PilotPage() {
   });
   const pilotName = (prefs?.assistantName?.trim() || "Pilot");
 
+  const dayGreeting = greetingLabel();
   const greeting: CoachMsg = {
     role: "assistant",
     content: signedIn
-      ? `Hey — I'm ${pilotName}. Tap the orb and tell me what's on your mind.`
-      : "Hey — I'm Pilot. Tap the orb and tell me what's on your mind.",
+      ? `${dayGreeting} — I'm ${pilotName}. Tap the orb and tell me what's on your mind.`
+      : `${dayGreeting} — I'm Pilot. Tap the orb and tell me what's on your mind.`,
   };
 
   const { data: history } = useQuery({
