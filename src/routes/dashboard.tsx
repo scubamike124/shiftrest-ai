@@ -281,6 +281,25 @@ function Dashboard() {
     return { start: sleepStart, end: sleepEnd };
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
+  // Next upcoming shift start as an absolute Date (today + up to 7 days ahead).
+  // Feeds the CompanionHero contextual greeting.
+  const nextShiftStart = useMemo<Date | null>(() => {
+    if (!mounted) return null;
+    const nowMs = today.getTime();
+    for (let i = 0; i < 8; i += 1) {
+      const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const daily = shiftsForDate(shifts, dt, prefs.cycleAnchor, prefs.cycleWeeks);
+      for (const s of daily) {
+        const start = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+        start.setMinutes(s.start);
+        if (start.getTime() > nowMs) return start;
+      }
+    }
+    return null;
+  }, [mounted, today, shifts, prefs.cycleAnchor, prefs.cycleWeeks]);
+
+
+
   const stability = Math.max(0, 100 - debt.score);
   const getWearableSummaryFn = useServerFn(getWearableSummary);
   const { data: wearableSummary } = useQuery({
