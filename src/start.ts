@@ -17,6 +17,23 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
       throw error;
     }
     console.error(error);
+    // Page the owner on genuine server exceptions (500s). Runs fire-and-forget
+    // so the error page still renders instantly.
+    try {
+      const { notifyOwner } = await import("@/lib/ops/alert.server");
+      void notifyOwner({
+        severity: "critical",
+        service: "server.unhandled",
+        message: error instanceof Error ? error.message : String(error),
+        meta: {
+          path: url.pathname,
+          method: request.method,
+          stack: error instanceof Error ? error.stack?.slice(0, 2000) : undefined,
+        },
+      });
+    } catch {
+      /* noop */
+    }
     return new Response(renderErrorPage(), {
       status: 500,
       headers: { "content-type": "text/html; charset=utf-8" },
