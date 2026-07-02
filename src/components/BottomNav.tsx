@@ -25,7 +25,8 @@ export function BottomNav() {
             <li key={t.to} className="flex-1">
               <Link
                 to={t.to}
-                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-all active:scale-95 ${
                   active ? "text-primary" : "text-muted-foreground"
                 }`}
               >
