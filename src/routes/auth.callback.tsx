@@ -59,7 +59,9 @@ function AuthCallbackPage() {
         toast.success(
           rawType === "recovery" ? "Verified — set a new password." : "You're signed in.",
         );
-        navigate({ to: target });
+        // Use full navigation for the query-string target so TanStack's typed
+        // router doesn't reject the raw path.
+        window.location.assign(target);
       })
       .catch((err) => {
         setStatus("error");
