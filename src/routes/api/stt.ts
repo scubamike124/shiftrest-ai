@@ -35,6 +35,12 @@ export const Route = createFileRoute("/api/stt")({
     handlers: {
       POST: async ({ request }) => {
         const started = Date.now();
+
+        // Require authenticated user — STT calls a paid provider.
+        const { requireUser } = await import("@/lib/api/auth.server");
+        const authed = await requireUser(request);
+        if ("response" in authed) return authed.response;
+
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
           return Response.json(

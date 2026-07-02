@@ -36,11 +36,9 @@ export const Route = createFileRoute("/api/public/hooks/subscription-lifecycle")
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        const provided = request.headers.get("apikey");
-        if (!expected || !provided || provided !== expected) {
-          return jsonError(401, { error: "unauthorized" });
-        }
+        const { requireCronSecret } = await import("@/lib/api/cron-auth.server");
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendTransactionalEmailServer } = await import("@/lib/email/send.server");

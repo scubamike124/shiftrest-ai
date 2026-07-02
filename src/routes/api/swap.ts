@@ -26,6 +26,10 @@ export const Route = createFileRoute("/api/swap")({
     handlers: {
       POST: async ({ request }) => {
         try {
+          const { requireUser } = await import("@/lib/api/auth.server");
+          const auth = await requireUser(request);
+          if ("response" in auth) return auth.response;
+
           const { context } = (await request.json()) as { context?: string };
           if (!context) {
             return new Response(JSON.stringify({ error: "context required" }), {
