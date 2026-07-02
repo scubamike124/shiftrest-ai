@@ -111,14 +111,14 @@ export const DEFAULT_VOICE_PROFILE: VoiceProfile = {
 export function clampSpeed(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(v)) return 1.0;
-  return Math.min(1.4, Math.max(0.7, v));
+  return Math.min(1.4, Math.max(0.9, v));
 }
 
 export type SpeakMode = "normal" | "sleep" | "encouraging" | "thinking";
 
 const MODE_OVERLAYS: Record<SpeakMode, string> = {
   normal:
-    "Warm, conversational, unhurried. Use natural breath pauses between clauses and soften the end of every sentence. Vary pitch gently — never monotone.",
+    "Warm, natural, conversational pace. Speak like a trusted friend. Be clear, confident, and fluid. Avoid dramatic pauses or overly slow delivery. Keep the rhythm natural while remaining calm.",
   sleep:
     "Slow, hushed, near-whisper. Long pauses between ideas. Trailing endings that fade. Lower pitch slightly. Never bright. Never crisp. Sound like a friend sitting on the edge of the bed.",
   encouraging:
@@ -128,10 +128,10 @@ const MODE_OVERLAYS: Record<SpeakMode, string> = {
 };
 
 export const MODE_SPEED: Record<SpeakMode, number> = {
-  normal: 1.0,
+  normal: 1.05,
   sleep: 0.9,
   encouraging: 1.02,
-  thinking: 0.96,
+  thinking: 1.0,
 };
 
 export function buildInstructions(
