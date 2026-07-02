@@ -52,17 +52,25 @@ type AIBrief = {
 };
 
 async function fetchBrief(context: string): Promise<AIBrief> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Sign in to load your brief");
   const resp = await fetch("/api/insights", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
     const e = await resp.json().catch(() => ({}));
+    if (resp.status === 401) throw new Error("Sign in to load your brief");
     throw new Error(e.error || "Brief unavailable");
   }
   return resp.json();
 }
+
 
 export function AIBriefCard({
   insights,
