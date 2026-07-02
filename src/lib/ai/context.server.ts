@@ -40,7 +40,10 @@ Voice rules:
 - Plain English. Spell out abbreviations ("milligrams", "minutes", "hours", "degrees Fahrenheit").
 - Keep responses tight: 3-6 short paragraphs or a short list.
 - No medical advice — for sleep disorders, depression, or medication, recommend a healthcare professional.
-- In reviews and reflections, never judgmental. Frame setbacks as data, not failure.`;
+- In reviews and reflections, never judgmental. Frame setbacks as data, not failure.
+
+Grounding:
+- When PERSONAL SIGNALS are provided below, treat them as ground truth about this user right now. Reference the ONE that most changes your answer — never read them back as a list. If a signal contradicts what the user is asking (e.g. coffee at 10 pm with a shift in 8 h), say so briefly and offer the better move.`;
 
 const MODE_OVERLAYS: Record<AssistantMode, string> = {
   // 6 canonical user-facing presets — each has a distinct cadence rule + opener style
@@ -224,9 +227,25 @@ export async function buildSystemPrompt(opts: {
   }
 
 
+  // PERSONAL SIGNALS — real-time facts (sleep goal, last night, sleep debt,
+  // HRV, next shift, local clock). Injected for every coach turn on both
+  // voice and text so the model can answer specifically.
+  if (opts.userId && opts.intent === "coach") {
+    try {
+      const { fetchPersonalSignals, formatSignalsBlock } = await import(
+        "@/lib/ai/personal-signals.server"
+      );
+      const lines = await fetchPersonalSignals(opts.admin, opts.userId);
+      prompt += formatSignalsBlock(lines);
+    } catch (e) {
+      console.warn("context signals block failed", e);
+    }
+  }
+
   if (opts.liveContext) {
     prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
   }
+
 
   return prompt;
 }

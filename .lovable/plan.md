@@ -1,130 +1,107 @@
+# A3 — AI Companion Personalization (Investigation Only)
 
-# Pre-Launch Polish & Stability — Investigation Report
+## Root cause
 
-Investigation only. No code will be written until you approve a batch.
+The Companion/Pilot voice coach turn is missing the user's real-time personal signals. It ships to the model with only:
 
----
+- Persona system prompt (`BASE_PERSONALITY` + mode overlay).
+- Long-term memory (top 5 pinned/ranked rows only on voice).
+- Active patterns — **only if severity ≥ 3**.
+- The client's `context` payload, which on Companion is literally just `{ surface: "companion", companion_name, max_tokens: 180 }` and on Pilot is not sent at all.
 
-## 1. Investigation Findings
+Everything the user reasonably expects the AI to already know — tonight's shift, sleep goal, last night's sleep, running sleep debt, wind-down window, local time-of-day — is never put in front of the model on voice turns. So the model has no choice but to answer generically or ask basic setup questions.
 
-### Batch A — Home & AI Companion
+Two additional amplifiers:
+1. On `surface = "voice" + intent = "coach"`, `buildSystemPrompt` skips the TZ block, feedback block, and previous-recommendation block that the text Coach gets (`context.server.ts` lines 178-224). Voice is the *least* informed surface, even though it's the most personal one.
+2. `body.context` is a client-supplied JSON blob dumped verbatim into the prompt as "CURRENT CONTEXT" — it's opaque to the model and easy to spoof; we shouldn't lean on it for personalization.
 
-**A1. Greeting truncation on small phones (375px iPhone SE / mini)**
-`src/components/home/CompanionHero.tsx` uses `text-2xl` + `truncate` on the H1 in a `grid-cols-[auto_minmax(0,1fr)]` next to a 144px (`h-36 w-36`) portrait. On 375px viewports the text column is ~180px, so "Good evening, Christopher" truncates to "Good evening, Chri…". The sub-line uses `line-clamp-2`, hiding the second half of context on small screens.
+## Files involved
 
-**A2. "scubamike124" username showing up**
-`src/lib/user/display-name.*` correctly returns only `user_prefs.preferred_name` (no email fallback). The leak is upstream:
-- `handle_new_user` DB trigger writes `split_part(email,'@',1)` into `profiles.display_name`.
-- `src/lib/welcome-email.functions.ts` reads `profiles.display_name` and injects it into the welcome email as `{{name}}` → "Hi scubamike124".
-- Any component still reading `profiles.display_name` (a few older components / potentially AI context assembly) will echo it. Needs a full grep sweep + a "no email-derived names, ever" rule.
+- `src/lib/ai/context.server.ts` — `buildSystemPrompt` (persona, memory, patterns, TZ, liveContext assembly).
+- `src/lib/ai/prompts.server.ts` — `PILOT_VOICE_SYSTEM` (voice persona).
+- `src/routes/api/ai.ts` — `intent: "coach"` handler (lines 293-353): where the system prompt is built.
+- `src/routes/companion.tsx` (~line 817) and `src/routes/pilot.tsx` (~line 241): coach callers — no schedule/sleep signals attached today.
 
-**A3. Generic AI Companion replies**
-`src/lib/ai/context.server.ts` assembles context but the persona overlay is short and the model rarely gets: recent memory highlights, last brief summary, current shift phase, user's own words from the last 24h. Replies feel generic because the prompt is generic. Needs richer context injection + persona-tuned opening patterns per day-part.
+Data we can already read server-side (no new tables):
+- `user_prefs`: `sleep_hours`, `wind_down_min`, `partner_name`, `preferred_name`, `home_tz`, `current_tz`, `commute_minutes_baseline`.
+- `shifts`: next upcoming `start_utc` / `end_utc` for the user (+ `title`, `shift_type`).
+- `wearable_readings`: last night's `sleep_duration_min`, `sleep_efficiency`, `hrv_ms`, `resting_hr`.
+- Same table over the last 7 days → sleep-debt tally (target hours × 7 − actual).
 
-**A4. Portrait life**
-`PilotPortrait.tsx` has a `breathe` class + speaking `animate-ping`. It does NOT have: idle micro-drift, thinking shimmer, or state cross-fade. Adding a slower secondary glow layer + `will-change: transform` keeps it 60fps on iOS.
+## Proposed change
 
-**A5. Greeting quality**
-`src/lib/greeting/context.ts` + `src/lib/time/day-part.ts` produce solid but formulaic lines ("You've recovered well"). Needs variety pool + weighting by data confidence so it doesn't repeat.
+Add a compact, server-fetched **PERSONAL SIGNALS** block to every coach turn (both voice and text), replacing the client-supplied context blob for personalization purposes. Keep it tight — one short line per signal — so voice replies stay concise.
 
----
+### 1. New helper `fetchPersonalSignals(admin, userId, now)` in `context.server.ts`
 
-### Batch B — Mobile UI Audit (planned method)
+Runs in parallel, `Promise.allSettled` — a missing wearable or empty schedule silently drops that line. Returns a short markdown-ish block of only the lines that resolved. Cap at ~10 lines.
 
-I will run Playwright at 375×812 (iPhone SE), 390×844 (iPhone 14), and 430×932 (iPhone 15 Pro Max) across every authenticated route, capture screenshots into `/tmp/browser/mobile-qa/`, and produce a defect list with file:line references. Known suspects from static review:
-- Dashboard: employer picker chip row can horizontal-overflow with >3 employers.
-- `/pilot` and `/companion`: header controls may clip behind iOS status bar without `pt-[env(safe-area-inset-top)]` on the outer wrapper.
-- `BottomNav.tsx`: verify 44×44 min touch target on all icons.
-- Legal pages: `prose` typography inconsistent with rest of app.
-- Cards using `text-xs` for values (should be ≥14px per iOS HIG).
+Example rendered output the model will see:
 
-Deliverable: single markdown defect table with severity + screenshot link.
+```text
+PERSONAL SIGNALS (use these naturally; never read them back as a list):
+- Local time: Thu 10:42 pm (America/Chicago); early night for most people.
+- Sleep goal: 8 h; wind-down 45 min.
+- Last night: 5 h 40 m, efficiency 84% (below your goal by 2 h 20 m).
+- 7-day sleep debt: ~6.5 h behind goal.
+- HRV last night: 42 ms (baseline 51 ms — recovery down).
+- Next shift: Fri 06:00–14:00 "ICU" (starts in 7 h 18 m).
+- Wind-down window ideally starts ~10:15 pm to hit that shift on 6 h sleep.
+```
 
----
+Numbers are truncated to what's actually available for that user — no placeholders.
 
-### Batch C — Regression Test (planned method)
+### 2. Inject on both surfaces
 
-Scripted flows via Playwright + a manual matrix. Deliverable is a pass/fail table, not fixes.
+In `buildSystemPrompt`, append the signals block **before** `liveContext` for every coach turn (both `surface = "voice"` and `"text"`, `memoryEnabled` or not — these signals are the user's own current data, not learned memory). Continue to skip the heavy patterns/feedback/prev blocks on voice for latency.
 
-Flows to script: Sign Up → Verify Email → Login → Session persistence across reload → Password reset → Logout → Delete Account. Feature flows: AI Coach Brief, Voice playback (with bearer), Smart Light Plan, Schedule CRUD, Partner Mode share code round-trip, Memory purge, Data export, Notification enroll, Upgrade → Stripe Checkout → webhook → premium unlock → portal → cancel.
+### 3. Prompt wording tweak (small)
 
----
+Add one short paragraph to both `BASE_PERSONALITY` and `PILOT_VOICE_SYSTEM`:
 
-### Batch D — Production Readiness (planned method)
+> When PERSONAL SIGNALS are provided, treat them as the ground truth about this user right now. Reference the ONE that most changes your answer — never list them back. If a signal contradicts what the user is asking (e.g. they ask for coffee at 10 pm and their next shift is in 12 h), say so briefly and offer the better move.
 
-Audit checklist against actual code, not a fresh implementation. Focus:
-- Missing `errorComponent` / `notFoundComponent` on any route with a loader (grep).
-- Empty states on: `/memory`, `/inbox`, `/decisions`, `/plan`, `/schedule` when no data.
-- Offline: verify SW `warm-offline` covers `/dashboard`, `/pilot`, `/companion`, static assets.
-- AI timeout: confirm `/api/ai` has abort + fallback message; TTS has retry cap.
-- Owner alerts: verify `notifyOwner` fires on Stripe webhook failure, email queue DLQ, AI 5xx bursts.
-- Lighthouse mobile pass on `/` and `/dashboard` — record baseline.
+### 4. Retire the client `context` blob for personalization
 
----
+Keep accepting `body.context` (backward compat) but stop pasting it into the prompt as a JSON dump. If we still need `companion_name`, we already load it via `loadAssistantProfile`.
 
-## 2. Root Cause Summary
+## Before / after
 
-| # | Symptom | Root Cause |
+**User:** "Should I nap before my shift?"
+
+**Before (today):**
+> Probably yes — but it depends on when your shift starts. What time does it begin?
+
+**After (with signals):**
+> Yes — a 25 min nap before 3 pm. You're 2 h 20 m short from last night and your ICU shift starts at 6 tomorrow. Want me to time it?
+
+**User:** "Coffee now, ok?" (asked at 9:40 pm)
+
+**Before:**
+> Caffeine takes about 6 hours to clear for most people, so late-evening coffee usually costs you sleep. If you're sleepy, try a short walk instead.
+
+**After:**
+> I'd skip it — your shift's at 6 am and you're already 6 hours behind for the week. If you need a lift, a 10 min walk plus water will get you further than coffee tonight.
+
+## Risk assessment
+
+| Risk | Likelihood | Mitigation |
 |---|---|---|
-| A1 | Greeting truncates | `text-2xl` + fixed 144px portrait on 375px viewport |
-| A2 | "scubamike124" name | `handle_new_user` seeds `profiles.display_name` from email; welcome email reads it |
-| A3 | Generic AI replies | Thin context payload + short persona overlay |
-| A4 | Portrait feels static | Only breathe + ping; no thinking/idle drift |
-| A5 | Repetitive greetings | Single-line-per-condition template, no variety |
+| Extra DB round-trips slow the first voice token | Medium | 3 parallel queries, all indexed on `user_id`; cap at 1 read each; `allSettled` so a slow branch can't block. Expected +40-80 ms — well under TTS start-up. |
+| Prompt bloat pushes past model limits | Low | Block is capped ~10 short lines (~250 tokens). Voice already runs `maxTokens: 180`, no change. |
+| Model reads the list back to the user ("Your sleep debt is 6.5 hours…") | Medium | Prompt line explicitly forbids it; TTS system prompt already rejects lists. Verify in QA. |
+| Stale wearable data misleads the model | Low | Only include readings from the last 3 days; label older data ("no wearable data in 48 h") instead of showing it. |
+| Signals leak between users | Low | All queries scoped by `userId` in server function; RLS-safe. |
+| Persona voice drift after adding new prompt paragraph | Low | Added paragraph is factual, not tonal; existing persona rules still dominate. |
 
----
+No provider or model change. No new tables. No client changes required for the core win (both callers keep working unchanged); the Companion `context` blob can be trimmed later.
 
-## 3. Files That Will Change (per batch)
+## Plan when approved
 
-**Batch A1 (greeting fit):** `src/components/home/CompanionHero.tsx`, `src/components/companion/PilotPortrait.tsx` (responsive size prop).
+1. Add `fetchPersonalSignals` + `formatSignalsBlock` in `context.server.ts`.
+2. Wire it into `buildSystemPrompt` (voice + text, coach only).
+3. Append the "ground truth" paragraph to `BASE_PERSONALITY` and `PILOT_VOICE_SYSTEM`.
+4. Typecheck.
+5. Manual QA: 3 voice prompts on Companion, 2 text prompts on Coach, confirm signals surface naturally and are not read as a list.
 
-**Batch A2 (name cleanup):** `supabase/migrations/*` (new — stop email-seeding display_name), `src/lib/welcome-email.functions.ts` (use preferred_name first, then a neutral fallback), grep-driven small edits to any component still reading `display_name`.
-
-**Batch A3 (richer AI):** `src/lib/ai/context.server.ts`, `src/lib/ai/prompts.server.ts`.
-
-**Batch A4 (portrait life):** `src/components/companion/PilotPortrait.tsx`, `src/styles.css` (new keyframes).
-
-**Batch A5 (greeting variety):** `src/lib/greeting/context.ts`.
-
-**Batch B:** UI-only edits to files surfaced by the audit; list finalized in the report.
-
-**Batch C:** No code changes unless a P0 defect blocks launch — those become separate mini-batches.
-
-**Batch D:** Add missing boundaries, empty states, and owner-alert hooks only where audit shows gaps.
-
----
-
-## 4. Risks
-
-- **A2 migration** — changing `handle_new_user` doesn't retroactively fix existing rows. Need a one-time UPDATE to null out `display_name` where it equals `split_part(email,'@',1)`.
-- **A3 prompt changes** — richer context = more tokens. Must respect `has_ai_budget` and keep p50 latency <2s.
-- **A4 animations** — layered blurs on iOS Safari can jank; will test on real device viewport before commit.
-- **B fixes** — global spacing/typography changes risk regressions elsewhere; keep edits scoped to individual components.
-- **Batch C** may surface Stripe/email issues that expand scope. If so, we stop and re-plan.
-
----
-
-## 5. Recommended Implementation Order
-
-Smallest, safest, most visible first:
-
-1. **A1** — greeting fits on 375px (5-min visual win)
-2. **A2** — kill "scubamike124" everywhere (trust win)
-3. **A5** — greeting variety (cheap quality bump)
-4. **A4** — portrait life (perceived polish)
-5. **A3** — richer AI context (highest impact, highest risk)
-6. **B**  — mobile audit → fix P0s → publish
-7. **C**  — regression matrix → fix any P0s
-8. **D**  — production-readiness gaps
-
-Each batch: implement → typecheck → mobile Playwright verify → report → wait for "go" → next.
-
----
-
-## 6. Out of Scope (confirmed postponed)
-
-Fitbit, Oura, Apple Health, Smart Alarm, wearables, HRV, full AI avatar.
-
----
-
-**Awaiting approval.** Reply "go A1" (or any batch) to begin. I will not touch code until then.
+Awaiting **"go A3"** to implement.
