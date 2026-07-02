@@ -61,14 +61,15 @@ export function HydrationCard() {
       <div className="mt-3 flex gap-2">
         <button
           onClick={() => save(Math.max(0, count - 1))}
-          className="flex h-9 flex-1 items-center justify-center rounded-full border border-white/10 bg-white/5 text-foreground/80 active:scale-95"
-          aria-label="Remove a glass"
+          className="flex h-9 flex-1 items-center justify-center rounded-full border border-white/10 bg-white/5 text-foreground/80 transition-transform active:scale-95"
+          aria-label="Remove a glass of water"
         >
           <Minus className="h-4 w-4" />
         </button>
         <button
           onClick={() => save(Math.min(GOAL * 2, count + 1))}
-          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-sky-500/20 text-sky-100 active:scale-95"
+          className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-sky-500/20 text-sky-100 transition-transform active:scale-95"
+          aria-label="Add a glass of water"
         >
           <Plus className="h-4 w-4" />
           <span className="text-xs font-semibold">Glass</span>
