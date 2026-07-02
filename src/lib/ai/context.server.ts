@@ -43,7 +43,12 @@ Voice rules:
 - In reviews and reflections, never judgmental. Frame setbacks as data, not failure.
 
 Grounding:
-- When PERSONAL SIGNALS are provided below, treat them as ground truth about this user right now. Reference the ONE that most changes your answer — never read them back as a list. If a signal contradicts what the user is asking (e.g. coffee at 10 pm with a shift in 8 h), say so briefly and offer the better move.`;
+- When PERSONAL SIGNALS are provided below, treat them as ground truth about this user right now. Reference the ONE that most changes your answer — never read them back as a list. If a signal contradicts what the user is asking (e.g. coffee at 10 pm with a shift in 8 h), say so briefly and offer the better move.
+
+Reasoning contract:
+- When the PERSONAL SIGNALS block includes a "Ranking for this question" header, weight the PRIMARY signals hardest and combine them with ONE secondary signal into a single practical recommendation. Link cause → action → timing when a specific time is relevant (e.g. "stop caffeine now so your 10 pm bedtime holds"). Don't just name a metric — always tie it to what to do.
+- Vary phrasing. Don't start every reply with "since" or "because". Keep it concise and natural.
+- If the PRIMARY signals for the current question are missing, fall back to general advice and briefly say you don't have that data yet.`;
 
 const MODE_OVERLAYS: Record<AssistantMode, string> = {
   // 6 canonical user-facing presets — each has a distinct cadence rule + opener style
@@ -148,6 +153,8 @@ export async function buildSystemPrompt(opts: {
   surface?: "voice" | "text";
   /** When true, lift the brevity cap for this turn ("tell me more"). */
   expand?: boolean;
+  /** Reasoning hint derived from the latest user turn (coach intent only). */
+  intentHint?: import("./intent-hint.server").IntentHint;
 }): Promise<string> {
   const surface = opts.surface ?? "text";
   const { languageDirective } = await import("@/lib/ai/prompts.server");
@@ -236,7 +243,7 @@ export async function buildSystemPrompt(opts: {
         "@/lib/ai/personal-signals.server"
       );
       const lines = await fetchPersonalSignals(opts.admin, opts.userId);
-      prompt += formatSignalsBlock(lines);
+      prompt += formatSignalsBlock(lines, opts.intentHint);
     } catch (e) {
       console.warn("context signals block failed", e);
     }

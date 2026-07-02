@@ -388,8 +388,49 @@ export async function fetchPersonalSignals(
 }
 
 
-export function formatSignalsBlock(lines: string[]): string {
+import type { IntentHint } from "./intent-hint.server";
+import {
+  CATEGORY_LABELS,
+  INTENT_SIGNAL_MAP,
+  categorizeSignal,
+  type SignalCategory,
+} from "./intent-signal-map";
+
+/**
+ * Render the PERSONAL SIGNALS block. When an intent tag is provided (and
+ * isn't "general"), prepend a short ranked header that tells the model
+ * which categories are PRIMARY vs SECONDARY for this question. Only
+ * categories with matching data are listed — no fake placeholders.
+ */
+export function formatSignalsBlock(
+  lines: string[],
+  intent?: IntentHint,
+): string {
   if (lines.length === 0) return "";
   const body = lines.map((l) => `- ${l}`).join("\n");
-  return `\n\nPERSONAL SIGNALS (ground truth about this user right now — reference the ONE most relevant to the current question; never read this list back):\n${body}`;
+
+  let header = "";
+  if (intent && intent !== "general") {
+    const ranking = INTENT_SIGNAL_MAP[intent];
+    if (ranking) {
+      const present = new Set<SignalCategory>();
+      for (const l of lines) {
+        const cat = categorizeSignal(l);
+        if (cat) present.add(cat);
+      }
+      const primary = ranking.primary.filter((c) => present.has(c));
+      const secondary = ranking.secondary.filter((c) => present.has(c));
+      if (primary.length || secondary.length) {
+        const primaryLine = primary.length
+          ? `PRIMARY: ${primary.map((c) => CATEGORY_LABELS[c]).join(", ")}`
+          : "";
+        const secondaryLine = secondary.length
+          ? `SECONDARY: ${secondary.map((c) => CATEGORY_LABELS[c]).join(", ")}`
+          : "";
+        header = `\nRanking for this question ("${intent}"):\n${[primaryLine, secondaryLine].filter(Boolean).join("\n")}\n`;
+      }
+    }
+  }
+
+  return `\n\nPERSONAL SIGNALS (ground truth about this user right now — reference the ONE most relevant to the current question; never read this list back):${header}\n${body}`;
 }

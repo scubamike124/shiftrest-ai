@@ -32,6 +32,7 @@ import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
+import { classifyIntent } from "@/lib/ai/intent-hint.server";
 
 
 type Body =
@@ -303,6 +304,9 @@ export const Route = createFileRoute("/api/ai")({
               timezone: body.timezone,
             }).directive;
 
+            const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user");
+            const intentHint = classifyIntent(lastUserMsg?.content);
+
             const system = await buildSystemPrompt({
               admin,
               userId,
@@ -311,6 +315,7 @@ export const Route = createFileRoute("/api/ai")({
               intent: "coach",
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
+              intentHint,
             });
             const systemWithTime = system + timeDirective;
 
