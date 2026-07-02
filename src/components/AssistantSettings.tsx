@@ -10,9 +10,15 @@ type Props = {
 };
 
 const MODE_OPTIONS: { value: AssistantMode; label: string; desc: string }[] = [
-  { value: "coach", label: "Coach", desc: "Direct, action-first guidance." },
-  { value: "companion", label: "Companion", desc: "Warmer, asks follow-ups, references what you've shared." },
-  { value: "minimal", label: "Minimal", desc: "Brief and terse. Answers what was asked, nothing more." },
+  { value: "coach",        label: "Coach",         desc: "Direct, action-first guidance." },
+  { value: "companion",    label: "Companion",     desc: "Warmer, asks follow-ups, references what you've shared." },
+  { value: "minimal",      label: "Minimal",       desc: "Brief and terse. Answers what was asked, nothing more." },
+  { value: "friend",       label: "Friend",        desc: "Casual, first-name basis, light humour. Still concrete on timings." },
+  { value: "professional", label: "Professional",  desc: "Calm, precise, clinical-adjacent tone. Structured guidance." },
+  { value: "warm",         label: "Warm",          desc: "Soft and comforting. Acknowledges feelings before advice." },
+  { value: "encouraging",  label: "Encouraging",   desc: "Highlights wins first, then suggests one small next step." },
+  { value: "motivational", label: "Motivational",  desc: "Higher energy. Frames recovery as performance. One clear focus." },
+  { value: "supportive",   label: "Supportive",    desc: "Validates first, advises second. Extra gentle after hard shifts." },
 ];
 
 export function AssistantSettings({ prefs, signedIn, onChange }: Props) {

@@ -38,6 +38,7 @@ import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
 import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
+import { getDayPart, greetingLabel } from "@/lib/time/day-part";
 import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
 import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
@@ -98,21 +99,22 @@ function firstName(p: Prefs): string {
 
 /**
  * Time-aware bedside greeting. Returns a short, calm headline + sub-line.
- * Hours are local to the device; we don't need timezone precision here.
+ * Buckets come from the shared @/lib/time/day-part helper so Home,
+ * Companion, and the voice brief never disagree about "morning" vs
+ * "evening".
  */
 function timeGreeting(name: string): { hi: string; sub: string } {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) {
-    return { hi: `Good morning, ${name}.`, sub: "Want help easing into the day?" };
-  }
-  if (h >= 12 && h < 17) {
-    return { hi: `Good afternoon, ${name}.`, sub: "Need a reset before the next part of your day?" };
-  }
-  if (h >= 17) {
-    return { hi: `Good evening, ${name}.`, sub: "Want me to help you wind down?" };
-  }
-  return { hi: `Good evening, ${name}.`, sub: "Want something quiet to help you sleep?" };
+  const now = new Date();
+  const part = getDayPart(now);
+  const hi = `${greetingLabel(now)}, ${name}.`;
+  const sub =
+    part === "morning" ? "Want help easing into the day?"
+    : part === "afternoon" ? "Need a reset before the next part of your day?"
+    : part === "evening" ? "Want me to help you wind down?"
+    : "Want something quiet to help you sleep?";
+  return { hi, sub };
 }
+
 
 
 
@@ -345,18 +347,18 @@ function CompanionPage() {
     if (messages.length > 0) return;
     greetedRef.current = true;
     const name = firstName(prefs ?? ({} as Prefs));
-    const hour = new Date().getHours();
+    const now = new Date();
+    const part = getDayPart(now);
+    const label = greetingLabel(now);
     // Soft lead-in ("… ") + comma break = ElevenLabs eases into the opener at
     // mid-prose loudness instead of a punchy, louder/faster cold start. Mirrors
     // the fix shipped for the Dashboard Voice Briefing.
-    const opener =
-      hour >= 5 && hour < 12
-        ? `… Good morning, ${name}. I'm here — how can I help this morning?`
-        : hour >= 12 && hour < 17
-        ? `… Good afternoon, ${name}. I'm here — how can I help this afternoon?`
-        : hour >= 17 && hour < 22
-        ? `… Good evening, ${name}. I'm here — how can I help this evening?`
-        : `… Good evening, ${name}. I'm here — want something calming to help you sleep?`;
+    const tail =
+      part === "morning" ? "I'm here — how can I help this morning?"
+      : part === "afternoon" ? "I'm here — how can I help this afternoon?"
+      : part === "evening" ? "I'm here — how can I help this evening?"
+      : "I'm here — want something calming to help you sleep?";
+    const opener = `… ${label}, ${name}. ${tail}`;
     setMessages([{ role: "assistant", content: opener }]);
     greetingTextRef.current = opener;
     emitDebug("greet-shown");

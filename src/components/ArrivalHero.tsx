@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDecisionsSinceLastVisit, useNextDecision } from "@/lib/ai/decisions";
+import { greetingLabel } from "@/lib/time/day-part";
 
 const RIGHT_NOW_CACHE_KEY = "rp_right_now_v1";
 
@@ -33,13 +34,10 @@ function readCachedAction(): CachedRightNow | null {
   }
 }
 
-function timeOfDayGreeting(hour: number): string {
-  if (hour < 5) return "Still up";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 22) return "Good evening";
-  return "Late night";
-}
+// Time-of-day label is centralised in @/lib/time/day-part so every
+// greeting surface (Home, Companion, brief, notifications) uses the same
+// bucket boundaries and never drifts.
+
 
 function firstName(preferred: string | null | undefined): string {
   const raw = (preferred ?? "").trim();
@@ -80,8 +78,8 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
     };
   }, []);
 
-  const hour = mounted ? new Date().getHours() : 12;
-  const greeting = timeOfDayGreeting(hour);
+  const now = mounted ? new Date() : new Date(2000, 0, 1, 12, 0, 0);
+  const greeting = greetingLabel(now);
   const headline = name ? `${greeting}, ${name}.` : `${greeting}.`;
 
   const hasAdjusted = !!cached?.action;

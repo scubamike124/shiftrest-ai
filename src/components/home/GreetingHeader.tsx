@@ -1,14 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { OrbBadge } from "@/components/PilotOrb";
-
-function greeting(hour: number, name: string) {
-  const part = hour < 5 ? "Still up" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : hour < 22 ? "Good evening" : "Winding down";
-  return name ? `${part}, ${name}` : part;
-}
+import { greetingWithName } from "@/lib/time/day-part";
 
 export function GreetingHeader({ name, now, dateLabel }: { name: string; now: Date; dateLabel: string }) {
-  const hour = now.getHours();
-  const title = greeting(hour, name);
+  const title = greetingWithName(name, now);
 
   return (
     <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
