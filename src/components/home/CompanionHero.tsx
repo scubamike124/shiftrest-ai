@@ -33,18 +33,26 @@ export function CompanionHero({
         <div className="absolute -right-10 bottom-0 h-48 w-48 rounded-full bg-sky-500/15 blur-3xl" />
       </div>
 
-      <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 sm:gap-6">
-        <PilotPortrait state="idle" size="lg" eager />
+      <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
+        <div className="shrink-0">
+          {/* Smaller portrait on phones so the greeting has room to breathe */}
+          <div className="sm:hidden">
+            <PilotPortrait state="idle" size="md" eager />
+          </div>
+          <div className="hidden sm:block">
+            <PilotPortrait state="idle" size="lg" eager />
+          </div>
+        </div>
 
         <div className="min-w-0">
           <p className="card-eyebrow">{dateLabel || "Today"}</p>
           <h1
-            className="mt-1 truncate text-2xl text-foreground sm:text-3xl"
-            style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}
+            className="mt-1 text-[1.35rem] leading-tight text-foreground sm:text-3xl sm:truncate"
+            style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em", overflowWrap: "anywhere" }}
           >
             {title}
           </h1>
-          <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground sm:text-[15px]">
+          <p className="mt-1.5 text-sm text-muted-foreground sm:text-[15px] sm:line-clamp-2">
             {line}
           </p>
         </div>
