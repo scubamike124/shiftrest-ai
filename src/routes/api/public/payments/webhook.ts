@@ -2,6 +2,25 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { type StripeEnv, verifyWebhook, createStripeClient } from "@/lib/stripe.server";
+import { sendTransactionalEmailServer } from "@/lib/email/send.server";
+import { notifyOwner } from "@/lib/ops/alert.server";
+
+async function getUserEmail(userId: string): Promise<string | null> {
+  try {
+    const { data } = await getSupabase().auth.admin.getUserById(userId);
+    return data.user?.email ?? null;
+  } catch (e) {
+    console.error("getUserEmail failed", e);
+    return null;
+  }
+}
+
+function formatAmount(cents?: number | null, currency?: string | null): string | undefined {
+  if (cents == null) return undefined;
+  const cur = (currency || "usd").toUpperCase();
+  return `${(cents / 100).toFixed(2)} ${cur}`;
+}
+
 
 let _supabase: SupabaseClient<Database> | null = null;
 function getSupabase(): SupabaseClient<Database> {
@@ -98,20 +117,100 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
 
 async function handleEvent(event: { type: string; data: { object: any } }, env: StripeEnv) {
   switch (event.type) {
-    case "customer.subscription.created":
+    case "customer.subscription.created": {
+      await handleSubscriptionUpsert(event.data.object, env);
+      const sub = event.data.object;
+      const userId = sub.metadata?.userId;
+      if (userId) {
+        const email = await getUserEmail(userId);
+        if (email) {
+          const item = sub.items?.data?.[0];
+          await sendTransactionalEmailServer({
+            templateName: "subscription-confirmation",
+            recipientEmail: email,
+            idempotencyKey: `sub-conf-${sub.id}`,
+            templateData: {
+              planName: item?.price?.nickname || "RestPilot AI",
+              amount: formatAmount(item?.price?.unit_amount, item?.price?.currency),
+              renewsOn: item?.current_period_end
+                ? new Date(item.current_period_end * 1000).toLocaleDateString()
+                : undefined,
+            },
+          });
+        }
+      }
+      break;
+    }
     case "customer.subscription.updated":
       await handleSubscriptionUpsert(event.data.object, env);
       break;
-    case "customer.subscription.deleted":
+    case "customer.subscription.deleted": {
       await handleSubscriptionDeleted(event.data.object, env);
+      const sub = event.data.object;
+      const userId = sub.metadata?.userId;
+      if (userId) {
+        const email = await getUserEmail(userId);
+        if (email) {
+          await sendTransactionalEmailServer({
+            templateName: "subscription-canceled",
+            recipientEmail: email,
+            idempotencyKey: `sub-cancel-${sub.id}`,
+            templateData: {
+              endsOn: sub.current_period_end
+                ? new Date(sub.current_period_end * 1000).toLocaleDateString()
+                : undefined,
+            },
+          });
+        }
+      }
       break;
-    case "checkout.session.completed":
+    }
+    case "checkout.session.completed": {
       await handleCheckoutCompleted(event.data.object, env);
+      const session = event.data.object;
+      const userId = session.metadata?.userId;
+      if (userId) {
+        const email = session.customer_details?.email || (await getUserEmail(userId));
+        if (email) {
+          await sendTransactionalEmailServer({
+            templateName: "payment-receipt",
+            recipientEmail: email,
+            idempotencyKey: `receipt-${session.id}`,
+            templateData: {
+              amount: formatAmount(session.amount_total, session.currency),
+              date: new Date().toLocaleDateString(),
+              planName: "RestPilot AI",
+            },
+          });
+        }
+      }
       break;
-    case "invoice.payment_failed":
-      // Subscription.updated will fire with status=past_due — nothing else to do.
+    }
+    case "invoice.payment_failed": {
       console.log("invoice.payment_failed", event.data.object?.id);
+      const invoice = event.data.object;
+      const customerEmail = invoice.customer_email;
+      if (customerEmail) {
+        await sendTransactionalEmailServer({
+          templateName: "payment-failed",
+          recipientEmail: customerEmail,
+          idempotencyKey: `pay-fail-${invoice.id}`,
+          templateData: {
+            amount: formatAmount(invoice.amount_due, invoice.currency),
+            retryOn: invoice.next_payment_attempt
+              ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString()
+              : undefined,
+          },
+        });
+      }
+      await notifyOwner({
+        severity: "warning",
+        service: "stripe.invoice.payment_failed",
+        message: `Payment failed for invoice ${invoice.id}`,
+        meta: { invoiceId: invoice.id, customerEmail, amount: invoice.amount_due, env },
+      });
       break;
+    }
     default:
       console.log("Unhandled event:", event.type);
   }
@@ -132,9 +231,16 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           return Response.json({ received: true });
         } catch (e) {
           console.error("Webhook error:", e);
+          await notifyOwner({
+            severity: "critical",
+            service: "stripe.webhook",
+            message: e instanceof Error ? e.message : String(e),
+            meta: { env },
+          });
           return new Response("Webhook error", { status: 400 });
         }
       },
     },
   },
 });
+
