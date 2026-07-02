@@ -12,6 +12,7 @@ import { speakQueued, stopSpeaking, prepareVoicePlayback } from "@/lib/companion
 import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-history";
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
+import { greetingLabel } from "@/lib/time/day-part";
 
 export const Route = createFileRoute("/pilot")({
   head: () => ({
