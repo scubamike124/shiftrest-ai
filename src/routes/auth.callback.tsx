@@ -24,7 +24,7 @@ export const Route = createFileRoute("/auth/callback")({
 });
 
 function AuthCallbackPage() {
-  const navigate = useNavigate();
+  
   const [status, setStatus] = useState<"working" | "error">("working");
   const [message, setMessage] = useState("Verifying your link…");
 
