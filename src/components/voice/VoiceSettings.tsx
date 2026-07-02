@@ -347,3 +347,65 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
     </section>
   );
 }
+
+type VoiceCardProps = {
+  voice: (typeof VOICE_OPTIONS)[number];
+  selected: boolean;
+  isPreviewing: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+};
+
+function VoiceCard({ voice, selected, isPreviewing, onSelect, onPreview }: VoiceCardProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`group relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition active:scale-[0.99] ${
+        selected
+          ? "border-primary bg-primary/15 ring-2 ring-primary/60 shadow-[0_6px_24px_-12px_var(--primary)]"
+          : "border-border bg-background hover:border-primary/50 hover:bg-primary/5"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className={`truncate text-sm font-semibold ${selected ? "text-primary" : ""}`}>
+            {voice.label}
+          </p>
+          {selected && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-foreground">
+              ★ Current
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          {voice.tone} · <span className="capitalize">{voice.gender}</span>
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview();
+        }}
+        aria-label={isPreviewing ? `Stop preview of ${voice.label}` : `Preview ${voice.label}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-90 ${
+          isPreviewing
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-card text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        {isPreviewing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
+      </button>
+    </div>
+  );
+}
+
