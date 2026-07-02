@@ -8,7 +8,12 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 import { renameSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import type { Plugin } from "vite";
+import { loadEnv, type Plugin } from "vite";
+
+// Load ALL env vars (no prefix) into process.env so server routes can read
+// SUPABASE_SERVICE_ROLE_KEY, LOVABLE_API_KEY, etc.
+const serverEnv = loadEnv(process.env.NODE_ENV || "development", process.cwd(), "");
+Object.assign(process.env, serverEnv);
 
 /**
  * vite-plugin-pwa runs as a separate Vite build that fires AFTER the
@@ -90,6 +95,13 @@ export default defineConfig({
     //     handler purges every prior release's caches.
     define: {
       __BUILD_ID__: JSON.stringify(`b-${Date.now()}`),
+    },
+    resolve: {
+      alias: {
+        "entities/lib/decode.js": resolve(process.cwd(), "node_modules/entities/lib/decode.js"),
+        "entities/lib/encode.js": resolve(process.cwd(), "node_modules/entities/lib/encode.js"),
+        "entities": resolve(process.cwd(), "node_modules/entities"),
+      },
     },
     plugins: [
       // App-shell PWA. injectManifest mode lets us keep the existing push
