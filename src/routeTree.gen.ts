@@ -34,6 +34,7 @@ import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AutomationsRouteImport } from './routes/automations'
@@ -76,6 +77,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
+import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -214,6 +216,11 @@ const DecisionsRoute = DecisionsRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CompanionRoute = CompanionRouteImport.update({
@@ -426,6 +433,11 @@ const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
   path: '/api/public/version',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
+  id: '/api/public/contact',
+  path: '/api/public/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -510,6 +522,7 @@ export interface FileRoutesByFullPath {
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -567,6 +580,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -593,6 +607,7 @@ export interface FileRoutesByTo {
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -648,6 +663,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -675,6 +691,7 @@ export interface FileRoutesById {
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
+  '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
@@ -732,6 +749,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -760,6 +778,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/coach'
     | '/companion'
+    | '/contact'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -817,6 +836,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -843,6 +863,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/coach'
     | '/companion'
+    | '/contact'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -898,6 +919,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -924,6 +946,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/coach'
     | '/companion'
+    | '/contact'
     | '/dashboard'
     | '/decisions'
     | '/events'
@@ -981,6 +1004,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -1008,6 +1032,7 @@ export interface RootRouteChildren {
   AutomationsRoute: typeof AutomationsRoute
   CoachRoute: typeof CoachRoute
   CompanionRoute: typeof CompanionRoute
+  ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
@@ -1049,6 +1074,7 @@ export interface RootRouteChildren {
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  ApiPublicContactRoute: typeof ApiPublicContactRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiLabSimliSessionRoute: typeof ApiLabSimliSessionRoute
@@ -1242,6 +1268,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/companion': {
@@ -1538,6 +1571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/contact': {
+      id: '/api/public/contact'
+      path: '/api/public/contact'
+      fullPath: '/api/public/contact'
+      preLoaderRoute: typeof ApiPublicContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -1701,6 +1741,7 @@ const rootRouteChildren: RootRouteChildren = {
   AutomationsRoute: AutomationsRoute,
   CoachRoute: CoachRoute,
   CompanionRoute: CompanionRoute,
+  ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
@@ -1742,6 +1783,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  ApiPublicContactRoute: ApiPublicContactRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiLabSimliSessionRoute: ApiLabSimliSessionRoute,
