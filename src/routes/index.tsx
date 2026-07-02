@@ -1014,7 +1014,7 @@ function Testimonials() {
       a: "Maya · ICU RN, Boston",
     },
     {
-      q: "Smart alarm in the cockpit hotel actually works. I land sharper than I have in years.",
+      q: "Wind-down in the cockpit hotel actually works. I land sharper than I have in years.",
       a: "Devin · Captain, regional airline",
     },
     {
