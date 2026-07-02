@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VersionRouteImport } from './routes/version'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as SmartHomeRouteImport } from './routes/smart-home'
@@ -61,6 +62,7 @@ import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
@@ -70,10 +72,15 @@ import { Route as ApiCoachRouteImport } from './routes/api/coach'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
 import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
+import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -87,6 +94,11 @@ import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/a
 const VersionRoute = VersionRouteImport.update({
   id: '/version',
   path: '/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -344,6 +356,11 @@ const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
   path: '/lab/avatar-poc',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
+  id: '/email/unsubscribe',
+  path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
   id: '/api/tts-elevenlabs',
   path: '/api/tts-elevenlabs',
@@ -389,6 +406,11 @@ const LabAvatarPocIndexRoute = LabAvatarPocIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LabAvatarPocRoute,
 } as any)
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
   id: '/simli',
   path: '/simli',
@@ -404,12 +426,34 @@ const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
   path: '/api/public/version',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LovableEmailTransactionalSendRoute =
+  LovableEmailTransactionalSendRouteImport.update({
+    id: '/lovable/email/transactional/send',
+    path: '/lovable/email/transactional/send',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const LovableEmailQueueProcessRoute =
   LovableEmailQueueProcessRouteImport.update({
     id: '/lovable/email/queue/process',
     path: '/lovable/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -489,6 +533,7 @@ export interface FileRoutesByFullPath {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -498,6 +543,7 @@ export interface FileRoutesByFullPath {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
@@ -524,6 +570,7 @@ export interface FileRoutesByFullPath {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -532,7 +579,11 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -564,6 +615,7 @@ export interface FileRoutesByTo {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -573,6 +625,7 @@ export interface FileRoutesByTo {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -598,6 +651,7 @@ export interface FileRoutesByTo {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lab/avatar-poc': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -606,7 +660,11 @@ export interface FileRoutesByTo {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -640,6 +698,7 @@ export interface FileRoutesById {
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
   '/terms': typeof TermsRoute
+  '/unsubscribe': typeof UnsubscribeRoute
   '/version': typeof VersionRoute
   '/api/ai': typeof ApiAiRoute
   '/api/brief': typeof ApiBriefRoute
@@ -649,6 +708,7 @@ export interface FileRoutesById {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
@@ -675,6 +735,7 @@ export interface FileRoutesById {
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
+  '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/lab/avatar-poc/': typeof LabAvatarPocIndexRoute
   '/api/lab/simli/session': typeof ApiLabSimliSessionRoute
   '/api/lab/simli/speak': typeof ApiLabSimliSpeakRoute
@@ -683,7 +744,11 @@ export interface FileRoutesById {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
+  '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -718,6 +783,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -727,6 +793,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/email/unsubscribe'
     | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
@@ -753,6 +820,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lovable/email/suppression'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -761,7 +829,11 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -793,6 +865,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -802,6 +875,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/email/unsubscribe'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -827,6 +901,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lovable/email/suppression'
     | '/lab/avatar-poc'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -835,7 +910,11 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   id:
@@ -868,6 +947,7 @@ export interface FileRouteTypes {
     | '/smart-home'
     | '/swap'
     | '/terms'
+    | '/unsubscribe'
     | '/version'
     | '/api/ai'
     | '/api/brief'
@@ -877,6 +957,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/email/unsubscribe'
     | '/lab/avatar-poc'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
@@ -903,6 +984,7 @@ export interface FileRouteTypes {
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
+    | '/lovable/email/suppression'
     | '/lab/avatar-poc/'
     | '/api/lab/simli/session'
     | '/api/lab/simli/speak'
@@ -911,7 +993,11 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/auth/preview'
+    | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
+    | '/lovable/email/transactional/preview'
+    | '/lovable/email/transactional/send'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   fileRoutesById: FileRoutesById
@@ -945,6 +1031,7 @@ export interface RootRouteChildren {
   SmartHomeRoute: typeof SmartHomeRoute
   SwapRoute: typeof SwapRoute
   TermsRoute: typeof TermsRoute
+  UnsubscribeRoute: typeof UnsubscribeRoute
   VersionRoute: typeof VersionRoute
   ApiAiRoute: typeof ApiAiRoute
   ApiBriefRoute: typeof ApiBriefRoute
@@ -954,6 +1041,7 @@ export interface RootRouteChildren {
   ApiSwapRoute: typeof ApiSwapRoute
   ApiTtsRoute: typeof ApiTtsRoute
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
+  EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LabAvatarPocRoute: typeof LabAvatarPocRouteWithChildren
   QaSmartAlarmRoute: typeof QaSmartAlarmRoute
   QaVoiceRoute: typeof QaVoiceRoute
@@ -962,6 +1050,7 @@ export interface RootRouteChildren {
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
+  LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiLabSimliSessionRoute: typeof ApiLabSimliSessionRoute
   ApiLabSimliSpeakRoute: typeof ApiLabSimliSpeakRoute
   ApiPublicHooksAiLearnRoute: typeof ApiPublicHooksAiLearnRoute
@@ -969,7 +1058,11 @@ export interface RootRouteChildren {
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
+  LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
+  LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
+  LovableEmailTransactionalSendRoute: typeof LovableEmailTransactionalSendRoute
   ApiPublicWearablesFitbitCallbackRoute: typeof ApiPublicWearablesFitbitCallbackRoute
   ApiPublicWearablesOuraCallbackRoute: typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -981,6 +1074,13 @@ declare module '@tanstack/react-router' {
       path: '/version'
       fullPath: '/version'
       preLoaderRoute: typeof VersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -1340,6 +1440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/email/unsubscribe': {
+      id: '/email/unsubscribe'
+      path: '/email/unsubscribe'
+      fullPath: '/email/unsubscribe'
+      preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tts-elevenlabs': {
       id: '/api/tts-elevenlabs'
       path: '/api/tts-elevenlabs'
@@ -1403,6 +1510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabAvatarPocIndexRouteImport
       parentRoute: typeof LabAvatarPocRoute
     }
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lab/avatar-poc/simli': {
       id: '/lab/avatar-poc/simli'
       path: '/simli'
@@ -1424,11 +1538,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lovable/email/transactional/send': {
+      id: '/lovable/email/transactional/send'
+      path: '/lovable/email/transactional/send'
+      fullPath: '/lovable/email/transactional/send'
+      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lovable/email/queue/process': {
       id: '/lovable/email/queue/process'
       path: '/lovable/email/queue/process'
       fullPath: '/lovable/email/queue/process'
       preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/wearables/cron': {
@@ -1582,6 +1724,7 @@ const rootRouteChildren: RootRouteChildren = {
   SmartHomeRoute: SmartHomeRoute,
   SwapRoute: SwapRoute,
   TermsRoute: TermsRoute,
+  UnsubscribeRoute: UnsubscribeRoute,
   VersionRoute: VersionRoute,
   ApiAiRoute: ApiAiRoute,
   ApiBriefRoute: ApiBriefRoute,
@@ -1591,6 +1734,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSwapRoute: ApiSwapRoute,
   ApiTtsRoute: ApiTtsRoute,
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
+  EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LabAvatarPocRoute: LabAvatarPocRouteWithChildren,
   QaSmartAlarmRoute: QaSmartAlarmRoute,
   QaVoiceRoute: QaVoiceRoute,
@@ -1599,6 +1743,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
+  LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiLabSimliSessionRoute: ApiLabSimliSessionRoute,
   ApiLabSimliSpeakRoute: ApiLabSimliSpeakRoute,
   ApiPublicHooksAiLearnRoute: ApiPublicHooksAiLearnRoute,
@@ -1606,7 +1751,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
+  LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
+  LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
+  LovableEmailTransactionalSendRoute: LovableEmailTransactionalSendRoute,
   ApiPublicWearablesFitbitCallbackRoute: ApiPublicWearablesFitbitCallbackRoute,
   ApiPublicWearablesOuraCallbackRoute: ApiPublicWearablesOuraCallbackRoute,
 }
