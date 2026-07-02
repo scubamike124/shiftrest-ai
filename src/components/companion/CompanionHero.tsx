@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { X, Settings2, BellOff, WifiOff } from "lucide-react";
 import { OrbBadge } from "@/components/PilotOrb";
-import { supabase } from "@/integrations/supabase/client";
+import { loadPreferredName } from "@/lib/user/display-name";
 import { cn } from "@/lib/utils";
 import { currentBriefPeriod, lastSeenKey, periodAnchor } from "@/lib/companion/brief-window";
 import { resolveHero, type HeroSignals } from "@/lib/companion/hero-state";
