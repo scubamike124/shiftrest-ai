@@ -585,10 +585,43 @@ export const Route = createFileRoute("/api/ai")({
         } catch (e) {
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
+          // Alert owner ONLY on genuine infra failures — never on user
+          // validation (400) or auth (401/403) errors surfaced upstream.
+          const intent = (body as { intent?: string }).intent ?? "unknown";
+          if (status >= 500) {
+            notifyOwnerAsync({
+              severity: "error",
+              service: "ai",
+              message: "upstream_5xx",
+              meta: { status, intent, error: msg },
+            });
+          } else if (status === 402) {
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "ai",
+              message: "credits_exhausted",
+              meta: { intent },
+            });
+          } else if (status === 429) {
+            notifyOwnerAsync({
+              severity: "warning",
+              service: "ai",
+              message: "rate_limited",
+              meta: { intent },
+            });
+          } else if (status === 401 || status === 403) {
+            // Upstream auth against Lovable AI gateway — our key rotated/revoked.
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "ai",
+              message: "upstream_auth_failed",
+              meta: { status, intent },
+            });
+          }
           if (userId) {
             await logAIRequest(admin, {
               user_id: userId,
-              intent: (body as { intent?: string }).intent ?? "unknown",
+              intent,
               model: DEFAULT_CHAT_MODEL,
               prompt_tokens: 0,
               completion_tokens: 0,
