@@ -148,6 +148,8 @@ export async function buildSystemPrompt(opts: {
   surface?: "voice" | "text";
   /** When true, lift the brevity cap for this turn ("tell me more"). */
   expand?: boolean;
+  /** Reasoning hint derived from the latest user turn (coach intent only). */
+  intentHint?: import("./intent-hint.server").IntentHint;
 }): Promise<string> {
   const surface = opts.surface ?? "text";
   const { languageDirective } = await import("@/lib/ai/prompts.server");
@@ -236,7 +238,7 @@ export async function buildSystemPrompt(opts: {
         "@/lib/ai/personal-signals.server"
       );
       const lines = await fetchPersonalSignals(opts.admin, opts.userId);
-      prompt += formatSignalsBlock(lines);
+      prompt += formatSignalsBlock(lines, opts.intentHint);
     } catch (e) {
       console.warn("context signals block failed", e);
     }
