@@ -168,8 +168,8 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
         <p className="text-[11px] text-muted-foreground">Used everywhere Pilot speaks.</p>
       </div>
 
-      {/* Gender filter + voice grid */}
-      <div className="space-y-2">
+      {/* Gender filter + voice list */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium">Voice</label>
           <div className="flex gap-1 rounded-full bg-secondary/60 p-1">
@@ -189,51 +189,46 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
             ))}
           </div>
         </div>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {filteredVoices.map((v) => {
-            const selected = prefs.voiceId === v.id;
-            const isPreviewing = previewing === v.id;
-            return (
-              <li key={v.id}>
-                <div
-                  className={`flex items-center justify-between gap-2 rounded-xl border p-3 transition ${
-                    selected
-                      ? "border-primary bg-primary/10 shadow-[0_0_0_1px_var(--primary)]"
-                      : "border-border bg-background hover:border-primary/40"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onChange("voiceId", v.id)}
-                    aria-pressed={selected}
-                    className="flex-1 text-left active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{v.label}</p>
-                      {selected && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-foreground">
-                          ★ Current
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {v.tone} · <span className="capitalize">{v.gender}</span>
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => preview(v.id)}
-                    aria-label={isPreviewing ? `Stop preview of ${v.label}` : `Preview ${v.label}`}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground active:scale-90"
-                  >
-                    {isPreviewing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+
+        {/* Pinned current voice */}
+        {currentVoice && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Current voice
+            </p>
+            <VoiceCard
+              voice={currentVoice}
+              selected
+              isPreviewing={previewing === currentVoice.id}
+              onSelect={() => onChange("voiceId", currentVoice.id)}
+              onPreview={() => preview(currentVoice.id)}
+            />
+          </div>
+        )}
+
+        {/* Other voices */}
+        {otherVoices.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Choose another
+            </p>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {otherVoices.map((v) => (
+                <li key={v.id}>
+                  <VoiceCard
+                    voice={v}
+                    selected={false}
+                    isPreviewing={previewing === v.id}
+                    onSelect={() => onChange("voiceId", v.id)}
+                    onPreview={() => preview(v.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+
 
       {/* Language */}
       <div className="space-y-1.5">
