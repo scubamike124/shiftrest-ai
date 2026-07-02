@@ -35,7 +35,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, smart alarm, wind-down guidance, and a personal assistant built for shift life.",
+          "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, wind-down guidance, and a personal assistant built for shift life.",
       },
       { property: "og:title", content: "Meet the AI companion that helps you unwind, sleep & wake up better" },
       {
