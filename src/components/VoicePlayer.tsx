@@ -3,6 +3,7 @@ import { Volume2, Loader2, Square } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { expandForSpeech } from "@/lib/voice-rewriter";
+import { supabase } from "@/integrations/supabase/client";
 import {
   speakQueued,
   stopSpeaking,
@@ -76,9 +77,20 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       }
 
       // 1. Rewrite into conversational script.
+      // Attach the Supabase bearer token so /api/brief (auth-guarded in Batch A)
+      // accepts the request. Anonymous users get a graceful failure below.
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) {
+        toast.info("Sign in to use voice briefing.");
+        return;
+      }
       const briefRes = await fetch("/api/brief", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ plan, localTime, timezone }),
       });
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
