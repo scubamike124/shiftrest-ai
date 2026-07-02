@@ -196,16 +196,26 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
             return (
               <li key={v.id}>
                 <div
-                  className={`flex items-center justify-between gap-2 rounded-xl border p-3 ${
-                    selected ? "border-primary bg-primary/10" : "border-border bg-background"
+                  className={`flex items-center justify-between gap-2 rounded-xl border p-3 transition ${
+                    selected
+                      ? "border-primary bg-primary/10 shadow-[0_0_0_1px_var(--primary)]"
+                      : "border-border bg-background hover:border-primary/40"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onChange("voiceId", v.id)}
-                    className="flex-1 text-left"
+                    aria-pressed={selected}
+                    className="flex-1 text-left active:scale-[0.98]"
                   >
-                    <p className="text-sm font-semibold">{v.label}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold">{v.label}</p>
+                      {selected && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-foreground">
+                          ★ Current
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-muted-foreground">
                       {v.tone} · <span className="capitalize">{v.gender}</span>
                     </p>
@@ -213,8 +223,8 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
                   <button
                     type="button"
                     onClick={() => preview(v.id)}
-                    aria-label={isPreviewing ? "Stop preview" : `Preview ${v.label}`}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground active:scale-95"
+                    aria-label={isPreviewing ? `Stop preview of ${v.label}` : `Preview ${v.label}`}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground active:scale-90"
                   >
                     {isPreviewing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
                   </button>
