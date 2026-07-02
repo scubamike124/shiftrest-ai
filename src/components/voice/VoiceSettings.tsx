@@ -48,19 +48,19 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
     [],
   );
 
-  const filteredVoices = useMemo(() => {
+  const currentVoice = useMemo(
+    () => VOICE_OPTIONS.find((v) => v.id === prefs.voiceId) ?? null,
+    [prefs.voiceId],
+  );
+
+  const otherVoices = useMemo(() => {
     const base =
       genderFilter === "all"
         ? VOICE_OPTIONS
         : VOICE_OPTIONS.filter((v) => v.gender === genderFilter);
-    // Pin the currently selected voice to the top so the "favorite" is always visible.
-    const selectedId = prefs.voiceId;
-    return [...base].sort((a, b) => {
-      if (a.id === selectedId) return -1;
-      if (b.id === selectedId) return 1;
-      return 0;
-    });
+    return base.filter((v) => v.id !== prefs.voiceId);
   }, [genderFilter, prefs.voiceId]);
+
 
   const accents = accentsForLanguage(prefs.voiceLanguage);
   const language = LANGUAGE_OPTIONS.find((l) => l.code === prefs.voiceLanguage) ?? LANGUAGE_OPTIONS[0];
@@ -168,8 +168,8 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
         <p className="text-[11px] text-muted-foreground">Used everywhere Pilot speaks.</p>
       </div>
 
-      {/* Gender filter + voice grid */}
-      <div className="space-y-2">
+      {/* Gender filter + voice list */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-sm font-medium">Voice</label>
           <div className="flex gap-1 rounded-full bg-secondary/60 p-1">
@@ -189,51 +189,46 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
             ))}
           </div>
         </div>
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {filteredVoices.map((v) => {
-            const selected = prefs.voiceId === v.id;
-            const isPreviewing = previewing === v.id;
-            return (
-              <li key={v.id}>
-                <div
-                  className={`flex items-center justify-between gap-2 rounded-xl border p-3 transition ${
-                    selected
-                      ? "border-primary bg-primary/10 shadow-[0_0_0_1px_var(--primary)]"
-                      : "border-border bg-background hover:border-primary/40"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onChange("voiceId", v.id)}
-                    aria-pressed={selected}
-                    className="flex-1 text-left active:scale-[0.98]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{v.label}</p>
-                      {selected && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-foreground">
-                          ★ Current
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      {v.tone} · <span className="capitalize">{v.gender}</span>
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => preview(v.id)}
-                    aria-label={isPreviewing ? `Stop preview of ${v.label}` : `Preview ${v.label}`}
-                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground active:scale-90"
-                  >
-                    {isPreviewing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+
+        {/* Pinned current voice */}
+        {currentVoice && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Current voice
+            </p>
+            <VoiceCard
+              voice={currentVoice}
+              selected
+              isPreviewing={previewing === currentVoice.id}
+              onSelect={() => onChange("voiceId", currentVoice.id)}
+              onPreview={() => preview(currentVoice.id)}
+            />
+          </div>
+        )}
+
+        {/* Other voices */}
+        {otherVoices.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Choose another
+            </p>
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {otherVoices.map((v) => (
+                <li key={v.id}>
+                  <VoiceCard
+                    voice={v}
+                    selected={false}
+                    isPreviewing={previewing === v.id}
+                    onSelect={() => onChange("voiceId", v.id)}
+                    onPreview={() => preview(v.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+
 
       {/* Language */}
       <div className="space-y-1.5">
@@ -352,3 +347,65 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
     </section>
   );
 }
+
+type VoiceCardProps = {
+  voice: (typeof VOICE_OPTIONS)[number];
+  selected: boolean;
+  isPreviewing: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+};
+
+function VoiceCard({ voice, selected, isPreviewing, onSelect, onPreview }: VoiceCardProps) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`group relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition active:scale-[0.99] ${
+        selected
+          ? "border-primary bg-primary/15 ring-2 ring-primary/60 shadow-[0_6px_24px_-12px_var(--primary)]"
+          : "border-border bg-background hover:border-primary/50 hover:bg-primary/5"
+      }`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className={`truncate text-sm font-semibold ${selected ? "text-primary" : ""}`}>
+            {voice.label}
+          </p>
+          {selected && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary-foreground">
+              ★ Current
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+          {voice.tone} · <span className="capitalize">{voice.gender}</span>
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPreview();
+        }}
+        aria-label={isPreviewing ? `Stop preview of ${voice.label}` : `Preview ${voice.label}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-90 ${
+          isPreviewing
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-card text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        {isPreviewing ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4 translate-x-[1px]" />}
+      </button>
+    </div>
+  );
+}
+
