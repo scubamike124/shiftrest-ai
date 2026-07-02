@@ -80,6 +80,20 @@ export function AIBriefCard({
   recommendations?: Recommendation[];
 }) {
   const context = insights.contextString;
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setHasSession(!!data.session);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setHasSession(!!session);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
   // Cache by context string so the AI cost is paid once per day shape.
   const queryKey = useMemo(() => ["ai-brief", context], [context]);
 
@@ -88,8 +102,9 @@ export function AIBriefCard({
     queryFn: () => fetchBrief(context),
     staleTime: 1000 * 60 * 60 * 4, // 4 hours
     retry: 1,
-    enabled: !!context,
+    enabled: !!context && hasSession === true,
   });
+
 
   const fatigueColor =
     insights.fatigueToday.band === "extreme"
