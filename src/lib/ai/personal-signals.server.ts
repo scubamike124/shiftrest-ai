@@ -215,26 +215,178 @@ export async function fetchPersonalSignals(
     }
   }
 
-  // 6. Next shift + hours until it starts.
+  // 6. Shift context — in-progress, next upcoming, consecutive work-days,
+  // and next day off. Uses ±10/14-day window fetched above.
   const shifts =
     shiftRes.status === "fulfilled"
       ? ((shiftRes.value.data as ShiftRow[] | null) ?? [])
       : [];
-  const nextShift = shifts[0] ?? null;
-  if (nextShift?.start_utc) {
+
+  const inProgress = shifts.find((s) => {
+    if (!s.start_utc || !s.end_utc) return false;
+    const st = new Date(s.start_utc).getTime();
+    const en = new Date(s.end_utc).getTime();
+    return st <= now.getTime() && en >= now.getTime();
+  });
+  if (inProgress) {
+    const remainMin = Math.max(
+      0,
+      Math.round((new Date(inProgress.end_utc).getTime() - now.getTime()) / 60000),
+    );
+    const label = inProgress.title || inProgress.shift_type || "shift";
+    lines.push(`Currently on shift "${label}" — ${fmtHm(remainMin)} remaining.`);
+  }
+
+  const upcoming = shifts.filter((s) => new Date(s.start_utc).getTime() > now.getTime());
+  const nextShift = upcoming[0] ?? null;
+  if (nextShift?.start_utc && !inProgress) {
     const start = new Date(nextShift.start_utc);
     const untilMin = Math.round((start.getTime() - now.getTime()) / 60000);
     const label = nextShift.title || nextShift.shift_type || "shift";
     const startClock = shiftClock(nextShift.start_utc, tz);
     if (untilMin >= 0) {
+      lines.push(`Next shift: ${startClock} "${label}" (starts in ${fmtHm(untilMin)}).`);
+    }
+  }
+
+  // Consecutive work-days ending today (count distinct local dates with a shift).
+  const localDay = (iso: string) => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(iso));
+    } catch {
+      return iso.slice(0, 10);
+    }
+  };
+  const workedDays = new Set(shifts.map((s) => localDay(s.start_utc)));
+  const todayLocal = localDay(now.toISOString());
+  let streak = 0;
+  for (let i = 0; i < 10; i++) {
+    const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    if (workedDays.has(localDay(d.toISOString()))) streak++;
+    else break;
+  }
+  if (streak >= 3) {
+    lines.push(`On day ${streak} of consecutive work-days.`);
+  }
+
+  // Next day off within the next 14 days (first local date with no shift).
+  if (workedDays.size > 0) {
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+      const key = localDay(d.toISOString());
+      if (!workedDays.has(key)) {
+        if (i === 1) lines.push(`Tomorrow is a day off.`);
+        else if (i <= 4) lines.push(`Next day off: in ${i} days.`);
+        break;
+      }
+    }
+  }
+
+  // 7. Bedtime / wake trends — median local hour over last 7 nights + stdev.
+  const withTimes = wearables
+    .filter((w) => w.sleep_start && w.sleep_end)
+    .slice(0, 7);
+  if (withTimes.length >= 4) {
+    const localHour = (iso: string): number => {
+      try {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: tz,
+          hour: "numeric",
+          hour12: false,
+          minute: "2-digit",
+        }).formatToParts(new Date(iso));
+        const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+        const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+        return h + m / 60;
+      } catch {
+        return 0;
+      }
+    };
+    // Wrap bedtimes so 23:30 and 00:30 don't average to noon.
+    const beds = withTimes.map((w) => {
+      const h = localHour(w.sleep_start!);
+      return h < 12 ? h + 24 : h;
+    });
+    const wakes = withTimes.map((w) => localHour(w.sleep_end!));
+    const median = (xs: number[]) => {
+      const s = [...xs].sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
+    const stdev = (xs: number[]) => {
+      const m = xs.reduce((a, v) => a + v, 0) / xs.length;
+      return Math.sqrt(xs.reduce((a, v) => a + (v - m) ** 2, 0) / xs.length);
+    };
+    const fmtClock = (h: number) => {
+      const hh = ((Math.floor(h) % 24) + 24) % 24;
+      const mm = Math.round((h - Math.floor(h)) * 60);
+      const period = hh >= 12 ? "PM" : "AM";
+      const disp = hh % 12 === 0 ? 12 : hh % 12;
+      return `${disp}:${String(mm).padStart(2, "0")} ${period}`;
+    };
+    const bedMed = median(beds);
+    const wakeMed = median(wakes);
+    const bedStd = stdev(beds);
+    const consistency = bedStd < 0.5 ? "very consistent" : bedStd < 1.25 ? "fairly consistent" : "drifting";
+    lines.push(
+      `7-night trend: typical bedtime ~${fmtClock(bedMed)}, wake ~${fmtClock(wakeMed)} (${consistency}).`,
+    );
+  }
+
+  // 8. Resting HR trend — current vs 7-night baseline (skip today).
+  const rhrValues = wearables
+    .map((w) => (w.resting_hr == null ? null : Number(w.resting_hr)))
+    .filter((v): v is number => v != null && v > 0);
+  if (latestFresh && latest?.resting_hr != null && rhrValues.length >= 4) {
+    const baseline = rhrValues.slice(1).reduce((a, v) => a + v, 0) / (rhrValues.length - 1);
+    const cur = Number(latest.resting_hr);
+    const delta = Math.round(cur - baseline);
+    if (Math.abs(delta) >= 4) {
       lines.push(
-        `Next shift: ${startClock} "${label}" (starts in ${fmtHm(untilMin)}).`,
+        `Resting HR last night: ${Math.round(cur)} bpm (baseline ~${Math.round(baseline)} — ${delta > 0 ? "elevated, often a load/illness signal" : "lower, usually a recovery sign"}).`,
+      );
+    }
+  }
+
+  // 9. Sleep-goal streak — nights ≥ goal in last 14.
+  if (goalHours && wearables.length >= 3) {
+    const targetMin = goalHours * 60;
+    let hitStreak = 0;
+    for (const w of wearables) {
+      if (w.sleep_duration_min != null && w.sleep_duration_min >= targetMin - 15) {
+        hitStreak++;
+      } else break;
+    }
+    const hit14 = wearables.filter(
+      (w) => w.sleep_duration_min != null && w.sleep_duration_min >= targetMin - 15,
+    ).length;
+    if (hitStreak >= 3) {
+      lines.push(`Sleep-goal streak: ${hitStreak} nights in a row hitting goal.`);
+    } else if (hit14 >= 8) {
+      lines.push(`Hit sleep goal ${hit14} of the last ${wearables.length} nights.`);
+    }
+  }
+
+  // 10. Next scheduled alarm (Smart Alarm engine).
+  const alarms =
+    alarmRes.status === "fulfilled"
+      ? ((alarmRes.value.data as AlarmRow[] | null) ?? [])
+      : [];
+  const nextAlarm = alarms[0] ?? null;
+  if (nextAlarm?.starts_at) {
+    const untilMin = Math.round(
+      (new Date(nextAlarm.starts_at).getTime() - now.getTime()) / 60000,
+    );
+    if (untilMin >= 0 && untilMin <= 24 * 60) {
+      lines.push(
+        `Next alarm: ${shiftClock(nextAlarm.starts_at, tz)} (in ${fmtHm(untilMin)}).`,
       );
     }
   }
 
   return lines;
 }
+
 
 export function formatSignalsBlock(lines: string[]): string {
   if (lines.length === 0) return "";
