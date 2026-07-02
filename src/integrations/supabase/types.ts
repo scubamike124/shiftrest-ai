@@ -1730,6 +1730,14 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      get_partner_share: {
+        Args: { _code: string }
+        Returns: {
+          code: string
+          expires_at: string
+          payload: Json
+        }[]
+      }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean
