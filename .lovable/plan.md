@@ -1,107 +1,81 @@
-# A3 — AI Companion Personalization (Investigation Only)
+# Bug — Companion shows "scubamike124"
 
-## Root cause
+## Root cause (data, not code)
 
-The Companion/Pilot voice coach turn is missing the user's real-time personal signals. It ships to the model with only:
+The A2 backfill cleared `profiles.display_name` when it matched the email prefix, but it never touched `user_prefs.preferred_name`. That column is the *only* thing the Companion and Home greetings read from — so any row where `preferred_name` was already set to an email-prefix value keeps rendering that value.
 
-- Persona system prompt (`BASE_PERSONALITY` + mode overlay).
-- Long-term memory (top 5 pinned/ranked rows only on voice).
-- Active patterns — **only if severity ≥ 3**.
-- The client's `context` payload, which on Companion is literally just `{ surface: "companion", companion_name, max_tokens: 180 }` and on Pilot is not sent at all.
+Confirmed against the live DB:
 
-Everything the user reasonably expects the AI to already know — tonight's shift, sleep goal, last night's sleep, running sleep debt, wind-down window, local time-of-day — is never put in front of the model on voice turns. So the model has no choice but to answer generically or ask basic setup questions.
+| email | preferred_name |
+|---|---|
+| `scubamike124@gmail.com` | **`scubamike124`** ← this is the affected account |
+| `scubamike124@yahoo.com` | `Michael` |
+| `scubamike124+test1@gmail.com` | `Joe` |
+| `scubamike124+verify1@gmail.com` | `Bill` |
+| others | `NULL` |
 
-Two additional amplifiers:
-1. On `surface = "voice" + intent = "coach"`, `buildSystemPrompt` skips the TZ block, feedback block, and previous-recommendation block that the text Coach gets (`context.server.ts` lines 178-224). Voice is the *least* informed surface, even though it's the most personal one.
-2. `body.context` is a client-supplied JSON blob dumped verbatim into the prompt as "CURRENT CONTEXT" — it's opaque to the model and easy to spoof; we shouldn't lean on it for personalization.
+Query `WHERE lower(preferred_name) = lower(split_part(email,'@',1))` returns **2 rows** across all users — this account plus one other.
 
-## Files involved
+The code path itself is already correct:
 
-- `src/lib/ai/context.server.ts` — `buildSystemPrompt` (persona, memory, patterns, TZ, liveContext assembly).
-- `src/lib/ai/prompts.server.ts` — `PILOT_VOICE_SYSTEM` (voice persona).
-- `src/routes/api/ai.ts` — `intent: "coach"` handler (lines 293-353): where the system prompt is built.
-- `src/routes/companion.tsx` (~line 817) and `src/routes/pilot.tsx` (~line 241): coach callers — no schedule/sleep signals attached today.
+- `src/routes/companion.tsx:97` → `p.preferredName?.trim() || "there"` (falls back to "there", never email).
+- `src/routes/dashboard.tsx:342` → `name={(prefs.preferredName ?? "").trim()}` (feeds `CompanionHero`, blank string when unset).
+- `src/components/companion/CompanionHero.tsx:64` → uses `loadPreferredName()` (reads `preferred_name` only).
+- `src/components/ArrivalHero.tsx` → uses shared helper.
+- Morning / afternoon / evening brief `.functions.ts` → use `greetingName(preferred_name)` (blank fallback).
+- Welcome email → shared helper, rejects email-prefix.
 
-Data we can already read server-side (no new tables):
-- `user_prefs`: `sleep_hours`, `wind_down_min`, `partner_name`, `preferred_name`, `home_tz`, `current_tz`, `commute_minutes_baseline`.
-- `shifts`: next upcoming `start_utc` / `end_utc` for the user (+ `title`, `shift_type`).
-- `wearable_readings`: last night's `sleep_duration_min`, `sleep_efficiency`, `hrv_ms`, `resting_hr`.
-- Same table over the last 7 days → sleep-debt tally (target hours × 7 − actual).
+Full-repo sweep for the requested strings found no offending call sites:
+- `email.split("@")` — no matches.
+- `user.email` / `session.email` used for greeting text — none (the one occurrence in `companion.tsx` is marked *"sessionEmail removed: Preferred Name is the sole source for personalization"*).
+- `user_metadata.email` — none.
+- `profile.display_name` / `profile.email` rendered as a greeting — none. `profiles.display_name` is only read by the welcome-email helper, which already rejects an email-prefix match.
+- `auth.user()` / `auth.getUser()` returning a name to a greeting — none.
 
-## Proposed change
+**So no component needs to change. The offending name is a stale row in `user_prefs`.**
 
-Add a compact, server-fetched **PERSONAL SIGNALS** block to every coach turn (both voice and text), replacing the client-supplied context blob for personalization purposes. Keep it tight — one short line per signal — so voice replies stay concise.
+## Fix (one migration, one small guard)
 
-### 1. New helper `fetchPersonalSignals(admin, userId, now)` in `context.server.ts`
+### 1. Backfill migration — clears email-prefix values from `user_prefs.preferred_name`
 
-Runs in parallel, `Promise.allSettled` — a missing wearable or empty schedule silently drops that line. Returns a short markdown-ish block of only the lines that resolved. Cap at ~10 lines.
-
-Example rendered output the model will see:
-
-```text
-PERSONAL SIGNALS (use these naturally; never read them back as a list):
-- Local time: Thu 10:42 pm (America/Chicago); early night for most people.
-- Sleep goal: 8 h; wind-down 45 min.
-- Last night: 5 h 40 m, efficiency 84% (below your goal by 2 h 20 m).
-- 7-day sleep debt: ~6.5 h behind goal.
-- HRV last night: 42 ms (baseline 51 ms — recovery down).
-- Next shift: Fri 06:00–14:00 "ICU" (starts in 7 h 18 m).
-- Wind-down window ideally starts ~10:15 pm to hit that shift on 6 h sleep.
+```sql
+UPDATE public.user_prefs up
+SET preferred_name = NULL
+FROM auth.users u
+WHERE u.id = up.user_id
+  AND up.preferred_name IS NOT NULL
+  AND lower(btrim(up.preferred_name)) = lower(split_part(u.email, '@', 1));
 ```
 
-Numbers are truncated to what's actually available for that user — no placeholders.
+Affects 2 rows (verified). After this runs, the Companion greeting for `scubamike124@gmail.com` becomes `"Good afternoon, there."` (companion route) / `"Good afternoon"` name-less (dashboard hero) — matching the intended chain.
 
-### 2. Inject on both surfaces
+### 2. Small guard so this cannot re-appear from user input
 
-In `buildSystemPrompt`, append the signals block **before** `liveContext` for every coach turn (both `surface = "voice"` and `"text"`, `memoryEnabled` or not — these signals are the user's own current data, not learned memory). Continue to skip the heavy patterns/feedback/prev blocks on voice for latency.
+`src/lib/prefs.ts` `savePrefs()` (or a thin wrapper in the save path used by Onboarding + Profile): if the submitted `preferredName`, lower-cased and trimmed, equals `split_part(session_email, '@', 1)`, drop it to `null` server-side. Keeps a well-meaning user from re-saving their username-lookalike name, and future-proofs against any onboarding pre-fill regression.
 
-### 3. Prompt wording tweak (small)
+Implementation location: the existing server-side `savePrefs` server function (whichever `.functions.ts` currently owns the write) — load the caller's email from `context.claims.email` and null the field before insert. If that write is currently client-only via publishable key, add a light server-side rewrite. (Confirm exact function during implementation; no client changes required.)
 
-Add one short paragraph to both `BASE_PERSONALITY` and `PILOT_VOICE_SYSTEM`:
+### 3. No component changes
 
-> When PERSONAL SIGNALS are provided, treat them as the ground truth about this user right now. Reference the ONE that most changes your answer — never list them back. If a signal contradicts what the user is asking (e.g. they ask for coffee at 10 pm and their next shift is in 12 h), say so briefly and offer the better move.
+Investigation confirms every greeting surface already flows through `preferred_name` and never touches email. The visible "scubamike124" is a stored value, not code output.
 
-### 4. Retire the client `context` blob for personalization
+## Affected files
 
-Keep accepting `body.context` (backward compat) but stop pasting it into the prompt as a JSON dump. If we still need `companion_name`, we already load it via `loadAssistantProfile`.
+| File | Change |
+|---|---|
+| `supabase/migrations/<new>.sql` | Backfill described above. |
+| `src/lib/prefs.ts` or the server-side `savePrefs` handler | Reject email-prefix on save (server-side only). |
 
-## Before / after
+No component, route, or helper edits.
 
-**User:** "Should I nap before my shift?"
+## QA plan
 
-**Before (today):**
-> Probably yes — but it depends on when your shift starts. What time does it begin?
+1. Before running: confirm on device the Companion header still says "Good afternoon, scubamike124." for the affected account.
+2. Apply migration.
+3. Re-open Companion — greeting should be "Good afternoon, there." (companion route) and dashboard hero should show a name-less "Good afternoon".
+4. Set Preferred Name to "Mike" in Profile → both surfaces show "Good afternoon, Mike."
+5. Try to set Preferred Name to "scubamike124" → save silently strips it back to blank; greetings fall back to name-less.
+6. Verify voice brief, morning/afternoon/evening briefs, and welcome email all render name-less (or "Mike") — no "scubamike124" anywhere.
+7. Confirm the other affected row's greeting is also cleaned up (identify via query and QA if the user is available).
 
-**After (with signals):**
-> Yes — a 25 min nap before 3 pm. You're 2 h 20 m short from last night and your ICU shift starts at 6 tomorrow. Want me to time it?
-
-**User:** "Coffee now, ok?" (asked at 9:40 pm)
-
-**Before:**
-> Caffeine takes about 6 hours to clear for most people, so late-evening coffee usually costs you sleep. If you're sleepy, try a short walk instead.
-
-**After:**
-> I'd skip it — your shift's at 6 am and you're already 6 hours behind for the week. If you need a lift, a 10 min walk plus water will get you further than coffee tonight.
-
-## Risk assessment
-
-| Risk | Likelihood | Mitigation |
-|---|---|---|
-| Extra DB round-trips slow the first voice token | Medium | 3 parallel queries, all indexed on `user_id`; cap at 1 read each; `allSettled` so a slow branch can't block. Expected +40-80 ms — well under TTS start-up. |
-| Prompt bloat pushes past model limits | Low | Block is capped ~10 short lines (~250 tokens). Voice already runs `maxTokens: 180`, no change. |
-| Model reads the list back to the user ("Your sleep debt is 6.5 hours…") | Medium | Prompt line explicitly forbids it; TTS system prompt already rejects lists. Verify in QA. |
-| Stale wearable data misleads the model | Low | Only include readings from the last 3 days; label older data ("no wearable data in 48 h") instead of showing it. |
-| Signals leak between users | Low | All queries scoped by `userId` in server function; RLS-safe. |
-| Persona voice drift after adding new prompt paragraph | Low | Added paragraph is factual, not tonal; existing persona rules still dominate. |
-
-No provider or model change. No new tables. No client changes required for the core win (both callers keep working unchanged); the Companion `context` blob can be trimmed later.
-
-## Plan when approved
-
-1. Add `fetchPersonalSignals` + `formatSignalsBlock` in `context.server.ts`.
-2. Wire it into `buildSystemPrompt` (voice + text, coach only).
-3. Append the "ground truth" paragraph to `BASE_PERSONALITY` and `PILOT_VOICE_SYSTEM`.
-4. Typecheck.
-5. Manual QA: 3 voice prompts on Companion, 2 text prompts on Coach, confirm signals surface naturally and are not read as a list.
-
-Awaiting **"go A3"** to implement.
+Awaiting **"go"** to implement.
