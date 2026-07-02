@@ -175,6 +175,22 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       if (!error) data[t] = rows ?? [];
     }
     const { data: userInfo } = await supabaseAdmin.auth.admin.getUserById(uid);
+
+    // Fire-and-forget confirmation email that an export was generated.
+    if (userInfo?.user?.email) {
+      try {
+        const { sendTransactionalEmailServer } = await import("@/lib/email/send.server");
+        await sendTransactionalEmailServer({
+          templateName: "data-export-ready",
+          recipientEmail: userInfo.user.email,
+          idempotencyKey: `export-${uid}-${Date.now()}`,
+          templateData: {},
+        });
+      } catch (e) {
+        console.error("data-export-ready email failed", e);
+      }
+    }
+
     return {
       ok: true as const,
       generatedAt: new Date().toISOString(),
