@@ -58,6 +58,18 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
           .filter((n) => n.startsWith("rpai-") && !n.includes(CACHE_VERSION))
           .map((n) => caches.delete(n)),
       );
+      // Belt-and-suspenders for iOS: some Home-Screen PWAs don't fire
+      // `controllerchange` reliably after clientsClaim(). Broadcast an
+      // explicit activation ping so the registrar can force a one-time
+      // reload if the standard listener didn't run.
+      try {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
+        for (const c of clients) {
+          c.postMessage({ type: "SW_ACTIVATED", build: CACHE_VERSION });
+        }
+      } catch {
+        /* best-effort */
+      }
     })(),
   );
 });
