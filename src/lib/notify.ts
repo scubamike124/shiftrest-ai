@@ -112,6 +112,7 @@ export async function scheduleNextWindDown() {
     showNotification(
       "Wind-down time 🌙",
       `Dim lights, no caffeine. Sleep window starts in ${prefs.windDownMin} min.`,
+      "winddown",
     );
     scheduleNextWindDown();
   }, ms);
