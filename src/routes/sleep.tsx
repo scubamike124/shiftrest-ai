@@ -56,8 +56,10 @@ function TrackCard({ track }: { track: SoundTrack }) {
 
   return (
     <Card
-      className={`relative overflow-hidden border-border/60 p-4 transition ${
-        active ? "border-primary/60 bg-primary/5 shadow-[var(--shadow-glow)]" : "hover:border-border"
+      className={`relative overflow-hidden p-4 transition ${
+        active
+          ? "border-2 border-primary bg-primary/15 shadow-[var(--shadow-glow)]"
+          : "border border-border/60 hover:border-border"
       } ${!isAvailable ? "opacity-60" : ""}`}
     >
       <button
@@ -71,10 +73,16 @@ function TrackCard({ track }: { track: SoundTrack }) {
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold">{track.label}</p>
+            <p className={`truncate text-sm font-semibold ${active ? "text-primary" : ""}`}>{track.label}</p>
             {!isAvailable && (
               <Badge variant="outline" className="text-[10px]">
                 Soon
+              </Badge>
+            )}
+            {active && (
+              <Badge className="border-primary/40 bg-primary/20 text-[10px] font-semibold text-primary">
+                <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                Playing
               </Badge>
             )}
           </div>
