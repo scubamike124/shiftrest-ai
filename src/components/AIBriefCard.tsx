@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SafetyNote } from "@/components/legal/SafetyNote";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
+import { supabase } from "@/integrations/supabase/client";
+
 
 const ICONS: Record<string, typeof Sun> = {
   sun: Sun,
