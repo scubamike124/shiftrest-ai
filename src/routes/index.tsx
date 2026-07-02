@@ -228,7 +228,7 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
           </span>
           <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Sleep sounds</span>
-            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Smart alarm</span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Coach chat</span>
             <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Wind-down</span>
           </div>
         </div>
