@@ -347,8 +347,22 @@ export class AuthRequiredError extends Error {
 
 /** Upsert a partial prefs change for the signed-in user. Throws AuthRequiredError when logged out. */
 export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
-  const uid = await currentUserId();
+  const { data: sess } = await supabase.auth.getSession();
+  const uid = sess.session?.user.id ?? null;
   if (!uid) throw new AuthRequiredError();
+
+  // Guard: never let Preferred Name equal the account's email prefix
+  // (e.g. "scubamike124"). Strip silently so greetings fall back to
+  // name-less rather than showing a username-lookalike.
+  if (partial.preferredName !== undefined) {
+    const email = sess.session?.user.email ?? "";
+    const emailPrefix = email.split("@")[0]?.trim().toLowerCase() ?? "";
+    const candidate = partial.preferredName.trim().toLowerCase();
+    if (emailPrefix && candidate && candidate === emailPrefix) {
+      partial = { ...partial, preferredName: "" };
+    }
+  }
+
   const row = prefsToRowPartial(partial);
   const { error } = await supabase
     .from("user_prefs")
@@ -358,6 +372,7 @@ export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
     throw error;
   }
 }
+
 
 /** Mark onboarding complete for the signed-in user. Falls back to localStorage flag when logged out. */
 export async function markOnboarded(): Promise<void> {
