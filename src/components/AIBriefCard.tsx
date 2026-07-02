@@ -243,17 +243,23 @@ export function AIBriefCard({
 
       {/* AI body */}
       <div className="relative z-10 mt-4 min-h-[120px]">
-        {isLoading && (
+        {hasSession === false && (
+          <div className="rounded-xl border border-border/60 bg-card/60 p-3 text-xs text-muted-foreground">
+            Sign in to load your brief.
+          </div>
+        )}
+        {hasSession !== false && isLoading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-indigo-glow" />
             Reading your week…
           </div>
         )}
-        {isError && (
+        {hasSession !== false && isError && (
           <div className="rounded-xl border border-amber/40 bg-amber/10 p-3 text-xs text-amber">
             {error instanceof Error ? error.message : "Brief unavailable."}
           </div>
         )}
+
         {data && (
           <div className="flex flex-col gap-3">
             <div>
