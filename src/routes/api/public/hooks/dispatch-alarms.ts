@@ -19,14 +19,9 @@ export const Route = createFileRoute("/api/public/hooks/dispatch-alarms")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        const provided = request.headers.get("apikey");
-        if (!expected || !provided || provided !== expected) {
-          return new Response(JSON.stringify({ error: "unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const { requireCronSecret } = await import("@/lib/api/cron-auth.server");
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { sendPushToUser } = await import("@/lib/push/web-push.server");

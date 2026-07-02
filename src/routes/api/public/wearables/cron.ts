@@ -7,11 +7,9 @@ export const Route = createFileRoute("/api/public/wearables/cron")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey");
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY;
-        if (!apikey || !expected || apikey !== expected) {
-          return new Response("unauthorized", { status: 401 });
-        }
+        const { requireCronSecret } = await import("@/lib/api/cron-auth.server");
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const supabase = createClient<Database>(
           process.env.SUPABASE_URL!,

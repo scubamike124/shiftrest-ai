@@ -8,11 +8,9 @@ export const Route = createFileRoute("/api/public/hooks/notify")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey") ?? request.headers.get("x-api-key") ?? "";
-        const expected = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
-        if (!expected || apikey !== expected) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const { requireCronSecret } = await import("@/lib/api/cron-auth.server");
+        const authFail = requireCronSecret(request);
+        if (authFail) return authFail;
 
         const { runNotificationTick } = await import("@/lib/notifications/run.server");
         const summary = await runNotificationTick(new Date());
