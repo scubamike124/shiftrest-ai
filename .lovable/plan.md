@@ -1,129 +1,109 @@
-# RestPilot AI — Launch Polish & Readiness Audit
+# Version 1 Launch Completion — Investigation & Plan
 
-Investigation only. No code changed. Every finding is grounded in a real file:line reference.
-
----
-
-## 1. Executive Summary
-
-RestPilot is functionally ready. The foundations users touch daily — auth, Companion, sleep engine, notifications backend, legal coverage, Stripe billing, email — are solid. The gap between "works" and "feels like Apple/Headspace" is a short list of high-impact issues plus a longer list of polish items.
-
-**Three launch blockers** must ship before Publish:
-1. **DebugHUD renders in production** — internal AI event log, HTTP codes, and orb state are visible to end users (Companion, Onboarding).
-2. **`/legal/refunds` returns 404** — linked from the Paywall CTA area (`paywall.tsx:256`) at the exact conversion moment.
-3. **`/lab/*` routes are publicly reachable** — internal POC UI (`lab.avatar-poc.tsx`) exposed to visitors and search engines.
-
-**Two high-severity UX/a11y bugs** should follow immediately:
-4. **Shift delete has no confirmation** (`dashboard.tsx:243`) — one accidental tap destroys real data.
-5. **`ToggleRow` uses `<span onClick>`** (`profile.tsx:1011`) — not keyboard-accessible, fails WCAG 2.1.1.
-
-Everything else is polish that lifts the app from "good" to "premium": haptics on key actions, skeleton loaders, route transitions, Companion in BottomNav, streak + weekly-recap notifications, a curated persona picker, inline AI disclaimer, and hydration sync to the cloud.
-
-**Overall readiness: 5.1 / 10 → 8.5 / 10** after Quick Wins + Medium batch land.
+Investigation-first. No code changes until you approve. Smart Alarm stays in Phase 2 and will not be touched.
 
 ---
 
-## 2. Top 25 Improvements (ranked by impact)
+## Phase 1 — Account & Trial
 
-| # | Improvement | Severity | Effort |
-|---|---|---|---|
-| 1 | Gate `DebugHUD` behind `import.meta.env.DEV` or a query flag | critical | 10 min |
-| 2 | Create `/legal/refunds` route (or repoint the link to `/legal/subscription#refunds`) | critical | 20 min |
-| 3 | Guard `/lab/*` routes behind auth + `NODE_ENV !== "production"` and add `noindex` | critical | 20 min |
-| 4 | Add confirm-dialog for shift delete (reuse shadcn AlertDialog) | critical | 25 min |
-| 5 | Replace `ToggleRow` with shadcn `Switch` (keyboard + ARIA out of the box) | critical | 30 min |
-| 6 | Replace `window.confirm` (employer + account delete) with shadcn AlertDialog | warning | 30 min |
-| 7 | Add `aria-label` to icon-only buttons in HydrationCard, quick grid, dock | critical | 20 min |
-| 8 | Add `aria-current="page"` to active BottomNav tab | warning | 5 min |
-| 9 | Add Companion tab to BottomNav (or a persistent orb-in-nav) | warning | 25 min |
-| 10 | Add haptic (`navigator.vibrate(10)`) on send / save / toggle across app | premium | 45 min |
-| 11 | Introduce skeleton loaders on dashboard cards + Companion transcript first paint | warning | 1 h |
-| 12 | Add subtle route enter/exit (CSS `view-transition-name` or a light fade — no framer-motion needed) | premium | 45 min |
-| 13 | Curated persona picker (5 named personas → sets name + tone + voice) | warning | 1.5 h |
-| 14 | Inline AI disclaimer chip under Companion input on first session per day | warning | 20 min |
-| 15 | Add `weekly-recap` and `streak-nudge` notification kinds to `copy.ts` + scheduler | warning | 1 h |
-| 16 | Fix `showNotification()` tag collision — use `tag: kind` not the hardcoded `"shiftrest-winddown"` | critical | 5 min |
-| 17 | Move client `scheduleNextWindDown()` off `setTimeout` — rely on server push (already exists) | warning | 30 min |
-| 18 | Use `useSession()` in `/pilot`, remove the 3 inline `supabase.auth.getSession()` calls | warning | 20 min |
-| 19 | Replace sky-500 / rose-500 hardcodes with tokens (add `--info` and use `--destructive`) | warning | 30 min |
-| 20 | Sync Hydration data to Supabase (currently localStorage-only, resets across devices) | warning | 1.5 h |
-| 21 | Day-part greeting on `/pilot` (reuse `getDayPart` — already used elsewhere) | warning | 10 min |
-| 22 | Surface `/contact` in AppSidebar and Profile footer (currently undiscoverable) | warning | 10 min |
-| 23 | Add "step X of Y" live region to CompanionIntroSheet dots | warning | 15 min |
-| 24 | Add `active:scale-95` press feedback to BottomNav tabs and quick-grid cards | nice | 15 min |
-| 25 | Gate ElevenLabs voice picker behind entitlement in `settings.companion` | warning | 20 min |
+### Bug 1: Post-verification state is stale
+**Reproduced path.** User clicks the branded verify link → `/auth/callback` runs `verifyOtp({ token_hash, type })` → on success does `window.location.assign("/dashboard")`.
+
+**Root causes (two, both required):**
+1. `/auth/callback` calls `verifyOtp` but never explicitly re-hydrates the session before navigating. On some iOS PWA/Safari cases the new access token is written to storage after the assign fires, so the destination page boots with the pre-verify session (or none) and `useSession` falls back to the stale one.
+2. Trial/verification chrome (banner, paywall gating, "verify your email" prompts) reads `email_confirmed_at` from cached React Query data (`profiles`, `subscriptions`) that we never invalidate on `USER_UPDATED` / `SIGNED_IN`. The root `onAuthStateChange` in `__root.tsx` invalidates `shifts/prefs/employers/coach-history` on sign-in but not `profile` / `subscription` / `entitlements`, so screens keep showing "trial — please verify".
+
+**Fix (Phase 1 approved scope):**
+- In `/auth/callback`: after `verifyOtp` resolves, `await supabase.auth.getUser()` (revalidates with Auth server), then `await supabase.auth.refreshSession()`, then navigate. Use TanStack `navigate({ to, replace: true })` instead of `window.location.assign` so the QueryClient stays warm and the router picks up new context.
+- In `__root.tsx` auth bootstrap: on `SIGNED_IN` / `USER_UPDATED`, additionally `invalidateQueries` for `["profile"]`, `["subscription"]`, `["entitlements"]`, `["trial-status"]`.
+- Add a single `useUser()` / `useProfile()` selector that reads `email_confirmed_at` from live session, not a stale profile row, so verify banners disappear the instant the token updates.
+
+### Bug 2: "Additional QA bug" — investigation target
+The request references a second QA bug without a repro. Investigation deliverable: I will scan the last 48h of runtime errors, network 4xx/5xx, and the QA harness output, and come back with the reproducer + root cause before writing any code. If nothing surfaces, I'll flag it and ask you to describe the symptom before proceeding.
+
+### Audit checklist (report only, no code)
+Auth session hydration, trial countdown source of truth, Stripe subscription status webhook → cache path, `profiles` refresh on OAuth vs email, onboarding-complete flag persistence, sign-out cache teardown parity. Deliver as a short table with pass/fix rows.
 
 ---
 
-## 3. Quick Wins (< 30 min each)
+## Phase 2 — AI Companion Polish (no talking avatar)
 
-Batch 1 — safe, mechanical, ~2 hours total:
+- Generate one premium AI portrait asset (`imagegen` premium tier, transparent PNG) and wire it into `GreetingHeader` (Home) and `pilot.tsx` hero. Reuse existing `OrbBadge` for state; portrait sits behind the orb with a soft aurora glow.
+- Elevate Companion on Home: promote `CompanionHero` above the fold, enlarge portrait, add idle breathing animation (CSS `@keyframes`, respects `prefers-reduced-motion`), pulse glow when a fresh brief is available, speaking-indicator ring reused from `SpeakingIndicator.tsx`.
+- Greeting quality: extend `resolveHero` signals to include next shift (from `shifts`), last night's sleep summary (from `wearable_readings` or manual entry), recovery score, and last conversation topic (from `coach_messages`). Compose greeting server-side in `/api/brief` so it's cache-friendly and voice-ready.
+- Conversation quality: raise system prompt to include shift + sleep + recovery context; add persona presets (Calm Coach, Direct Ops, Warm Friend, Analytical) mapped to voice defaults.
+- Voice UX: in `VoiceSettings`, group by persona, keep the "★ Current" pin, add inline 3-second preview using the existing `/api/tts` route.
 
-- **DebugHUD prod guard** — wrap the export or its render sites in `if (!import.meta.env.DEV && !new URLSearchParams(location.search).has('debug')) return null`.
-- **Refund link fix** — either add `src/routes/legal.refunds.tsx` (thin page referencing subscription terms) or repoint the Paywall link to `/legal/subscription#refunds`.
-- **Lab route guard** — early return in `lab.*` route components when `process.env.NODE_ENV === "production"`; add `<meta name="robots" content="noindex">` via `head()`.
-- **HydrationCard `aria-label`** — "Add a glass", "Remove a glass".
-- **BottomNav `aria-current`** — set on the active NavLink.
-- **`/pilot` day-part greeting** — swap the hardcoded string for `greetingLabel(getDayPart())`.
-- **Notification tag fix** — change `tag: "shiftrest-winddown"` to `tag: kind` in `src/lib/notify.ts:62`.
-- **Contact discoverability** — add link in `AppSidebar` "Help" section and Profile footer row.
-- **BottomNav press feedback** — add `active:scale-95 transition-transform` to the tab link classes.
+Explicit non-goal: no animated talking avatar, no Simli/D-ID work.
 
 ---
 
-## 4. Medium Improvements (30 min – 2 h each)
+## Phase 3 — Wearable Integration (Fitbit + Oura)
 
-- **Shift-delete confirmation** — reuse existing shadcn AlertDialog pattern from Profile → destructive actions.
-- **Employer + account delete → AlertDialog** — remove all `window.confirm` calls for visual consistency.
-- **Replace `ToggleRow` with shadcn `Switch`** — one-file swap in `profile.tsx`; matches design system, gets ARIA + keyboard for free.
-- **Skeleton loaders** — HydrationCard, ShiftList, GreetingHeader avatar, Companion first transcript render. Reuse the existing `Skeleton` component.
-- **Haptics helper** — add `src/lib/haptics.ts` exposing `tap()`, `success()`, `warn()` wrapping `navigator.vibrate` with reduced-motion respect; call from send / save / toggle handlers.
-- **Route transitions** — `@view-transition` CSS + `document.startViewTransition` on router navigation events; graceful fallback to instant nav.
-- **Persona picker** — 5 curated personas ("Pilot — steady coach", "Nova — encouraging friend", "Sage — minimalist", "Ember — motivational", "Luna — warm night companion"). Each preset writes `preferredName + assistantMode + defaultVoiceId` atomically.
-- **Streak + Weekly recap notifications** — new `kind` entries in `copy.ts`, schedule at 09:00 local Sunday and after 3-day streaks.
-- **Hydration cloud sync** — new `hydration_daily` table (user_id, date, glasses) with RLS + GRANTs; migrate localStorage on first load.
-- **Inline AI disclaimer** — small muted chip "Pilot is AI. Verify anything important." shown once per session under composer.
-- **Color token cleanup** — introduce `--info` token; replace `text-sky-*` / `bg-sky-*` / `bg-rose-500` in components with token classes.
+Existing scaffolding: `src/lib/wearables/{fitbit,oura}.server.ts`, OAuth callbacks under `src/routes/api/public/wearables/{fitbit,oura}/callback.ts`, `wearable_connections` and `wearable_readings` tables.
 
----
+Investigation deliverable before code:
+- Confirm Fitbit + Oura OAuth apps exist and secrets are set (`FITBIT_CLIENT_ID/SECRET`, `OURA_CLIENT_ID/SECRET`); if not, list what you need to create in each provider console.
+- Verify token refresh paths and cron sync (`api/public/wearables/cron.ts`) actually pull sleep sessions.
 
-## 5. Major Enhancements (multi-hour / multi-file)
+Implementation:
+- Normalize both providers into `wearable_readings` with fields: sleep duration, bedtime, wake time, HRV, resting HR, provider sleep score.
+- `/health` "Connections" card: Connected state, Last synced timestamp, Sync now button (triggers a serverFn that calls the provider sync). Disconnect stays.
+- Feed the latest reading into the Companion brief context (Phase 2 above) and `/api/insights`.
 
-- **True background reliability for wind-down and caffeine cutoff** — leverage the existing web-push + `pg_cron` dispatcher (same pattern used for Smart Alarm before it was scoped out). Client just enrolls; server dispatches. Removes the tab-must-be-open constraint entirely.
-- **First-run "delight" moment** — after onboarding completes, a 3-second aurora sweep across the dock, one line of Pilot voice speaking the user's preferred name, then dashboard. Consistent with the app's premium tone.
-- **Adaptive Companion tone based on recent recovery** — pull last 3 days of sleep score into the Companion system prompt so replies acknowledge trend ("you're up 12% this week — nice") without user asking.
-- **Onboarding checklist tile on dashboard** — 4-step progress (connect wearable · set shift · enable notifications · pick persona); collapses when complete. Drives activation.
-- **Weekly recap email + in-app card** — reuses existing app-email pipeline; templates already scaffolded.
-- **Redesign paywall plan cards** — surface value per plan more clearly; move "Elite gets voice + priority" to a benefit list, not fine print.
+Out of scope: Apple Health, Garmin, Whoop (remain hidden by `HIDE_PLANNED_PROVIDERS_ON_HEALTH`).
 
 ---
 
-## 6. Nice-to-Have (post-launch)
+## Phase 4 — Health Dashboard Expansion
 
-- **Curated 3D avatar gallery** replacing the free-text RPM URL input.
-- **Emotion states**: add `surprised` and `alert` for time-sensitive nudges.
-- **Localization scaffolding** for the `inferFromText` regex + all UI copy.
-- **Widgets & Live Activities** (requires native wrapper — outside PWA scope).
-- **Shareable recovery streak card** for social proof.
-- **Handoff to partner via Partner Mode** — surface a "Nudge my partner" quick action.
-- **Sleep sound sleep-timer + fade-out**.
+Extend `/health` with a Trends section pulling from `wearable_readings` + manual sleep logs:
+- 7/30-day charts: sleep duration, consistency (bedtime std-dev), recovery, sleep debt (target − actual, rolling 7d), HRV, resting HR.
+- Weekly summary card with delta vs previous week.
+- Use `recharts` (already installed) with theme tokens; empty states when no wearable connected point to the connections card.
 
 ---
 
-## 7. Final Launch Readiness Score
+## Phase 5 — Notifications
 
-| Category | Now | After Quick Wins | After Medium |
-|---|---:|---:|---:|
-| Visual Design | 6 | 7 | 9 |
-| UX Friction | 5 | 7 | 9 |
-| AI Companion | 6 | 7 | 8 |
-| Notifications | 5 | 7 | 9 |
-| Premium Feel | 5 | 6 | 8 |
-| Accessibility | 3 | 6 | 9 |
-| Performance | 5 | 7 | 8 |
-| Trust | 6 | 9 | 9 |
-| **Overall** | **5.1** | **7.0** | **8.6** |
+Existing: `src/lib/notifications/{schedule,run.server,client,copy}.ts`, VAPID push wired via `src/lib/push/*`, pg_cron dispatcher.
 
-**Recommendation:** ship Quick Wins as a single batch before public launch (blockers + a11y + notification tag). Follow with Medium batch in the first week post-launch. Major enhancements plan into a 30-day post-launch roadmap.
+Investigation: enumerate which of the five notification types are already scheduled vs missing, and where each triggers from (client `scheduleNextWindDown` vs server cron).
 
-Awaiting your approval — say which batch to implement first (recommended: Quick Wins) and I'll execute it isolated, no scope creep.
+Deliver all five as server-scheduled push (survives app close, unlike client `setTimeout`):
+- Morning Brief — 45 min before shift start or 07:30 default.
+- Evening Wind-down — 60 min before target bedtime.
+- Bedtime reminder — at target bedtime.
+- Recovery reminder — after a low-recovery night, mid-morning.
+- Shift countdown — 2h before shift.
+
+Each type honors quiet hours + per-type toggles in `notification_prefs`. Logged to `notification_log` for dedupe.
+
+---
+
+## Smart Alarm
+Untouched. `SMART_ALARM_ENABLED` stays `false`. No files in `src/lib/alarm/*`, `src/components/SmartAlarmCard.tsx`, or `dispatch-alarms.ts` will be edited this phase.
+
+---
+
+## Execution Order
+
+Batched to keep each ship reviewable:
+1. **Batch A — Auth refresh fix + QA bug repro/fix.** Small, unblocks trust in signup.
+2. **Batch B — Companion visual polish (portrait, glow, home layout).** Design-only, no data changes.
+3. **Batch C — Companion brief context + persona/voice UX.**
+4. **Batch D — Wearables (Fitbit + Oura end-to-end).**
+5. **Batch E — Health dashboard trends.**
+6. **Batch F — Notifications (five types, server-scheduled).**
+
+Each batch: implement → typecheck → security scan → publish → your on-device verify → next batch.
+
+## Technical Notes
+
+- Router: keep `_authenticated` gate untouched; verification callback stays public.
+- Auth cache invalidation must filter on `SIGNED_IN` / `USER_UPDATED` / `SIGNED_OUT` only (not `TOKEN_REFRESHED`) to avoid the 401 storm noted in project guidance.
+- Wearable serverFns require `requireSupabaseAuth`; cron sync uses `CRON_SECRET` header (already wired).
+- Notification cron reuses existing pg_cron infra; do not create new cron jobs manually — extend the existing dispatcher.
+- All new tables/columns follow the GRANT + RLS ordering rule.
+
+Approve to proceed with **Batch A** only, or tell me which batches to reorder / drop.
