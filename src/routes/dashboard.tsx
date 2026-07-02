@@ -338,7 +338,18 @@ function Dashboard() {
         <div className="absolute right-0 top-1/3 h-[30vh] w-[30vh] rounded-full bg-sky-500/10 blur-[120px]" />
       </div>
 
-      <GreetingHeader name="" now={mounted ? today : new Date(0)} dateLabel={dateLabel} />
+      <CompanionHero
+        name={(prefs.preferredName ?? "").trim()}
+        now={mounted ? today : new Date(0)}
+        dateLabel={dateLabel}
+        context={{
+          nextShiftStart,
+          debtScore: mounted ? debt.score : null,
+          recoveryScore: mounted ? stability : null,
+          recommendedBedtime: null,
+        }}
+      />
+
 
       <OfflineBanner userId={userId} />
       <CompanionIntroSheet />
