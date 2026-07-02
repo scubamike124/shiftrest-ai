@@ -64,6 +64,7 @@ import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibi
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
 import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
 import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiSwapRouteImport } from './routes/api/swap'
@@ -369,6 +370,11 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
   id: '/api/tts-elevenlabs',
   path: '/api/tts-elevenlabs',
@@ -525,7 +531,7 @@ const ApiPublicWearablesFitbitCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
@@ -563,6 +569,7 @@ export interface FileRoutesByFullPath {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -611,7 +618,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
@@ -648,6 +655,7 @@ export interface FileRoutesByTo {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
@@ -696,7 +704,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
   '/companion': typeof CompanionRoute
@@ -734,6 +742,7 @@ export interface FileRoutesById {
   '/api/swap': typeof ApiSwapRoute
   '/api/tts': typeof ApiTtsRoute
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
@@ -822,6 +831,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
     | '/legal/acceptable-use'
@@ -907,6 +917,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
@@ -992,6 +1003,7 @@ export interface FileRouteTypes {
     | '/api/swap'
     | '/api/tts'
     | '/api/tts-elevenlabs'
+    | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
     | '/legal/acceptable-use'
@@ -1041,7 +1053,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   AutomationsRoute: typeof AutomationsRoute
   CoachRoute: typeof CoachRoute
   CompanionRoute: typeof CompanionRoute
@@ -1494,6 +1506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/api/tts-elevenlabs': {
       id: '/api/tts-elevenlabs'
       path: '/api/tts-elevenlabs'
@@ -1700,6 +1719,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 interface LegalRouteChildren {
   LegalAcceptableUseRoute: typeof LegalAcceptableUseRoute
   LegalAccessibilityRoute: typeof LegalAccessibilityRoute
@@ -1758,7 +1787,7 @@ const LabAvatarPocRouteWithChildren = LabAvatarPocRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   AutomationsRoute: AutomationsRoute,
   CoachRoute: CoachRoute,
   CompanionRoute: CompanionRoute,
