@@ -347,18 +347,18 @@ function CompanionPage() {
     if (messages.length > 0) return;
     greetedRef.current = true;
     const name = firstName(prefs ?? ({} as Prefs));
-    const hour = new Date().getHours();
+    const now = new Date();
+    const part = getDayPart(now);
+    const label = greetingLabel(now);
     // Soft lead-in ("… ") + comma break = ElevenLabs eases into the opener at
     // mid-prose loudness instead of a punchy, louder/faster cold start. Mirrors
     // the fix shipped for the Dashboard Voice Briefing.
-    const opener =
-      hour >= 5 && hour < 12
-        ? `… Good morning, ${name}. I'm here — how can I help this morning?`
-        : hour >= 12 && hour < 17
-        ? `… Good afternoon, ${name}. I'm here — how can I help this afternoon?`
-        : hour >= 17 && hour < 22
-        ? `… Good evening, ${name}. I'm here — how can I help this evening?`
-        : `… Good evening, ${name}. I'm here — want something calming to help you sleep?`;
+    const tail =
+      part === "morning" ? "I'm here — how can I help this morning?"
+      : part === "afternoon" ? "I'm here — how can I help this afternoon?"
+      : part === "evening" ? "I'm here — how can I help this evening?"
+      : "I'm here — want something calming to help you sleep?";
+    const opener = `… ${label}, ${name}. ${tail}`;
     setMessages([{ role: "assistant", content: opener }]);
     greetingTextRef.current = opener;
     emitDebug("greet-shown");
