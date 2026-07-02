@@ -62,6 +62,7 @@ export function AppSidebar() {
             <Link
               key={n.to}
               to={n.to}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active
                   ? "bg-secondary/80 text-foreground"
