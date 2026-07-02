@@ -80,7 +80,12 @@ export async function fetchPersonalSignals(
   userId: string,
   now: Date = new Date(),
 ): Promise<string[]> {
-  const [prefsRes, wearRes, shiftRes] = await Promise.allSettled([
+  // Fetch a wider shift window: last 10 days + next 14 days so we can
+  // detect in-progress shift, consecutive work-days, and next day off.
+  const shiftFrom = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
+  const shiftTo = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [prefsRes, wearRes, shiftRes, alarmRes] = await Promise.allSettled([
     admin
       .from("user_prefs")
       .select("sleep_hours, wind_down_min, home_tz, current_tz")
@@ -88,7 +93,9 @@ export async function fetchPersonalSignals(
       .maybeSingle(),
     admin
       .from("wearable_readings")
-      .select("date, sleep_duration_min, sleep_efficiency, hrv_ms, resting_hr")
+      .select(
+        "date, sleep_start, sleep_end, sleep_duration_min, sleep_efficiency, hrv_ms, resting_hr",
+      )
       .eq("user_id", userId)
       .order("date", { ascending: false })
       .limit(14),
@@ -97,8 +104,16 @@ export async function fetchPersonalSignals(
       .select("start_utc, end_utc, title, shift_type")
       .eq("user_id", userId)
       .not("start_utc", "is", null)
-      .gt("start_utc", now.toISOString())
-      .order("start_utc", { ascending: true })
+      .gte("start_utc", shiftFrom)
+      .lte("start_utc", shiftTo)
+      .order("start_utc", { ascending: true }),
+    admin
+      .from("user_events")
+      .select("starts_at, title")
+      .eq("user_id", userId)
+      .eq("kind", "smart-alarm")
+      .gt("starts_at", now.toISOString())
+      .order("starts_at", { ascending: true })
       .limit(1),
   ]);
 
@@ -110,6 +125,7 @@ export async function fetchPersonalSignals(
       : null;
   const tz = (prefs?.current_tz || prefs?.home_tz || "UTC").trim() || "UTC";
   const goalHours = prefs?.sleep_hours ?? null;
+
 
   // 1. Local wall clock — anchors every time-of-day answer.
   const clock = localClockLine(now, tz);
