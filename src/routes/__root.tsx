@@ -190,6 +190,9 @@ function RootComponent() {
       queryClient.invalidateQueries({ queryKey: ["prefs"] });
       queryClient.invalidateQueries({ queryKey: ["employers"] });
       queryClient.invalidateQueries({ queryKey: ["coach-history"] });
+      // Trial/verification chrome reads from this key — invalidate so a fresh
+      // sign-in / just-verified session refreshes across every screen.
+      queryClient.invalidateQueries({ queryKey: ["subscription-state"] });
       await scheduleNextWindDown();
     }
     bootstrapAuthed();
