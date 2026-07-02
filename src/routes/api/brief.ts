@@ -73,6 +73,12 @@ export const Route = createFileRoute("/api/brief")({
       POST: async ({ request }) => {
         const started = Date.now();
 
+        // Require authenticated user — briefing hits the AI gateway.
+        const { requireUser } = await import("@/lib/api/auth.server");
+        const auth = await requireUser(request);
+        if ("response" in auth) return auth.response;
+
+
         let plan: string | undefined;
         let localTime: string | undefined;
         let timezone: string | undefined;

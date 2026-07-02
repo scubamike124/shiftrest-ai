@@ -83,6 +83,11 @@ export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Require an authenticated user — TTS is a paid provider call.
+        const { requireUser } = await import("@/lib/api/auth.server");
+        const auth = await requireUser(request);
+        if ("response" in auth) return auth.response;
+
         try {
           const body = (await request.json()) as {
             text?: string;

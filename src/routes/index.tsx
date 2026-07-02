@@ -35,7 +35,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, smart alarm, wind-down guidance, and a personal assistant built for shift life.",
+          "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, wind-down guidance, and a personal assistant built for shift life.",
       },
       { property: "og:title", content: "Meet the AI companion that helps you unwind, sleep & wake up better" },
       {
@@ -120,12 +120,11 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
               <span className="sm:hidden">
-                Tap to talk. Sleep sounds, smart alarm, and wind-down guidance — one calm assistant for the hours that wreck everyone else.
+                Tap to talk. Sleep sounds and wind-down guidance — one calm assistant for the hours that wreck everyone else.
               </span>
               <span className="hidden sm:inline">
-                Tap your companion after work, ask for calming sounds, start a
-                wind-down routine, or let her wake you at the right time —
-                a personal assistant built for shift life.
+                Tap your companion after work, ask for calming sounds, or start
+                a wind-down routine — a personal assistant built for shift life.
               </span>
             </p>
 
@@ -137,14 +136,6 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 Start free — 7 days
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <a
-                href="https://shift-rest-ai.lovable.app/lab/avatar-poc/simli"
-                className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-6 py-3.5 text-sm font-semibold text-foreground backdrop-blur-sm transition hover:bg-primary/20 active:bg-primary/25"
-                style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(255,255,255,0.12)" }}
-              >
-                Open Simli Test
-                <ArrowRight className="h-4 w-4" />
-              </a>
               <Link
                 to="/companion"
                 search={{ intro: 1, greet: 1 }}
@@ -237,7 +228,7 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
           </span>
           <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Sleep sounds</span>
-            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Smart alarm</span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Coach chat</span>
             <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Wind-down</span>
           </div>
         </div>
@@ -403,7 +394,7 @@ function CoachMock() {
             </ul>
             <div className="mt-4 flex gap-2 text-[11px]">
               <ChipBtn>Add to plan</ChipBtn>
-              <ChipBtn>Set smart alarm</ChipBtn>
+              <ChipBtn>Start wind-down</ChipBtn>
               <ChipBtn>Brief me by voice</ChipBtn>
             </div>
           </div>
@@ -1023,7 +1014,7 @@ function Testimonials() {
       a: "Maya · ICU RN, Boston",
     },
     {
-      q: "Smart alarm in the cockpit hotel actually works. I land sharper than I have in years.",
+      q: "Wind-down in the cockpit hotel actually works. I land sharper than I have in years.",
       a: "Devin · Captain, regional airline",
     },
     {

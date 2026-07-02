@@ -35,6 +35,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
     handlers: {
       POST: async ({ request }) => {
         const t0 = Date.now();
+
+        // Require authenticated user — ElevenLabs is a paid provider call.
+        const { requireUser } = await import("@/lib/api/auth.server");
+        const auth = await requireUser(request);
+        if ("response" in auth) return auth.response;
+
         try {
           const reqBody = (await request.json()) as {
             text?: string;
