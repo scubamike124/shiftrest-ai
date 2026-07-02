@@ -22,6 +22,18 @@ export const ensureWelcomeEmailFn = createServerFn({ method: "POST" })
     }
     if (!profile.email) return { sent: false as const, reason: "no_email" };
 
+    // Resolve greeting name: preferred_name → real display_name → name-less.
+    // Never fall back to email-prefix / username.
+    const { loadPreferredNameServer } = await import("@/lib/user/display-name.server");
+    const preferred = await loadPreferredNameServer(supabaseAdmin, uid);
+    const emailPrefix = profile.email.split("@")[0];
+    const displayName = (profile.display_name ?? "").trim();
+    const realDisplayName =
+      displayName && displayName.toLowerCase() !== emailPrefix.toLowerCase()
+        ? displayName
+        : "";
+    const greetingName = preferred || realDisplayName || undefined;
+
     // Set the flag FIRST, guarding against a race between two tabs. Only send
     // if we won the update.
     const { data: updated, error: updateErr } = await supabaseAdmin
@@ -41,8 +53,9 @@ export const ensureWelcomeEmailFn = createServerFn({ method: "POST" })
       templateName: "welcome",
       recipientEmail: profile.email,
       idempotencyKey: `welcome-${uid}`,
-      templateData: { name: profile.display_name || undefined },
+      templateData: { name: greetingName },
     });
+
 
     if (!("success" in result) || !result.success) {
       // Roll back the flag so a future retry can succeed.

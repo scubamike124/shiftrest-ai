@@ -1,18 +1,15 @@
 /**
  * ArrivalHero — personalized greeting shown on the dashboard.
- * Step 1 of the "One Trusted Companion" phase.
  *
- * Pulls display_name from the user's profile and surfaces the latest
- * RightNow action (cached in sessionStorage by RightNowCard) so the
- * dashboard greets the user with something the AI has *already done*.
- *
- * No extra LLM calls — reuses the right_now intent's existing cache.
+ * Uses the shared Preferred Name helper (user_prefs.preferred_name only —
+ * never email / username / Google display name) and surfaces the latest
+ * RightNow action cached by RightNowCard.
  */
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useDecisionsSinceLastVisit, useNextDecision } from "@/lib/ai/decisions";
 import { greetingLabel } from "@/lib/time/day-part";
+import { loadPreferredName } from "@/lib/user/display-name";
 
 const RIGHT_NOW_CACHE_KEY = "rp_right_now_v1";
 
@@ -34,11 +31,6 @@ function readCachedAction(): CachedRightNow | null {
   }
 }
 
-// Time-of-day label is centralised in @/lib/time/day-part so every
-// greeting surface (Home, Companion, brief, notifications) uses the same
-// bucket boundaries and never drifts.
-
-
 function firstName(preferred: string | null | undefined): string {
   const raw = (preferred ?? "").trim();
   if (!raw) return "";
@@ -55,17 +47,11 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
     setCached(readCachedAction());
 
     let cancelled = false;
-    supabase.auth.getUser().then(async ({ data }) => {
-      const user = data.user;
-      if (!user || cancelled) return;
-      const { data: prefsRow } = await supabase
-        .from("user_prefs")
-        .select("preferred_name")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      setName(firstName(prefsRow?.preferred_name ?? null));
-    });
+    loadPreferredName()
+      .then((preferred) => {
+        if (!cancelled) setName(firstName(preferred));
+      })
+      .catch(() => { /* noop */ });
 
     // Listen for RightNowCard updates so the hero refreshes when the AI acts.
     function onStorage(e: StorageEvent) {
@@ -77,6 +63,7 @@ export function ArrivalHero({ dateLabel }: { dateLabel: string }) {
       window.removeEventListener("storage", onStorage);
     };
   }, []);
+
 
   const now = mounted ? new Date() : new Date(2000, 0, 1, 12, 0, 0);
   const greeting = greetingLabel(now);
