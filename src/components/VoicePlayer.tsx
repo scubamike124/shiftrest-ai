@@ -3,6 +3,7 @@ import { Volume2, Loader2, Square } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { expandForSpeech } from "@/lib/voice-rewriter";
+import { supabase } from "@/integrations/supabase/client";
 import {
   speakQueued,
   stopSpeaking,
