@@ -10,6 +10,7 @@ import {
   type SpeakMode,
   type VoiceProfile,
 } from "@/lib/voice/profile";
+import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 
 type Fallback = {
   fallback: true;
