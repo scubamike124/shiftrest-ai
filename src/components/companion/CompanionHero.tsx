@@ -60,25 +60,17 @@ export function CompanionHero() {
 
   useEffect(() => {
     let cancelled = false;
-    // Read user_prefs.preferred_name only — never fall back to email or
-    // Google display name (per Preferred Name spec).
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      const uid = u.user?.id;
-      if (!uid || cancelled) return;
-      const { data: row } = await supabase
-        .from("user_prefs")
-        .select("preferred_name")
-        .eq("user_id", uid)
-        .maybeSingle();
-      if (cancelled) return;
-      const name = (row?.preferred_name ?? "").trim();
-      setDisplayName(name);
-    })().catch(() => { /* noop */ });
+    // Preferred Name only — never fall back to email or Google display name.
+    loadPreferredName()
+      .then((name) => {
+        if (!cancelled) setDisplayName(name);
+      })
+      .catch(() => { /* noop */ });
     return () => {
       cancelled = true;
     };
   }, []);
+
 
   const view = useMemo(() => {
     const prefs = loadLocalPrefs();
