@@ -44,6 +44,8 @@ export const Route = createFileRoute("/")({
           "Tap your companion after work. Ask for calming sounds, start a wind-down routine, or let Aura wake you at the right time.",
       },
       { property: "og:url", content: "https://shift-rest-ai.lovable.app/" },
+      { property: "og:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
+      { name: "twitter:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
     ],
     links: [{ rel: "canonical", href: "https://shift-rest-ai.lovable.app/" }],
   }),
