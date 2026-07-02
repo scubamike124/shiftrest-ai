@@ -260,6 +260,12 @@ export const Route = createFileRoute("/api/ai")({
           admin = getAdminClient();
         } catch (e) {
           const msg = e instanceof AIError ? e.message : "Backend error";
+          notifyOwnerAsync({
+            severity: "critical",
+            service: "ai",
+            message: "config_missing: admin client init failed",
+            meta: { error: msg },
+          });
           return jsonError(500, msg);
         }
 
