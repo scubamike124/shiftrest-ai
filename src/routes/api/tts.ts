@@ -111,6 +111,11 @@ export const Route = createFileRoute("/api/tts")({
           const apiKey = process.env.LOVABLE_API_KEY;
           if (!apiKey) {
             console.error("[tts] LOVABLE_API_KEY missing");
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "tts",
+              message: "config_missing: LOVABLE_API_KEY not set",
+            });
             return fallback("config", messageFromReason("config"));
           }
 
