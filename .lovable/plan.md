@@ -1,176 +1,129 @@
-# AI Companion Final Polish — Investigation & Plan
+# RestPilot AI — Launch Polish & Readiness Audit
 
-Investigation complete. No code changes yet. Below is the file map, dependencies, complexity, and a safe implementation order for the 15 items.
-
----
-
-## Item-by-item investigation
-
-### 1. Personalized greetings
-- **Current**: Static greetings live in `src/components/home/GreetingHeader.tsx` (`greeting()`), `src/lib/companion/hero-state.ts`, `src/components/morning/cards/GreetingCard.tsx`, and are also generated in `src/routes/api/brief.ts` and `src/routes/api/ai.ts` (server-side).
-- **Fix**: Introduce a single server helper `src/lib/companion/personalized-greeting.server.ts` that combines: time bucket, last night's sleep score, recovery score, next shift, next smart alarm, active recommendation. Return `{ salutation, contextLine }`. Feed it into `/api/brief` (spoken + cards) and expose via a small `/api/greeting` used by `GreetingHeader` and `CompanionHero`.
-- **Complexity**: M.
-
-### 2. Time-of-day consistency
-- **Current**: Buckets are defined independently in `GreetingHeader.tsx` (5/12/17/22), `GreetingCard.tsx` (early/morning/midday), `hero-state.ts`, `lib/ai/time-directive.ts`, and `brief.ts`. Boundaries and labels differ.
-- **Fix**: Add `src/lib/time/day-part.ts` exporting `getDayPart(date, tz)` → `"morning" | "afternoon" | "evening" | "night"` with canonical labels `"Good morning" | "Good afternoon" | "Good evening" | "Winding down"`. Replace every ad‑hoc bucket calc with this helper. Guarantees home, spoken brief, notifications, and hero all say the same phrase for the same moment.
-- **Complexity**: S.
-
-### 3. Preferred name everywhere
-- **Current**: `CompanionHero` already reads only `user_prefs.preferred_name`. `GreetingHeader` receives `name` from the dashboard route — need to confirm it's not falling back to email/username. Server (`brief.ts`, `ai.ts`, `notifications/run.server.ts`) still uses several fallbacks in a couple of paths.
-- **Fix**: 
-  - Central helper `src/lib/user/display-name.ts` (client) + `src/lib/user/display-name.server.ts`: returns `preferred_name` only, empty string if unset.
-  - Update `dashboard.tsx` to source name from `user_prefs.preferred_name` (not `profiles.username`).
-  - Onboarding (`src/components/Onboarding.tsx`) — first step copy → "What would you like me to call you?" and writes to `user_prefs.preferred_name`.
-  - Server callers use `.server` helper for greetings + notification templates.
-- **Complexity**: S–M.
-
-### 4. AI voice everywhere
-- **Current**: Voice selection is in `src/components/voice/VoiceSettings.tsx` and stored on `user_prefs` (`voice_*` columns). `VoicePlayer`, `/api/tts`, and `/api/tts-elevenlabs` accept a per-request voice, but some callers pass no voice and get the default.
-- **Fix**: In `/api/tts` + `/api/tts-elevenlabs`, when the request omits a voice, resolve `user_prefs.default_voice_id` server-side. Ensure Pilot, Companion, Brief, Wind-down, and Smart Alarm coach all call TTS without hard-coded voice ids so the server resolves the user's favorite.
-- Tone: pass `stability`/`similarity` presets tuned for "calm & slow" (ElevenLabs `stability=0.6`, `style=0.15`, `speaker_boost=true`, `speed=0.92`).
-- **Complexity**: S.
-
-### 5. Favorite voice
-- **DB**: Add column `user_prefs.default_voice_id text` (migration). Also `default_voice_provider text` if needed.
-- **UI**: In `VoiceSettings.tsx`, add a ★ button per voice → writes `default_voice_id`. Show "Default" badge.
-- **Server**: Above `/api/tts` change reads this column when no override.
-- **Complexity**: S.
-
-### 6. Companion home screen fill-out
-- **File**: `src/routes/companion.tsx`.
-- **Add cards** (reuse existing components where possible):
-  - Recovery Score + Sleep Score → new `CompanionScoresCard` (data from `/api/brief` + wearable_readings).
-  - Today's Focus → derived from `ai_recommendations`.
-  - Today's Schedule → existing `AgendaCard`.
-  - AI Recommendation → `AIBriefCard` compact variant.
-  - Recent Conversations → last 5 `coach_messages`.
-  - Quick Questions → predefined chips → open `/companion` with prefilled prompt.
-  - Smart Suggestions → `routine_suggestions` top 2.
-  - Upcoming Alarm → shows next `user_events` (kind=smart-alarm).
-  - Recovery Progress → 7‑day sparkline.
-- Keep the large Talk button pinned. Use a 2‑column grid on desktop, single column on mobile with subtle stagger fade‑in.
-- **Complexity**: M–L.
-
-### 7. Employer cards
-- **File**: `src/components/EmployersManager` (search: `employers` table). Uses `employers` (18 cols) — should already have `color` or similar; if not, migration adds `icon text`, `color text`.
-- **UI**: Preset picker (Hospital, Fire, Police, Airline, Manufacturing, Corporate, Custom) with matching emoji/lucide icon and color chip. Card shows icon + name + shift stats. Custom option = free‑text icon or emoji + color.
-- **Complexity**: S.
-
-### 8. Partner Mode (short share links)
-- **DB**: New table `partner_shares` (id serial code text UNIQUE, user_id, payload jsonb, expires_at, created_at). Grants + RLS.
-- **API**: `POST /api/public/partner-share` (auth'd creator: server fn generates 6-char code) returning `restpilotai.com/share/{code}`. `/share/$code.tsx` route resolves it. QR via `qrcode.react` (add package).
-- **UI**: New `PartnerShareCard.tsx` with Share (Web Share API), Copy, QR, preview iframe. Illustration: simple SVG "You → Partner" with moon.
-- **Complexity**: M.
-
-### 9. Location card
-- **File**: `src/components/weather/WeatherLocationCard.tsx` + new `LocationCard.tsx` on dashboard. Data from `user_prefs.current_tz`, geolocation permission → reverse geocode via Open‑Meteo, sunrise/sunset from Open‑Meteo daily.
-- Add short explainer "Why location matters — jet lag, circadian light, sunrise timing."
-- **Complexity**: S.
-
-### 10. Shift Swap Copilot + "Missing authorization"
-- **File**: `src/routes/swap.tsx`, `src/routes/api/swap.ts`. Auth bug is likely same class as AIBriefCard — client `fetch("/api/swap")` without `Authorization: Bearer`. Confirmed pattern seen elsewhere.
-- **Fix (bug)**: attach bearer in swap client fetch; add friendly signed-out state.
-- **Fix (feature)**: Extend `/api/swap` to compute Recovery Cost, Sleep Debt delta, Fatigue peak, Recovery timeline (hours), Recommended decision (accept/decline/counter), rationale, alternative swaps. Render as a stacked results card with confidence badge.
-- **Complexity**: M.
-
-### 11. Upgrade card position
-- **File**: `src/routes/dashboard.tsx` (and `companion.tsx`). Move `<UpgradeCTA>` below Focus/Recommendation section, above footer. No new component.
-- **Complexity**: XS.
-
-### 12. AI personality options
-- **DB**: extend `user_prefs.assistant_mode` allowed values. Current is a text column, so no enum migration needed. New set: `coach | friend | professional | minimal | warm | encouraging | motivational | supportive`.
-- **Server**: `src/lib/ai/context.server.ts` — extend `MODE_OVERLAYS` with new personas and per‑mode voice prompt tweaks.
-- **UI**: `AssistantSettings.tsx` — replace three-way selector with card grid, each with 1‑line personality description.
-- **Complexity**: S.
-
-### 13. Micro-animations
-- Use existing tailwind animations plus Motion/React (`framer-motion` already present via companion). Additions:
-  - Route transitions in `__root.tsx` `<Outlet>` wrapper.
-  - `animate-fade-in` staggers on dashboard/companion card grids.
-  - Talk button press → subtle spring.
-  - AI thinking → reuse `ThinkingShimmer`.
-  - Haptics via `navigator.vibrate(8)` in a `useHaptic()` hook.
-- **Complexity**: S.
-
-### 14. AI Avatar prep
-- Existing: `Avatar.tsx`, `Avatar3D.tsx`, `CompanionAvatar.tsx`, Simli lab. 
-- Prep work only: 
-  - Extract emotion state → `src/lib/companion/avatar-emotion.ts` (idle/listening/speaking/celebrate/comfort).
-  - Wire STT/TTS events to state store.
-  - Blink loop + soft breathing motion (framer-motion) on Avatar.
-  - Add "avatar reactions" hook `useAvatarReactions()` used by brief screens.
-- Full lip‑sync/expression pipeline stays for Phase 1 completion later.
-- **Complexity**: M.
-
-### 15. Overall companion feel
-- Cross‑cutting: consistent copy tone pass, ensure every empty state has warm microcopy, no raw errors. Add `WelcomeBackHero` on companion first-visit-per-day.
+Investigation only. No code changed. Every finding is grounded in a real file:line reference.
 
 ---
 
-## Dependency graph
+## 1. Executive Summary
 
-```text
-[2 day-part helper] ──┐
-                      ├─► [1 personalized greeting] ──► [6 companion home cards]
-[3 preferred name] ───┘                                 │
-                                                        ├─► [11 upgrade card move]
-[5 favorite voice DB] ──► [4 voice everywhere] ────────►│
-                                                        │
-[10 swap auth fix] ──► [10 swap copilot logic] ────────►│
-[7 employer schema] ──► [7 employer cards UI] ─────────►│
-[8 partner_shares tbl] ──► [8 share UI + /share route] ►│
-[9 location data]      ─────────────────────────────────►│
-[12 personality] ─► [context.server prompt] ────────────►│
-[13 micro-animations]  ─── applied last across all screens
-[14 avatar prep]       ─── parallel, isolated to companion route
-```
+RestPilot is functionally ready. The foundations users touch daily — auth, Companion, sleep engine, notifications backend, legal coverage, Stripe billing, email — are solid. The gap between "works" and "feels like Apple/Headspace" is a short list of high-impact issues plus a longer list of polish items.
 
----
+**Three launch blockers** must ship before Publish:
+1. **DebugHUD renders in production** — internal AI event log, HTTP codes, and orb state are visible to end users (Companion, Onboarding).
+2. **`/legal/refunds` returns 404** — linked from the Paywall CTA area (`paywall.tsx:256`) at the exact conversion moment.
+3. **`/lab/*` routes are publicly reachable** — internal POC UI (`lab.avatar-poc.tsx`) exposed to visitors and search engines.
 
-## Recommended implementation order (safe → shippable in batches)
+**Two high-severity UX/a11y bugs** should follow immediately:
+4. **Shift delete has no confirmation** (`dashboard.tsx:243`) — one accidental tap destroys real data.
+5. **`ToggleRow` uses `<span onClick>`** (`profile.tsx:1011`) — not keyboard-accessible, fails WCAG 2.1.1.
 
-1. **Batch F-1 — Foundations (no UI risk)**
-   - Item 2 day-part helper
-   - Item 3 preferred-name helpers + Onboarding copy
-   - Item 5 migration `default_voice_id`
-   - Item 12 personality overlays in `context.server.ts`
-   - Migration: `partner_shares`, `employers.icon/color` if missing.
+Everything else is polish that lifts the app from "good" to "premium": haptics on key actions, skeleton loaders, route transitions, Companion in BottomNav, streak + weekly-recap notifications, a curated persona picker, inline AI disclaimer, and hydration sync to the cloud.
 
-2. **Batch F-2 — Voice & Greeting**
-   - Item 1 `personalized-greeting.server.ts` + wire to `/api/brief`
-   - Item 4 TTS default-voice resolution + calm preset
-   - Item 5 ★ favorite UI in `VoiceSettings`
-
-3. **Batch F-3 — Bug fixes**
-   - Item 10a swap "Missing authorization" bearer fix (mirrors AIBriefCard fix)
-
-4. **Batch F-4 — Companion home**
-   - Item 6 cards on `/companion`
-   - Item 11 move Upgrade CTA
-   - Item 9 Location card
-   - Item 7 Employer card visuals
-
-5. **Batch F-5 — Partner Mode + Swap Copilot**
-   - Item 8 short share links + QR
-   - Item 10b Swap decision engine output
-
-6. **Batch F-6 — Polish**
-   - Item 13 micro-animations
-   - Item 14 avatar prep hooks + idle/blink
-
-Each batch is independently publishable and rolls back cleanly.
+**Overall readiness: 5.1 / 10 → 8.5 / 10** after Quick Wins + Medium batch land.
 
 ---
 
-## Files touched (summary)
+## 2. Top 25 Improvements (ranked by impact)
 
-- New: `src/lib/time/day-part.ts`, `src/lib/user/display-name.ts` (+ `.server.ts`), `src/lib/companion/personalized-greeting.server.ts`, `src/lib/companion/avatar-emotion.ts`, `src/components/companion/CompanionScoresCard.tsx`, `PartnerShareCard.tsx`, `LocationCard.tsx`, route `src/routes/share.$code.tsx`, `src/routes/api/public/partner-share.ts`.
-- Modified: `GreetingHeader.tsx`, `GreetingCard.tsx`, `hero-state.ts`, `time-directive.ts`, `api/brief.ts`, `api/ai.ts`, `api/tts.ts`, `api/tts-elevenlabs.ts`, `api/swap.ts`, `swap.tsx`, `companion.tsx`, `dashboard.tsx`, `VoiceSettings.tsx`, `AssistantSettings.tsx`, `Onboarding.tsx`, `context.server.ts`, `notifications/run.server.ts`, `EmployersManager` + `WeatherLocationCard.tsx`, `__root.tsx`, `Avatar.tsx`.
-- Migrations: `default_voice_id`, `partner_shares`, employers icon/color if absent.
+| # | Improvement | Severity | Effort |
+|---|---|---|---|
+| 1 | Gate `DebugHUD` behind `import.meta.env.DEV` or a query flag | critical | 10 min |
+| 2 | Create `/legal/refunds` route (or repoint the link to `/legal/subscription#refunds`) | critical | 20 min |
+| 3 | Guard `/lab/*` routes behind auth + `NODE_ENV !== "production"` and add `noindex` | critical | 20 min |
+| 4 | Add confirm-dialog for shift delete (reuse shadcn AlertDialog) | critical | 25 min |
+| 5 | Replace `ToggleRow` with shadcn `Switch` (keyboard + ARIA out of the box) | critical | 30 min |
+| 6 | Replace `window.confirm` (employer + account delete) with shadcn AlertDialog | warning | 30 min |
+| 7 | Add `aria-label` to icon-only buttons in HydrationCard, quick grid, dock | critical | 20 min |
+| 8 | Add `aria-current="page"` to active BottomNav tab | warning | 5 min |
+| 9 | Add Companion tab to BottomNav (or a persistent orb-in-nav) | warning | 25 min |
+| 10 | Add haptic (`navigator.vibrate(10)`) on send / save / toggle across app | premium | 45 min |
+| 11 | Introduce skeleton loaders on dashboard cards + Companion transcript first paint | warning | 1 h |
+| 12 | Add subtle route enter/exit (CSS `view-transition-name` or a light fade — no framer-motion needed) | premium | 45 min |
+| 13 | Curated persona picker (5 named personas → sets name + tone + voice) | warning | 1.5 h |
+| 14 | Inline AI disclaimer chip under Companion input on first session per day | warning | 20 min |
+| 15 | Add `weekly-recap` and `streak-nudge` notification kinds to `copy.ts` + scheduler | warning | 1 h |
+| 16 | Fix `showNotification()` tag collision — use `tag: kind` not the hardcoded `"shiftrest-winddown"` | critical | 5 min |
+| 17 | Move client `scheduleNextWindDown()` off `setTimeout` — rely on server push (already exists) | warning | 30 min |
+| 18 | Use `useSession()` in `/pilot`, remove the 3 inline `supabase.auth.getSession()` calls | warning | 20 min |
+| 19 | Replace sky-500 / rose-500 hardcodes with tokens (add `--info` and use `--destructive`) | warning | 30 min |
+| 20 | Sync Hydration data to Supabase (currently localStorage-only, resets across devices) | warning | 1.5 h |
+| 21 | Day-part greeting on `/pilot` (reuse `getDayPart` — already used elsewhere) | warning | 10 min |
+| 22 | Surface `/contact` in AppSidebar and Profile footer (currently undiscoverable) | warning | 10 min |
+| 23 | Add "step X of Y" live region to CompanionIntroSheet dots | warning | 15 min |
+| 24 | Add `active:scale-95` press feedback to BottomNav tabs and quick-grid cards | nice | 15 min |
+| 25 | Gate ElevenLabs voice picker behind entitlement in `settings.companion` | warning | 20 min |
 
-## Risk & complexity totals
-- XS: 1  · S: 7  · M: 5  · L: 1 (companion home).
-- Highest risk: Item 6 (largest surface) and Item 8 (new public route). Mitigated by keeping each in its own batch with feature flag `COMPANION_HOME_V2`.
+---
 
-Awaiting approval to begin **Batch F-1**.
+## 3. Quick Wins (< 30 min each)
+
+Batch 1 — safe, mechanical, ~2 hours total:
+
+- **DebugHUD prod guard** — wrap the export or its render sites in `if (!import.meta.env.DEV && !new URLSearchParams(location.search).has('debug')) return null`.
+- **Refund link fix** — either add `src/routes/legal.refunds.tsx` (thin page referencing subscription terms) or repoint the Paywall link to `/legal/subscription#refunds`.
+- **Lab route guard** — early return in `lab.*` route components when `process.env.NODE_ENV === "production"`; add `<meta name="robots" content="noindex">` via `head()`.
+- **HydrationCard `aria-label`** — "Add a glass", "Remove a glass".
+- **BottomNav `aria-current`** — set on the active NavLink.
+- **`/pilot` day-part greeting** — swap the hardcoded string for `greetingLabel(getDayPart())`.
+- **Notification tag fix** — change `tag: "shiftrest-winddown"` to `tag: kind` in `src/lib/notify.ts:62`.
+- **Contact discoverability** — add link in `AppSidebar` "Help" section and Profile footer row.
+- **BottomNav press feedback** — add `active:scale-95 transition-transform` to the tab link classes.
+
+---
+
+## 4. Medium Improvements (30 min – 2 h each)
+
+- **Shift-delete confirmation** — reuse existing shadcn AlertDialog pattern from Profile → destructive actions.
+- **Employer + account delete → AlertDialog** — remove all `window.confirm` calls for visual consistency.
+- **Replace `ToggleRow` with shadcn `Switch`** — one-file swap in `profile.tsx`; matches design system, gets ARIA + keyboard for free.
+- **Skeleton loaders** — HydrationCard, ShiftList, GreetingHeader avatar, Companion first transcript render. Reuse the existing `Skeleton` component.
+- **Haptics helper** — add `src/lib/haptics.ts` exposing `tap()`, `success()`, `warn()` wrapping `navigator.vibrate` with reduced-motion respect; call from send / save / toggle handlers.
+- **Route transitions** — `@view-transition` CSS + `document.startViewTransition` on router navigation events; graceful fallback to instant nav.
+- **Persona picker** — 5 curated personas ("Pilot — steady coach", "Nova — encouraging friend", "Sage — minimalist", "Ember — motivational", "Luna — warm night companion"). Each preset writes `preferredName + assistantMode + defaultVoiceId` atomically.
+- **Streak + Weekly recap notifications** — new `kind` entries in `copy.ts`, schedule at 09:00 local Sunday and after 3-day streaks.
+- **Hydration cloud sync** — new `hydration_daily` table (user_id, date, glasses) with RLS + GRANTs; migrate localStorage on first load.
+- **Inline AI disclaimer** — small muted chip "Pilot is AI. Verify anything important." shown once per session under composer.
+- **Color token cleanup** — introduce `--info` token; replace `text-sky-*` / `bg-sky-*` / `bg-rose-500` in components with token classes.
+
+---
+
+## 5. Major Enhancements (multi-hour / multi-file)
+
+- **True background reliability for wind-down and caffeine cutoff** — leverage the existing web-push + `pg_cron` dispatcher (same pattern used for Smart Alarm before it was scoped out). Client just enrolls; server dispatches. Removes the tab-must-be-open constraint entirely.
+- **First-run "delight" moment** — after onboarding completes, a 3-second aurora sweep across the dock, one line of Pilot voice speaking the user's preferred name, then dashboard. Consistent with the app's premium tone.
+- **Adaptive Companion tone based on recent recovery** — pull last 3 days of sleep score into the Companion system prompt so replies acknowledge trend ("you're up 12% this week — nice") without user asking.
+- **Onboarding checklist tile on dashboard** — 4-step progress (connect wearable · set shift · enable notifications · pick persona); collapses when complete. Drives activation.
+- **Weekly recap email + in-app card** — reuses existing app-email pipeline; templates already scaffolded.
+- **Redesign paywall plan cards** — surface value per plan more clearly; move "Elite gets voice + priority" to a benefit list, not fine print.
+
+---
+
+## 6. Nice-to-Have (post-launch)
+
+- **Curated 3D avatar gallery** replacing the free-text RPM URL input.
+- **Emotion states**: add `surprised` and `alert` for time-sensitive nudges.
+- **Localization scaffolding** for the `inferFromText` regex + all UI copy.
+- **Widgets & Live Activities** (requires native wrapper — outside PWA scope).
+- **Shareable recovery streak card** for social proof.
+- **Handoff to partner via Partner Mode** — surface a "Nudge my partner" quick action.
+- **Sleep sound sleep-timer + fade-out**.
+
+---
+
+## 7. Final Launch Readiness Score
+
+| Category | Now | After Quick Wins | After Medium |
+|---|---:|---:|---:|
+| Visual Design | 6 | 7 | 9 |
+| UX Friction | 5 | 7 | 9 |
+| AI Companion | 6 | 7 | 8 |
+| Notifications | 5 | 7 | 9 |
+| Premium Feel | 5 | 6 | 8 |
+| Accessibility | 3 | 6 | 9 |
+| Performance | 5 | 7 | 8 |
+| Trust | 6 | 9 | 9 |
+| **Overall** | **5.1** | **7.0** | **8.6** |
+
+**Recommendation:** ship Quick Wins as a single batch before public launch (blockers + a11y + notification tag). Follow with Medium batch in the first week post-launch. Major enhancements plan into a 30-day post-launch roadmap.
+
+Awaiting your approval — say which batch to implement first (recommended: Quick Wins) and I'll execute it isolated, no scope creep.
