@@ -866,12 +866,7 @@ function CompanionPage() {
       // playback into one-line clips.
       const SENTENCE_RE = /[.!?][\s)\]"']*\s/;
       const PARAGRAPH_RE = /\n\s*\n/;
-      // First spoken segment flushes early (as soon as one complete sentence
-      // is available) to minimise time-to-first-audio. Subsequent segments
-      // wait for the larger buffer so we don't fragment playback.
-      const FIRST_FLUSH_MIN_CHARS = 40;
       const MIN_FLUSH_CHARS = 220;
-      let firstFlushed = false;
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -883,32 +878,31 @@ function CompanionPage() {
         while (true) {
           const rawTail = assistant.slice(spokenChars);
           if (!rawTail.trim()) return;
-          const minChars = firstFlushed ? MIN_FLUSH_CHARS : FIRST_FLUSH_MIN_CHARS;
           // Prefer a paragraph break — natural breath, large chunk.
           const pIdx = rawTail.search(PARAGRAPH_RE);
           if (pIdx !== -1) {
             const cutLen = pIdx + (rawTail.slice(pIdx).match(PARAGRAPH_RE)?.[0].length ?? 2);
             const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
             spokenChars += cutLen;
-            if (segment) { speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" }); firstFlushed = true; }
+            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
             continue;
           }
           // Otherwise wait until we have a sentence boundary past the min.
-          if (rawTail.length < minChars && !force) return;
+          if (rawTail.length < MIN_FLUSH_CHARS && !force) return;
           const m = rawTail.match(SENTENCE_RE);
           if (!m || m.index === undefined) {
             if (!force) return;
             const segment = bulletsToProse(rawTail).trim();
             spokenChars += rawTail.length;
-            if (segment) { speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" }); firstFlushed = true; }
+            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
             return;
           }
-          // Don't flush a tiny segment; wait for more material.
-          if (m.index + m[0].length < minChars && !force) return;
+          // Don't flush a tiny first sentence; wait for more material.
+          if (m.index + m[0].length < MIN_FLUSH_CHARS && !force) return;
           const cutLen = m.index + m[0].length;
           const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
           spokenChars += cutLen;
-          if (segment) { speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" }); firstFlushed = true; }
+          if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
         }
       };
 
