@@ -903,6 +903,7 @@ export type Database = {
           subscription_tier: string
           trial_ends_at: string | null
           updated_at: string
+          welcomed_at: string | null
         }
         Insert: {
           companion_avatar_id?: string | null
@@ -917,6 +918,7 @@ export type Database = {
           subscription_tier?: string
           trial_ends_at?: string | null
           updated_at?: string
+          welcomed_at?: string | null
         }
         Update: {
           companion_avatar_id?: string | null
@@ -931,6 +933,7 @@ export type Database = {
           subscription_tier?: string
           trial_ends_at?: string | null
           updated_at?: string
+          welcomed_at?: string | null
         }
         Relationships: []
       }
