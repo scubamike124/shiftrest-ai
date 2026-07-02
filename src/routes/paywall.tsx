@@ -253,7 +253,11 @@ function Paywall() {
           <Link to="/legal/subscription" className="text-primary underline">
             Subscription Terms
           </Link>
-          <Link to="/legal/refunds" className="text-primary underline">
+          <Link
+            to="/legal/subscription"
+            hash="refunds"
+            className="text-primary underline"
+          >
             Refunds
           </Link>
           <button

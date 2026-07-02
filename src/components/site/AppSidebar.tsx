@@ -14,6 +14,7 @@ import {
   Mic,
   Waves,
   Bot,
+  LifeBuoy,
 } from "lucide-react";
 
 const nav = [
@@ -32,6 +33,7 @@ const nav = [
 
 const footerNav = [
   { to: "/paywall", label: "Upgrade", icon: Sparkles },
+  { to: "/contact", label: "Help & Contact", icon: LifeBuoy },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
@@ -60,6 +62,7 @@ export function AppSidebar() {
             <Link
               key={n.to}
               to={n.to}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active
                   ? "bg-secondary/80 text-foreground"
@@ -81,6 +84,7 @@ export function AppSidebar() {
             <Link
               key={n.to}
               to={n.to}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active
                   ? "bg-secondary/80 text-foreground"

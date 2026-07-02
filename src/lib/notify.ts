@@ -56,14 +56,14 @@ export async function requestPermission(): Promise<NotifyPermission> {
 }
 
 
-export function showNotification(title: string, body: string) {
+export function showNotification(title: string, body: string, kind = "winddown") {
   if (getPermission() !== "granted") return;
   try {
     new Notification(title, {
       body,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      tag: "shiftrest-winddown",
+      tag: `shiftrest-${kind}`,
     });
   } catch {}
 }
@@ -112,6 +112,7 @@ export async function scheduleNextWindDown() {
     showNotification(
       "Wind-down time 🌙",
       `Dim lights, no caffeine. Sleep window starts in ${prefs.windDownMin} min.`,
+      "winddown",
     );
     scheduleNextWindDown();
   }, ms);
