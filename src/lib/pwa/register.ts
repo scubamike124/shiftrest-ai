@@ -127,11 +127,29 @@ function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
   // `reloading` guard plus the sessionStorage token above together
   // prevent any reload loop even if controllerchange fires twice.
   let reloading = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
+  const RELOAD_TOKEN = `rpai:sw-reloaded:${__BUILD_ID__}`;
+  const triggerReload = (source: string) => {
     if (reloading) return;
+    try {
+      if (sessionStorage.getItem(RELOAD_TOKEN) === "1") return;
+      sessionStorage.setItem(RELOAD_TOKEN, "1");
+    } catch { /* private mode ok */ }
     reloading = true;
     emitUpdate({ type: "activated" });
+    console.info(`[pwa] reloading after SW activation (${source})`);
     window.location.reload();
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    triggerReload("controllerchange");
+  });
+  // Belt-and-suspenders for iOS PWAs where controllerchange doesn't
+  // always fire after clientsClaim(). The SW posts SW_ACTIVATED on
+  // activate; the RELOAD_TOKEN sessionStorage guard prevents loops.
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const data = event.data as { type?: string; build?: string } | null;
+    if (data?.type === "SW_ACTIVATED" && data.build && data.build !== __BUILD_ID__) {
+      triggerReload("sw-activated-message");
+    }
   });
 }
 
