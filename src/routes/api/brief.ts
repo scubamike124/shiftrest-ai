@@ -11,6 +11,7 @@ import { AIError, DEFAULT_CHAT_MODEL, chatJSON } from "@/lib/ai/gateway.server";
 import { logAIRequest } from "@/lib/ai/log.server";
 import { BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
+import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 
 
 type Fallback = {
@@ -106,6 +107,11 @@ export const Route = createFileRoute("/api/brief")({
 
         if (!process.env.LOVABLE_API_KEY) {
           console.error("[brief] LOVABLE_API_KEY missing");
+          notifyOwnerAsync({
+            severity: "critical",
+            service: "brief",
+            message: "config_missing: LOVABLE_API_KEY not set",
+          });
           return fallback("config", messageFromReason("config"));
         }
 
@@ -146,6 +152,11 @@ export const Route = createFileRoute("/api/brief")({
 
           if (!result.text) {
             console.error("[brief] empty model response");
+            notifyOwnerAsync({
+              severity: "error",
+              service: "brief",
+              message: "empty_response",
+            });
             return fallback("unavailable", messageFromReason("unavailable"));
           }
 
@@ -170,6 +181,27 @@ export const Route = createFileRoute("/api/brief")({
           const message = e instanceof Error ? e.message : String(e);
           console.error("[brief] upstream failed", { status, message });
           const reason = reasonFromStatus(status);
+          // Alert on genuine infra failures only.
+          if (reason === "credits") {
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "brief",
+              message: "credits_exhausted",
+            });
+          } else if (reason === "rate_limit") {
+            notifyOwnerAsync({
+              severity: "warning",
+              service: "brief",
+              message: "rate_limited",
+            });
+          } else if (status >= 500 || status === 401 || status === 403) {
+            notifyOwnerAsync({
+              severity: status === 401 || status === 403 ? "critical" : "error",
+              service: "brief",
+              message: status === 401 || status === 403 ? "upstream_auth_failed" : "upstream_error",
+              meta: { status, error: message },
+            });
+          }
           return fallback(reason, messageFromReason(reason));
         }
       },

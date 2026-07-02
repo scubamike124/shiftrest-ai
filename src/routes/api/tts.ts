@@ -10,6 +10,7 @@ import {
   type SpeakMode,
   type VoiceProfile,
 } from "@/lib/voice/profile";
+import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 
 type Fallback = {
   fallback: true;
@@ -110,6 +111,11 @@ export const Route = createFileRoute("/api/tts")({
           const apiKey = process.env.LOVABLE_API_KEY;
           if (!apiKey) {
             console.error("[tts] LOVABLE_API_KEY missing");
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "tts",
+              message: "config_missing: LOVABLE_API_KEY not set",
+            });
             return fallback("config", messageFromReason("config"));
           }
 
@@ -156,6 +162,34 @@ export const Route = createFileRoute("/api/tts")({
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
               : "unavailable";
+            // Alert only on genuine infra failures.
+            if (upstream.status === 402) {
+              notifyOwnerAsync({
+                severity: "critical",
+                service: "tts",
+                message: "credits_exhausted",
+              });
+            } else if (upstream.status === 429) {
+              notifyOwnerAsync({
+                severity: "warning",
+                service: "tts",
+                message: "rate_limited",
+              });
+            } else if (upstream.status === 401 || upstream.status === 403) {
+              notifyOwnerAsync({
+                severity: "critical",
+                service: "tts",
+                message: "upstream_auth_failed",
+                meta: { status: upstream.status },
+              });
+            } else if (upstream.status >= 500) {
+              notifyOwnerAsync({
+                severity: "error",
+                service: "tts",
+                message: "upstream_5xx",
+                meta: { status: upstream.status },
+              });
+            }
             return fallback(reason, messageFromReason(reason));
           }
 
@@ -164,6 +198,13 @@ export const Route = createFileRoute("/api/tts")({
           });
         } catch (e) {
           console.error("[tts] route error", e);
+          // Network / fetch error reaching the provider — genuine infra failure.
+          notifyOwnerAsync({
+            severity: "error",
+            service: "tts",
+            message: "network_error",
+            meta: { error: e instanceof Error ? e.message : String(e) },
+          });
           return fallback("unavailable", messageFromReason("unavailable"));
         }
       },

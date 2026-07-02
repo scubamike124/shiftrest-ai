@@ -28,6 +28,7 @@ import {
 } from "@/lib/ai/context.server";
 import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
+import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
@@ -259,6 +260,12 @@ export const Route = createFileRoute("/api/ai")({
           admin = getAdminClient();
         } catch (e) {
           const msg = e instanceof AIError ? e.message : "Backend error";
+          notifyOwnerAsync({
+            severity: "critical",
+            service: "ai",
+            message: "config_missing: admin client init failed",
+            meta: { error: msg },
+          });
           return jsonError(500, msg);
         }
 
@@ -578,10 +585,43 @@ export const Route = createFileRoute("/api/ai")({
         } catch (e) {
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
+          // Alert owner ONLY on genuine infra failures — never on user
+          // validation (400) or auth (401/403) errors surfaced upstream.
+          const intent = (body as { intent?: string }).intent ?? "unknown";
+          if (status >= 500) {
+            notifyOwnerAsync({
+              severity: "error",
+              service: "ai",
+              message: "upstream_5xx",
+              meta: { status, intent, error: msg },
+            });
+          } else if (status === 402) {
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "ai",
+              message: "credits_exhausted",
+              meta: { intent },
+            });
+          } else if (status === 429) {
+            notifyOwnerAsync({
+              severity: "warning",
+              service: "ai",
+              message: "rate_limited",
+              meta: { intent },
+            });
+          } else if (status === 401 || status === 403) {
+            // Upstream auth against Lovable AI gateway — our key rotated/revoked.
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "ai",
+              message: "upstream_auth_failed",
+              meta: { status, intent },
+            });
+          }
           if (userId) {
             await logAIRequest(admin, {
               user_id: userId,
-              intent: (body as { intent?: string }).intent ?? "unknown",
+              intent,
               model: DEFAULT_CHAT_MODEL,
               prompt_tokens: 0,
               completion_tokens: 0,

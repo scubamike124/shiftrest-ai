@@ -1,215 +1,80 @@
-# Email System Completion — Investigation Report & Plan
+# Owner Alerts on AI/Coach/Brief/TTS Fallbacks
 
-## 0. Important correction upfront
+## Investigation summary
 
-You mentioned Resend, but RestPilot AI is **not** on Resend. The verified domain `notify.restpilotai.com` is delegated to **Lovable Emails** (Mailgun under the hood) via NS records `ns3/ns4.lovable.cloud`. SPF, DKIM, DMARC, and MX are managed automatically inside that delegated subdomain — no Resend account, no Resend API key. This is the correct posture for us; I'll build on Lovable Emails, not migrate to Resend. If you'd rather switch to Resend, that's a different (and larger) project and would require removing the NS delegation first.
+Fallback paths in the four routes today log to console but never page the owner. A silent Lovable-AI or gateway outage would degrade all voice + coach + brief + intent surfaces without a single alert firing. `notifyOwner()` (`src/lib/ops/alert.server.ts`) already gives us branded ops-alert email with a 10-minute in-memory dedupe keyed by `severity:service:message`, so we can wire it in cheaply.
 
-Sender address will be: `RestPilot AI <no-reply@notify.restpilotai.com>` with `Reply-To: support@restpilotai.com`.
+Coach (`/api/coach`) just forwards to `/api/ai`, so it inherits any alert wired at the AI layer — no separate hook needed.
 
----
+## What counts as "infra failure" (alert-worthy)
 
-## 1. Current state (verified)
+Only these classes should page:
 
-- ✅ Email domain `notify.restpilotai.com` set up (DNS verifying / active).
-- ✅ Email queue processor exists at `src/routes/lovable/email/queue/process.ts` (pgmq + pg_cron).
-- ✅ `src/start.ts` bypasses `/lovable/*` in the request middleware.
-- ❌ **No auth email templates scaffolded** — auth emails still use default Lovable/Supabase templates (still branded "Lovable" in the footer, no RestPilot logo).
-- ❌ **No transactional templates or `/lovable/email/transactional/send` route** — nothing in the app currently sends billing, welcome, support, or ops emails.
-- ❌ **No owner alert channel** — errors are only logged to console; nothing pages you.
-- ❌ **No unsubscribe landing page** (required for transactional footer links).
-- ❌ **No branded email components** (logo, header, footer, button).
+- **Config missing** — `LOVABLE_API_KEY` missing, `SUPABASE_URL`/`SERVICE_ROLE_KEY` missing (`AIError 500 "Backend not configured"`).
+- **Upstream 5xx** — `status >= 500` from Lovable AI gateway or TTS gateway.
+- **Auth to provider failed** — upstream `401` / `403` (our key rotated or revoked).
+- **Quota exhausted** — upstream `402` ("credits" reason).
+- **Rate-limited by provider** — upstream `429` ("rate_limit" reason) — warning severity, not critical.
+- **Provider unavailable / network error** — thrown fetch error, empty model response ("unavailable" reason).
 
----
+Explicitly NOT alerted:
 
-## 2. Root cause / gap analysis
+- 400 / 401 / 403 / 404 / 422 to the caller (bad JSON, missing fields, unauthenticated user, unknown intent).
+- Daily AI budget cap (`429 "Daily AI limit reached"` — that's a user quota, not infra).
+- User validation failures inside handlers.
 
-The queue and infrastructure are in place, but every user-facing and ops-facing email is missing. This is a pure "scaffold + wire triggers" job — no architectural changes needed.
+## Severity mapping
 
----
+| Condition | Severity |
+| --- | --- |
+| Config missing (env not set) | `critical` |
+| Upstream 5xx / network error / empty response | `error` |
+| Upstream 401 / 403 (bad key) | `critical` |
+| Upstream 402 (credits) | `critical` |
+| Upstream 429 (rate limit) | `warning` |
 
-## 3. Email architecture (target)
+## Dedupe strategy
 
-```text
-                       ┌──────────────────────┐
- Trigger (server fn)   │  enqueue_email RPC   │
- or webhook  ─────────▶│  (pgmq queue)        │
-                       └──────────┬───────────┘
-                                  │ pg_cron every 5s
-                                  ▼
-                       ┌──────────────────────┐
-                       │  process.ts (queue)  │───▶ Mailgun ──▶ recipient
-                       └──────────┬───────────┘
-                                  │
-                                  ▼
-                          email_send_log
-                          suppressed_emails
-```
+Reuse the existing 10-min window in `alert.server.ts`. Key each call as `service:reason` (e.g. `ai:upstream_5xx`, `tts:credits_exhausted`, `brief:config_missing`) so:
 
-Two pgmq queues (already provisioned):
-- `auth_emails` — signup, magic link, recovery, invite, email change, reauthentication (routed through Supabase auth hook).
-- `transactional_emails` — everything else (billing, welcome, ops alerts, support acks).
+- A burst of the same failure = 1 email per 10 min.
+- Different failure classes still page independently.
+- Multiple services failing from one gateway outage = ~4 emails max, all correlating.
 
----
+`fireAndForget` the notify call (don't `await`) so alerting never blocks the fallback response to the user.
 
-## 4. Templates to build
+## Changes
 
-Auth (scaffolded by `email_domain--scaffold_auth_email_templates`):
-1. `signup` — verify email
-2. `recovery` — password reset
-3. `magic-link`
-4. `invite`
-5. `email-change`
-6. `reauthentication`
+### 1. `src/routes/api/ai.ts`
+- In the outer `catch` (around line 578): if `status >= 500` OR the caught error is our `AIError(500, "Backend not configured")`, call `notifyOwner`. Reason = `upstream_5xx` or `config_missing`. Skip for status 400/401/429-budget.
+- In `getAdminClient()` failure path (line 260-262): notify with `service: "ai", reason: "config_missing", severity: "critical"`.
 
-Transactional (scaffolded by `email_domain--scaffold_transactional_email` + custom):
-7. `welcome` — sent post-verification
-8. `subscription-confirmation`
-9. `payment-receipt`
-10. `payment-failed`
-11. `subscription-renewed`
-12. `subscription-canceled`
-13. `subscription-expired`
-14. `trial-ending` *(only if you use trials — Stripe currently no trials, so skip for v1)*
-15. `account-deletion-confirmation`
-16. `data-export-ready`
-17. `memory-deletion-confirmation`
-18. `privacy-request-confirmation`
-19. `contact-form-received` (to user)
-20. `feedback-received` (to user)
-21. `ops-alert` (to owner) — generic alert template with severity, service, error, stack, timestamp
+### 2. `src/routes/api/brief.ts`
+- Line 107-110 (missing `LOVABLE_API_KEY`): notify critical `config_missing`.
+- Line 148-150 (empty model response): notify error `empty_response`.
+- Line 168-174 (catch): notify based on `reasonFromStatus(status)`. Alert only for `credits` (critical), `rate_limit` (warning), `unavailable` / status>=500 (error). Do NOT alert on 400/401.
 
-All share a branded layout: RestPilot logo, Aurora accent color, mobile-safe container (600px), single large CTA button, footer with Terms / Privacy / Support / Unsubscribe (transactional only — auth emails omit unsubscribe by design).
+### 3. `src/routes/api/tts.ts`
+- Line 110-114 (missing `LOVABLE_API_KEY`): notify critical `config_missing`.
+- Line 152-160 (upstream not ok): notify on 402 (critical `credits`), 429 (warning `rate_limit`), status>=500 or auth 401/403 (error/critical `upstream_error`). Skip other 4xx.
+- Line 165-168 (outer catch — network/fetch error): notify error `unavailable`.
 
----
+### 4. `src/routes/api/coach.ts`
+- No changes. Forwards to `/api/ai`, which owns the alert.
 
-## 5. Trigger locations
+### 5. Optional small helper (in `src/lib/ops/alert.server.ts`)
+Add a `fireAndForget(notifyOwner(...))` wrapper — trivial `void notifyOwner(...).catch(() => {})` — so call sites read cleanly and never block responses.
 
-| Email | Trigger site | Notes |
-|---|---|---|
-| Signup verify | Supabase auth hook → `/lovable/email/auth/webhook` | Scaffolder wires this |
-| Password reset | Same auth hook | Same |
-| Magic link / email change / reauth | Same auth hook | Same |
-| Welcome | `src/routes/auth.tsx` post-verify OR DB trigger on `auth.users` email_confirmed_at | Prefer server fn called from `/dashboard` first-load-once |
-| Subscription confirmation | `src/routes/api/public/payments/webhook.ts` on `customer.subscription.created` | |
-| Payment receipt | Same webhook on `invoice.payment_succeeded` | |
-| Payment failed | Same webhook on `invoice.payment_failed` | |
-| Renewal | Same webhook on `invoice.payment_succeeded` (renewal invoice) | |
-| Cancellation | Same webhook on `customer.subscription.updated` with `cancel_at_period_end=true` | |
-| Expired | Same webhook on `customer.subscription.deleted` | |
-| Account deletion | `src/lib/account.functions.ts` (deleteAccount) | |
-| Data export | `src/lib/account.functions.ts` (exportData) | |
-| Memory deletion | `src/lib/ai-memory.ts` clear ops | |
-| Privacy request | New `/api/public/legal/privacy-request` route | Also need the request form |
-| Contact form | New `/api/public/support/contact` route | Needs a `/contact` page |
-| Feedback | Existing `FeedbackChips` submit path | |
-| Owner ops alerts | New `src/lib/ops/alert.ts` helper | Called from error handlers |
+## Risk
 
----
+- Low. Alert path is best-effort and already try/catches internally.
+- Dedupe is in-memory per worker instance. On Cloudflare that means each isolate can send 1 email per 10 min; worst case ~ handful of duplicate emails during a real outage — acceptable and actually helpful signal.
+- No user-visible behavior changes. Fallback envelopes returned to the client are unchanged.
 
-## 6. Owner alert channel
+## Verification after implementation
 
-New helper `notifyOwner({ severity, service, message, meta })` that:
-- Enqueues to `transactional_emails` with template `ops-alert` addressed to `OWNER_ALERT_EMAIL`.
-- Applies a 5-minute in-memory dedupe key per `(service+message)` to prevent alert storms (Cloudflare Worker instance-local; good enough for v1).
-- Called from:
-  - `src/start.ts` error middleware (unhandled 500s)
-  - `src/routes/api/public/payments/webhook.ts` on signature failure / handler throw
-  - `src/routes/api/ai.ts`, `/api/coach`, `/api/tts*`, `/api/brief` — provider failure branches
-  - `src/routes/api/public/hooks/dispatch-alarms.ts` — failure branch
-  - Queue processor DLQ path (email delivery failure)
-- Severity levels: `critical`, `error`, `warning`. `warning` is throttled 1/hr.
+- Type-check clean.
+- Manually temp-break `LOVABLE_API_KEY` in a preview to confirm one email arrives per service, then no repeats within 10 min.
+- Confirm 400/validation errors do NOT trigger alerts.
 
-Note: a Worker cannot detect its own outage. Real uptime monitoring (Better Stack, UptimeRobot, etc.) is a separate ops tool — I'll flag it in the deliverable but not build it.
-
----
-
-## 7. Files to add / change
-
-New:
-- `src/lib/email-templates/_shared/Layout.tsx` — branded shell (logo, footer)
-- `src/lib/email-templates/_shared/Button.tsx`, `Divider.tsx`
-- `src/lib/email-templates/<template>.tsx` × 15 (transactional list above)
-- `src/lib/email-templates/registry.ts` — updated (scaffolder creates initial)
-- `src/lib/email/send.ts` — client helper for authed triggers
-- `src/lib/email/send.server.ts` — server-to-server enqueue (bypasses HTTP for webhooks)
-- `src/lib/ops/alert.ts` — owner alert helper + dedupe
-- `src/routes/lovable/email/auth/webhook.ts` — created by scaffolder
-- `src/routes/lovable/email/transactional/send.ts` — created by scaffolder
-- `src/routes/lovable/email/transactional/preview.ts` — created by scaffolder
-- `src/routes/email.unsubscribe.tsx` — branded unsubscribe page (path returned by scaffolder)
-- `src/routes/api/public/support/contact.ts` — public contact form endpoint
-- `src/routes/contact.tsx` — public contact page
-
-Changed:
-- `src/routes/api/public/payments/webhook.ts` — 6 email triggers
-- `src/lib/account.functions.ts` — deletion + export triggers
-- `src/lib/ai-memory.ts` — memory deletion trigger
-- `src/routes/api/ai.ts`, `/coach.ts`, `/tts.ts`, `/tts-elevenlabs.ts`, `/brief.ts` — ops alerts on provider failure
-- `src/routes/api/public/hooks/dispatch-alarms.ts` — ops alert on failure
-- `src/start.ts` — ops alert on unhandled 500
-- `src/routes/__root.tsx` + `$lang`-style layouts — allow `/email/unsubscribe` public access
-- `src/routes/auth.tsx` — trigger welcome email once on first confirmed session
-
----
-
-## 8. Environment / secrets
-
-Already present, no rotation needed: `LOVABLE_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
-
-New (I'll ask before setting):
-- `OWNER_ALERT_EMAIL` — where ops alerts go (e.g. your personal address)
-- `SUPPORT_EMAIL` — reply-to and shown in footers (e.g. `support@restpilotai.com`)
-
-Sender constants (in code, not secrets):
-- From: `RestPilot AI <no-reply@notify.restpilotai.com>`
-- Reply-To: `support@restpilotai.com`
-- Sender domain (API lookup): `notify.restpilotai.com`
-
----
-
-## 9. Testing plan
-
-End-to-end matrix I'll run after implementation, on Gmail (iOS + web), Apple Mail (iOS + macOS), Outlook (web), Yahoo:
-
-1. New signup → verify email → welcome email arrives, Verify button tappable on Gmail iOS ✅
-2. Password reset flow round-trip
-3. Live $0.50 subscription → confirmation + receipt
-4. Force failed payment via test card `4000000000000341` → payment-failed email
-5. Cancel subscription → cancellation email; wait for period end → expired
-6. Contact form submission → ack email
-7. Account deletion → confirmation email
-8. Data export → ready email with download link
-9. Force provider failure (bad API key temporarily) → owner alert arrives within 60s
-10. `email_send_log` inspected for all above; verify no rows stuck in `pending` > 5 min; verify `suppressed_emails` empty
-11. Spam-score check via mail-tester.com (target: 10/10; SPF/DKIM/DMARC all pass)
-
----
-
-## 10. Missing functionality flagged for launch
-
-- **No `/contact` page today** — needed to satisfy the "Contact form" email trigger and general support surface. Small form, honeypot, rate-limited endpoint.
-- **No uptime monitoring** — Worker outages can't be self-reported. Recommend Better Stack (free tier) hitting `/api/public/version` every 60s. Configuration is a one-time UI step, not code.
-- **Privacy request form** — legal pages reference "request your data" but there is no submission surface. Small form + endpoint.
-
----
-
-## 11. Risks
-
-- **DNS verification window** — if `notify.restpilotai.com` is still `awaiting_dns`, scaffolding still works, but real sends fail until verified. I'll scaffold anyway and monitor.
-- **Stripe webhook idempotency** — I'll dedupe email sends by `idempotencyKey = event.id + template`, so a Stripe retry doesn't double-email.
-- **Owner alert loop** — email delivery failure triggering an owner-alert email that also fails would loop. The DLQ handler skips `notifyOwner` if the failing template is `ops-alert`.
-- **Auth hook overwrites** — scaffolder needs `confirm_overwrite: true` only if templates already exist; none exist today, so first-run is safe.
-
----
-
-## 12. Rollout order (once approved)
-
-1. Scaffold auth templates + brand them.
-2. Scaffold transactional infra + build 15 templates + branded layout.
-3. Add unsubscribe page + `/contact` + privacy request form.
-4. Wire billing triggers in Stripe webhook.
-5. Wire account/data/memory triggers.
-6. Add `notifyOwner` helper and wire it into all failure paths.
-7. Deploy, run the full test matrix, share results.
-
-Awaiting your **approved** to start with step 1. Also please tell me the two email addresses to set as `OWNER_ALERT_EMAIL` and `SUPPORT_EMAIL`.
+Awaiting approval before implementation.
