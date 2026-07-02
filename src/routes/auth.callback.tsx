@@ -110,13 +110,33 @@ function AuthCallbackPage() {
       </h1>
       <p className="mt-3 max-w-sm text-sm text-muted-foreground">{message}</p>
       {status === "error" ? (
-        <a
-          href="/auth"
-          className="mt-6 h-11 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
-        >
-          Back to sign in
-        </a>
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={async () => {
+              const email = window.prompt("Enter your email to receive a new verification link:");
+              if (!email) return;
+              const { error } = await supabase.auth.resend({
+                type: "signup",
+                email: email.trim(),
+                options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+              });
+              if (error) toast.error(error.message);
+              else toast.success("New link sent — check your inbox.");
+            }}
+            className="h-11 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
+          >
+            Resend verification email
+          </button>
+          <a
+            href="/auth"
+            className="text-sm text-muted-foreground underline underline-offset-4"
+          >
+            Back to sign in
+          </a>
+        </div>
       ) : null}
+
     </main>
   );
 }

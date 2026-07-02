@@ -153,18 +153,21 @@ function Profile() {
 
 
   async function handleSignOut() {
-    // Snapshot the current user id BEFORE signOut clears the session, so we
-    // wipe the right per-user cache namespace. Then clear React Query so no
-    // stale data leaks into the next mount before redirect.
+    // Ordered teardown per project guidance:
+    // cancelQueries → clear per-user cache → clear React Query → signOut →
+    // navigate with REPLACE (Back must not restore protected screens).
+    await queryClient.cancelQueries();
     const { data: sess } = await supabase.auth.getSession();
     const uid = sess.session?.user.id ?? null;
     const { clearAllForUser } = await import("@/lib/offline/cache");
     clearAllForUser(uid);
     clearAllForUser(null); // also clear any anon-namespaced rows
-    await supabase.auth.signOut();
     queryClient.clear();
+    await supabase.auth.signOut();
     toast.success("Signed out.");
+    navigate({ to: "/auth", replace: true });
   }
+
 
   async function handleManageSubscription() {
     if (!isPaymentsConfigured()) {
