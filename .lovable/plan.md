@@ -1,103 +1,142 @@
 
-# Email Deliverability Investigation (round 2)
+# Security Hardening — Pre-Launch Audit
 
-## What I verified from the sandbox
+**Investigation only.** No code changes will be made until you approve.
 
-DNS lookups against Google Public DNS (full recursion; NS delegation to `ns3/ns4.lovable.cloud` is live):
+## Executive Summary
 
-| Record | Value | Verdict |
+RestPilot's core auth/payment/data plumbing is solid: Supabase Auth with email verification, RLS on user tables, Stripe webhook signature verification, service-role isolation in server-only modules, bearer-token guards on paid AI endpoints, and honeypot on contact form.
+
+However, several **launch-blocking** gaps exist around abuse prevention:
+- **Cron endpoints are effectively unauthenticated** — they use the Supabase publishable/anon key, which is public (shipped in every browser).
+- **No rate limiting anywhere.** Any signed-in user can burn AI/TTS budget as fast as they can loop `fetch()`; the AI daily token cap is the only backstop.
+- **No bot protection** on signup, contact, or reset password.
+- **No security response headers** (CSP, HSTS, X-Frame-Options, etc.).
+- **No prompt-injection hardening** on AI intents that ingest user-authored strings.
+
+None of these have been exploited (no evidence in logs), but they should be closed before we drive traffic.
+
+## Findings by Risk
+
+### 🔴 CRITICAL — must fix before launch
+
+| # | Area | Finding |
 |---|---|---|
-| `restpilotai.com` TXT (SPF) | **none** | ❌ missing |
-| `restpilotai.com` MX | **none** | ❌ missing |
-| `_dmarc.restpilotai.com` TXT | `v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net` | ⚠ inherited by subdomain, but the `rua` mailbox is your registrar's default (GoDaddy/SecureServer), not yours |
-| `notify.restpilotai.com` NS | `ns3.lovable.cloud`, `ns4.lovable.cloud` | ✅ delegated |
-| `notify.restpilotai.com` TXT (SPF) | `v=spf1 include:mailgun.org ~all` | ✅ |
-| `notify.restpilotai.com` MX | Mailgun EU (`mxa/mxb.eu.mailgun.org`) | ✅ |
-| `_dmarc.notify.restpilotai.com` TXT | **none** | ⚠ falls back to org DMARC — technically fine |
-| DKIM at `k1/krs/mailo/mx/smtp/default/s1/s2/pic/mg/selector1/selector2/lovable._domainkey.notify.restpilotai.com` | **none returned** | ⚠ selector unknown — must confirm from the actual message header |
+| C1 | Cron auth | `/api/public/hooks/{dispatch-alarms,notify,ai-learn,subscription-lifecycle}` and `/api/public/wearables/cron` gate on `SUPABASE_PUBLISHABLE_KEY`. That key is embedded in the client bundle. Anyone can trigger the dispatchers, replay push sends, force wearable syncs, or fire lifecycle emails. |
+| C2 | Rate limiting | No per-user, per-IP, or global rate limits on `/api/ai`, `/api/tts`, `/api/tts-elevenlabs`, `/api/stt`, `/api/brief`, `/api/insights`, `/api/swap`, `/api/coach`, or `/api/public/contact`. A signed-in user (or someone who signs up in <10s) can drain AI credits and rack up ElevenLabs/OpenAI spend. |
+| C3 | Bot protection | Signup, password reset, and `/api/public/contact` have no CAPTCHA/Turnstile. Contact has a honeypot only. Enables mass fake accounts → AI abuse and email bombing via signup confirmation emails. |
+| C4 | Unauth AI endpoints | `/api/swap` and `/api/insights` do not call `requireUser` — they only require `LOVABLE_API_KEY` on the server. Anyone on the internet can POST arbitrary `context` strings and burn AI credits. |
 
-Send-log query returned `[]` under anon (RLS blocks the read — expected; not evidence of a send failure).
+### 🟠 HIGH
 
-Code review of `src/routes/lovable/email/auth/webhook.ts`, `src/lib/email-templates/signup.tsx`, and `_shared/Layout.tsx` confirms the previous fix is deployed: `SITE_NAME = "RestPilot AI"`, `reply_to = support@restpilotai.com`, and the "Verify Email" button href is rewritten to `https://restpilotai.com/auth/callback?token_hash=…&type=…&next=/dashboard`. So the anchor/href mismatch that triggered the previous warning is genuinely gone in code.
+| # | Area | Finding |
+|---|---|---|
+| H1 | Security headers | No CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, or Permissions-Policy on any response. Clickjacking + MIME sniffing possible. |
+| H2 | Prompt injection | `/api/ai` intents (`adjust_plan.observation`, `coach.messages`, memory extraction) concat user text into system prompts with no delimiters, sanitization, or output validation for hidden instructions. |
+| H3 | Account enumeration | Default Supabase signup returns distinguishable errors for existing vs. new emails. |
+| H4 | Disposable email | No blocklist on signup or `/api/public/contact`. |
+| H5 | Owner alert coverage | Owner is notified of AI/TTS/webhook failures but NOT of: repeated 401s on cron endpoints, Stripe webhook signature failures, auth webhook failures, or dispatch-alarm push-send failures. |
 
-## What I cannot verify without your inbox
+### 🟡 MEDIUM
 
-Gmail's exact banner text and its `Authentication-Results:` line. That header is the only authoritative source for whether SPF/DKIM/DMARC actually passed *at receive time* and which selector Mailgun signed with. Everything below is scored against the DNS + code evidence I have; the header will confirm or eliminate each candidate.
+| # | Area | Finding |
+|---|---|---|
+| M1 | Session settings | Supabase Auth defaults not audited (JWT expiry, refresh rotation, password-strength policy, HIBP leaked-password check). |
+| M2 | Audit log | No append-only audit trail for privileged events (role grants, subscription overrides, admin AI overrides). |
+| M3 | Error messages | Some routes leak upstream error strings back to client (`error.message` from Supabase / Stripe). |
+| M4 | CORS on public API | No explicit CORS headers on `/api/public/*` — currently same-origin only, fine now, but should be explicit before we ever add cross-origin callers. |
+| M5 | STT auth | `/api/stt` accepts anonymous requests (userId is optional; logging only). Should require auth like the other paid AI endpoints. |
 
-## Ranked root-cause candidates (evidence-backed)
+### 🟢 LOW / already good
 
-**#1 — Missing SPF and MX on the root domain `restpilotai.com` (highest confidence).**
-Gmail's phishing model checks the *organizational* domain (`restpilotai.com`), not just the sending subdomain. When the org domain publishes neither SPF nor MX, Gmail treats mail claiming to represent that brand as unverifiable — even if the child subdomain authenticates cleanly. Combined with a `Reply-To: support@restpilotai.com` on a domain with no MX (a reply would hard-bounce), this is a classic "unreceivable identity" heuristic hit and is the single most likely trigger of the red banner given what changed vs. the previous send.
-*Evidence:* `restpilotai.com/TXT` returns nothing; `restpilotai.com/MX` returns nothing; DMARC on the org is `p=quarantine` (strict-ish), so Gmail weights alignment problems more heavily.
+- Stripe webhook: HMAC-SHA256 signature + 5-min timestamp tolerance + timing-safe compare ✅
+- Service-role key: server-only, no client leaks found ✅
+- RLS: enabled on all user-scoped tables ✅
+- Payment idempotency: webhook uses `onConflict: 'stripe_subscription_id'` upsert ✅
+- Auth email: on-domain callback, DKIM/SPF via Resend ✅
+- Input validation: `/api/public/contact` uses Zod ✅
+- Contact honeypot: present ✅
+- HTTPS: enforced by Cloudflare edge ✅
+- File uploads: none in the app (no attack surface) ✅
 
-**#2 — Cold-start domain reputation for `notify.restpilotai.com` + `restpilotai.com`.**
-Both hostnames are new. The link target `restpilotai.com/auth/callback?...` is a brand-new URL Gmail/Safe Browsing has never seen. Gmail's "This message might be dangerous" is the *reputation* banner (as opposed to "Be careful with this message" which is the auth-failure banner). New domain + new URL + shift-worker health/coaching content vocabulary is a very common false-positive profile until the domain warms.
-*Evidence:* domain first-use is within the last few days; no A record history; DMARC `rua` is a placeholder GoDaddy mailbox, so no aggregate feedback loop exists yet.
+## Recommended Fixes — Priority Order
 
-**#3 — DMARC `rua` points to a mailbox you don't own.**
-`rua=mailto:dmarc_rua@onsecureserver.net` is GoDaddy's default sink. It means you never see aggregate reports and cannot detect selector/alignment breakage. Not a direct spam cause, but it is why you're flying blind on #1 and #2.
+### Batch S-1: Auth & Cron Lockdown (LAUNCH BLOCKER)
+1. **Fix C1** — Introduce `CRON_SECRET` (generated 64-char secret). Require it in the `x-cron-secret` header on all 5 public cron/hook routes. Update the 4 pg_cron job SQL definitions to send it via `http_post` `headers` (secret pulled from Vault, matching the existing `email_queue_service_role_key` pattern).
+2. **Fix C4** — Add `requireUser` to `/api/swap` and `/api/insights` and record via `logAIRequest`.
+3. **Fix M5** — Require auth on `/api/stt`.
 
-**#4 — Unknown DKIM selector.**
-Lovable/Mailgun signs with some selector, but none of the common Mailgun selectors resolve under `notify.restpilotai.com`. Either the selector name is non-standard (only findable in the message header) or the DKIM TXT wasn't published in the delegated zone. If DKIM isn't actually signing, DMARC would fall back to SPF-only alignment — still passing, but with a weaker trust signal.
-*Evidence:* DKIM absent for every selector I tried (11 candidates).
+### Batch S-2: Rate Limiting (LAUNCH BLOCKER)
+4. **Fix C2** — Add a lightweight per-user token-bucket rate limiter backed by a new `api_rate_limits` table (rows: `user_id, bucket, window_start, count`). Wrap AI/TTS/STT/brief/coach/swap/insights with `checkRate(userId, bucket, maxPerMinute)`. Limits: AI text 20/min, TTS 10/min, STT 10/min, contact 3/hour per IP.
+5. Extend the existing `checkAIBudget` to also enforce a short-window (5-min) token ceiling for free users.
 
-**#5 — Content/structure.**
-`signup.tsx` is a short single-CTA email with plain text plus branded header/footer. No hidden text, no image-only body, no data URIs, no `dangerouslySetInnerHTML`. Very low risk of content-based flagging on its own — but combined with #1/#2 it adds weight.
+### Batch S-3: Bot Protection (LAUNCH BLOCKER)
+6. **Fix C3** — Add Cloudflare Turnstile to `/auth` (signup + reset flows) and `/contact`. Verify on server via `/api/public/turnstile-verify` before allowing signup email send or contact submission. Requires user to add `TURNSTILE_SITE_KEY` (public) + `TURNSTILE_SECRET_KEY` (secret).
+7. **Fix H4** — Ship a disposable-email blocklist check (embedded list, no external calls) in `/api/public/contact` and gate signup via a client-side check on `/auth`.
 
-**#6 — Sender friendly name.**
-`From: RestPilot AI <noreply@notify.restpilotai.com>` is now correct. Not a factor.
+### Batch S-4: Response Headers (HIGH)
+8. **Fix H1** — Add a global response-header middleware in `src/start.ts` that injects: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(self), geolocation=()`, and a report-only CSP for one week before enforcement.
 
-## What is definitely NOT the cause
+### Batch S-5: AI Abuse Hardening (HIGH)
+9. **Fix H2** — Wrap all user-supplied strings passed to the AI in explicit `<user_input>...</user_input>` delimiters + a system-prompt instruction to ignore any embedded instructions inside those tags. Truncate `observation`, `context`, message content to hard caps (2000 chars).
+10. **Fix H5** — Extend `notifyOwner` calls to Stripe webhook signature failure branch, auth webhook 500 branch, dispatch-alarm push failure branch, and cron 401 burst detection.
 
-- The Verify-Email link. Href now points to `restpilotai.com/auth/callback` (verified in the deployed code).
-- The reply-to header value. It's set on the enqueue payload. (Whether Mailgun forwards it is confirmed only by the received-message header.)
-- Template markup or React Email rendering. No unsafe patterns.
-- The Supabase→Gmail token exposure. Tokens are single-use and short-lived.
+### Batch S-6: Auth Config Polish (MEDIUM)
+11. **Fix H3 + M1** — Enable leaked-password check (HIBP), enforce 12-char min password, confirm JWT expiry ≤ 1h + refresh rotation, and enable Supabase's built-in signup rate limit + account enumeration protection via `configure_auth`.
+12. **Fix M2** — Add `audit_log` table for role grants and admin overrides (append-only, RLS admin-read-only).
+13. **Fix M3** — Replace raw `error.message` returns with generic strings; log the detail server-side only.
+14. **Fix M4** — Add explicit `Vary: Origin` + no-CORS-headers policy documentation.
 
-## Data I still need from you (the deciding evidence)
+## File-by-File Implementation Plan
 
-From the message currently sitting in your Gmail Spam, open **⋮ → Show original** and paste the top ~40 lines. I specifically need:
+| File | Change |
+|---|---|
+| `src/lib/api/cron-auth.server.ts` (new) | `requireCronSecret(request)` helper |
+| `src/routes/api/public/hooks/dispatch-alarms.ts` | Swap apikey check → `requireCronSecret` |
+| `src/routes/api/public/hooks/notify.ts` | Same |
+| `src/routes/api/public/hooks/ai-learn.ts` | Same |
+| `src/routes/api/public/hooks/subscription-lifecycle.ts` | Same |
+| `src/routes/api/public/wearables/cron.ts` | Same |
+| pg_cron migration | Update 4 job definitions to send `x-cron-secret` from Vault |
+| `src/lib/api/rate-limit.server.ts` (new) | `checkRate(userId, bucket, maxPerWindow, windowSec)` using new table |
+| Supabase migration | `api_rate_limits` table + GRANT + RLS (service_role only) |
+| `src/routes/api/ai.ts` | Add rate check after `requireUser` |
+| `src/routes/api/tts.ts`, `tts-elevenlabs.ts`, `stt.ts`, `brief.ts`, `insights.ts`, `swap.ts`, `coach.ts` | Add `requireUser` (where missing) + rate check |
+| `src/routes/api/public/contact.ts` | Per-IP rate limit + Turnstile verify + disposable-email check |
+| `src/lib/turnstile.server.ts` (new) | Turnstile verify helper |
+| `src/routes/api/public/turnstile-verify.ts` (new) | Turnstile server verify endpoint (used by client before signup) |
+| `src/components/auth/*` | Add Turnstile widget to signup + reset forms |
+| `src/start.ts` | Add response-header `requestMiddleware` |
+| `src/lib/ai/context.server.ts` + `prompts.server.ts` | Add `<user_input>` delimiters + injection-defense system instruction |
+| `src/routes/api/ai.ts` | Truncate user-supplied strings to 2000 chars |
+| `src/lib/ops/alert.server.ts` callers | Extend to webhook signature failures, cron 401 bursts, push failures |
+| `configure_auth` call | Enable HIBP, set password policy, signup rate limit |
+| Supabase migration | `audit_log` table |
+| 2 new secrets | `CRON_SECRET` (generate), `TURNSTILE_SECRET_KEY` (user-supplied), `TURNSTILE_SITE_KEY` (user-supplied, public) |
 
-1. `Authentication-Results:` (SPF/DKIM/DMARC verdicts, DKIM `d=` and `s=`)
-2. `From:` and `Reply-To:`
-3. `Return-Path:` (this reveals Mailgun's bounce domain used for SPF alignment)
-4. `List-Unsubscribe:` and `List-Unsubscribe-Post:` (if present)
-5. `X-Google-Original-*`, `X-Gm-*`, and any `X-Google-Smtp-Source` lines
-6. The literal Gmail banner text (exact wording distinguishes "dangerous" vs "be careful")
-7. Whether the mail is in **Spam** or **Inbox with warning** — different signals
+## Effort Estimate
 
-With those lines I can definitively confirm #1, rule out or confirm #4, and tell you whether Gmail is scoring on auth vs. reputation vs. content.
+| Batch | Scope | Effort |
+|---|---|---|
+| S-1 Cron lockdown | 5 routes + 1 migration + secret | 1 turn |
+| S-2 Rate limiting | new table + helper + 8 routes | 2 turns |
+| S-3 Bot protection | Turnstile plumbing + signup UI + blocklist | 2 turns |
+| S-4 Headers | 1 middleware | 1 turn |
+| S-5 AI hardening | prompt updates + owner alerts | 1 turn |
+| S-6 Auth polish | `configure_auth` + audit_log + cleanup | 1 turn |
 
-## Recommended fix (pending header confirmation)
+**Total: ~8 turns of focused work.**
 
-**Batch E-1 — DNS hardening on the root domain (highest impact, safest).**
-1. Add SPF at `restpilotai.com` (TXT): `v=spf1 -all` — publishes an explicit "root domain never sends mail directly." This is what Gmail expects for a brand that only sends via subdomains, and it materially raises trust for the sending subdomain under `adkim=r/aspf=r`.
-2. Add a null MX at `restpilotai.com` (MX): `0 .` — RFC 7505 declaration that the root doesn't receive mail. Prevents unreceivable-reply-to heuristics and stops spammers from spoofing your brand.
-3. Change `_dmarc.restpilotai.com` `rua` to an address you own (e.g. `mailto:support@restpilotai.com` — but only after step 4 makes it receivable; until then, `mailto:postmaster@notify.restpilotai.com` works since that mailbox routes through Mailgun EU).
-4. Optional but strongly recommended: switch `Reply-To` in the webhook from `support@restpilotai.com` (currently unreceivable — no MX) to either an inbox you actually receive (e.g. move to Google Workspace / Fastmail on `restpilotai.com` and publish real MX), or temporarily to `support@notify.restpilotai.com` which is Mailgun-received.
+## Launch Gate
 
-**Batch E-2 — Verify DKIM is really signing.**
-5. From the `Show original` DKIM header, capture the selector Mailgun uses, then confirm `<selector>._domainkey.notify.restpilotai.com` resolves publicly. If it doesn't, the Lovable email infra needs a re-provision of the delegated zone.
+- **BLOCKING (must ship before launch):** Batches S-1, S-2, S-3.
+- **STRONGLY RECOMMENDED before public marketing push:** Batches S-4, S-5.
+- **Post-launch acceptable:** Batch S-6 (except HIBP toggle — do that now, it's a one-tool call).
 
-**Batch E-3 — Warm the domain.**
-6. Send 2–5 low-volume auth emails to Gmail/Outlook/Yahoo test accounts over 48h, mark them "Not Spam," and check headers rotate to `dmarc=pass reason=…policy=none applied`. Reputation lifts within days once the DNS hygiene above is in place.
+## Already Production-Ready
 
-**Batch E-4 — Optional polish (not required to clear the banner).**
-7. Add `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click` for the auth mail (Mailgun sets these for transactional but explicit is cleaner).
-8. Register the domain in Google Postmaster Tools once DNS is fixed, to get feedback loops.
+Stripe webhook verification, service-role isolation, RLS coverage, auth-email pipeline, contact honeypot, HTTPS enforcement, JWT-based session model, error boundaries, robots/sitemap, secret separation (runtime vs client vs build).
 
-## Files that would change (approval pending)
+---
 
-- **DNS (no code)** — records added at your registrar for `restpilotai.com`:
-  - `TXT @ "v=spf1 -all"`
-  - `MX @ "0 ."`
-  - `TXT _dmarc @ …rua updated…`
-- **`src/routes/lovable/email/auth/webhook.ts`** — only if we swap `Reply-To` to a receivable mailbox.
-- No template changes needed.
-- No changes to `src/lib/email/send.server.ts`, `queue/process.ts`, or the callback route.
-
-## Risk
-
-DNS-only. Reversible in minutes. Zero application-code risk.
-
-Awaiting: (a) the "Show original" headers so I can confirm DKIM selector and current auth results, and (b) approval before I write any DNS/code fixes.
+**Awaiting your approval.** Reply with which batches to run and in what order (default recommendation: S-1 → S-2 → S-3 → S-4 → S-5 → S-6, one at a time, verifying build ID between each).
