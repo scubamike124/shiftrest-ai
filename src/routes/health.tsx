@@ -228,23 +228,25 @@ function HealthPage() {
         </Link>
       </Card>
 
-      <section aria-label="Planned providers" className="flex flex-col gap-2">
-        <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          More providers — planned
-        </p>
-        {PLANNED_PROVIDERS.map((p) => (
-          <Card key={p.id} className="p-3">
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{p.label}</p>
-                <p className="text-xs text-muted-foreground">{p.blurb}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground/80">{p.status}</p>
+      {!HIDE_PLANNED_PROVIDERS_ON_HEALTH && (
+        <section aria-label="Planned providers" className="flex flex-col gap-2">
+          <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            More providers — planned
+          </p>
+          {PLANNED_PROVIDERS.map((p) => (
+            <Card key={p.id} className="p-3">
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{p.label}</p>
+                  <p className="text-xs text-muted-foreground">{p.blurb}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground/80">{p.status}</p>
+                </div>
+                <Badge variant="outline" className="text-[10px]">Coming soon</Badge>
               </div>
-              <Badge variant="outline" className="text-[10px]">Coming soon</Badge>
-            </div>
-          </Card>
-        ))}
-      </section>
+            </Card>
+          ))}
+        </section>
+      )}
 
       <p className="text-center text-[11px] text-muted-foreground">
         Your wearable data stays in your account. Disconnect anytime from Profile.
