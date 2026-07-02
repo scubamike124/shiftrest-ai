@@ -1,101 +1,101 @@
-# Phase 1 Remaining Work — Priority Audit
+# Batch D — Final Phase 1 Investigation
 
-Snapshot after Batches A + B verified in production (Build `b-1782952743743`). Smart Alarm stays disabled for Phase 1.
+Investigation only. No code changes until approval.
 
----
+## Current Phase 1 Completion: **~96%**
 
-## 1. Remaining Launch Blockers (must ship before public launch)
-
-| # | Item | Why it blocks |
-|---|---|---|
-| B1 | **Robots + sitemap** — add `public/robots.txt` and `public/sitemap.xml` covering only shippable Phase 1 routes (index, pricing, features, legal/*, auth). Exclude `/qa.*`, `/lab.*`, `/version`, `/debug`. | Without these, crawlers index dev/QA routes and rank the wrong pages. |
-| B2 | **Noindex the dev/QA routes** — add `robots: "noindex"` meta to `qa.smart-alarm.tsx`, `qa.voice.tsx`, `lab.avatar-poc*.tsx`, `version.tsx`. | Defense-in-depth if robots.txt is ignored. |
-| B3 | **Global error + 404 boundaries** — verify `__root.tsx` has `notFoundComponent`, router config has `defaultErrorComponent`, and top-level routes with loaders have both. | A single loader throw currently white-screens users. |
-| B4 | **Stripe live-mode sanity** — confirm `STRIPE_SECRET_KEY` in production is `sk_live_*`, webhook endpoint points at production URL, and one real $0.50 test purchase completes end-to-end then refunded. | Payment failure at launch is unrecoverable brand damage. |
-| B5 | **Auth flow smoke on production** — sign-up, email confirm, sign-in, password reset, sign-out, session persistence across refresh, all from an incognito device. | Batches A/B changed auth guards; needs one manual pass. |
+Batches A (auth guards + marketing scrub), B (og:image + coming-soon hide + .env.example), and C (robots/sitemap/error boundaries) are shipped and production-verified on build `b-1782953414953`. Remaining work is small and mostly non-code operator verification.
 
 ---
 
-## 2. Nice-to-have Polish (ship if cheap, otherwise defer)
+## 1. Critical Launch Blockers (must complete before public launch)
 
-| # | Item |
-|---|---|
-| P1 | Favicon + apple-touch-icon set derived from the new aurora OG cover. |
-| P2 | `/pricing` and `/features` meta descriptions audit — currently generic. |
-| P3 | JSON-LD `Organization` + `WebSite` on `__root.tsx`; `Product` on `/pricing`. |
-| P4 | Consistent empty states on `/inbox`, `/decisions`, `/memory` (some show blank cards). |
-| P5 | Loading skeletons on `/dashboard` and `/companion` first paint. |
-| P6 | `/legal/index` landing polish — currently a bare link list. |
+These are **operator/manual verification** items — zero code changes required. Carried over from the Batch C plan, still not executed.
 
----
+| # | Item | Type | Effort |
+|---|---|---|---|
+| D1 | **Stripe live-mode end-to-end test** — confirm `STRIPE_SECRET_KEY` in production is `sk_live_*`, webhook endpoint targets `shift-rest-ai.lovable.app`, run one real $0.50 purchase → success → refund. | Operator | ~15 min |
+| D2 | **Auth flow smoke on production** — from an incognito device: sign-up → email confirm → sign-in → password reset → sign-out → refresh session persistence. Verifies Batch A auth guards did not regress the happy path. | Operator | ~10 min |
 
-## 3. Wait Until After Launch (Phase 2)
-
-- Smart Alarm re-enable (flag flip + push backstop verification).
-- Wearable OAuth expansion (Apple Health, Garmin, Whoop).
-- Native iOS/Android wrappers.
-- Partner Mode multi-user invites.
-- Shift Swap Copilot marketplace.
-- AI voice cloning per user.
-- Web Push notifications beyond alarms.
-- Team/employer admin dashboard.
+**Note:** No code-level launch blockers remain. Everything below is polish.
 
 ---
 
-## 4. Recommended Batch C Scope (small + focused)
+## 2. High-Priority Launch Tasks (recommended before launch, small code)
 
-**Ship only B1 + B2 + B3.** These are pure static/config additions with near-zero regression risk and cover the biggest remaining SEO + reliability gaps.
-
-Leave B4 (Stripe live test) and B5 (auth smoke) as **operator checklist items** — they are manual verification, not code changes, and can run in parallel to Batch C.
-
-Explicitly excluded from Batch C: any polish item (P1–P6), any Phase 2 work, any Smart Alarm changes, any refactors.
-
----
-
-## 5. Estimated Effort
-
-| Item | Effort |
-|---|---|
-| B1 robots + sitemap | ~15 min — two static files |
-| B2 noindex dev routes | ~10 min — add one meta entry per file |
-| B3 error/404 boundaries audit + fix | ~20 min — one root check, spot-fix loaders that lack boundaries |
-| **Batch C total** | **~45 min of edits + 1 verification pass** |
-| B4 Stripe live test | ~15 min operator time (no code) |
-| B5 Auth smoke | ~10 min operator time (no code) |
+| # | Item | Files | Effort |
+|---|---|---|---|
+| D3 | **True favicon set** — `favicon.ico` (multi-size) + `favicon-32.png` + `favicon-16.png` derived from the aurora brand. Today `__root.tsx` points both `icon` and `apple-touch-icon` at the same `/icon-512.png`, so browser tabs render a scaled 512px PNG. | `public/favicon.ico`, `public/favicon-32.png`, `public/favicon-16.png`, `src/routes/__root.tsx` (3 link tag updates) | ~15 min |
+| D4 | **Meta description audit for `/pricing` and `/features`** — both currently ship only the root default description (no route-level `meta`). Add a route-specific `head()` with title + description + og:title + og:description. | `src/routes/pricing.tsx`, `src/routes/features.tsx` | ~10 min |
 
 ---
 
-## 6. Files Likely to Change (Batch C only)
+## 3. Minor Polish Items (ship together if D3+D4 approved, otherwise defer)
 
-**New files**
-- `public/robots.txt`
-- `public/sitemap.xml`
-
-**Edited files (meta additions only, no logic changes)**
-- `src/routes/qa.smart-alarm.tsx`
-- `src/routes/qa.voice.tsx`
-- `src/routes/lab.avatar-poc.tsx`
-- `src/routes/lab.avatar-poc.index.tsx`
-- `src/routes/lab.avatar-poc.debug.tsx`
-- `src/routes/lab.avatar-poc.simli.tsx`
-- `src/routes/version.tsx`
-
-**Audited, edited only if missing**
-- `src/routes/__root.tsx` (confirm `notFoundComponent` present)
-- `src/router.tsx` (confirm `defaultErrorComponent` present)
-- Any route with a loader that lacks `errorComponent` / `notFoundComponent`
-
-No touches to: `src/lib/flags.ts`, Smart Alarm code, Companion, auth middleware, Stripe routes, DB migrations, or any Phase 2 feature.
+| # | Item | Files | Effort |
+|---|---|---|---|
+| D5 | **JSON-LD `Organization` + `WebSite`** on root; `Product` schema on `/pricing`. Zero currently in the app (`rg application/ld+json` = 0 hits). Improves Google rich results. | `src/routes/__root.tsx`, `src/routes/pricing.tsx` | ~10 min |
+| D6 | **`/legal/index` polish** — currently a bare link list. One-paragraph intro + grouped sections. | `src/routes/legal.index.tsx` | ~10 min |
 
 ---
 
-## Verification (post-Batch C)
+## 4. Post-Launch Improvements (Phase 2 — do NOT touch now)
 
-1. `bunx tsgo --noEmit` clean.
-2. `curl https://shift-rest-ai.lovable.app/robots.txt` returns expected rules.
-3. `curl https://shift-rest-ai.lovable.app/sitemap.xml` returns valid XML.
-4. `curl https://shift-rest-ai.lovable.app/qa.smart-alarm | grep noindex` present.
-5. Build ID rotated.
-6. Manual: force-throw in one loader confirms error boundary renders.
+- Smart Alarm re-enable + push backstop verification
+- Wearable OAuth expansion (Apple Health, Garmin, Whoop)
+- Native iOS/Android wrappers
+- Partner Mode multi-user invites
+- Shift Swap Copilot marketplace
+- AI voice cloning per user
+- Web Push notifications beyond alarms
+- Team/employer admin dashboard
+- Empty-state redesigns (`/inbox`, `/decisions`, `/memory`)
+- Loading skeletons on `/dashboard` and `/companion`
 
-Stop after Batch C. B4 + B5 operator checks run separately.
+---
+
+## Grouped Implementation Batches (minimize credits)
+
+**Batch D-1 — Operator only (no code, no publish):** D1 + D2. Run in parallel, ~25 min total. **Recommended: do this first.**
+
+**Batch D-2 — Branding polish (single edit pass + one publish):** D3 + D4. Grouped because both touch head/metadata concerns and can be verified in one production HTML curl. ~25 min edit + one verification. **Recommended second.**
+
+**Batch D-3 — SEO polish (optional, single edit pass + one publish):** D5 + D6. Only ship if you want SEO polish before launch; otherwise defer indefinitely. ~20 min edit + one verification.
+
+---
+
+## Recommended Final Implementation Order
+
+1. **Batch D-1** (D1 Stripe live test + D2 auth smoke) — **you** run these, no Lovable credits spent, unblocks launch.
+2. **Batch D-2** (D3 favicons + D4 meta descriptions) — one small code batch, one publish, one verify.
+3. **Batch D-3** (D5 JSON-LD + D6 legal index) — optional, ship only if credits allow before launch.
+4. **Launch.**
+5. Phase 2 planning after live user signal.
+
+---
+
+## Estimated Totals
+
+| Batch | Code effort | Operator effort | Publish cycles |
+|---|---|---|---|
+| D-1 | 0 | ~25 min | 0 |
+| D-2 | ~25 min | ~5 min verify | 1 |
+| D-3 (optional) | ~20 min | ~5 min verify | 1 |
+
+Max path to launch: **D-1 + D-2 = ~55 min, one publish.** D-3 is deferrable.
+
+---
+
+## Files Likely to Change (if D-2 + D-3 both approved)
+
+- `src/routes/__root.tsx` (favicon link tags + JSON-LD script)
+- `src/routes/pricing.tsx` (meta + Product JSON-LD)
+- `src/routes/features.tsx` (meta)
+- `src/routes/legal.index.tsx` (copy + layout)
+- `public/favicon.ico`, `public/favicon-32.png`, `public/favicon-16.png` (new assets)
+
+No changes to: `src/lib/flags.ts`, Smart Alarm code, Companion, auth middleware, Stripe routes, DB migrations, any Phase 2 feature.
+
+---
+
+Awaiting approval. Recommend approving **D-1 + D-2** minimum; D-3 optional.
