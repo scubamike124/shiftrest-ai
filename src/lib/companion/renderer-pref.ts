@@ -41,9 +41,12 @@ export function getRenderer(): CompanionRenderer {
   return v === "3d" ? "3d" : "2d";
 }
 export function getTtsProvider(): CompanionTtsProvider {
-  // ElevenLabs is now the default premium provider; OpenAI is the auto-fallback.
-  const v = readLS(TTS_KEY, "elevenlabs");
-  return v === "openai" ? "openai" : "elevenlabs";
+  // Stability: default to OpenAI so greeting and reply always use the same
+  // voice. ElevenLabs remains opt-in via Settings; the auto-fallback path
+  // (EL stall → OpenAI mid-turn) caused "greeting one voice, answer different
+  // voice" plus a multi-second dead pause between them.
+  const v = readLS(TTS_KEY, "openai");
+  return v === "elevenlabs" ? "elevenlabs" : "openai";
 }
 export function getElevenVoice(): string {
   return readLS(ELEVEN_VOICE_KEY, DEFAULT_ELEVEN_VOICE);
