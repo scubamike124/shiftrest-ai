@@ -143,6 +143,13 @@ export function WeatherLocationCard({
     );
   }
 
+  const hasLocation =
+    current.lat != null &&
+    current.lon != null &&
+    (current.lat !== 0 || current.lon !== 0);
+  const [showChange, setShowChange] = useState(false);
+  const showControls = !hasLocation || showChange;
+
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start gap-2">
@@ -156,69 +163,92 @@ export function WeatherLocationCard({
         </div>
       </div>
 
-      {current.lat != null && current.lon != null && (current.lat !== 0 || current.lon !== 0) ? (
-        <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs">
-          <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-          <span className="truncate">
-            {current.label || `${current.lat.toFixed(2)}, ${current.lon.toFixed(2)}`}
-          </span>
+      {hasLocation ? (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="inline-flex h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500"
+              aria-hidden
+            />
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-foreground">
+                {current.label || `${current.lat!.toFixed(2)}, ${current.lon!.toFixed(2)}`}
+              </p>
+              <p className="text-[10px] uppercase tracking-widest text-emerald-700 dark:text-emerald-400/80">
+                Active
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowChange((v) => !v)}
+            aria-expanded={showChange}
+            className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground transition hover:text-foreground active:scale-95"
+          >
+            {showChange ? "Cancel" : "Change"}
+          </button>
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground">No location set yet.</p>
       )}
 
-      <Button
-        type="button"
-        size="sm"
-        onClick={useDevice}
-        disabled={busy !== null}
-        className="min-h-11 justify-center gap-2"
-      >
-        {busy === "geo" || busy === "save" ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : (
-          <MapPin className="h-4 w-4" aria-hidden />
-        )}
-        Use my current location
-      </Button>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="weather-loc-q" className="text-[11px] text-muted-foreground">
-          Or enter a city or ZIP
-        </Label>
-        <div className="flex gap-2">
-          <Input
-            id="weather-loc-q"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. Austin, TX or 78701"
-            maxLength={80}
-            className="min-h-11"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void onSearch();
-              }
-            }}
-            disabled={busy !== null}
-          />
+      {showControls && (
+        <>
           <Button
             type="button"
             size="sm"
-            variant="secondary"
-            onClick={() => void onSearch()}
-            disabled={busy !== null || query.trim().length < 2}
-            className="min-h-11 gap-2"
-            aria-label="Search location"
+            onClick={useDevice}
+            disabled={busy !== null}
+            className="min-h-11 justify-center gap-2 active:scale-95"
           >
-            {busy === "search" ? (
+            {busy === "geo" || busy === "save" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <Search className="h-4 w-4" aria-hidden />
+              <MapPin className="h-4 w-4" aria-hidden />
             )}
+            Use my current location
           </Button>
-        </div>
-      </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="weather-loc-q" className="text-[11px] text-muted-foreground">
+              Or enter a city or ZIP
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="weather-loc-q"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g. Austin, TX or 78701"
+                maxLength={80}
+                className="min-h-11"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void onSearch();
+                  }
+                }}
+                disabled={busy !== null}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => void onSearch()}
+                disabled={busy !== null || query.trim().length < 2}
+                className="min-h-11 gap-2 active:scale-95"
+                aria-label="Search location"
+              >
+                {busy === "search" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Search className="h-4 w-4" aria-hidden />
+                )}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </Card>
   );
 }
