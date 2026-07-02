@@ -779,24 +779,29 @@ function ShiftEditor({
           <div className="mb-3">
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">Employer</p>
             <div className="flex flex-wrap gap-2">
-              {employers.map((e) => (
-                <button
-                  key={e.id}
-                  onClick={() => setEmployerId(e.id)}
-                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                    employerId === e.id
-                      ? "border-transparent text-primary-foreground"
-                      : "border-border bg-secondary text-foreground"
-                  }`}
-                  style={employerId === e.id ? { background: e.color } : undefined}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ background: e.color }}
-                  />
-                  {e.name}
-                </button>
-              ))}
+              {employers.map((e) => {
+                const isActive = employerId === e.id;
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => setEmployerId(e.id)}
+                    aria-pressed={isActive}
+                    className={`flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
+                      isActive
+                        ? "border-transparent text-primary-foreground shadow-[0_0_0_2px_var(--background),0_0_0_3px_currentColor]"
+                        : "border-border bg-secondary text-foreground hover:bg-secondary/70"
+                    }`}
+                    style={isActive ? { background: e.color, color: e.color } : undefined}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${isActive ? "bg-white/90" : ""}`}
+                      style={!isActive ? { background: e.color } : undefined}
+                    />
+                    <span className={isActive ? "text-primary-foreground" : ""}>{e.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
