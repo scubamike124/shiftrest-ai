@@ -14,3 +14,9 @@ export const SMART_ALARM_ENABLED = false;
 // flip this flag to `false` to restore Phase 2 previews with zero code
 // changes.
 export const HIDE_COMING_SOON_SKILLS = true;
+
+// HIDE_PLANNED_PROVIDERS_ON_HEALTH — hides the "Planned providers" roadmap
+// cards (Apple Health, Garmin, Whoop) on /health for Phase 1. The
+// PLANNED_PROVIDERS array and the rendering code remain intact; flip this
+// flag to `false` to restore the section for Phase 2.
+export const HIDE_PLANNED_PROVIDERS_ON_HEALTH = true;
