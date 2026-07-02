@@ -379,9 +379,10 @@ function Profile() {
       ) : (
         <Link
           to="/paywall"
-          className="flex items-center justify-between rounded-2xl border border-primary/30 bg-primary/10 p-4"
+          className="group relative flex items-center justify-between overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4 transition hover:border-primary/60 hover:bg-primary/15 active:scale-[0.99]"
         >
-          <div className="flex items-center gap-3">
+          <span className="pointer-events-none absolute -inset-24 -z-0 rotate-12 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 transition duration-500 group-hover:opacity-100" />
+          <div className="relative flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary">
               <Sparkles className="h-5 w-5" />
             </span>
@@ -390,7 +391,7 @@ function Profile() {
               <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
             </div>
           </div>
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          <ChevronRight className="relative h-5 w-5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
         </Link>
       )}
 
