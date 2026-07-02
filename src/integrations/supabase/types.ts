@@ -642,6 +642,7 @@ export type Database = {
           commute_min: number | null
           created_at: string
           department: string | null
+          icon: string | null
           id: string
           is_default: boolean
           location: string | null
@@ -662,6 +663,7 @@ export type Database = {
           commute_min?: number | null
           created_at?: string
           department?: string | null
+          icon?: string | null
           id?: string
           is_default?: boolean
           location?: string | null
@@ -682,6 +684,7 @@ export type Database = {
           commute_min?: number | null
           created_at?: string
           department?: string | null
+          icon?: string | null
           id?: string
           is_default?: boolean
           location?: string | null
@@ -827,6 +830,33 @@ export type Database = {
           updated_at?: string
           user_id?: string
           wind_down?: boolean
+        }
+        Relationships: []
+      }
+      partner_shares: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          payload: Json
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          payload?: Json
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          payload?: Json
+          user_id?: string
         }
         Relationships: []
       }
@@ -1431,6 +1461,8 @@ export type Database = {
           cycle_anchor: string | null
           cycle_weeks: number
           daily_review_enabled: boolean
+          default_voice_id: string | null
+          default_voice_provider: string | null
           feedback_learning_enabled: boolean
           home_address: string | null
           home_tz: string | null
@@ -1478,6 +1510,8 @@ export type Database = {
           cycle_anchor?: string | null
           cycle_weeks?: number
           daily_review_enabled?: boolean
+          default_voice_id?: string | null
+          default_voice_provider?: string | null
           feedback_learning_enabled?: boolean
           home_address?: string | null
           home_tz?: string | null
@@ -1525,6 +1559,8 @@ export type Database = {
           cycle_anchor?: string | null
           cycle_weeks?: number
           daily_review_enabled?: boolean
+          default_voice_id?: string | null
+          default_voice_provider?: string | null
           feedback_learning_enabled?: boolean
           home_address?: string | null
           home_tz?: string | null

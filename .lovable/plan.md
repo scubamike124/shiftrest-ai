@@ -1,59 +1,176 @@
-# AI Coach Brief — "Missing authorization" investigation
+# AI Companion Final Polish — Investigation & Plan
 
-## What I verified in production
+Investigation complete. No code changes yet. Below is the file map, dependencies, complexity, and a safe implementation order for the 15 items.
 
-- **Live build ID rotated**: `/api/public/version` on restpilotai.com now returns `b-1783018674243` (built 2026-07-02T18:57:54Z). The publish took.
-- **Deployed dashboard bundle contains the fix**: `assets/dashboard-BvzlqB-P.js` on restpilotai.com contains BOTH:
-  - `access_token` (session read)
-  - `Authorization:\`Bearer ${n}\`` (header attached to `/api/insights`)
-  - `Sign in to load your brief` (the friendly 401 message)
-- **Only one component owns "AI Coach Brief"**: `src/components/AIBriefCard.tsx`, mounted only from `src/routes/dashboard.tsx` (line 329). No duplicate/legacy copy exists in the tree (`rg AIBriefCard` returns just those two files).
-- **Only one caller of `/api/insights`**: `AIBriefCard.tsx` (line 58). It correctly reads `supabase.auth.getSession()`, aborts if no token, and only fires when `hasSession === true`.
-- **Only one server-side origin of the exact string "Missing authorization"**: `src/lib/api/auth.server.ts:40`, returned as `401 { error: "Missing authorization" }`. `AIBriefCard` never surfaces that string — for any 401 it throws `"Sign in to load your brief"` (line 68).
+---
 
-So the fixed code IS live at restpilotai.com, and if the fixed code executes, the card can only show "Sign in to load your brief.", never "Missing authorization".
+## Item-by-item investigation
 
-## Root cause
+### 1. Personalized greetings
+- **Current**: Static greetings live in `src/components/home/GreetingHeader.tsx` (`greeting()`), `src/lib/companion/hero-state.ts`, `src/components/morning/cards/GreetingCard.tsx`, and are also generated in `src/routes/api/brief.ts` and `src/routes/api/ai.ts` (server-side).
+- **Fix**: Introduce a single server helper `src/lib/companion/personalized-greeting.server.ts` that combines: time bucket, last night's sleep score, recovery score, next shift, next smart alarm, active recommendation. Return `{ salutation, contextLine }`. Feed it into `/api/brief` (spoken + cards) and expose via a small `/api/greeting` used by `GreetingHeader` and `CompanionHero`.
+- **Complexity**: M.
 
-The user's device is still running the pre-fix `AIBriefCard` bundle out of the **PWA service-worker precache**.
+### 2. Time-of-day consistency
+- **Current**: Buckets are defined independently in `GreetingHeader.tsx` (5/12/17/22), `GreetingCard.tsx` (early/morning/midday), `hero-state.ts`, `lib/ai/time-directive.ts`, and `brief.ts`. Boundaries and labels differ.
+- **Fix**: Add `src/lib/time/day-part.ts` exporting `getDayPart(date, tz)` → `"morning" | "afternoon" | "evening" | "night"` with canonical labels `"Good morning" | "Good afternoon" | "Good evening" | "Winding down"`. Replace every ad‑hoc bucket calc with this helper. Guarantees home, spoken brief, notifications, and hero all say the same phrase for the same moment.
+- **Complexity**: S.
 
-- `public/sw-src.ts` uses `precacheAndRoute(self.__WB_MANIFEST)` with `skipWaiting()` + `clientsClaim()`, but hashed JS chunks are served **CacheFirst from the precache**. When a returning user opens the app, Workbox activates the new SW in the background — but **the current page keeps running with the previously-cached `dashboard-*.js` chunk until a full reload**. The old chunk still calls `fetch("/api/insights")` with no `Authorization` header → server correctly returns `401 { error: "Missing authorization" }` → the old error branch renders `e.error` verbatim → user sees "Missing authorization".
-- This matches the symptom exactly: happens right after "opening the latest published link and completing onboarding" (first visit under new SW, page not yet reloaded).
-- Onboarding/name entry does not reset the Supabase session; that is a red herring. The bearer would attach correctly under the new bundle.
+### 3. Preferred name everywhere
+- **Current**: `CompanionHero` already reads only `user_prefs.preferred_name`. `GreetingHeader` receives `name` from the dashboard route — need to confirm it's not falling back to email/username. Server (`brief.ts`, `ai.ts`, `notifications/run.server.ts`) still uses several fallbacks in a couple of paths.
+- **Fix**: 
+  - Central helper `src/lib/user/display-name.ts` (client) + `src/lib/user/display-name.server.ts`: returns `preferred_name` only, empty string if unset.
+  - Update `dashboard.tsx` to source name from `user_prefs.preferred_name` (not `profiles.username`).
+  - Onboarding (`src/components/Onboarding.tsx`) — first step copy → "What would you like me to call you?" and writes to `user_prefs.preferred_name`.
+  - Server callers use `.server` helper for greetings + notification templates.
+- **Complexity**: S–M.
 
-Evidence supporting this over a code bug:
-1. Production bundle at the current hash contains the fix (verified via `curl | grep`).
-2. There is no code path in the fixed `AIBriefCard` that can render the raw "Missing authorization" text.
-3. `src/lib/pwa/register.ts` shows the app already has an update-then-reload flow, confirming the "old chunk keeps running until reload" model.
+### 4. AI voice everywhere
+- **Current**: Voice selection is in `src/components/voice/VoiceSettings.tsx` and stored on `user_prefs` (`voice_*` columns). `VoicePlayer`, `/api/tts`, and `/api/tts-elevenlabs` accept a per-request voice, but some callers pass no voice and get the default.
+- **Fix**: In `/api/tts` + `/api/tts-elevenlabs`, when the request omits a voice, resolve `user_prefs.default_voice_id` server-side. Ensure Pilot, Companion, Brief, Wind-down, and Smart Alarm coach all call TTS without hard-coded voice ids so the server resolves the user's favorite.
+- Tone: pass `stability`/`similarity` presets tuned for "calm & slow" (ElevenLabs `stability=0.6`, `style=0.15`, `speaker_boost=true`, `speed=0.92`).
+- **Complexity**: S.
 
-## Exact file causing the remaining issue
+### 5. Favorite voice
+- **DB**: Add column `user_prefs.default_voice_id text` (migration). Also `default_voice_provider text` if needed.
+- **UI**: In `VoiceSettings.tsx`, add a ★ button per voice → writes `default_voice_id`. Show "Default" badge.
+- **Server**: Above `/api/tts` change reads this column when no override.
+- **Complexity**: S.
 
-Not a source-code bug in `AIBriefCard.tsx` — the file is correct. The failure is in **service-worker upgrade behavior** defined in `public/sw-src.ts`. Users on the previous SW keep executing the previous precached `dashboard-*.js` until the app forces a reload.
+### 6. Companion home screen fill-out
+- **File**: `src/routes/companion.tsx`.
+- **Add cards** (reuse existing components where possible):
+  - Recovery Score + Sleep Score → new `CompanionScoresCard` (data from `/api/brief` + wearable_readings).
+  - Today's Focus → derived from `ai_recommendations`.
+  - Today's Schedule → existing `AgendaCard`.
+  - AI Recommendation → `AIBriefCard` compact variant.
+  - Recent Conversations → last 5 `coach_messages`.
+  - Quick Questions → predefined chips → open `/companion` with prefilled prompt.
+  - Smart Suggestions → `routine_suggestions` top 2.
+  - Upcoming Alarm → shows next `user_events` (kind=smart-alarm).
+  - Recovery Progress → 7‑day sparkline.
+- Keep the large Talk button pinned. Use a 2‑column grid on desktop, single column on mobile with subtle stagger fade‑in.
+- **Complexity**: M–L.
 
-## Smallest safe fix
+### 7. Employer cards
+- **File**: `src/components/EmployersManager` (search: `employers` table). Uses `employers` (18 cols) — should already have `color` or similar; if not, migration adds `icon text`, `color text`.
+- **UI**: Preset picker (Hospital, Fire, Police, Airline, Manufacturing, Corporate, Custom) with matching emoji/lucide icon and color chip. Card shows icon + name + shift stats. Custom option = free‑text icon or emoji + color.
+- **Complexity**: S.
 
-Two-line change, no behavior change to the AI code:
+### 8. Partner Mode (short share links)
+- **DB**: New table `partner_shares` (id serial code text UNIQUE, user_id, payload jsonb, expires_at, created_at). Grants + RLS.
+- **API**: `POST /api/public/partner-share` (auth'd creator: server fn generates 6-char code) returning `restpilotai.com/share/{code}`. `/share/$code.tsx` route resolves it. QR via `qrcode.react` (add package).
+- **UI**: New `PartnerShareCard.tsx` with Share (Web Share API), Copy, QR, preview iframe. Illustration: simple SVG "You → Partner" with moon.
+- **Complexity**: M.
 
-1. **Bump the SW cache identity** so the new SW invalidates the old precache immediately on activation, and the client-side updater triggers a reload prompt.
-   - In `public/sw-src.ts`, add/bump a `CACHE_VERSION` constant embedded in the SW build (the file already reads `__BUILD_ID__`). Confirm `cleanupOutdatedCaches()` runs on `activate` (it is imported; verify it is called) so the stale precache is deleted before the next navigation.
-2. **Force one hard client reload on SW `controllerchange`** in `src/lib/pwa/register.ts` (guarded by a sessionStorage flag to avoid loops). This guarantees users on the pre-fix bundle drop it within one navigation instead of "eventually".
+### 9. Location card
+- **File**: `src/components/weather/WeatherLocationCard.tsx` + new `LocationCard.tsx` on dashboard. Data from `user_prefs.current_tz`, geolocation permission → reverse geocode via Open‑Meteo, sunrise/sunset from Open‑Meteo daily.
+- Add short explainer "Why location matters — jet lag, circadian light, sunrise timing."
+- **Complexity**: S.
 
-Nothing in `AIBriefCard.tsx`, `/api/insights`, or auth changes.
+### 10. Shift Swap Copilot + "Missing authorization"
+- **File**: `src/routes/swap.tsx`, `src/routes/api/swap.ts`. Auth bug is likely same class as AIBriefCard — client `fetch("/api/swap")` without `Authorization: Bearer`. Confirmed pattern seen elsewhere.
+- **Fix (bug)**: attach bearer in swap client fetch; add friendly signed-out state.
+- **Fix (feature)**: Extend `/api/swap` to compute Recovery Cost, Sleep Debt delta, Fatigue peak, Recovery timeline (hours), Recommended decision (accept/decline/counter), rationale, alternative swaps. Render as a stacked results card with confidence badge.
+- **Complexity**: M.
 
-## Verification steps after the fix
+### 11. Upgrade card position
+- **File**: `src/routes/dashboard.tsx` (and `companion.tsx`). Move `<UpgradeCTA>` below Focus/Recommendation section, above footer. No new component.
+- **Complexity**: XS.
 
-1. `bunx tsgo` — type-check clean.
-2. Publish; confirm `/api/public/version` returns a new build id.
-3. On a device that previously saw "Missing authorization":
-   - Open restpilotai.com. New SW installs, controllerchange fires, page reloads once.
-   - Sign in / complete onboarding.
-   - Open Home (Dashboard). AI Coach Brief must render normally, or show "Sign in to load your brief." if the session hasn't hydrated — never the raw "Missing authorization".
-4. DevTools → Network → `/api/insights` request must include `Authorization: Bearer …` and return 200.
+### 12. AI personality options
+- **DB**: extend `user_prefs.assistant_mode` allowed values. Current is a text column, so no enum migration needed. New set: `coach | friend | professional | minimal | warm | encouraging | motivational | supportive`.
+- **Server**: `src/lib/ai/context.server.ts` — extend `MODE_OVERLAYS` with new personas and per‑mode voice prompt tweaks.
+- **UI**: `AssistantSettings.tsx` — replace three-way selector with card grid, each with 1‑line personality description.
+- **Complexity**: S.
 
-## Out of scope (will not touch)
+### 13. Micro-animations
+- Use existing tailwind animations plus Motion/React (`framer-motion` already present via companion). Additions:
+  - Route transitions in `__root.tsx` `<Outlet>` wrapper.
+  - `animate-fade-in` staggers on dashboard/companion card grids.
+  - Talk button press → subtle spring.
+  - AI thinking → reuse `ThinkingShimmer`.
+  - Haptics via `navigator.vibrate(8)` in a `useHaptic()` hook.
+- **Complexity**: S.
 
-- `/api/insights` server code
-- `AIBriefCard.tsx` logic
-- Any other endpoints, UI, or unrelated components
+### 14. AI Avatar prep
+- Existing: `Avatar.tsx`, `Avatar3D.tsx`, `CompanionAvatar.tsx`, Simli lab. 
+- Prep work only: 
+  - Extract emotion state → `src/lib/companion/avatar-emotion.ts` (idle/listening/speaking/celebrate/comfort).
+  - Wire STT/TTS events to state store.
+  - Blink loop + soft breathing motion (framer-motion) on Avatar.
+  - Add "avatar reactions" hook `useAvatarReactions()` used by brief screens.
+- Full lip‑sync/expression pipeline stays for Phase 1 completion later.
+- **Complexity**: M.
 
-Awaiting approval before implementing.
+### 15. Overall companion feel
+- Cross‑cutting: consistent copy tone pass, ensure every empty state has warm microcopy, no raw errors. Add `WelcomeBackHero` on companion first-visit-per-day.
+
+---
+
+## Dependency graph
+
+```text
+[2 day-part helper] ──┐
+                      ├─► [1 personalized greeting] ──► [6 companion home cards]
+[3 preferred name] ───┘                                 │
+                                                        ├─► [11 upgrade card move]
+[5 favorite voice DB] ──► [4 voice everywhere] ────────►│
+                                                        │
+[10 swap auth fix] ──► [10 swap copilot logic] ────────►│
+[7 employer schema] ──► [7 employer cards UI] ─────────►│
+[8 partner_shares tbl] ──► [8 share UI + /share route] ►│
+[9 location data]      ─────────────────────────────────►│
+[12 personality] ─► [context.server prompt] ────────────►│
+[13 micro-animations]  ─── applied last across all screens
+[14 avatar prep]       ─── parallel, isolated to companion route
+```
+
+---
+
+## Recommended implementation order (safe → shippable in batches)
+
+1. **Batch F-1 — Foundations (no UI risk)**
+   - Item 2 day-part helper
+   - Item 3 preferred-name helpers + Onboarding copy
+   - Item 5 migration `default_voice_id`
+   - Item 12 personality overlays in `context.server.ts`
+   - Migration: `partner_shares`, `employers.icon/color` if missing.
+
+2. **Batch F-2 — Voice & Greeting**
+   - Item 1 `personalized-greeting.server.ts` + wire to `/api/brief`
+   - Item 4 TTS default-voice resolution + calm preset
+   - Item 5 ★ favorite UI in `VoiceSettings`
+
+3. **Batch F-3 — Bug fixes**
+   - Item 10a swap "Missing authorization" bearer fix (mirrors AIBriefCard fix)
+
+4. **Batch F-4 — Companion home**
+   - Item 6 cards on `/companion`
+   - Item 11 move Upgrade CTA
+   - Item 9 Location card
+   - Item 7 Employer card visuals
+
+5. **Batch F-5 — Partner Mode + Swap Copilot**
+   - Item 8 short share links + QR
+   - Item 10b Swap decision engine output
+
+6. **Batch F-6 — Polish**
+   - Item 13 micro-animations
+   - Item 14 avatar prep hooks + idle/blink
+
+Each batch is independently publishable and rolls back cleanly.
+
+---
+
+## Files touched (summary)
+
+- New: `src/lib/time/day-part.ts`, `src/lib/user/display-name.ts` (+ `.server.ts`), `src/lib/companion/personalized-greeting.server.ts`, `src/lib/companion/avatar-emotion.ts`, `src/components/companion/CompanionScoresCard.tsx`, `PartnerShareCard.tsx`, `LocationCard.tsx`, route `src/routes/share.$code.tsx`, `src/routes/api/public/partner-share.ts`.
+- Modified: `GreetingHeader.tsx`, `GreetingCard.tsx`, `hero-state.ts`, `time-directive.ts`, `api/brief.ts`, `api/ai.ts`, `api/tts.ts`, `api/tts-elevenlabs.ts`, `api/swap.ts`, `swap.tsx`, `companion.tsx`, `dashboard.tsx`, `VoiceSettings.tsx`, `AssistantSettings.tsx`, `Onboarding.tsx`, `context.server.ts`, `notifications/run.server.ts`, `EmployersManager` + `WeatherLocationCard.tsx`, `__root.tsx`, `Avatar.tsx`.
+- Migrations: `default_voice_id`, `partner_shares`, employers icon/color if absent.
+
+## Risk & complexity totals
+- XS: 1  · S: 7  · M: 5  · L: 1 (companion home).
+- Highest risk: Item 6 (largest surface) and Item 8 (new public route). Mitigated by keeping each in its own batch with feature flag `COMPANION_HOME_V2`.
+
+Awaiting approval to begin **Batch F-1**.

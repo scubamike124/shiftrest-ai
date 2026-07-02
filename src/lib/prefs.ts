@@ -1,6 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type AssistantMode = "coach" | "companion" | "minimal";
+export type AssistantMode =
+  | "coach"
+  | "companion"
+  | "minimal"
+  | "friend"
+  | "professional"
+  | "warm"
+  | "encouraging"
+  | "motivational"
+  | "supportive";
 
 export type Prefs = {
   windDownMin: number;

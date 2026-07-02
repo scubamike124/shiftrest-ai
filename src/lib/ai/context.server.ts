@@ -11,7 +11,16 @@ import {
   fetchPreviousRecommendation,
 } from "./recommendations.server";
 
-export type AssistantMode = "coach" | "companion" | "minimal";
+export type AssistantMode =
+  | "coach"
+  | "companion"
+  | "minimal"
+  | "friend"
+  | "professional"
+  | "warm"
+  | "encouraging"
+  | "motivational"
+  | "supportive";
 
 export type AssistantProfile = {
   name: string;
@@ -37,11 +46,17 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
   coach: `\n\nMode: COACH. Lead with clear next actions. Prioritise plans, timings, and wins. Push gently when the user is drifting from their recovery goals.`,
   companion: `\n\nMode: COMPANION. Be more conversational and personal. Ask one short follow-up question when it would help. Remember and reference what the user has shared before. Still concrete — never vague.`,
   minimal: `\n\nMode: MINIMAL. Be brief. 1-3 short paragraphs max. Skip pleasantries. Answer what was asked, nothing more.`,
+  friend: `\n\nMode: FRIEND. Warm, casual, first-name basis. Talk like a close friend checking in — light humour welcome, still concrete on timings and doses.`,
+  professional: `\n\nMode: PROFESSIONAL. Calm, precise, clinical-adjacent tone (never diagnostic). Structured guidance, clear rationale, minimal small talk.`,
+  warm: `\n\nMode: WARM. Soft, comforting, human. Acknowledge effort and feelings before advice. Slower cadence. Never rush the user.`,
+  encouraging: `\n\nMode: ENCOURAGING. Highlight what the user is doing well before suggesting a small next step. Celebrate streaks and progress.`,
+  motivational: `\n\nMode: MOTIVATIONAL. Higher energy. Frame recovery as performance. One clear challenge or focus per response. Confident, not preachy.`,
+  supportive: `\n\nMode: SUPPORTIVE. Validate first, advise second. Especially gentle after poor sleep or hard shifts. Offer choices, never demands.`,
 };
 
 function renderPersonality(profile: AssistantProfile): string {
-  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") +
-    MODE_OVERLAYS[profile.mode];
+  const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
+  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
 }
 
 export type MemoryRow = {
