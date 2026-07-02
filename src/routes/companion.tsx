@@ -64,6 +64,13 @@ function forcedMorning(): boolean {
   return new URLSearchParams(window.location.search).get("brief") === "1";
 }
 
+/** Map the internal orb state (+ live listening) to the portrait's 3-state model. */
+function orbToPortrait(state: OrbState, listening: boolean): PortraitState {
+  if (state === "speaking") return "speaking";
+  if (state === "thinking") return "thinking";
+  if (listening || state === "listening") return "speaking"; // glow/pulse while listening
+  return "idle";
+
 export const Route = createFileRoute("/companion")({
   validateSearch: (s: Record<string, unknown>) => ({
     prompt: typeof s.prompt === "string" ? s.prompt.slice(0, 500) : undefined,
