@@ -70,6 +70,8 @@ function orbToPortrait(state: OrbState, listening: boolean): PortraitState {
   if (state === "thinking") return "thinking";
   if (listening || state === "listening") return "speaking"; // glow/pulse while listening
   return "idle";
+}
+
 
 export const Route = createFileRoute("/companion")({
   validateSearch: (s: Record<string, unknown>) => ({
