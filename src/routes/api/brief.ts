@@ -107,6 +107,11 @@ export const Route = createFileRoute("/api/brief")({
 
         if (!process.env.LOVABLE_API_KEY) {
           console.error("[brief] LOVABLE_API_KEY missing");
+          notifyOwnerAsync({
+            severity: "critical",
+            service: "brief",
+            message: "config_missing: LOVABLE_API_KEY not set",
+          });
           return fallback("config", messageFromReason("config"));
         }
 
