@@ -227,9 +227,25 @@ export async function buildSystemPrompt(opts: {
   }
 
 
+  // PERSONAL SIGNALS — real-time facts (sleep goal, last night, sleep debt,
+  // HRV, next shift, local clock). Injected for every coach turn on both
+  // voice and text so the model can answer specifically.
+  if (opts.userId && opts.intent === "coach") {
+    try {
+      const { fetchPersonalSignals, formatSignalsBlock } = await import(
+        "@/lib/ai/personal-signals.server"
+      );
+      const lines = await fetchPersonalSignals(opts.admin, opts.userId);
+      prompt += formatSignalsBlock(lines);
+    } catch (e) {
+      console.warn("context signals block failed", e);
+    }
+  }
+
   if (opts.liveContext) {
     prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
   }
+
 
   return prompt;
 }
