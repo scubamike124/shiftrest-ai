@@ -41,7 +41,8 @@ function AuthCallbackPage() {
     }
 
     // Recovery flow → send user to reset-password screen after session is set.
-    const target = rawType === "recovery" ? "/reset-password" : next;
+    const target =
+      rawType === "recovery" ? "/reset-password?fromRecovery=1" : next;
 
     supabase.auth
       .verifyOtp({ token_hash: tokenHash, type: rawType as any })
