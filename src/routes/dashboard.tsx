@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
-import { GreetingHeader } from "@/components/home/GreetingHeader";
+import { CompanionHero } from "@/components/home/CompanionHero";
 import { HomeCard, HomeCardHeader } from "@/components/home/HomeCard";
 import { SleepSoundsCard } from "@/components/home/SleepSoundsCard";
 import { HydrationCard } from "@/components/home/HydrationCard";
