@@ -77,7 +77,7 @@ export function CompanionIntroSheet() {
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="bottom"
-        className="mx-auto max-w-lg rounded-t-3xl border-border bg-card sm:rounded-3xl"
+        className="mx-auto flex max-h-[90dvh] max-w-lg flex-col overflow-y-auto rounded-t-3xl border-border bg-card pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:rounded-3xl"
       >
         <SheetHeader className="text-left">
           <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-primary/15">
