@@ -23,9 +23,10 @@ export function GreetingHeader({ name, now, dateLabel }: { name: string; now: Da
       <Link
         to="/companion"
         aria-label="Open Companion"
-        className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/15 bg-card/70 backdrop-blur-xl"
+        className="group relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/15 bg-card/70 backdrop-blur-xl transition hover:border-primary/40 active:scale-95"
       >
         <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-primary/30 via-transparent to-transparent" />
+        <span className="pointer-events-none absolute -inset-1 rounded-full bg-primary/20 opacity-0 blur-md transition group-hover:opacity-100" />
         <OrbBadge state="idle" size="sm" />
       </Link>
     </header>
