@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
 import { PilotOrb, type OrbState } from "@/components/PilotOrb";
+import { PilotPortrait, type PortraitState } from "@/components/companion/PilotPortrait";
 import { avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import {
