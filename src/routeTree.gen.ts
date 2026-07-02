@@ -14,6 +14,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwapRouteImport } from './routes/swap'
 import { Route as SmartHomeRouteImport } from './routes/smart-home'
 import { Route as SleepRouteImport } from './routes/sleep'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -105,6 +106,11 @@ const SmartHomeRoute = SmartHomeRouteImport.update({
 const SleepRoute = SleepRouteImport.update({
   id: '/sleep',
   path: '/sleep',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareRoute = ShareRouteImport.update({
@@ -471,6 +477,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
@@ -544,6 +551,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
@@ -618,6 +626,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
   '/share': typeof ShareRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
   '/smart-home': typeof SmartHomeRoute
   '/swap': typeof SwapRoute
@@ -694,6 +703,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sitemap.xml'
     | '/sleep'
     | '/smart-home'
     | '/swap'
@@ -767,6 +777,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sitemap.xml'
     | '/sleep'
     | '/smart-home'
     | '/swap'
@@ -840,6 +851,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/safety'
     | '/share'
+    | '/sitemap.xml'
     | '/sleep'
     | '/smart-home'
     | '/swap'
@@ -915,6 +927,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SafetyRoute: typeof SafetyRoute
   ShareRoute: typeof ShareRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SleepRoute: typeof SleepRoute
   SmartHomeRoute: typeof SmartHomeRoute
   SwapRoute: typeof SwapRoute
@@ -982,6 +995,13 @@ declare module '@tanstack/react-router' {
       path: '/sleep'
       fullPath: '/sleep'
       preLoaderRoute: typeof SleepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share': {
@@ -1536,6 +1556,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SafetyRoute: SafetyRoute,
   ShareRoute: ShareRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SleepRoute: SleepRoute,
   SmartHomeRoute: SmartHomeRoute,
   SwapRoute: SwapRoute,
