@@ -39,6 +39,7 @@ import { WeatherLocationCard } from "@/components/weather/WeatherLocationCard";
 import { TrafficDestinationsCard } from "@/components/traffic/TrafficDestinationsCard";
 import { CalendarFeedsCard } from "@/components/calendar/CalendarFeedsCard";
 import { QuietModeCard } from "@/components/companion/QuietModeCard";
+import { HIDE_COMING_SOON_SKILLS } from "@/lib/flags";
 
 export const Route = createFileRoute("/settings/skills")({
   head: () => ({
@@ -104,6 +105,9 @@ function SkillsSettings() {
   const grouped = useMemo(() => {
     const map = new Map<SkillDescriptor["group"], SkillRuntime[]>();
     for (const skill of runtime) {
+      // Phase 1: hide coming-soon tiles. Flip HIDE_COMING_SOON_SKILLS to false
+      // in src/lib/flags.ts to restore Phase 2 previews.
+      if (HIDE_COMING_SOON_SKILLS && skill.status === "coming_soon") continue;
       const list = map.get(skill.group) ?? [];
       list.push(skill);
       map.set(skill.group, list);

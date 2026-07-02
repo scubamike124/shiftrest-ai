@@ -113,8 +113,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "RestPilot AI — Sleep Optimizer for Shift Workers" },
       { name: "twitter:description", content: "Plan your shifts and unlock restful sleep with AI-guided wind-down and sleep windows tailored to your schedule." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a3091dfa-df8a-49ed-8a47-556f7be1d49f/id-preview-4c7d7f1c--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app-1780413817790.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a3091dfa-df8a-49ed-8a47-556f7be1d49f/id-preview-4c7d7f1c--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app-1780413817790.png" },
+      // og:image / twitter:image live on leaf routes only — root head() concatenates
+      // into every match and would override every page's share preview.
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
