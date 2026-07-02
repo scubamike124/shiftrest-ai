@@ -14,6 +14,7 @@ import {
   Mic,
   Waves,
   Bot,
+  LifeBuoy,
 } from "lucide-react";
 
 const nav = [
@@ -32,6 +33,7 @@ const nav = [
 
 const footerNav = [
   { to: "/paywall", label: "Upgrade", icon: Sparkles },
+  { to: "/contact", label: "Help & Contact", icon: LifeBuoy },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
