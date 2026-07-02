@@ -22,11 +22,13 @@ function ResetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Supabase parses the recovery hash on load and emits a PASSWORD_RECOVERY event.
-  // We also check the URL hash directly so a direct visit shows a friendly state.
+  // Recovery links now flow through /auth/callback which calls verifyOtp and
+  // then navigates here with an active session. Legacy hash-based recovery
+  // links (type=recovery) still work.
   useEffect(() => {
     const hash = typeof window !== "undefined" ? window.location.hash : "";
-    const hasTypeRecovery = hash.includes("type=recovery");
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    const hasTypeRecovery = hash.includes("type=recovery") || search.includes("fromRecovery=1");
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
@@ -35,7 +37,6 @@ function ResetPasswordPage() {
       }
     });
 
-    // Fallback: if there's an active session already (token consumed), allow update.
     supabase.auth.getSession().then(({ data }) => {
       if (data.session && hasTypeRecovery) setHasRecovery(true);
       setReady(true);

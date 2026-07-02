@@ -31,10 +31,38 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "shift-rest-ai"
+const SITE_NAME = "RestPilot AI"
 const SENDER_DOMAIN = "notify.restpilotai.com"
 const ROOT_DOMAIN = "restpilotai.com"
 const FROM_DOMAIN = "notify.restpilotai.com"
+const SUPPORT_EMAIL = "support@restpilotai.com"
+
+// Map Supabase email action types → post-verify landing paths.
+const NEXT_PATH: Record<string, string> = {
+  signup: "/dashboard",
+  invite: "/dashboard",
+  magiclink: "/dashboard",
+  recovery: "/reset-password",
+  email_change: "/profile",
+  email: "/dashboard",
+}
+
+function buildBrandedConfirmationUrl(
+  emailType: string,
+  tokenHash: string | undefined,
+  fallback: string,
+): string {
+  // Only rewrite if we have a token_hash (verifyOtp requirement). Falls back to
+  // Supabase's raw URL for edge cases (e.g. reauthentication codes).
+  if (!tokenHash) return fallback
+  const next = NEXT_PATH[emailType] || "/dashboard"
+  const params = new URLSearchParams({
+    token_hash: tokenHash,
+    type: emailType,
+    next,
+  })
+  return `https://${ROOT_DOMAIN}/auth/callback?${params.toString()}`
+}
 
 function redactEmail(email: string | null | undefined): string {
   if (!email) return '***'
@@ -131,12 +159,20 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
+        // Rewrite Supabase's verify URL to our own domain so link href aligns
+        // with sender domain (Gmail phishing-heuristic fix).
+        const brandedUrl = buildBrandedConfirmationUrl(
+          emailType,
+          payload.data.token_hash,
+          payload.data.url,
+        )
+
         // Build template props from payload.data (HookData structure)
         const templateProps = {
           siteName: SITE_NAME,
           siteUrl: `https://${ROOT_DOMAIN}`,
           recipient: payload.data.email,
-          confirmationUrl: payload.data.url,
+          confirmationUrl: brandedUrl,
           token: payload.data.token,
           email: payload.data.email,
           oldEmail: payload.data.old_email,
@@ -178,6 +214,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             message_id: messageId,
             to: payload.data.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            reply_to: SUPPORT_EMAIL,
             sender_domain: SENDER_DOMAIN,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
