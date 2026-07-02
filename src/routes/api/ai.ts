@@ -267,15 +267,19 @@ export const Route = createFileRoute("/api/ai")({
           request.headers.get("authorization"),
         );
 
-        // Budget gate (only when we know who you are)
-        if (userId) {
-          const ok = await checkAIBudget(admin, userId);
-          if (!ok) {
-            return jsonError(
-              429,
-              "Daily AI limit reached. It resets in 24 hours.",
-            );
-          }
+        // Require authentication — anonymous callers were previously
+        // able to invoke intents that skipped the AI budget gate.
+        if (!userId) {
+          return jsonError(401, "Sign in required");
+        }
+
+        // Budget gate
+        const ok = await checkAIBudget(admin, userId);
+        if (!ok) {
+          return jsonError(
+            429,
+            "Daily AI limit reached. It resets in 24 hours.",
+          );
         }
 
         try {
