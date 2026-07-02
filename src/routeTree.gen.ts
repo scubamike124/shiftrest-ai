@@ -73,6 +73,7 @@ import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.i
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
@@ -403,6 +404,12 @@ const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
   path: '/api/public/version',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
   id: '/api/public/wearables/cron',
   path: '/api/public/wearables/cron',
@@ -525,6 +532,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -598,6 +606,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -674,6 +683,7 @@ export interface FileRoutesById {
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/api/public/wearables/fitbit/callback': typeof ApiPublicWearablesFitbitCallbackRoute
   '/api/public/wearables/oura/callback': typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -751,6 +761,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/queue/process'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   fileRoutesByTo: FileRoutesByTo
@@ -824,6 +835,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/queue/process'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   id:
@@ -899,6 +911,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/notify'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
+    | '/lovable/email/queue/process'
     | '/api/public/wearables/fitbit/callback'
     | '/api/public/wearables/oura/callback'
   fileRoutesById: FileRoutesById
@@ -956,6 +969,7 @@ export interface RootRouteChildren {
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   ApiPublicWearablesFitbitCallbackRoute: typeof ApiPublicWearablesFitbitCallbackRoute
   ApiPublicWearablesOuraCallbackRoute: typeof ApiPublicWearablesOuraCallbackRoute
 }
@@ -1410,6 +1424,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/wearables/cron': {
       id: '/api/public/wearables/cron'
       path: '/api/public/wearables/cron'
@@ -1585,19 +1606,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   ApiPublicWearablesFitbitCallbackRoute: ApiPublicWearablesFitbitCallbackRoute,
   ApiPublicWearablesOuraCallbackRoute: ApiPublicWearablesOuraCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
