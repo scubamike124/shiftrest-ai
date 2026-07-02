@@ -63,3 +63,13 @@ export async function notifyOwner({
     console.error('[ops-alert] Failed to enqueue owner alert', e)
   }
 }
+
+/**
+ * Fire-and-forget wrapper for notifyOwner. Never blocks the caller and
+ * never throws — safe to call from any fallback/error path.
+ */
+export function notifyOwnerAsync(params: NotifyOwnerParams): void {
+  void notifyOwner(params).catch((e) => {
+    console.error('[ops-alert] notifyOwnerAsync failed', e)
+  })
+}
