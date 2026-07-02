@@ -159,12 +159,20 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           )
         }
 
+        // Rewrite Supabase's verify URL to our own domain so link href aligns
+        // with sender domain (Gmail phishing-heuristic fix).
+        const brandedUrl = buildBrandedConfirmationUrl(
+          emailType,
+          payload.data.token_hash,
+          payload.data.url,
+        )
+
         // Build template props from payload.data (HookData structure)
         const templateProps = {
           siteName: SITE_NAME,
           siteUrl: `https://${ROOT_DOMAIN}`,
           recipient: payload.data.email,
-          confirmationUrl: payload.data.url,
+          confirmationUrl: brandedUrl,
           token: payload.data.token,
           email: payload.data.email,
           oldEmail: payload.data.old_email,
@@ -206,6 +214,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             message_id: messageId,
             to: payload.data.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+            reply_to: SUPPORT_EMAIL,
             sender_domain: SENDER_DOMAIN,
             subject: EMAIL_SUBJECTS[emailType] || 'Notification',
             html,
