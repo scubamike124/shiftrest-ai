@@ -181,6 +181,27 @@ export const Route = createFileRoute("/api/brief")({
           const message = e instanceof Error ? e.message : String(e);
           console.error("[brief] upstream failed", { status, message });
           const reason = reasonFromStatus(status);
+          // Alert on genuine infra failures only.
+          if (reason === "credits") {
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "brief",
+              message: "credits_exhausted",
+            });
+          } else if (reason === "rate_limit") {
+            notifyOwnerAsync({
+              severity: "warning",
+              service: "brief",
+              message: "rate_limited",
+            });
+          } else if (status >= 500 || status === 401 || status === 403) {
+            notifyOwnerAsync({
+              severity: status === 401 || status === 403 ? "critical" : "error",
+              service: "brief",
+              message: status === 401 || status === 403 ? "upstream_auth_failed" : "upstream_error",
+              meta: { status, error: message },
+            });
+          }
           return fallback(reason, messageFromReason(reason));
         }
       },
