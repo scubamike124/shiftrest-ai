@@ -1247,7 +1247,8 @@ function CompanionPage() {
             }
             aria-pressed={micState === "listening"}
           >
-            <PilotOrb state={orbState} level={level} />
+            <PilotPortrait state={orbToPortrait(orbState, micState === "listening")} size="xl" eager />
+            <span className="sr-only">{`Pilot — ${avatarStateLabel(orbState)}`}</span>
           </button>
         </div>
         {/* Reserved presence slot — fixed height prevents column reflow. */}
