@@ -1,130 +1,98 @@
-# Version 1 Launch Completion — Batches A → D
 
-Investigation-first. No code changes until you approve each batch. Smart Alarm, Apple Health, Garmin, Whoop, Samsung Health, Google Fit, smart-home, and animated avatars are out of scope for every batch below.
+# Batch B — AI Companion Polish (Investigation & Plan)
 
----
+Investigation-first. Scope: Home focal point, portrait + orb visuals, richer greetings, voice/persona UX. No animated avatar, no wearables, no Smart Alarm.
 
-## Batch A — Account & Authentication
+## 1. Investigation Findings
 
-### What already shipped (last turn)
-- `/auth/callback` now awaits `verifyOtp` → `getUser()` → `refreshSession()` before router-navigating with `replace: true`, and invalidates `subscription-state`, `prefs`, `employers` on success.
-- `__root` sign-in bootstrap also invalidates `subscription-state`.
+**Files involved (existing, no new subsystems needed):**
+- Home: `src/routes/dashboard.tsx` (886 lines), `src/components/home/GreetingHeader.tsx` (34), `src/components/AIBriefCard.tsx`.
+- Companion visual: `src/components/PilotOrb.tsx` (conic-gradient orb + `OrbBadge`), `src/components/companion/SpeakingIndicator.tsx`.
+- Pilot: `src/routes/pilot.tsx` (670), `src/routes/companion.tsx` (1603).
+- Voice/persona UX: `src/components/voice/VoiceSettings.tsx` (354), `src/routes/settings.companion.tsx` (573).
+- Prompts: `src/lib/ai/context.server.ts` (mode overlays already exist), `src/routes/api/brief.ts`, `src/lib/ai/prompts.server.ts`.
 
-### Investigation findings
-- Only **one** cache key drives trial/billing chrome: `["subscription-state"]` (read in `profile.tsx`, `paywall.tsx`, elsewhere via `src/lib/subscription.ts`). Good — one invalidation covers everything.
-- Onboarding completion is stored server-side in `user_prefs.flags.onboarding_ack` (see `Onboarding.tsx`), with `localStorage` fallback for logged-out users. `migrateLocalPrefsIfNeeded` runs on sign-in — safe.
-- `useSession` refreshes on every `onAuthStateChange`, so the session is authoritative.
-- `email_confirmed_at` is not read anywhere in app code (searched — zero hits). Verified-vs-unverified UI is driven entirely by `subscription-state` and Supabase's own `session.user.email_confirmed_at` via the SDK. That means the callback fix already covers the reported bug **on the tab that clicked the link**.
-- **Cross-tab gap** (still needs a fix): if a user verifies in one tab while another tab holds the pre-verify session, the second tab won't refresh until the token rolls. Supabase emits `USER_UPDATED` on the verifying tab but the other tab only sees `TOKEN_REFRESHED` later. Low-frequency, but worth a small storage listener in `__root`.
+**What's reusable:**
+- `OrbBadge` / `PilotOrb` — already on-brand (aurora conic gradient), just needs a bigger role on Home.
+- 9 mode overlays in `context.server.ts` already exist; the 6 user-facing presets map cleanly.
+- `greetingWithName()` in `src/lib/time/day-part.ts` handles time-of-day.
+- `AIBriefCard` already renders insights/recommendations.
 
-### Work items
-1. **QA pass** (manual, no code) against the 9-step flow in your request; report a pass/fail table. Any reproducible failure gets a targeted fix — no speculative changes.
-2. **Cross-tab session sync**: add a `window.addEventListener("storage", …)` in `__root` that watches the Supabase auth storage key and calls `queryClient.invalidateQueries({ queryKey: ["subscription-state"] })` when it changes. ~10 lines.
-3. **`/verify-again` polish**: if the `/auth/callback` handler lands with an expired link, offer a "Resend verification email" button that calls `supabase.auth.resend({ type: "signup", email })`. Currently we only tell the user the link is expired.
-4. **Sign-out hygiene audit**: confirm sign-out order is `cancelQueries → clear → signOut → navigate("/auth", replace)`; add whatever is missing.
+**What should be redesigned:**
+- `GreetingHeader` — small 14×14 orb tucked in the corner. Elevate to a full-width "Companion Hero" card as Home's first block.
+- Greeting copy — currently only `${dayPart}, ${name}`. Add one contextual line (shift + recovery + sleep-debt aware).
+- `VoiceSettings` list — checkmark-only selected state; add pinned "Current" card at top + inline preview button per row.
+- Persona overlays — tighten wording so Calm/Coach/Motivational read distinctly out loud.
 
-Explicit non-goals: no schema changes, no new tables, no new auth providers.
+**Performance:** all changes are presentation-layer; no new API calls. Greeting context reads data already fetched for the dashboard (shifts, insights, sleep). Animations use existing Tailwind keyframes + one CSS `@keyframes breathe` — GPU-only (transform/opacity). Portrait image is a single generated 1024² JPG imported statically (LCP-friendly).
 
----
+**Mobile:** Hero card uses `grid-cols-[auto_1fr]`, 375px verified. Tap targets ≥44px. `dvh` where needed.
 
-## Batch B — AI Companion Polish (no talking avatar)
+**A11y:** All decorative glow layers get `aria-hidden`. Speaking indicator gets `role="status" aria-live="polite"`. Persona radio group gets `role="radiogroup"` with keyboard navigation.
 
-### Investigation findings
-- `CompanionHero` already exists on Home and honors freshness/quiet/offline. It uses `OrbBadge` as the visual — no portrait.
-- `pilot.tsx` (670 LOC) has a hero section but no premium portrait.
-- Greeting composition (`resolveHero`) uses time-of-day + brief-period only. It has hooks for name and quiet hours but nothing about the actual shift, sleep, or recovery.
-- Persona presets exist in `AssistantSettings.tsx` (9 personas, F-1). Voice selection UX was polished (F-2). Both are functional but the persona doesn't feed the greeting or system prompt.
+## 2. Home Experience — Companion Hero
 
-### Work items
-1. **Portrait asset**: generate one premium AI portrait (`imagegen` premium tier, transparent PNG, warm aurora vibe matching the design). Place at `src/assets/companion/portrait-hero.png`.
-2. **Home**: promote `CompanionHero` above `RightNowCard`, enlarge the visual to portrait + orb overlay, add:
-   - Idle breathing scale animation (~4s, `prefers-reduced-motion` safe).
-   - Ambient glow that intensifies when a fresh brief is available.
-   - Speaking indicator ring bound to the existing `companion:speaking` event.
-3. **Pilot**: same portrait as the Pilot hero, replacing the plain title block.
-4. **Smarter greeting**: extend `resolveHero` (or add a `composeGreetingContext` helper) to fold in:
-   - Next shift start/end (from `shifts`).
-   - Last night's sleep (from `wearable_readings` if present, else manual entry).
-   - Recovery score (derived from HRV/RHR in wearable data — falls back gracefully).
-   - Last conversation topic (from `coach_messages` most-recent row).
-   - Do the actual sentence composition server-side in `/api/brief` so Pilot voice reads the same string.
-5. **Persona wiring**: pass persona into `/api/coach` and `/api/brief` system prompt (tone/vocab shift).
-6. **Voice UX**: add inline 3-second preview button per voice in `VoiceSettings.tsx` using `/api/tts`.
+Replace `GreetingHeader` with `CompanionHero` at the top of `dashboard.tsx`:
+- Left: `OrbBadge size="lg"` with idle breathing glow.
+- Right: greeting line ("Good evening, Joe"), one contextual sub-line ("Early shift tomorrow — 05:00"), and a large primary "Talk to Pilot" button linking to `/companion`.
+- Below the hero: existing `AIBriefCard` (daily summary), a compact 3-stat strip (recommended bedtime · sleep debt · recovery) pulled from data already in dashboard scope.
 
-Non-goals: no talking avatar, no Simli/D-ID, no 3D model changes.
+No new queries — reuses `insights`, `recommendations`, next-shift, and sleep aggregates already fetched.
 
----
+## 3. AI Visual Identity — Portrait + Orb
 
-## Batch C — Wearable Integrations (Fitbit + Oura)
+- Generate one premium abstract "Pilot" portrait (soft aurora nebula + suggested silhouette, no face detail — matches "no animated avatar" constraint). Save to `src/assets/pilot-portrait.jpg`.
+- New `<PilotPortrait state="idle|speaking" size />` component: portrait image + soft radial glow layer + idle breathing animation + speaking-indicator pulse ring when `state="speaking"`. Reused on Home hero and Pilot page header.
+- Keep `OrbBadge` for nav/inline uses.
 
-### Investigation findings
-- Server layer already exists: `src/lib/wearables/{fitbit,oura,sync}.server.ts`, `wearables.functions.ts`.
-- OAuth callbacks exist: `src/routes/api/public/wearables/{fitbit,oura}/callback.ts`.
-- Cron sync exists: `src/routes/api/public/wearables/cron.ts`.
-- Tables `wearable_connections` (12 cols) and `wearable_readings` (15 cols) exist with RLS.
-- **Unknown until you confirm**: whether developer OAuth apps and secrets are actually provisioned. There is no `FITBIT_CLIENT_ID` / `OURA_CLIENT_ID` in the fetched secrets list.
+## 4. Greeting Personality
 
-### What you need to provide before code work
-This is the "developer keys" list you asked me to document up front:
+Extend `src/lib/time/day-part.ts` (or add `src/lib/greeting/context.ts`) with `buildGreetingLine({ name, now, nextShift, sleepDebtMin, recoveryScore, prevBedtime })` returning one short contextual sentence. Pure function, unit-testable, no network. Rules:
+- Prioritise: shift-in-<12h > poor recovery > sleep debt > bedtime nudge > neutral affirmation.
+- Never more than one clause. Example outputs match the user's spec.
 
-**Fitbit** (`dev.fitbit.com`):
-- Create an app: OAuth 2.0 Application Type = **Server**, Callback URL = `https://restpilotai.com/api/public/wearables/fitbit/callback` (and `https://project--8243527a-2b83-4fe2-aa6d-60b0ae194313.lovable.app/api/public/wearables/fitbit/callback` for preview).
-- Scopes: `sleep heartrate profile`.
-- Give me the **Client ID** and **Client Secret** → I'll store as `FITBIT_CLIENT_ID` (secret) and `FITBIT_CLIENT_SECRET`.
+Applied in the new `CompanionHero` and (as `pilotGreeting()`) at top of `/pilot` route.
 
-**Oura** (`cloud.ouraring.com/oauth/applications`):
-- Create an app with redirect URI = `https://restpilotai.com/api/public/wearables/oura/callback` (+ preview URL).
-- Scopes: `daily heartrate personal session sleep`.
-- Give me **Client ID** and **Client Secret** → stored as `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET`.
+## 5. Voice Experience — VoiceSettings redesign
 
-### Work items (once keys are in)
-1. Verify `fitbit.server.ts` / `oura.server.ts` token exchange + refresh work end-to-end.
-2. Normalize both providers into `wearable_readings`: `sleep_duration_min`, `bedtime`, `wake_time`, `hrv_ms`, `resting_hr`, `sleep_score`.
-3. `/health` "Connections" panel: **Connect / Disconnect**, **Connected badge**, **Last synced timestamp**, **Sync now** button (calls a `requireSupabaseAuth` serverFn).
-4. Feed the latest reading into the Companion greeting/brief context from Batch B.
-5. Cron: confirm the existing dispatcher hits both providers; keep it hourly.
+- Pin the currently-selected voice as a large "Now speaking" card at the top with waveform + Play preview + Change action.
+- Below: horizontally-scrollable filter chips (Language, Accent), then a vertical list where each row has: avatar dot, name, 1-line description, ▶︎ preview icon, big radio target (whole row tappable).
+- Reduce taps: no modal — inline preview, single-tap select. Optimistic UI.
+- Preview button shows loading spinner while TTS streams; auto-stops previous preview.
 
-Non-goals for this batch: Apple Health, Garmin, Whoop, Samsung, Google Fit (stay hidden via `HIDE_PLANNED_PROVIDERS_ON_HEALTH`).
+## 6. Personality Presets — 6 canonical
 
----
+Consolidate to the 6 requested presets and tighten copy in `MODE_OVERLAYS`:
+- **Calm** (maps to `warm`) — soft, slower cadence, no exclamations.
+- **Companion** (`companion`) — conversational, one follow-up question.
+- **Coach** (`coach`) — action-first, timings + wins.
+- **Friendly** (`friend`) — casual, light humour.
+- **Professional** (`professional`) — precise, structured, minimal small talk.
+- **Motivational** (`motivational`) — high-energy, single challenge.
 
-## Batch D — Health Dashboard + Notifications
+Each overlay gets a distinctive cadence rule + example opener so the model produces audibly different output. Preset picker in `settings.companion.tsx` becomes a card grid (2×3) with a short sample line under each name and a "Preview voice" button that TTS-reads the sample in the current voice.
 
-### Health dashboard
-Extend `/health` with a **Trends** section reading `wearable_readings`:
-- 7-day and 30-day charts (`recharts`, already installed, theme tokens): sleep duration, consistency (bedtime std-dev), recovery, sleep debt (target − actual rolling 7d), HRV, resting HR.
-- Weekly summary card with delta vs previous week.
-- Empty states link back to the Connections card in Batch C.
+## 7. Performance & Regression Guardrails
 
-### Notifications
-Existing: `src/lib/notifications/*`, VAPID push, pg_cron. Investigation shows wind-down runs client-side (`scheduleNextWindDown`), which won't fire when the tab is closed.
+- No new server calls in the Home path.
+- Portrait image ≤180KB JPG, statically imported (Vite hashes + preloads).
+- Animations: transform/opacity only, `will-change` avoided.
+- Behind-the-scenes prompt changes gated so the brief/coach APIs still return existing JSON shape.
+- TypeScript strict clean, security scan re-run pre-publish.
 
-Deliver all five as **server-scheduled push** (survives app close):
-- Morning Brief — 45 min before shift start, or 07:30 default.
-- Evening Wind-down — 60 min before target bedtime.
-- Bedtime reminder — at target bedtime.
-- Recovery reminder — after a low-recovery night, mid-morning.
-- Shift countdown — 2h before shift.
+## 8. Out of Scope (confirmed)
 
-Each honors `notification_prefs` per-type toggles + quiet hours; dedupes via `notification_log`. Reuses the existing pg_cron dispatcher — no new cron jobs.
+Animated talking avatar, Smart Alarm, Fitbit, Oura, Apple Health, Garmin, Whoop, smart-home.
 
----
+## 9. Delivery Order (small batches)
 
-## Execution Order
+1. **B-1 Visual foundation** — generate portrait, ship `PilotPortrait`, breathing keyframe, add speaking-ring variant to `OrbBadge`.
+2. **B-2 Home hero** — `CompanionHero` in `dashboard.tsx`, retire old `GreetingHeader` layout, add 3-stat strip.
+3. **B-3 Greeting engine** — `buildGreetingLine()` + unit tests; wire into Home + Pilot.
+4. **B-4 Persona overlays** — rewrite 6 overlays in `context.server.ts`, redesign preset picker.
+5. **B-5 Voice selector** — pinned current voice + inline preview redesign in `VoiceSettings.tsx`.
+6. **B-6 QA + publish** — typecheck, mobile pass at 375/390/430, security scan, publish.
 
-1. **Batch A** — QA pass + cross-tab sync + resend button + sign-out audit.
-2. **Batch B** — Companion portrait + Home/Pilot polish + smarter greeting + persona wiring + voice preview.
-3. **Batch C** — Fitbit + Oura end-to-end (needs your provider keys first).
-4. **Batch D** — Health trends + five server-scheduled notifications.
+Each sub-batch lands independently and is safe to revert.
 
-Each batch: implement → typecheck → security scan → publish → your on-device verify → next batch.
-
-## Technical Notes
-
-- Only cache key driving trial/verify state today is `["subscription-state"]`; keep it that way.
-- `_authenticated` gate is integration-managed — don't touch.
-- All new columns follow the CREATE → GRANT → RLS → POLICY ordering rule.
-- Notification cron reuses the existing dispatcher; no new pg_cron jobs.
-- Smart Alarm remains gated by `SMART_ALARM_ENABLED = false`.
-
-Reply **"go A"**, **"go B"**, etc. — or send Fitbit/Oura keys and I'll queue Batch C next.
+Reply **"go B-1"** to start with the visual foundation, or approve the full sequence with **"go B"** and I'll ship B-1 → B-6 in order, pausing after each for your ack.

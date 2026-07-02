@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
-import { GreetingHeader } from "@/components/home/GreetingHeader";
+import { CompanionHero } from "@/components/home/CompanionHero";
 import { HomeCard, HomeCardHeader } from "@/components/home/HomeCard";
 import { SleepSoundsCard } from "@/components/home/SleepSoundsCard";
 import { HydrationCard } from "@/components/home/HydrationCard";
@@ -281,6 +281,25 @@ function Dashboard() {
     return { start: sleepStart, end: sleepEnd };
   }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
 
+  // Next upcoming shift start as an absolute Date (today + up to 7 days ahead).
+  // Feeds the CompanionHero contextual greeting.
+  const nextShiftStart = useMemo<Date | null>(() => {
+    if (!mounted) return null;
+    const nowMs = today.getTime();
+    for (let i = 0; i < 8; i += 1) {
+      const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const daily = shiftsForDate(shifts, dt, prefs.cycleAnchor, prefs.cycleWeeks);
+      for (const s of daily) {
+        const start = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+        start.setMinutes(s.start);
+        if (start.getTime() > nowMs) return start;
+      }
+    }
+    return null;
+  }, [mounted, today, shifts, prefs.cycleAnchor, prefs.cycleWeeks]);
+
+
+
   const stability = Math.max(0, 100 - debt.score);
   const getWearableSummaryFn = useServerFn(getWearableSummary);
   const { data: wearableSummary } = useQuery({
@@ -319,7 +338,18 @@ function Dashboard() {
         <div className="absolute right-0 top-1/3 h-[30vh] w-[30vh] rounded-full bg-sky-500/10 blur-[120px]" />
       </div>
 
-      <GreetingHeader name="" now={mounted ? today : new Date(0)} dateLabel={dateLabel} />
+      <CompanionHero
+        name={(prefs.preferredName ?? "").trim()}
+        now={mounted ? today : new Date(0)}
+        dateLabel={dateLabel}
+        context={{
+          nextShiftStart,
+          debtScore: mounted ? debt.score : null,
+          recoveryScore: mounted ? stability : null,
+          recommendedBedtime: null,
+        }}
+      />
+
 
       <OfflineBanner userId={userId} />
       <CompanionIntroSheet />
