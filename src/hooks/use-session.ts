@@ -2,9 +2,10 @@
 // a stale "signedIn" prop. Prevents first-paint races where a protected
 // serverFn fires before the SDK has loaded the access token from storage.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureWelcomeEmailFn } from "@/lib/welcome-email.functions";
 
 function emitAuthStatus(session: Session | null, source: string) {
   if (typeof window === "undefined") return;
@@ -47,6 +48,16 @@ function waitForAuthEvent(timeoutMs: number): Promise<Session | null> {
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const welcomeTriedRef = useRef(false);
+
+  useEffect(() => {
+    if (!ready || !session?.user?.id || welcomeTriedRef.current) return;
+    welcomeTriedRef.current = true;
+    // Fire-and-forget; idempotent server-side via profiles.welcomed_at.
+    void ensureWelcomeEmailFn().catch(() => {
+      /* swallow — no user-visible failure if welcome email can't send */
+    });
+  }, [ready, session?.user?.id]);
 
   useEffect(() => {
     let mounted = true;

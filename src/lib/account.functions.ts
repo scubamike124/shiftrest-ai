@@ -71,12 +71,15 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const uid = context.userId;
 
+    // Capture the user's email BEFORE deletion so we can send confirmation.
+    const { data: userLookup } = await supabaseAdmin.auth.admin.getUserById(uid);
+    const userEmail = userLookup?.user?.email ?? null;
+
     const stripe = await attemptStripeCancel(uid);
 
     const deleted: string[] = [];
     const failed: string[] = [];
     for (const table of USER_TABLES) {
-      // Tables come from a heterogeneous union; cast for the dynamic loop.
       const client = supabaseAdmin as unknown as {
         from: (t: string) => { delete: () => { eq: (c: string, v: string) => Promise<{ error: { message: string } | null }> } };
       };
@@ -89,6 +92,31 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
     if (authErr) {
       console.error("deleteAccount auth failed", authErr);
       throw new Error(authErr.message || "Account deletion failed");
+    }
+
+    // Post-deletion confirmation email + owner alert (fire-and-forget).
+    if (userEmail) {
+      try {
+        const { sendTransactionalEmailServer } = await import("@/lib/email/send.server");
+        await sendTransactionalEmailServer({
+          templateName: "account-deletion",
+          recipientEmail: userEmail,
+          idempotencyKey: `acct-del-${uid}`,
+        });
+      } catch (e) {
+        console.error("account-deletion email failed", e);
+      }
+    }
+    try {
+      const { notifyOwner } = await import("@/lib/ops/alert.server");
+      await notifyOwner({
+        severity: "warning",
+        service: "account.delete",
+        message: `User ${uid} deleted their account`,
+        meta: { email: userEmail, deleted: deleted.length, failed: failed.length, stripe },
+      });
+    } catch {
+      /* noop */
     }
 
     return {
@@ -147,6 +175,22 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       if (!error) data[t] = rows ?? [];
     }
     const { data: userInfo } = await supabaseAdmin.auth.admin.getUserById(uid);
+
+    // Fire-and-forget confirmation email that an export was generated.
+    if (userInfo?.user?.email) {
+      try {
+        const { sendTransactionalEmailServer } = await import("@/lib/email/send.server");
+        await sendTransactionalEmailServer({
+          templateName: "data-export-ready",
+          recipientEmail: userInfo.user.email,
+          idempotencyKey: `export-${uid}-${Date.now()}`,
+          templateData: {},
+        });
+      } catch (e) {
+        console.error("data-export-ready email failed", e);
+      }
+    }
+
     return {
       ok: true as const,
       generatedAt: new Date().toISOString(),

@@ -52,6 +52,14 @@ export const Route = createFileRoute("/api/public/hooks/dispatch-alarms")({
 
         if (selErr) {
           console.error("dispatch-alarms select failed", selErr);
+          try {
+            const { notifyOwner } = await import("@/lib/ops/alert.server");
+            void notifyOwner({
+              severity: "critical",
+              service: "dispatch-alarms",
+              message: `Alarm select failed: ${selErr.message}`,
+            });
+          } catch { /* noop */ }
           return new Response(JSON.stringify({ error: "select_failed", detail: selErr.message }), {
             status: 500,
             headers: { "Content-Type": "application/json" },
