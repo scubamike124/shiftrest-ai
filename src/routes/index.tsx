@@ -120,7 +120,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
               <span className="sm:hidden">
-                Tap to talk. Sleep sounds, smart alarm, and wind-down guidance — one calm assistant for the hours that wreck everyone else.
+                Tap to talk. Sleep sounds and wind-down guidance — one calm assistant for the hours that wreck everyone else.
               </span>
               <span className="hidden sm:inline">
                 Tap your companion after work, ask for calming sounds, start a
