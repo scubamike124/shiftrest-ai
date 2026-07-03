@@ -1,75 +1,49 @@
-# LiveKit Connection & Companion Integration Plan
+## Investigation Findings
 
-## What's already done (no work needed)
+### Where LiveKit is used
+- `src/lib/realtime.functions.ts` — reads `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` from `process.env` inside the handler (correct pattern — reads per-request, not cached at module load), then mints a JWT via `livekit-server-sdk`'s `AccessToken`.
+- `src/routes/_authenticated/lab.pilot-realtime.tsx` — invokes `realtimePreflight` and `mintRealtimePilotToken`.
+- No edge functions involved. Token minting runs in the TanStack Start server (Cloudflare Worker).
 
-- ✅ `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `OPENAI_REALTIME_API_KEY` all stored as Lovable Cloud secrets
-- ✅ Token-minting server function (`mintRealtimePilotToken`) built and deployed
-- ✅ Preflight diagnostics endpoint (`realtimePreflight`) built
-- ✅ Browser client hook (`useRealtimePilot`) with mic publish, transcript, TTFA metrics
-- ✅ Hidden beta route `/lab/pilot-realtime` gated by `VITE_ENABLE_REALTIME_PILOT`
-- ✅ External agent worker code in `agent-worker/` (OpenAI Realtime `gpt-realtime`, voice "marin", barge-in, transcript events)
+### What the existing preflight already proves
+The preflight (`realtimePreflight`) already reports:
+1. env vars present
+2. URL shape valid (`wss://…`)
+3. JWT signs + decodes locally with correct identity/room/exp
+4. LiveKit host HTTPS reachability
 
-## What's actually blocking the Companion
+If preflight is fully green but the browser still gets "invalid API key" from the LiveKit signal server, the JWT is being signed with a key/secret pair that does **not** belong to the LiveKit project at the URL. LiveKit rejects at signal-connect time because it looks up the `iss` (API key) inside its project and doesn't find it (or the HMAC signature doesn't verify against that project's secret).
 
-Two things, in this order:
+### Most likely root causes (in order)
+1. **Key/URL mismatch** — the new `LIVEKIT_API_KEY` (`APIy7eHJeNA34Jz`) belongs to a different LiveKit project than `wss://restpilot-ai-6jvalz9y.livekit.cloud`. LiveKit CLI can be authenticated to project A while the URL points at project B; nothing prevents that.
+2. **Secret update didn't propagate to the running Worker** — Cloudflare Workers pick up new env only on redeploy. If the last publish happened before the secret write committed, the Worker still holds the old values.
+3. **API secret got truncated / has stray whitespace** when pasted into the secure form (leading/trailing space breaks HMAC signature; symptom is identical to "invalid API key").
 
-1. **The stored `LIVEKIT_*` secrets may point to an older/different LiveKit project** than the one your CLI just authenticated ("RestPilot AI"). If they don't match, tokens are signed for the wrong project → clients can't join rooms.
-2. **The agent worker in `agent-worker/` has never been deployed** to LiveKit Cloud. Without it, clients connect to empty rooms and hear nothing.
+### Files involved
+- `src/lib/realtime.functions.ts` (token minting + preflight)
+- `src/routes/_authenticated/lab.pilot-realtime.tsx` (UI that displays checks)
+- No other file reads these three secrets.
 
-## Step-by-step
+### Diagnostics to add (safe, no secret exposure)
+Extend `realtimePreflight` with a new `identity` check block that returns, non-sensitively:
+- `livekitHost` — the host portion of `LIVEKIT_URL` (already public).
+- `apiKeyPrefix` — first 6 chars of `LIVEKIT_API_KEY` (e.g. `APIy7e`) so we can eyeball-match against what LiveKit dashboard shows.
+- `apiKeyLength` and `apiSecretLength` — catch truncation / whitespace (LiveKit keys are typically ~15 chars, secrets ~43).
+- `jwtIssuer` — decode the `iss` claim of the minted JWT and confirm it equals `apiKeyPrefix`'s full value; proves the SDK used the key we expect.
+- `signalProbe` — perform a real WebSocket `GET /rtc/validate?access_token=<minted>` request against the LiveKit host (LiveKit responds `200` when the key is valid for that project, `401`/`403` with `invalid API key` when it isn't). This is the definitive check — it exercises the exact path the browser fails on, from the server, without WebRTC.
 
-### Step 1 — Confirm secrets match the authenticated project (no code)
-You run **one** command in your terminal:
-```
-lk project list
-```
-Paste me the output. I compare the URL/API key against the stored `LIVEKIT_URL` / `LIVEKIT_API_KEY`. If they match, we skip to Step 2. If they don't, I'll ask you to run `update_secret` for the three LiveKit values (secure form, you paste values from `lk project list --reveal`).
+The `signalProbe` result will directly distinguish cause #1 (key belongs to a different project) from cause #2 (stale env in Worker — Worker's prefix wouldn't match what you just pasted).
 
-### Step 2 — Preflight from Lovable (no terminal)
-I temporarily flip `VITE_ENABLE_REALTIME_PILOT=true` in the preview so you can open `/lab/pilot-realtime` and click **Run preflight**. Expected: all 4 checks green (env, url, jwt, reachability). This proves the app can talk to LiveKit before we spend time on the worker.
+### Restart / propagation
+A publish IS the "restart" on this platform — each publish deploys a fresh Worker instance with the current secret snapshot. There is no separate restart button. If the publish that ran after the secret update finished successfully (visible in the deploy log), the new values are live. If in doubt, one more publish forces a redeploy.
 
-### Step 3 — Deploy the agent worker (you run 3 commands)
-From your `shiftrestAI` folder in the terminal:
-```
-cd agent-worker
-npm install
-lk agent create
-```
-`lk agent create` walks you through a prompt (project = RestPilot AI, entry = `worker.ts`), pushes secrets, and deploys. It prints an agent ID and status. Paste me the output.
+### Proposed minimal change (pending approval)
+Add the four diagnostic fields above to `realtimePreflight` in `src/lib/realtime.functions.ts` and render them in the existing preflight panel in `src/routes/_authenticated/lab.pilot-realtime.tsx`. No changes to `mintRealtimePilotToken`, no changes to secrets, no new files.
 
-Then set the 4 runtime secrets on the agent (one command, it opens a prompt for each value — copy from Lovable Cloud → Backend → Secrets, or from `lk project list --reveal`):
-```
-lk agent update-secrets
-```
-Values needed: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `OPENAI_REALTIME_API_KEY`.
+Once you rerun preflight we'll see one of:
+- `signalProbe: 200` → key is valid; browser failure is elsewhere (network / client SDK version).
+- `signalProbe: 401 invalid API key` + `apiKeyPrefix` matches what you pasted → key genuinely doesn't belong to the `restpilot-ai-6jvalz9y` project. Fix: generate a new key **inside that project** in LiveKit Cloud and paste both key + secret.
+- `apiKeyPrefix` does **not** match what you pasted → Worker is running stale secrets; one more publish fixes it.
+- `apiSecretLength` unexpectedly short → paste got truncated; re-enter secret.
 
-### Step 4 — End-to-end test on the hidden beta route
-Still with `VITE_ENABLE_REALTIME_PILOT=true`, you open `/lab/pilot-realtime`, click **Start conversation**, and say "hello". Expected: Pilot voice responds in <1500ms, transcript appears, barge-in works. Paste me the "Time to first audio" number and any transcript.
-
-### Step 5 — Wire the Companion (code, after Step 4 passes)
-Only after the beta works, I make these minimal frontend edits (no business logic changes):
-
-- Add a "Voice mode: Realtime (beta)" toggle in `AssistantSettings` → writes to a local flag `useRealtimeVoice`
-- In `CompanionDock` / `CompanionQuickAsk` voice handlers, branch on that flag: if true, mount `useRealtimePilot` instead of the existing TTS+Whisper path; existing pipeline stays as fallback
-- Default the flag OFF for everyone so nothing changes for existing users until you flip it on
-
-Files touched (frontend only): `src/components/AssistantSettings.tsx`, `src/components/companion/CompanionDock.tsx`, `src/components/CompanionQuickAsk.tsx`, one new hook `src/hooks/useVoiceMode.ts`. No server function, DB, or API route changes.
-
-### Step 6 — Production flip
-Once you're happy, we set `VITE_ENABLE_REALTIME_PILOT=true` for production and you toggle the setting on your account. Zero-risk rollback: toggle it off, falls back to current voice.
-
-## What I need from you, in order
-
-1. Output of `lk project list` (Step 1)
-2. Output of `lk agent create` (Step 3)
-3. Output of `lk agent update-secrets` — just "done", don't paste values (Step 3)
-4. Time-to-first-audio number from `/lab/pilot-realtime` (Step 4)
-
-I'll handle every code change and every secret comparison. You never touch code or paste a secret in chat.
-
-## Technical notes
-
-- `agent-worker/` is deliberately outside the Vite bundle (uses `@livekit/rtc-node`, incompatible with Cloudflare Workers). LiveKit Cloud runs it as a Node.js process.
-- Room naming: `pilot-<userId>`. Worker auto-dispatches on any participant join.
-- Token TTL: 90s, refreshed by `useRealtimePilot`. No long-lived credentials on the client.
-- Existing `/lab/pilot-realtime` preflight is the fastest way to catch a secret mismatch without deploying the worker.
+Awaiting approval before editing.
