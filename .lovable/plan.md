@@ -1,58 +1,59 @@
 
-# Phase 3A — Agent Worker Deployment Path (Investigation Only)
+# LiveKit Agent Deployment — Handoff Plan
 
-No code changes proposed. Answering: can Lovable deploy `agent-worker/` from the GitHub repo directly, and if not, what are the exact no-Terminal steps.
+You are not a developer and should not be running CLI commands. Lovable cannot deploy the agent worker either — its runtime (Cloudflare Workers) physically cannot host a long-lived Node process that holds WebSockets open for the length of a voice call. That is why `agent-worker/` was built as a separate folder from day one: it was always going to run somewhere else.
 
-## Short answer
+Below is the smallest possible path that keeps your involvement to credentials and approval clicks.
 
-**No — Lovable cannot deploy `agent-worker/` for you.** Not a permission issue; a runtime issue. But you do **not** need the LiveKit CLI or any Terminal. You can deploy from the GitHub repo through the **LiveKit Cloud dashboard** in a browser.
+## What is actually left
 
-## Why Lovable can't host it
+One task: get the code in `agent-worker/` running as a Node.js process on a host that can reach LiveKit Cloud and OpenAI, with the 4 secrets set. That is it. No app code changes. No RestPilot changes.
 
-Lovable's runtime is Cloudflare Workers (edge, request-scoped, ~30s max, no persistent outbound WebSockets at the shape agents-js needs). `agent-worker/` is a long-lived Node.js process that must hold two WebSockets open for the entire call (LiveKit ↔ worker ↔ OpenAI Realtime). Those two runtimes are incompatible. This is why the worker lives in its own folder outside the app bundle — it was always intended for an external Node host.
+## Recommended: LiveKit Cloud Sandbox (zero developer, zero CLI)
 
-Lovable also has no deploy pipeline that targets third-party hosts like LiveKit Cloud, Railway, or Render. It only publishes the TanStack app to its own edge.
+LiveKit Cloud has a browser dashboard flow called **Agents → Deploy from GitHub** that does exactly what the CLI does, without a terminal. Your GitHub repo `ScubaMike124/shiftrestAI` is already connected, so:
 
-## Recommended path: LiveKit Cloud Agents (browser dashboard, zero Terminal)
+Your steps (all clicks in a browser):
+1. Go to cloud.livekit.io → your project → Agents → New Agent → Deploy from GitHub.
+2. Authorize the LiveKit GitHub App for `ScubaMike124` (one OAuth approval).
+3. Pick the `shiftrestAI` repo. Set Root Directory `agent-worker`, Build `npm install && npm run build`, Start `node dist/worker.js`, Runtime Node 20.
+4. Paste the 4 values you already have: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `OPENAI_REALTIME_API_KEY`.
+5. Click Deploy. Wait for green Running (about 2–3 minutes).
+6. Tell me it is Running.
 
-Prerequisite: your GitHub repo containing `agent-worker/` is connected (from the previous turn).
+No terminal. No VS Code. No CLI. If your LiveKit plan does not expose "Deploy from GitHub" in the dashboard, fall back to the developer option below.
 
-Steps you take, all in a browser:
+## Fallback: Hire a developer for 30 minutes
 
-1. Go to https://cloud.livekit.io → sign in → pick your project.
-2. Left sidebar → **Agents** → **New agent** (or **Create agent**).
-3. Choose **Deploy from GitHub**. Authorize the LiveKit GitHub App for the org that owns your repo (one-time OAuth, same pattern as Lovable's GitHub connect).
-4. Select the repo. Set:
-   - **Root directory**: `agent-worker`
-   - **Build command**: `npm install && npm run build`
-   - **Start command**: `node dist/worker.js`
-   - **Runtime**: Node 20+
-5. **Environment variables** — paste these four:
-   - `LIVEKIT_URL`
-   - `LIVEKIT_API_KEY`
-   - `LIVEKIT_API_SECRET`
-   - `OPENAI_REALTIME_API_KEY`
-6. Click **Deploy**. Watch the build log until status is **Running** (green). First build takes ~2–3 min.
+If the LiveKit dashboard route is not available on your plan, the remaining work truly requires someone with local terminal access. Scope for the hire:
 
-That's it. No CLI, no `lk` command, no local Node install.
+- Skill: any Node.js developer, junior is fine.
+- Time: 30 minutes end to end.
+- Access needed from you: read access to `ScubaMike124/shiftrestAI`, and you paste the 4 secrets into whatever host they pick (or you share them via 1Password / Bitwarden — never plain email).
+- Deliverable: agent shows Running in LiveKit Cloud, they send you the agent ID.
 
-## What I do after you confirm "Running"
+Cheapest hosts a developer can use if LiveKit dashboard deploy is unavailable: Railway, Render, Fly.io. All three have browser dashboards that deploy from GitHub. Cost ~$5/month.
 
-1. Store the same 4 values as Lovable runtime secrets so `/lab/pilot-realtime` can mint LiveKit JWTs server-side.
-2. Flip `VITE_ENABLE_REALTIME_PILOT=true` in the **preview** environment only. Production stays false.
-3. Run the Preflight card on `/lab/pilot-realtime` and report per-check pass/fail.
-4. Drive an end-to-end voice test via headless Playwright: measure TTFA, verify barge-in, verify clean end-session, confirm no duplicate greeting, capture transcript screenshots.
-5. Return the full test report before we discuss enabling the feature for anyone.
+Where to find one: Upwork, Fiverr ("deploy Node.js worker to Railway from GitHub repo"), or any developer friend. Show them `agent-worker/README.md` — it already contains the deploy instructions.
 
-## Fallback if LiveKit Cloud Agents isn't on your plan
+## What I do the moment the agent is Running
 
-Railway (also zero Terminal, browser only): New Project → Deploy from GitHub → pick repo → set Root Directory `agent-worker` → paste the same 4 env vars → Deploy. You lose LiveKit's built-in agent dispatch/autoscaling, but for the hidden beta that's fine.
+You send me one message: "Agent is running, ID is X." From that point I take over entirely:
 
-## What cannot be avoided on your side
+1. Flip `VITE_ENABLE_REALTIME_PILOT=true` in preview only. Production stays off.
+2. Run the Preflight card on `/lab/pilot-realtime` and post per-check pass/fail.
+3. Drive a headless Playwright end-to-end voice test: measure time-to-first-audio, verify barge-in cuts off the assistant mid-sentence, verify clean end-session, confirm no duplicate greeting, capture transcript screenshots.
+4. Return the full test report.
+5. Only after you approve the report, resume RestPilot Phase 3B: wiring the tool bridge (memory, signals, sleep, recovery, schedule) into the running agent, then the rest of the RestPilot roadmap.
 
-- Pasting the 4 secrets into whichever host you pick — Lovable cannot push env vars into a third-party runtime.
-- Clicking Deploy in that host's dashboard.
+## What I will not do
 
-## Recommendation
+Ask you to open a terminal. Ask you to run `lk`, `node`, `npm`, or any command. Ask you to fix a PATH variable. Ask you to troubleshoot Windows.
 
-Proceed with the LiveKit Cloud Agents dashboard flow above. Reply with the `owner/repo` slug (or confirm the connection) and whether you want me to prepare the 4 secrets in Lovable now (so they're ready the moment the agent turns green) or wait until after deploy.
+## Decision needed from you
+
+Pick one:
+- **A.** Try the LiveKit Cloud dashboard "Deploy from GitHub" flow yourself (6 clicks, no terminal). If the option is not visible on your plan, tell me and we switch to B.
+- **B.** Hire a developer for 30 minutes. I will draft the exact job description you paste into Upwork/Fiverr if you want.
+
+No code changes will be made until you pick.
