@@ -7,8 +7,11 @@
  * pipeline is untouched.
  */
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { ENABLE_REALTIME_PILOT } from "@/lib/flags";
 import { useRealtimePilot } from "@/lib/realtime/useRealtimePilot";
+import { realtimePreflight, type RealtimePreflightResult } from "@/lib/realtime.functions";
 
 export const Route = createFileRoute("/lab/pilot-realtime")({
   head: () => ({
@@ -43,6 +46,13 @@ export const Route = createFileRoute("/lab/pilot-realtime")({
 
 function LabPilotRealtime() {
   const rt = useRealtimePilot();
+  const preflight = useServerFn(realtimePreflight);
+  const [pf, setPf] = useState<
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "done"; result: RealtimePreflightResult }
+    | { kind: "error"; message: string }
+  >({ kind: "idle" });
 
   const connected = rt.status === "connected" || rt.status === "reconnecting";
   const ttfaMs = rt.metrics.timeToFirstAudioMs;
@@ -51,9 +61,59 @@ function LabPilotRealtime() {
     <main className="mx-auto max-w-lg p-6">
       <h1 className="text-xl font-semibold">Pilot Realtime — hidden beta</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Phase 2. Uses OpenAI Realtime via LiveKit Cloud. This page is the
+        Phase 3A. Uses OpenAI Realtime via LiveKit Cloud. This page is the
         only surface that touches Realtime — production voice is unchanged.
       </p>
+
+      <section className="mt-6 space-y-3 rounded border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">Preflight</h2>
+          <button
+            className="rounded border px-3 py-1 text-xs"
+            disabled={pf.kind === "loading"}
+            onClick={async () => {
+              setPf({ kind: "loading" });
+              try {
+                const result = await preflight();
+                setPf({ kind: "done", result });
+              } catch (e) {
+                setPf({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+              }
+            }}
+          >
+            {pf.kind === "loading" ? "Running…" : "Run preflight"}
+          </button>
+        </div>
+        {pf.kind === "done" && (
+          <>
+            <p className={pf.result.ok ? "text-xs text-emerald-600" : "text-xs text-destructive"}>
+              {pf.result.ok ? "All checks passed" : "One or more checks failed"} · room{" "}
+              <code>{pf.result.room}</code>
+            </p>
+            <ul className="space-y-1 text-xs">
+              {pf.result.checks.map((c) => (
+                <li key={c.id} className="flex gap-2">
+                  <span aria-hidden>{c.ok ? "✓" : "✗"}</span>
+                  <span className="flex-1">
+                    <span className={c.ok ? "text-foreground" : "text-destructive"}>{c.label}</span>
+                    <span className="ml-2 text-muted-foreground">— {c.detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {pf.kind === "error" && (
+          <p className="text-xs text-destructive">Preflight error: {pf.message}</p>
+        )}
+        {pf.kind === "idle" && (
+          <p className="text-xs text-muted-foreground">
+            Verifies env vars, LIVEKIT_URL shape, JWT signing, and LiveKit reachability
+            before you deploy the external agent worker.
+          </p>
+        )}
+      </section>
+
 
       <section className="mt-6 space-y-3">
         <div className="flex items-center gap-3">
