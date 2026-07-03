@@ -75,7 +75,16 @@ export const mintRealtimePilotToken = createServerFn({ method: "POST" })
  *     400 for a bogus token, which proves the server is up and answering).
  */
 export type RealtimePreflightCheck = {
-  id: "env" | "url" | "jwt" | "reachability" | "identity" | "signal";
+  id:
+    | "env"
+    | "url"
+    | "jwt"
+    | "reachability"
+    | "identity"
+    | "signal"
+    | "signal-header"
+    | "jwt-detail"
+    | "room-service";
   label: string;
   ok: boolean;
   detail: string;
@@ -283,6 +292,120 @@ export const realtimePreflight = createServerFn({ method: "POST" })
         detail: "Skipped — URL invalid or JWT not signed",
       });
     }
+
+    // 7. signal-header — same endpoint, Authorization: Bearer instead of ?access_token.
+    //    If both fail, LiveKit's key lookup itself is the problem (not encoding).
+    if (httpsOrigin && signedToken) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch(`${httpsOrigin}/rtc/validate`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${signedToken}` },
+          signal: ctrl.signal,
+        });
+        clearTimeout(t);
+        const bodySnippet = (await res.text().catch(() => "")).slice(0, 160);
+        checks.push({
+          id: "signal-header",
+          label: "LiveKit /rtc/validate via Bearer header",
+          ok: res.status === 200,
+          detail: `HTTP ${res.status} ${bodySnippet ? `— ${bodySnippet}` : ""}`.trim(),
+        });
+      } catch (e) {
+        checks.push({
+          id: "signal-header",
+          label: "LiveKit /rtc/validate via Bearer header",
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } else {
+      checks.push({
+        id: "signal-header",
+        label: "LiveKit /rtc/validate via Bearer header",
+        ok: false,
+        detail: "Skipped — URL invalid or JWT not signed",
+      });
+    }
+
+    // 8. jwt-detail — decode header + payload timestamps, plus a fingerprint of
+    //    the secret bytes actually used to sign (proves no encoding transform).
+    if (signedToken && apiSecret) {
+      try {
+        const [headerB64, payloadB64] = signedToken.split(".");
+        const header = JSON.parse(Buffer.from(headerB64, "base64url").toString("utf-8")) as {
+          alg?: string;
+          typ?: string;
+        };
+        const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8")) as {
+          iat?: number;
+          nbf?: number;
+          exp?: number;
+        };
+        const nowSec = Math.floor(Date.now() / 1000);
+        const iso = (s?: number) => (typeof s === "number" ? new Date(s * 1000).toISOString() : "?");
+        const secretBytes = new TextEncoder().encode(apiSecret);
+        const digest = await crypto.subtle.digest("SHA-256", secretBytes);
+        const fp = Array.from(new Uint8Array(digest).slice(0, 4))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        const algOk = header.alg === "HS256";
+        checks.push({
+          id: "jwt-detail",
+          label: "JWT header + timing + secret fingerprint",
+          ok: algOk,
+          detail: `alg=${header.alg} typ=${header.typ ?? "?"} iat=${iso(payload.iat)} nbf=${iso(payload.nbf)} exp=${iso(payload.exp)} now=${new Date(nowSec * 1000).toISOString()} secretFp=${fp}`,
+        });
+      } catch (e) {
+        checks.push({
+          id: "jwt-detail",
+          label: "JWT header + timing + secret fingerprint",
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } else {
+      checks.push({
+        id: "jwt-detail",
+        label: "JWT header + timing + secret fingerprint",
+        ok: false,
+        detail: "Skipped — no signed JWT or missing secret",
+      });
+    }
+
+    // 9. room-service — hit a completely different LiveKit API (Twirp
+    //    RoomService.ListRooms) using the SAME key/secret. If /rtc/validate
+    //    fails but this succeeds, /rtc/validate is misconfigured on their side.
+    if (httpsOrigin && apiKey && apiSecret) {
+      try {
+        const { RoomServiceClient } = await import("livekit-server-sdk");
+        const client = new RoomServiceClient(httpsOrigin, apiKey, apiSecret);
+        const rooms = await client.listRooms();
+        checks.push({
+          id: "room-service",
+          label: "RoomService.ListRooms with same key/secret",
+          ok: true,
+          detail: `OK — ${rooms.length} room(s) visible`,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        checks.push({
+          id: "room-service",
+          label: "RoomService.ListRooms with same key/secret",
+          ok: false,
+          detail: msg.slice(0, 200),
+        });
+      }
+    } else {
+      checks.push({
+        id: "room-service",
+        label: "RoomService.ListRooms with same key/secret",
+        ok: false,
+        detail: "Skipped — URL/key/secret missing",
+      });
+    }
+
 
     return {
       ok: checks.every((c) => c.ok),
