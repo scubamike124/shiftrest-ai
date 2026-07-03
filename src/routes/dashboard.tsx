@@ -6,8 +6,6 @@ import { SleepSoundsCard } from "@/components/home/SleepSoundsCard";
 import { HydrationCard } from "@/components/home/HydrationCard";
 import { SleepStreakCard } from "@/components/home/SleepStreakCard";
 import { QuickActionsCard } from "@/components/home/QuickActionsCard";
-// Smart Alarm hidden for Phase 1; card preserved for Phase 2 restore.
-// import { SmartAlarmCard } from "@/components/SmartAlarmCard";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
