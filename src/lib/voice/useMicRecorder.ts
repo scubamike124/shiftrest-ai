@@ -100,6 +100,28 @@ export function useMicRecorder(opts: Options = {}) {
       streamRef.current.getAudioTracks().forEach((t) => { t.enabled = true; });
       return streamRef.current;
     }
+    // Consult the Permissions API before prompting so we (a) never re-prompt
+    // when the browser has already granted, and (b) surface a clean "denied"
+    // state instead of a raw getUserMedia error. Safari historically lacks
+    // "microphone" support here — fall through to getUserMedia in that case.
+    try {
+      const permsApi = (navigator as Navigator & {
+        permissions?: { query: (d: PermissionDescriptor) => Promise<PermissionStatus> };
+      }).permissions;
+      if (permsApi?.query) {
+        const status = await permsApi
+          .query({ name: "microphone" as PermissionName })
+          .catch(() => null);
+        if (status?.state === "denied") {
+          setError("Microphone access is blocked in browser settings.");
+          setMicState("denied");
+          throw new Error("mic_permission_denied");
+        }
+      }
+    } catch (err) {
+      if ((err as Error)?.message === "mic_permission_denied") throw err;
+      // Unsupported / query threw — proceed to getUserMedia as before.
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -110,7 +132,8 @@ export function useMicRecorder(opts: Options = {}) {
     streamRef.current = stream;
     setReserved(true);
     return stream;
-  }, []);
+  }, [setMicState]);
+
 
   const ensureContext = useCallback(async (): Promise<AudioContext> => {
     if (ctxRef.current && ctxRef.current.state !== "closed") {
