@@ -423,6 +423,13 @@ async function drainQueue(): Promise<void> {
         emitStatus("skipped", "quiet_hours");
         continue;
       }
+      // Pipeline: kick off a fetch for the NEXT chunk in parallel with the
+      // current chunk's playback so the network round-trip is hidden behind
+      // audio time instead of adding a dead gap between sentences.
+      const upcoming = queue[0];
+      if (upcoming && upcoming.turn === turnId) {
+        void prefetchTts(upcoming.text, upcoming.opts);
+      }
       try {
         await playOnce(next.text, next.opts, () => next.turn === turnId);
       } catch {
@@ -435,6 +442,50 @@ async function drainQueue(): Promise<void> {
     emitTurnEnded();
   }
 }
+
+/**
+ * Best-effort TTS prefetch: fetches audio for `text` and stores it in the
+ * same cache `playOnce()` reads from, so the subsequent playOnce() call is
+ * an instant cache hit instead of a network round-trip. Silently no-ops on
+ * error — playOnce() will do its own fetch with full fallback semantics.
+ */
+async function prefetchTts(text: string, opts: SpeakOptions): Promise<void> {
+  try {
+    const prefs = loadLocalPrefs();
+    const mode = opts.mode ?? (prefs.companionMode === "sleep" ? "sleep" : "normal");
+    const spoken = normalizeForSpeech(text, mode === "sleep" ? "sleep" : "normal");
+    const wantEleven =
+      ELEVENLABS_FLAG_ON && !elevenLabsBlocked && getTtsProvider() === "elevenlabs";
+    const provider = wantEleven ? "elevenlabs" : "openai";
+    const endpoint = provider === "elevenlabs" ? "/api/tts-elevenlabs" : "/api/tts";
+    const isValidElevenVoice = (v: string | null | undefined): v is string =>
+      !!v && ELEVEN_VOICES.some((entry) => entry.id === v);
+    const voice = provider === "elevenlabs"
+      ? (isValidElevenVoice(opts.voice) ? opts.voice : getElevenVoice())
+      : (opts.voice ?? undefined);
+    const cacheKey = `${provider}|${voice ?? "-"}|${mode}|${spoken}`;
+    if (ttsCacheGet(cacheKey)) return;
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text: spoken, voice, mode }),
+    });
+    const ct = (resp.headers.get("content-type") ?? "").toLowerCase();
+    if (!resp.ok) return;
+    if (provider === "elevenlabs" && !ct.startsWith("audio/")) return;
+    const blob = await resp.blob();
+    const finalProvider = elevenLabsBlocked ? "openai" : provider;
+    ttsCachePut(`${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`, blob);
+  } catch {
+    // Best-effort — playOnce() will handle the miss with full fallback logic.
+  }
+}
+
 
 async function playOnce(
   text: string,
