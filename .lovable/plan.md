@@ -1,105 +1,98 @@
-# Plan: Escalate to LiveKit support (no more code/env changes)
+# Pre-Launch UX Polish — Investigation Report & Plan
 
-## What the diagnostics proved
+Full codebase audit complete. Findings below are ranked and batched into shippable phases so each one is small, testable, and independently revertible.
 
-All three independent server-side auth paths against `wss://restpilot-ai-6jvalz9y.livekit.cloud` return `401 invalid API key` for a JWT signed by `API7Md…`:
+---
 
-- `/rtc/validate?access_token=…` → 401
-- `/rtc/validate` with `Authorization: Bearer …` → 401
-- Twirp `RoomService.ListRooms` (completely different API path) → 401
+## Priority-Ranked Findings
 
-Combined with the earlier `jwt-detail` and `identity` checks (alg `HS256`, `iss` = `API7Md…`, unexpired, no clock skew, secret bytes hashed match what's stored, no whitespace, `issuerMatchesKey=true`), there is no code or env path left where the fault could plausibly live. LiveKit itself is rejecting the credential across every endpoint.
+### High Priority (ship before launch)
 
-## Question 1 — Which LiveKit account and project owns `API7Md`?
+| # | Finding | Files | Difficulty |
+|---|---|---|---|
+| H1 | **Signed-in users see a flash of the marketing landing page** on `/` before client-side redirect to `/dashboard` (100–300ms) | `src/routes/__root.tsx:206–210` | M |
+| H2 | **No Settings entry point in `AppSidebar` or `BottomNav`** — four `settings.*` routes are only reachable via deep links | `src/components/site/AppSidebar.tsx`, `src/components/BottomNav.tsx` | S |
+| H3 | **`h-screen` / `min-h-screen` on root shells** clip content under iOS Safari's address bar | `src/routes/__root.tsx:232,242,244,255`, `src/components/site/AppSidebar.tsx:44`, `src/routes/coach.tsx:290`, `src/routes/share.tsx:148` | S |
+| H4 | **Custom keyframe animations lack `prefers-reduced-motion` guards** (`.pulse-dot`, `.float-y`, `.ticker-track`, `.dock-glow`) | `src/styles.css:150–163,175,245–249` | S |
+| H5 | **Dead duplicate `CompanionHero`** at `src/components/companion/CompanionHero.tsx` — never imported; richer than the one in use | Delete or wire in | S |
 
-I cannot inspect LiveKit's account/project registry from here — only LiveKit knows which project a given key belongs to. The only ways to answer this are:
+### Medium Priority (polish before launch if time allows)
 
-1. **LiveKit dashboard (you already did this)** — you confirmed you see `API7Md` listed in Settings → Keys of the project whose Settings → Project shows the WebSocket URL `wss://restpilot-ai-6jvalz9y.livekit.cloud`. That is the strongest evidence available on your side.
-2. **LiveKit CLI** — `lk project list` prints every project on your CLI-authenticated account with URL + key prefixes. Not usable from iPhone.
-3. **LiveKit support ticket** — support can query the internal key-to-project mapping directly and settle it definitively.
+| # | Finding | Files | Difficulty |
+|---|---|---|---|
+| M1 | **`DebugHUD` mounts on every page load in production** (guarded UI, but JS still runs, listeners still register) | `src/routes/__root.tsx:261` | S |
+| M2 | **Hardcoded `bg-white/5`, `border-white/10`** — breaks any future light/high-contrast theme | `src/routes/dashboard.tsx:459,497,513`, `src/components/home/HydrationCard.tsx:64`, `QuickActionsCard.tsx:23`, `SleepSoundsCard.tsx:25`, `SleepStreakCard.tsx:55`, `CompanionDock.tsx:35` | S |
+| M3 | **QA route `/qa/smart-alarm` live in production** — its own comment says delete pre-launch | `src/routes/qa.smart-alarm.tsx` | S |
+| M4 | **Icon-only buttons missing `aria-label`** — add-employer `+`, delete destination trash | `src/routes/profile.tsx:798`, `src/components/traffic/TrafficDestinationsCard.tsx:238` | S |
+| M5 | **Custom toggle in `NotificationsSection` has no accessible name** — SR users hear "button, pressed" with no context | `src/components/NotificationsSection.tsx:409–426` | S |
+| M6 | **Inline `animate-pulse` / `animate-ping` without `motion-reduce:animate-none`** — 20+ hits, only 4 guarded | `src/components/PilotOrb.tsx:24,70`, `src/routes/pilot.tsx:597`, `src/components/LongClock.tsx:313`, `src/routes/sleep.tsx:84`, others | S |
+| M7 | **Three overlapping Companion entry points** (`CompanionAvatar` chip + `CompanionHero` card + `CompanionDock` orb) create ambiguity | `src/components/CompanionAvatar.tsx`, `src/components/home/CompanionHero.tsx`, `src/components/companion/CompanionDock.tsx` | M |
+| M8 | **Onboarding slide dots are not clickable, no back button** — misclicks trigger consent step irreversibly | `src/components/Onboarding.tsx:195–218` | S |
+| M9 | **Dead `LiveCoachSection` + `LongClockSection` in landing route chunk** | `src/routes/index.tsx:326,426` | S |
 
-Given (1) matches, (3) is now the correct next step.
+### Low Priority (post-launch)
 
-## Question 2 — Does the configured URL belong to that project?
+| # | Finding | Files | Difficulty |
+|---|---|---|---|
+| L1 | Unused `Switch` shadcn import shadowed by local component | `src/components/NotificationsSection.tsx:6,409` | S |
+| L2 | Emoji `✕` close button in `EmployerModal` — inconsistent with Lucide `<X />` elsewhere | `src/routes/profile.tsx:887` | S |
+| L3 | `bg-rose-500 text-white` on mic button — use `bg-destructive` | `src/routes/companion.tsx:1552` | S |
+| L4 | `bg-black/60` overlay in manual modals — use semantic token | `src/routes/dashboard.tsx:766`, `src/routes/profile.tsx:881` | S |
+| L5 | Duplicate `/auth` links in footer ("Sign in" + "Get started") | `src/components/site/SiteFooter.tsx:38–40` | S |
+| L6 | `NotificationsSection` uses plain text loader, no skeleton | `src/components/NotificationsSection.tsx:186–188` | S |
+| L7 | `ShiftFormModal` save button has no "Saving…" state | `src/routes/dashboard.tsx` | S |
+| L8 | CompanionHero mobile dismiss X has no visible label — only aria | `src/components/companion/CompanionHero.tsx:174` | S |
+| L9 | `version.tsx` fully hardcoded `bg-[#0b1020] text-white` | `src/routes/version.tsx:70` | S |
 
-Yes, verified two ways:
-- Dashboard: the Settings → Project → WebSocket URL of the project containing `API7Md` reads `wss://restpilot-ai-6jvalz9y.livekit.cloud`.
-- Preflight: `process.env.LIVEKIT_URL` echoes `wss://restpilot-ai-6jvalz9y.livekit.cloud` byte-for-byte, no scheme/host/whitespace issues.
+### Simplification Opportunities (not blocking)
 
-## Question 3 — Prepare the LiveKit support case
+- **Extract `BottomSheet` primitive** shared by `ShiftFormModal` + `EmployerModal` (identical scaffold, drift risk).
+- **Create `/settings` index route** as a proper hub instead of orphaned deep routes.
+- **Consolidate `DebugHUD`** to a single dev-only root mount instead of four instances.
 
-### Where to file
+---
 
-- Primary: in-app support chat inside LiveKit Cloud dashboard (fastest, auto-attaches account context)
-- Secondary: `support@livekit.io`
-- If asked for a plan tier: mention if you're on the paid Cloud tier
+## Implementation Plan (After Approval)
 
-### Ticket subject
+Ship as **6 small, independently testable phases**. Each phase = one publish, one visual review.
 
-> All authenticated server APIs return `401 invalid API key` for a key that is present in the project's Keys tab
+### Phase 1 — Motion & viewport hygiene (safest first)
+- Add `prefers-reduced-motion` block to `src/styles.css` for `.pulse-dot`, `.float-y`, `.ticker-track`, `.dock-glow`.
+- Swap `min-h-screen` → `min-h-dvh` in `src/routes/__root.tsx` marketing/app/bare shells and `AppSidebar.tsx`.
+- Add `motion-reduce:animate-none` to unguarded inline `animate-*` usages.
 
-### Ticket body (copy/paste)
+**Files:** `src/styles.css`, `src/routes/__root.tsx`, `src/components/site/AppSidebar.tsx`, `src/routes/coach.tsx`, `src/routes/share.tsx`, `src/components/PilotOrb.tsx`, `src/routes/pilot.tsx`, `src/components/LongClock.tsx`, `src/routes/sleep.tsx`.
 
-```
-Project WebSocket URL: wss://restpilot-ai-6jvalz9y.livekit.cloud
-API Key prefix (first 6 chars): API7Md
-API Key length: 15
-API Secret length: 44 (no leading/trailing whitespace)
-Key age: created less than 24 h ago
-Key status in dashboard: present in Settings → Keys of the above project
+### Phase 2 — Kill dead code
+- Delete `src/components/companion/CompanionHero.tsx` (H5).
+- Delete `src/routes/qa.smart-alarm.tsx` + the `dispatchEvent` line it depends on in `src/lib/alarm/foreground.ts` (M3).
+- Delete `LiveCoachSection` + `LongClockSection` from `src/routes/index.tsx` (M9).
+- Remove unused `Switch` import in `NotificationsSection.tsx` (L1).
 
-Symptom: every authenticated server call to this host returns
-"401 invalid API key" for JWTs signed by this key/secret pair.
+### Phase 3 — Accessibility labels
+- Add `aria-label` to add-employer button (M4a), traffic-destination delete button (M4b).
+- Add `aria-labelledby` (or programmatic label) to custom `Switch` toggle rows in `NotificationsSection` (M5).
+- Replace emoji `✕` with Lucide `<X />` in `EmployerModal` (L2).
 
-Reproduced independently against three endpoints from a Cloudflare
-Worker (Node 20 compat), livekit-server-sdk v2.x:
+### Phase 4 — Nav discoverability + landing flash
+- Add Settings entry to `AppSidebar` linking to `/profile` (Settings hub) (H2).
+- On `/` route, render null (or a splash) while `signedIn === null`, then redirect signed-in users before painting marketing hero (H1).
 
-  1. GET https://restpilot-ai-6jvalz9y.livekit.cloud/rtc/validate?access_token=<JWT>
-     → HTTP 401  body: invalid API key: API7Md…
+### Phase 5 — Prod hygiene
+- Wrap root `<DebugHUD>` in `{import.meta.env.DEV && ...}` (M1).
+- Replace `bg-white/5` / `border-white/10` with `bg-secondary/20` / `border-border/40` in the 6 identified files (M2).
+- Replace `bg-rose-500 text-white` with `bg-destructive text-destructive-foreground` (L3).
+- Collapse duplicate `/auth` footer links (L5).
 
-  2. GET https://restpilot-ai-6jvalz9y.livekit.cloud/rtc/validate
-     Authorization: Bearer <JWT>
-     → HTTP 401  body: invalid API key: API7Md…
+### Phase 6 — Onboarding polish
+- Make slide dots clickable + add Back button in `Onboarding.tsx` (M8).
+- Add "Saving…" state to `ShiftFormModal` (L7).
+- Skeleton loader for `NotificationsSection` hydration (L6).
 
-  3. RoomServiceClient(host, apiKey, apiSecret).listRooms()
-     (Twirp /twirp/livekit.RoomService/ListRooms)
-     → 401 invalid API key: API7Md…
+**Deferred (post-launch):** M7 (Companion entry consolidation — needs product decision), simplification opportunities (BottomSheet extraction, `/settings` hub route, DebugHUD consolidation), L4/L8/L9.
 
-JWT verification (client-side decode of our own token):
-  alg=HS256, typ=JWT
-  iss=<same as API key>, sub=<user id>, video.roomJoin=true
-  iat, nbf, exp all sane; exp > now by ~55s at send time
-  Worker clock within 1s of NTP
-  SHA-256 fingerprint of secret bytes matches the value we
-  paste in the dashboard (byte-for-byte, no BOM / no whitespace).
+---
 
-We rotated the key/secret pair once after the initial failure; the
-regenerated pair exhibits the identical behavior. Reachability check
-against https://restpilot-ai-6jvalz9y.livekit.cloud/ returns HTTP 200,
-so the host itself is up.
+## Approval Needed
 
-Asks:
-- Please confirm from your side that key `API7Md…` is currently
-  active and mapped to the project served at
-  wss://restpilot-ai-6jvalz9y.livekit.cloud.
-- If it isn't, tell us which project it is registered against, so we
-  can align LIVEKIT_URL to that project.
-- If it is, please investigate why the auth path for this project
-  is rejecting a token signed with a listed key/secret.
-```
-
-Optional to include if support asks: a fresh preflight screenshot from `/lab/pilot-realtime` showing all six check rows.
-
-### What NOT to do while the ticket is open
-
-- Don't rotate the key again — you'd invalidate the exact key ID (`API7Md…`) support is investigating.
-- Don't change `LIVEKIT_URL` — same reason.
-- Don't touch `src/lib/realtime.functions.ts` — the diagnostics are the evidence.
-
-## Code/env plan
-
-**No changes.** The plan is purely: send the ticket above, wait for LiveKit's response, then act on their answer.
-
-## Waiting
-
-Your go-ahead to consider this the final diagnostic step and switch to support-case mode. No further edits, publishes, or secret rotations until LiveKit replies.
+Reply with which phases to run (e.g. "run 1 and 2", "run all", "skip 6"). I'll ship them one at a time with a visible checkpoint between each.
