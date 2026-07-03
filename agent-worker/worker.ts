@@ -2,33 +2,39 @@
  * RestPilot Realtime Agent Worker.
  *
  * Runs OUTSIDE the TanStack app (Node.js on LiveKit Cloud or self-hosted).
- * Do not import this file from the app.
+ * Do NOT import this file from the app — it uses `@livekit/rtc-node` and
+ * server-only APIs that are not compatible with the Cloudflare Worker
+ * runtime.
  *
- * Responsibilities:
+ * Responsibilities (Phase 3A):
  *   - Register a LiveKit Agent worker.
- *   - When dispatched into a `pilot-<userId>` room, open an OpenAI
- *     Realtime session using @livekit/agents-plugin-openai.
- *   - Publish Realtime audio back into the room and forward transcript
- *     events on the data channel so the browser UI can render them.
+ *   - When dispatched into a `pilot-<userId>` room, start an AgentSession
+ *     that owns audio I/O for the room.
+ *   - Drive the session with OpenAI Realtime (`gpt-realtime`) via
+ *     @livekit/agents-plugin-openai. One consistent voice, native VAD /
+ *     barge-in, no separate STT or TTS.
+ *   - Publish transcript events on the LiveKit data channel so the
+ *     hidden `/lab/pilot-realtime` UI can render them.
  *
- * Tools (memory / signals / sleep / recovery / schedule) are Phase 3.
+ * Tools (memory / signals / sleep / recovery / schedule) are Phase 3B.
  */
+import { fileURLToPath } from "node:url";
 import {
   AutoSubscribe,
   type JobContext,
-  WorkerOptions,
+  ServerOptions,
   cli,
   defineAgent,
-  llm,
-  pipeline,
+  voice,
 } from "@livekit/agents";
 import * as openai from "@livekit/agents-plugin-openai";
 
 const SYSTEM_INSTRUCTIONS = [
   "You are Pilot, RestPilot's sleep and recovery voice companion.",
-  "Keep responses concise, warm, and conversational — you are speaking, not writing.",
-  "Never introduce yourself twice in a session. Never use the user's email prefix as a name.",
-  "If the user interrupts, stop immediately and listen.",
+  "Speak in short, warm, conversational turns — you are speaking, not writing.",
+  "Never introduce yourself twice in a session.",
+  "Never use the user's email address prefix as their name.",
+  "If the user starts speaking while you are speaking, stop immediately and listen.",
 ].join(" ");
 
 export default defineAgent({
@@ -37,43 +43,60 @@ export default defineAgent({
     const participant = await ctx.waitForParticipant();
 
     const model = new openai.realtime.RealtimeModel({
-      apiKey: process.env.OPENAI_REALTIME_API_KEY!,
+      apiKey: process.env.OPENAI_REALTIME_API_KEY,
       model: "gpt-realtime",
       voice: "marin",
-      instructions: SYSTEM_INSTRUCTIONS,
-      turnDetection: {
-        type: "server_vad",
-        threshold: 0.5,
-        prefixPaddingMs: 200,
-        silenceDurationMs: 400,
-      },
     });
 
-    const agent = new pipeline.VoicePipelineAgent(new llm.ChatContext(), {
-      // Realtime plugin owns STT + LLM + TTS in one duplex stream.
+    const agent = new voice.Agent({
+      instructions: SYSTEM_INSTRUCTIONS,
       llm: model,
     });
 
-    agent.on("user_speech_committed", (msg: llm.ChatMessage) => {
-      void ctx.room.localParticipant?.publishData(
-        new TextEncoder().encode(
-          JSON.stringify({ type: "transcript", from: "user", text: msg.content, final: true }),
-        ),
-        { reliable: true },
-      );
+    const session = new voice.AgentSession({});
+
+    const publish = (payload: unknown) => {
+      const room = ctx.room;
+      const local = room?.localParticipant;
+      if (!local) return;
+      try {
+        void local.publishData(
+          new TextEncoder().encode(JSON.stringify(payload)),
+          { reliable: true },
+        );
+      } catch {
+        /* best-effort telemetry */
+      }
+    };
+
+    session.on("user_input_transcribed", (ev) => {
+      if (!ev.isFinal) return;
+      publish({ type: "transcript", from: "user", text: ev.transcript, final: true });
     });
 
-    agent.on("agent_speech_committed", (msg: llm.ChatMessage) => {
-      void ctx.room.localParticipant?.publishData(
-        new TextEncoder().encode(
-          JSON.stringify({ type: "transcript", from: "assistant", text: msg.content, final: true }),
-        ),
-        { reliable: true },
-      );
+    session.on("conversation_item_added", (ev) => {
+      const item = ev.item as { role?: string; content?: unknown } | undefined;
+      if (!item || item.role !== "assistant") return;
+      const text = Array.isArray(item.content)
+        ? item.content
+            .filter((c): c is string => typeof c === "string")
+            .join(" ")
+            .trim()
+        : typeof item.content === "string"
+          ? item.content.trim()
+          : "";
+      if (!text) return;
+      publish({ type: "transcript", from: "assistant", text, final: true });
     });
 
-    agent.start(ctx.room, participant);
+    await session.start({ agent, room: ctx.room });
+
+    // Reserved: participant identity is `pilot-<userId>`; used in Phase 3B
+    // to fetch RestPilot memory/signals for the session.
+    void participant;
   },
 });
 
-cli.runApp(new WorkerOptions({ agent: __filename }));
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
+}
