@@ -39,6 +39,7 @@ import { Route as CompanionRouteImport } from './routes/companion'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
@@ -62,7 +63,6 @@ import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
-import { Route as LabPilotRealtimeRouteImport } from './routes/lab.pilot-realtime'
 import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -80,6 +80,7 @@ import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.s
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
+import { Route as AuthenticatedLabPilotRealtimeRouteImport } from './routes/_authenticated/lab.pilot-realtime'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -246,6 +247,10 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -361,11 +366,6 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
-const LabPilotRealtimeRoute = LabPilotRealtimeRouteImport.update({
-  id: '/lab/pilot-realtime',
-  path: '/lab/pilot-realtime',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
   id: '/lab/avatar-poc',
   path: '/lab/avatar-poc',
@@ -451,6 +451,12 @@ const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
   path: '/api/public/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedLabPilotRealtimeRoute =
+  AuthenticatedLabPilotRealtimeRouteImport.update({
+    id: '/lab/pilot-realtime',
+    path: '/lab/pilot-realtime',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -578,7 +584,6 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
-  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -601,6 +606,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -664,7 +670,6 @@ export interface FileRoutesByTo {
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
-  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -687,6 +692,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -712,6 +718,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
   '/automations': typeof AutomationsRoute
   '/coach': typeof CoachRoute
@@ -753,7 +760,6 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
-  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -776,6 +782,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/_authenticated/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -843,7 +850,6 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
-    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -866,6 +872,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -929,7 +936,6 @@ export interface FileRouteTypes {
     | '/api/tts-elevenlabs'
     | '/auth/callback'
     | '/email/unsubscribe'
-    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -952,6 +958,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -976,6 +983,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
     | '/auth'
     | '/automations'
     | '/coach'
@@ -1017,7 +1025,6 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
-    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -1040,6 +1047,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/_authenticated/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -1065,6 +1073,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   AutomationsRoute: typeof AutomationsRoute
   CoachRoute: typeof CoachRoute
@@ -1105,7 +1114,6 @@ export interface RootRouteChildren {
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LabAvatarPocRoute: typeof LabAvatarPocRouteWithChildren
-  LabPilotRealtimeRoute: typeof LabPilotRealtimeRoute
   QaSmartAlarmRoute: typeof QaSmartAlarmRoute
   QaVoiceRoute: typeof QaVoiceRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
@@ -1344,6 +1352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -1505,13 +1520,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
-    '/lab/pilot-realtime': {
-      id: '/lab/pilot-realtime'
-      path: '/lab/pilot-realtime'
-      fullPath: '/lab/pilot-realtime'
-      preLoaderRoute: typeof LabPilotRealtimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/lab/avatar-poc': {
       id: '/lab/avatar-poc'
       path: '/lab/avatar-poc'
@@ -1631,6 +1639,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/lab/pilot-realtime': {
+      id: '/_authenticated/lab/pilot-realtime'
+      path: '/lab/pilot-realtime'
+      fullPath: '/lab/pilot-realtime'
+      preLoaderRoute: typeof AuthenticatedLabPilotRealtimeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -1739,6 +1754,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedLabPilotRealtimeRoute: typeof AuthenticatedLabPilotRealtimeRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedLabPilotRealtimeRoute: AuthenticatedLabPilotRealtimeRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 interface AuthRouteChildren {
   AuthCallbackRoute: typeof AuthCallbackRoute
 }
@@ -1807,6 +1833,7 @@ const LabAvatarPocRouteWithChildren = LabAvatarPocRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   AutomationsRoute: AutomationsRoute,
   CoachRoute: CoachRoute,
@@ -1847,7 +1874,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LabAvatarPocRoute: LabAvatarPocRouteWithChildren,
-  LabPilotRealtimeRoute: LabPilotRealtimeRoute,
   QaSmartAlarmRoute: QaSmartAlarmRoute,
   QaVoiceRoute: QaVoiceRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
