@@ -211,6 +211,79 @@ export const realtimePreflight = createServerFn({ method: "POST" })
       checks.push({ id: "reachability", label: "LiveKit host is reachable", ok: false, detail: "Skipped — URL invalid" });
     }
 
+    // 5. identity — non-sensitive fingerprint of the key/secret + JWT issuer.
+    //    Lets us confirm the deployed Worker is actually using the values we
+    //    just pasted (catches stale env / trimming / wrong-project mismatch)
+    //    WITHOUT exposing the secret.
+    if (apiKey && apiSecret) {
+      const keyPrefix = apiKey.slice(0, 6);
+      const keyLen = apiKey.length;
+      const secLen = apiSecret.length;
+      const keyTrimmed = apiKey.trim().length === keyLen;
+      const secTrimmed = apiSecret.trim().length === secLen;
+      let issuer: string | null = null;
+      if (signedToken) {
+        try {
+          const payload = JSON.parse(
+            Buffer.from(signedToken.split(".")[1], "base64url").toString("utf-8"),
+          ) as { iss?: string };
+          issuer = payload.iss ?? null;
+        } catch {
+          issuer = null;
+        }
+      }
+      const issuerMatches = issuer === apiKey;
+      checks.push({
+        id: "identity",
+        label: "Key fingerprint + JWT issuer",
+        ok: issuerMatches && keyTrimmed && secTrimmed,
+        detail: `keyPrefix=${keyPrefix} keyLen=${keyLen} secretLen=${secLen} jwtIss=${
+          issuer ? issuer.slice(0, 6) : "?"
+        } issuerMatchesKey=${issuerMatches} trimmed=${keyTrimmed && secTrimmed}`,
+      });
+    } else {
+      checks.push({
+        id: "identity",
+        label: "Key fingerprint + JWT issuer",
+        ok: false,
+        detail: "Skipped — key or secret missing",
+      });
+    }
+
+    // 6. signal probe — hit LiveKit's /rtc/validate with the freshly minted
+    //    JWT. This is the SAME check the browser signal socket does; if the
+    //    project rejects the key/signature we see it here without any WebRTC.
+    if (httpsOrigin && signedToken) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 4000);
+        const probeUrl = `${httpsOrigin}/rtc/validate?access_token=${encodeURIComponent(signedToken)}`;
+        const res = await fetch(probeUrl, { method: "GET", signal: ctrl.signal });
+        clearTimeout(t);
+        const bodySnippet = (await res.text().catch(() => "")).slice(0, 160);
+        checks.push({
+          id: "signal",
+          label: "LiveKit signal accepts minted JWT",
+          ok: res.status === 200,
+          detail: `HTTP ${res.status} ${bodySnippet ? `— ${bodySnippet}` : ""}`.trim(),
+        });
+      } catch (e) {
+        checks.push({
+          id: "signal",
+          label: "LiveKit signal accepts minted JWT",
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } else {
+      checks.push({
+        id: "signal",
+        label: "LiveKit signal accepts minted JWT",
+        ok: false,
+        detail: "Skipped — URL invalid or JWT not signed",
+      });
+    }
+
     return {
       ok: checks.every((c) => c.ok),
       checks,
