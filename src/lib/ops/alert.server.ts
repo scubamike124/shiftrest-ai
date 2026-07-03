@@ -36,14 +36,31 @@ export async function notifyOwner({
   message,
   meta,
 }: NotifyOwnerParams): Promise<void> {
+  // Always persist alerts to ops_alert, even when email is skipped/deduped —
+  // the admin dashboard and rate-based escalation need every event.
+  const key = `${severity}:${service}:${message}`
+  const willEmail = Boolean(process.env.OWNER_ALERT_EMAIL) && shouldSend(key)
+
+  try {
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    await supabaseAdmin.from('ops_alert').insert({
+      severity,
+      service,
+      message,
+      meta: (meta ?? {}) as never,
+      emailed: willEmail,
+    })
+  } catch (e) {
+    console.error('[ops-alert] Failed to persist alert to ops_alert', e)
+  }
+
   const owner = process.env.OWNER_ALERT_EMAIL
   if (!owner) {
-    console.warn('[ops-alert] OWNER_ALERT_EMAIL not set; skipping alert', { service, message })
+    console.warn('[ops-alert] OWNER_ALERT_EMAIL not set; skipping email', { service, message })
     return
   }
 
-  const key = `${severity}:${service}:${message}`
-  if (!shouldSend(key)) return
+  if (!willEmail) return
 
   try {
     await sendTransactionalEmailServer({

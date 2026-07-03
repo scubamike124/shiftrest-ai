@@ -833,6 +833,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_alert: {
+        Row: {
+          created_at: string
+          emailed: boolean
+          id: string
+          message: string
+          meta: Json
+          resolved_at: string | null
+          service: string
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          emailed?: boolean
+          id?: string
+          message: string
+          meta?: Json
+          resolved_at?: string | null
+          service: string
+          severity: string
+        }
+        Update: {
+          created_at?: string
+          emailed?: boolean
+          id?: string
+          message?: string
+          meta?: Json
+          resolved_at?: string | null
+          service?: string
+          severity?: string
+        }
+        Relationships: []
+      }
       partner_shares: {
         Row: {
           code: string

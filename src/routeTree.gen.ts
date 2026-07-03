@@ -77,6 +77,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as AuthenticatedLabPilotRealtimeRouteImport } from './routes/_authenticated/lab.pilot-realtime'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -434,6 +435,11 @@ const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
   path: '/api/public/version',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
   id: '/api/public/contact',
   path: '/api/public/contact',
@@ -594,6 +600,7 @@ export interface FileRoutesByFullPath {
   '/legal/': typeof LegalIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -678,6 +685,7 @@ export interface FileRoutesByTo {
   '/legal': typeof LegalIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -766,6 +774,7 @@ export interface FileRoutesById {
   '/legal/': typeof LegalIndexRoute
   '/_authenticated/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
   '/lab/avatar-poc/simli': typeof LabAvatarPocSimliRoute
@@ -854,6 +863,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -938,6 +948,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -1025,6 +1036,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/_authenticated/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
     | '/lab/avatar-poc/simli'
@@ -1095,6 +1107,7 @@ export interface RootRouteChildren {
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
+  ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiLabSimliSessionRoute: typeof ApiLabSimliSessionRoute
@@ -1592,6 +1605,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/contact': {
       id: '/api/public/contact'
       path: '/api/public/contact'
@@ -1839,6 +1859,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
+  ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiLabSimliSessionRoute: ApiLabSimliSessionRoute,

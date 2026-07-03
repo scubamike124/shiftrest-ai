@@ -1,79 +1,139 @@
-# Phase 2 — Dead Code & Cleanup Plan
+# Phase 3 — Production Monitoring & Owner Alerts
 
-Deep audit complete. Below is every candidate with proof of zero references. Grouped by confidence so you can approve the risk level you want.
+Investigation only. No code written yet.
 
----
+## 1. What already exists
 
-## Tier A — Zero-risk removals (proven unreferenced)
+**Owner-alert primitive (solid foundation, don't rebuild)**
+- `src/lib/ops/alert.server.ts` — `notifyOwner()` / `notifyOwnerAsync()` with:
+  - Sends `ops-alert` React Email template to `OWNER_ALERT_EMAIL` (secret ✅ set).
+  - 10-minute in-memory dedupe keyed on `severity:service:message` (prevents burst floods).
+  - Per-minute idempotency key for queue-level dedupe.
+  - Fire-and-forget wrapper that never throws.
+- Email pipeline: pgmq queue → `/lovable/email/queue/process` cron → `email_send_log`.
 
-I will remove these unconditionally on approval. TypeScript check after each batch.
+**Already wired to `notifyOwner`:**
+| Area | File | Coverage |
+|---|---|---|
+| AI Companion / gateway | `routes/api/ai.ts` | 5 call sites (budget, upstream, parse, timeout, unknown) |
+| Morning brief AI | `routes/api/brief.ts` | 5 call sites |
+| TTS (voice) | `routes/api/tts.ts` | 7 call sites (ElevenLabs + fallback + budget) |
+| Payments webhook | `routes/api/public/payments/webhook.ts` | 2 call sites (signature, handler) |
+| Subscription lifecycle hook | `routes/api/public/hooks/subscription-lifecycle.ts` | 2 |
+| Alarm dispatch cron | `routes/api/public/hooks/dispatch-alarms.ts` | 1 |
+| Contact form | `routes/api/public/contact.ts` | 1 |
+| Account deletion | `lib/account.functions.ts` | 1 |
+| Global server-fn error middleware | `src/start.ts` | 1 (catches every unhandled server-fn throw) |
 
-| # | Item | LOC | Evidence |
-|---|---|---|---|
-| A1 | `src/components/home/CompanionHero.tsx` (dead duplicate — real one lives at `src/components/companion/CompanionHero.tsx`) | 70 | No imports of the `home/` path anywhere |
-| A2 | `src/routes/qa.smart-alarm.tsx` (QA harness, self-comment says delete pre-launch) | 519 | No `<Link>`, no `navigate()` targeting `/qa/smart-alarm` |
-| A3 | `src/routes/qa.voice.tsx` (voice-matrix QA harness) | 325 | No `<Link>`, no `navigate()` targeting `/qa/voice` |
-| A4 | `src/lib/api/example.functions.ts` (template placeholder `getGreeting`) | 22 | Zero callers |
-| A5 | `src/assets/app-icon.png` (orphan; PWA uses `public/icon-*.png`) | — | No references in src or public |
-| A6 | Commented-out `SmartAlarmCard` import in `src/routes/dashboard.tsx:10` | 1 | Stale |
-| A7 | Shadcn `Switch` named import in `src/components/NotificationsSection.tsx:6` (shadowed by local `function Switch` at line 409) + the "keep unused imports happy" comment at line 469 | ~2 | Local shadows import |
-| A8 | `LiveCoachSection` + `LongClockSection` in `src/routes/index.tsx` (defined, never rendered — from Phase 1 audit) | ~150 | Not present in render tree |
+**Structured log surfaces already available**
+- `email_send_log` — every send + DLQ moves (dashboard-ready).
+- `ai_log` — per-call `status`, `error`, `latency_ms`, `total_tokens`.
+- `notification_log` — push delivery outcomes.
+- Cloudflare Worker logs via `stack_modern--server-function-logs`.
+- AI Gateway logs via `ai_gateway_logs--list_ai_gateway_requests`.
+- Client-side `reportLovableError()` bridge into Lovable's `__lovableEvents.captureException` (runtime-errors panel).
 
-**Tier A total: ~1,090 LOC removed.**
+## 2. Gaps
 
----
+**High-priority gaps**
+1. **Auth failures are invisible.** `routes/auth.tsx` and `integrations/supabase/auth-middleware.ts` do not call `notifyOwner`. A broken OAuth config or JWT storm goes unnoticed.
+2. **Email pipeline health is unwatched.** `/lovable/email/queue/process` catches errors but never pages. A stuck queue or DLQ surge (including the ops-alert emails themselves) fails silently.
+3. **No aggregate alerts.** Every alert today is per-event. There is no "AI error rate > 20% in last 15 min" or "5+ payment webhook failures in 10 min" trigger — the 10-min dedupe hides bursts rather than escalating them.
+4. **No persistent alert history.** Alerts live only in the outbound email log; there's no `ops_alert` table to build a dashboard, silence a noisy service, or audit incident timeline.
+5. **Uptime/outage detection is external-only.** No self-check pings the app from outside the Worker; a full-app outage means `notifyOwner` itself can't fire.
+6. **AI Gateway 402 / credit-exhausted** is not called out separately from generic upstream errors — this is the single most likely launch-day failure.
+7. **Smart Alarm** — the `dispatch-alarms` cron alerts on failures, but there is no watchdog for "cron didn't run in N minutes" (silent scheduler failure = missed wakeups, which is the worst possible failure mode for this app).
+8. **Client-side runtime errors** are captured by Lovable's overlay but never emailed to the owner.
 
-## Tier B — Feature-flag-gated dead code (needs your call)
+**Lower-priority gaps**
+- Database health: `supabase--cloud_status` is agent-only; no scheduled probe.
+- STT (`routes/api/stt.ts`) has no owner alert wiring.
+- Performance: no P95 latency alert; `ai_log.latency_ms` is written but not aggregated.
 
-These are components/lib files reachable only via a hardcoded `false` flag. Removing them also lets us delete the flag and simplify branches.
+## 3. Recommended alert architecture
 
-| # | Item | LOC | Notes |
-|---|---|---|---|
-| B1 | `ADVANCED_ADJUSTMENT_ENABLED = false` in `SmartAlarmCard.tsx:25` + its `if` branch (~15 lines) | 15 | Local flag, always false |
-| B2 | `SMART_ALARM_ENABLED = false` in `src/lib/flags.ts` + simplify the two consumers (`settings.morning.tsx:129`, `MorningBrief.tsx:138`) to always exclude alarm | 10 | Alarm entry is permanently hidden already |
-| B3 | `src/components/SmartAlarmCard.tsx` + `src/components/SmartAlarmCoach.tsx` (only reached via the two dead flags + the QA route being removed in A2) | ~350 | Only makes sense to delete if you're committing to shipping without Smart Alarm at launch |
+```text
+                        ┌──────────────────────┐
+   per-event errors ───▶│ notifyOwnerAsync()   │──┐
+                        └──────────────────────┘  │
+                                                  ▼
+   aggregate probes  ──▶ every-5-min cron ──▶ ops_alert table (INSERT)
+                                                  │
+                                                  ├─▶ severity>=error → ops-alert email
+                                                  │   (existing template, dedupe)
+                                                  │
+                                                  └─▶ /admin/alerts dashboard
+                                                      (auth-gated, admin role only)
+```
 
-**Tier B total: ~375 LOC.** Approve B1+B2 alone if you want to keep the components for a future Smart Alarm revival. Approve B3 for full removal.
+- **Keep** the existing `notifyOwner` helper as the single choke point.
+- **Add** an `ops_alert` DB table so every fired alert is persisted (source of truth for the dashboard and for cross-request rate-limiting).
+- **Add** a 5-minute health cron (`/api/public/hooks/health-probe`) protected by `CRON_SECRET` that aggregates the last window and fires escalation alerts for spikes.
+- **Add** an external uptime ping (UptimeRobot / BetterStack — free tier) hitting a lightweight `/api/public/health` returning 200. This is the only reliable way to detect a full outage; internal alerts can't email if the Worker is down.
 
----
+## 4. Owner-email delivery — best path
 
-## Tier C — Untargeted routes (needs product decision)
+Already correct. Keep using `sendTransactionalEmailServer` → `ops-alert` template → pgmq → cron. Reasons: retry + DLQ + suppression + one send path.
 
-Zero navigation links from the app; only reachable by typing the URL. These may be intentional dev/ops tools.
+Two small hardenings to add later:
+- Send critical alerts (`severity: 'critical'`) with an additional `Idempotency-Key` scoped per-hour so a truly repeating issue re-pages after the dedupe window.
+- If pgmq itself is degraded, fall back to a direct Mailgun REST call for `severity: 'critical'` (bypasses queue). Optional, small.
 
-| # | Item | LOC | Question |
-|---|---|---|---|
-| C1 | `src/routes/version.tsx` (deployment fingerprint page) | 141 | Do ops/support open `/version` manually? If not → delete |
-| C2 | `src/routes/health.tsx` + `src/lib/health/trends.ts` (health trends view) | 476 | Is this launching in v1? Nothing links to it |
-| C3 | `src/routes/lab.avatar-poc.tsx` + `.debug.tsx` + `.index.tsx` + `.simli.tsx` (avatar POC — Simli experiment) | 596 | POC done? If work is preserved elsewhere → delete |
+## 5. Proposed `ops_alert` table
 
-**Tier C total: ~1,213 LOC.** Answer yes/no per item.
+Persistent alert history + dashboard source.
 
----
+```sql
+CREATE TABLE public.ops_alert (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  severity     text NOT NULL CHECK (severity IN ('critical','error','warning','info')),
+  service      text NOT NULL,      -- 'ai', 'tts', 'payments', 'auth', 'alarm', ...
+  message      text NOT NULL,
+  meta         jsonb NOT NULL DEFAULT '{}'::jsonb,
+  emailed      boolean NOT NULL DEFAULT false,
+  resolved_at  timestamptz
+);
+GRANT SELECT ON public.ops_alert TO authenticated;
+GRANT ALL    ON public.ops_alert TO service_role;
+ALTER TABLE public.ops_alert ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admins read ops_alert" ON public.ops_alert
+  FOR SELECT TO authenticated USING (public.has_role(auth.uid(),'admin'));
+CREATE INDEX ops_alert_recent ON public.ops_alert (created_at DESC);
+CREATE INDEX ops_alert_service_recent ON public.ops_alert (service, created_at DESC);
+```
 
-## Explicitly NOT removing
+## 6. Dashboard
 
-- `src/routes/unsubscribe.tsx` — registered as a server route in `src/start.ts`, receives real inbound email link traffic.
-- `src/components/ui/**` (shadcn primitives) — even if unused today, they're a component library; removals here don't pay off.
-- `src/routeTree.gen.ts`, `src/router.tsx`, `src/routes/__root.tsx`, `src/integrations/**` — framework/generated.
+Add `/admin/alerts` route under `_authenticated` layout, gated by `has_role('admin')`. Columns: time, severity badge, service, message, meta expand, resolve button. Filters: severity, service, time range. Follows the same pattern as the email dashboard guidance.
 
----
+## 7. Files / tables / functions likely touched
 
-## Verification plan
+- **New:** `src/lib/ops/health-probe.server.ts`, `src/routes/api/public/hooks/health-probe.ts` (cron), `src/routes/api/public/health.ts` (external ping), `src/routes/_authenticated/admin.alerts.tsx`, migration for `ops_alert`.
+- **Modified:** `src/lib/ops/alert.server.ts` (write to `ops_alert`, add rate-based escalation), `src/routes/auth.tsx` (report auth exceptions), `src/routes/lovable/email/queue/process.ts` (DLQ + failure alerts), `src/lib/lovable-error-reporting.ts` (optional POST to `/api/public/client-error` for critical client errors).
+- **Untouched:** every existing `notifyOwner` call site — signature stays the same.
 
-After each tier's removals:
-1. `tsgo` typecheck must pass.
-2. Grep for stale references to deleted symbols.
-3. Confirm no runtime imports break (Vite HMR should stay green).
+## 8. Rollout — low-risk, one step at a time
 
-Publish only once all approved tiers land and TS is clean.
+Each step ships alone, is reversible, and adds coverage without changing behavior.
 
----
+1. **Persist alerts** — create `ops_alert` table + write from `notifyOwner`. No user-visible change. Enables everything below.
+2. **Admin dashboard** — `/admin/alerts` list view (read-only). Verifies alerts are flowing.
+3. **Fill wiring gaps** — add `notifyOwner` to `auth.tsx`, email queue processor, STT route. Small, targeted edits.
+4. **External uptime ping** — add `/api/public/health` (2 lines). User configures UptimeRobot themselves.
+5. **Health-probe cron** (5 min) — aggregate `ai_log`, `email_send_log`, `ops_alert` counts, fire escalation alerts for spikes, and watchdog the alarm-dispatch cron ("no run in 15 min → critical").
+6. **Client-error reporting** — optional `/api/public/client-error` receiver, called from `reportLovableError()` for boundary crashes.
+7. **Resolve/silence UI** — mark resolved, silence a service for N minutes.
 
-## Approve
+## 9. What to do first
 
-Reply with which tiers to run, e.g.:
-- **"A only"** — safest, ~1,090 LOC.
-- **"A + B1/B2"** — safest + kill the always-false flags but keep Smart Alarm components dormant.
-- **"A + B + C"** — full sweep, ~2,678 LOC gone (confirm each C item).
-- **"A + B + C1 + C3, keep health"** — mix and match.
+Steps 1 + 3 + 4. Together they close the biggest gaps (persistence + auth blind spot + full-app outage detection) with roughly one migration and three small file edits. Everything else builds on the `ops_alert` table.
+
+## 10. Explicit non-goals for Phase 3
+
+- No third-party APM (Sentry, Datadog) — the existing pipeline covers launch needs.
+- No SMS/paging — email-only until volume justifies it.
+- No changes to any existing `notifyOwner` call site's copy or severity.
+- No touching the Smart Alarm flow itself.
+
+Awaiting approval before implementation.
