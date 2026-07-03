@@ -62,6 +62,7 @@ import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
 import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
 import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
 import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as LabPilotRealtimeRouteImport } from './routes/lab.pilot-realtime'
 import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -360,6 +361,11 @@ const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
   path: '/acceptable-use',
   getParentRoute: () => LegalRoute,
 } as any)
+const LabPilotRealtimeRoute = LabPilotRealtimeRouteImport.update({
+  id: '/lab/pilot-realtime',
+  path: '/lab/pilot-realtime',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
   id: '/lab/avatar-poc',
   path: '/lab/avatar-poc',
@@ -572,6 +578,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
+  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -657,6 +664,7 @@ export interface FileRoutesByTo {
   '/api/tts-elevenlabs': typeof ApiTtsElevenlabsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -745,6 +753,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/lab/avatar-poc': typeof LabAvatarPocRouteWithChildren
+  '/lab/pilot-realtime': typeof LabPilotRealtimeRoute
   '/legal/acceptable-use': typeof LegalAcceptableUseRoute
   '/legal/accessibility': typeof LegalAccessibilityRoute
   '/legal/cookies': typeof LegalCookiesRoute
@@ -834,6 +843,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
+    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -919,6 +929,7 @@ export interface FileRouteTypes {
     | '/api/tts-elevenlabs'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -1006,6 +1017,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/lab/avatar-poc'
+    | '/lab/pilot-realtime'
     | '/legal/acceptable-use'
     | '/legal/accessibility'
     | '/legal/cookies'
@@ -1093,6 +1105,7 @@ export interface RootRouteChildren {
   ApiTtsElevenlabsRoute: typeof ApiTtsElevenlabsRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LabAvatarPocRoute: typeof LabAvatarPocRouteWithChildren
+  LabPilotRealtimeRoute: typeof LabPilotRealtimeRoute
   QaSmartAlarmRoute: typeof QaSmartAlarmRoute
   QaVoiceRoute: typeof QaVoiceRoute
   SettingsAvatarRoute: typeof SettingsAvatarRoute
@@ -1492,6 +1505,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LegalAcceptableUseRouteImport
       parentRoute: typeof LegalRoute
     }
+    '/lab/pilot-realtime': {
+      id: '/lab/pilot-realtime'
+      path: '/lab/pilot-realtime'
+      fullPath: '/lab/pilot-realtime'
+      preLoaderRoute: typeof LabPilotRealtimeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lab/avatar-poc': {
       id: '/lab/avatar-poc'
       path: '/lab/avatar-poc'
@@ -1827,6 +1847,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTtsElevenlabsRoute: ApiTtsElevenlabsRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LabAvatarPocRoute: LabAvatarPocRouteWithChildren,
+  LabPilotRealtimeRoute: LabPilotRealtimeRoute,
   QaSmartAlarmRoute: QaSmartAlarmRoute,
   QaVoiceRoute: QaVoiceRoute,
   SettingsAvatarRoute: SettingsAvatarRoute,
