@@ -75,7 +75,16 @@ export const mintRealtimePilotToken = createServerFn({ method: "POST" })
  *     400 for a bogus token, which proves the server is up and answering).
  */
 export type RealtimePreflightCheck = {
-  id: "env" | "url" | "jwt" | "reachability" | "identity" | "signal";
+  id:
+    | "env"
+    | "url"
+    | "jwt"
+    | "reachability"
+    | "identity"
+    | "signal"
+    | "signal-header"
+    | "jwt-detail"
+    | "room-service";
   label: string;
   ok: boolean;
   detail: string;
