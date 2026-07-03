@@ -1,14 +1,21 @@
+// Home dashboard CompanionHero — greeting header + Pilot portrait + CTA.
+// Reads the pure hero-state resolver to pick copy, then renders a calm
+// entry point that navigates to /companion.
 import { Link } from "@tanstack/react-router";
-import { MessageCircle } from "lucide-react";
+import { useMemo } from "react";
 import { PilotPortrait } from "@/components/companion/PilotPortrait";
-import { greetingWithName } from "@/lib/time/day-part";
-import { buildGreetingLine, type GreetingContext } from "@/lib/greeting/context";
+import { HomeCard } from "@/components/home/HomeCard";
+import { resolveHero, type HeroSignals } from "@/lib/companion/hero-state";
+import { currentBriefPeriod } from "@/lib/companion/brief-window";
+import { useOnline } from "@/hooks/use-online";
 
-/**
- * Home focal-point hero — makes the AI Companion the centerpiece.
- * Portrait + personal greeting + contextual sub-line + one-tap "Talk to Pilot".
- * All data passed in props (no fetches) — computed by the dashboard route.
- */
+export type CompanionHeroContext = {
+  nextShiftStart: Date | null;
+  debtScore: number | null;
+  recoveryScore: number | null;
+  recommendedBedtime: Date | null;
+};
+
 export function CompanionHero({
   name,
   now,
@@ -18,53 +25,56 @@ export function CompanionHero({
   name: string;
   now: Date;
   dateLabel: string;
-  context: Omit<GreetingContext, "now">;
+  context: CompanionHeroContext;
 }) {
-  const title = greetingWithName(name, now);
-  const line = buildGreetingLine({ now, ...context });
+  const online = useOnline();
+  const hour = now.getHours();
+
+  const view = useMemo(() => {
+    const signals: HeroSignals = {
+      period: currentBriefPeriod(now),
+      periodFresh: false,
+      actionPending: false,
+      offline: !online,
+      quiet: false,
+      voiceMuted: false,
+      name,
+      hour,
+    };
+    return resolveHero(signals);
+  }, [now, online, name, hour]);
 
   return (
-    <section
-      aria-label="Your AI companion"
-      className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/60 backdrop-blur-xl p-5 shadow-[0_10px_40px_-15px_hsl(var(--primary)/0.4)] sm:p-6"
-    >
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="absolute -left-16 -top-16 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
-        <div className="absolute -right-10 bottom-0 h-48 w-48 rounded-full bg-sky-500/15 blur-3xl" />
-      </div>
-
-      <div className="relative grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
-        <div className="shrink-0">
-          {/* Smaller portrait on phones so the greeting has room to breathe */}
-          <div className="sm:hidden">
-            <PilotPortrait state="idle" size="md" eager />
-          </div>
-          <div className="hidden sm:block">
-            <PilotPortrait state="idle" size="lg" eager />
-          </div>
-        </div>
-
-        <div className="min-w-0">
-          <p className="card-eyebrow">{dateLabel || "Today"}</p>
-          <h1
-            className="mt-1 text-[1.35rem] leading-tight text-foreground sm:text-3xl sm:truncate"
-            style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em", overflowWrap: "anywhere" }}
-          >
-            {title}
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground sm:text-[15px] sm:line-clamp-2">
-            {line}
+    <HomeCard accent className="!p-0">
+      <div className="flex items-center gap-4 p-5 sm:p-6">
+        <PilotPortrait size="md" state="idle" eager />
+        <div className="min-w-0 flex-1">
+          {dateLabel ? (
+            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              {dateLabel}
+            </p>
+          ) : null}
+          <h2 className="mt-1 truncate text-xl sm:text-2xl font-semibold text-foreground">
+            {view.title}
+          </h2>
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+            {view.subtitle}
           </p>
+          {context.debtScore !== null && context.recoveryScore !== null ? (
+            <p className="mt-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground/80">
+              Recovery {Math.round(context.recoveryScore)}% · Sleep debt {Math.round(context.debtScore)}
+            </p>
+          ) : null}
+          <div className="mt-4">
+            <Link
+              to="/companion"
+              className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform active:scale-[0.98]"
+            >
+              {view.ctaLabel}
+            </Link>
+          </div>
         </div>
       </div>
-
-      <Link
-        to="/companion"
-        className="relative mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary via-primary to-indigo-500 text-sm font-semibold text-primary-foreground shadow-[0_10px_30px_-8px_hsl(var(--primary)/0.6)] transition active:scale-[0.99]"
-      >
-        <MessageCircle className="h-4 w-4" />
-        Talk to Pilot
-      </Link>
-    </section>
+    </HomeCard>
   );
 }
