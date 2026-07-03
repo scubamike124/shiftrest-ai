@@ -21,7 +21,7 @@ export function PilotOrb({
         className={cn(
           "absolute inset-0 rounded-full blur-2xl transition-opacity duration-500",
           state === "idle" && "opacity-30 bg-[radial-gradient(circle,hsl(var(--primary)/0.55),transparent_65%)]",
-          state === "listening" && "opacity-80 bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse",
+          state === "listening" && "opacity-80 bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse motion-reduce:animate-none",
           state === "thinking" && "opacity-70 bg-[radial-gradient(circle,hsl(280_85%_65%/0.75),transparent_70%)]",
           state === "speaking" && "opacity-90 bg-[radial-gradient(circle,hsl(190_90%_60%/0.85),transparent_70%)]",
         )}
@@ -67,7 +67,7 @@ export function OrbBadge({
       <div
         className={cn(
           "absolute inset-0 rounded-full blur-md",
-          state === "listening" && "bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse",
+          state === "listening" && "bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse motion-reduce:animate-none",
           state === "thinking" && "bg-[radial-gradient(circle,hsl(280_85%_65%/0.7),transparent_70%)]",
           state === "speaking" && "bg-[radial-gradient(circle,hsl(190_90%_60%/0.85),transparent_70%)]",
           state === "idle" && "bg-[radial-gradient(circle,hsl(var(--primary)/0.45),transparent_70%)]",

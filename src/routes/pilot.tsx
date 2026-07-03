@@ -594,7 +594,7 @@ function PilotPage() {
             {orbDisplayState === "listening" && (
               <>
                 <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping motion-reduce:animate-none" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                 </span>
                 Listening — I'll stop when you pause.
@@ -602,7 +602,7 @@ function PilotPage() {
             )}
             {orbDisplayState === "thinking" && (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Thinking…
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> Thinking…
               </>
             )}
             {orbDisplayState === "speaking" && (

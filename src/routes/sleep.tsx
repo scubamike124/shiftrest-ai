@@ -81,7 +81,7 @@ function TrackCard({ track }: { track: SoundTrack }) {
             )}
             {active && (
               <Badge className="border-primary/40 bg-primary/20 text-[10px] font-semibold text-primary">
-                <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse motion-reduce:animate-none rounded-full bg-primary" />
                 Playing
               </Badge>
             )}

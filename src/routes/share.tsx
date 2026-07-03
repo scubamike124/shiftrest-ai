@@ -145,7 +145,7 @@ function SharePage() {
 
 function PartnerView({ payload }: { payload: Payload }) {
   return (
-    <main className="flex min-h-screen flex-col gap-5 px-5 pt-12 pb-12">
+    <main className="flex min-h-dvh flex-col gap-5 px-5 pt-12 pb-12">
       <header className="text-center">
         <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
           <Moon className="h-6 w-6" />

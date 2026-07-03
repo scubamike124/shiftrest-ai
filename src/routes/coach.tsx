@@ -287,7 +287,7 @@ function Coach() {
 
 
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/85 px-5 pb-3 pt-12 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[var(--shadow-glow)]">

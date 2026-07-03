@@ -310,7 +310,7 @@ export function LongClock({
             className="pointer-events-none absolute top-0 h-full w-px bg-foreground"
             style={{ left: `${(nowMin / 1440) * 100}%` }}
           >
-            <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 animate-pulse rounded-full bg-foreground shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+            <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 animate-pulse motion-reduce:animate-none rounded-full bg-foreground shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
           </div>
         </div>
 
