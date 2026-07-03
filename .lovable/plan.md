@@ -1,84 +1,105 @@
-# Plan: Diagnose why `/rtc/validate` returns 401 after project/URL/key are verified aligned
+# Plan: Escalate to LiveKit support (no more code/env changes)
 
-## Current elimination status
+## What the diagnostics proved
 
-Confirmed by prior preflight runs and your LiveKit dashboard check:
-- LIVEKIT_URL = `wss://restpilot-ai-6jvalz9y.livekit.cloud` (matches project Settings)
-- `LIVEKIT_API_KEY` prefix = `API7Md`, length 15, no whitespace
-- `LIVEKIT_API_SECRET` length 44, no whitespace
-- JWT `iss` claim equals the stored API key (issuerMatchesKey=true)
-- JWT decodes with correct `sub` (identity), `video.room`, `video.roomJoin`, and unexpired `exp`
-- LiveKit host is reachable (HTTP 200 on `/`)
+All three independent server-side auth paths against `wss://restpilot-ai-6jvalz9y.livekit.cloud` return `401 invalid API key` for a JWT signed by `API7Md…`:
 
-**Still pending your confirmation:** that the LiveKit dashboard's Settings → Keys tab for project `restpilot-ai-6jvalz9y` currently lists a row whose key starts with `API7Md`. This is the last piece — please confirm before we treat the credentials as fully verified.
+- `/rtc/validate?access_token=…` → 401
+- `/rtc/validate` with `Authorization: Bearer …` → 401
+- Twirp `RoomService.ListRooms` (completely different API path) → 401
 
-## Question 1 — The exact HTTP request preflight makes
+Combined with the earlier `jwt-detail` and `identity` checks (alg `HS256`, `iss` = `API7Md…`, unexpired, no clock skew, secret bytes hashed match what's stored, no whitespace, `issuerMatchesKey=true`), there is no code or env path left where the fault could plausibly live. LiveKit itself is rejecting the credential across every endpoint.
 
-`src/lib/realtime.functions.ts` (check `id: "signal"`) issues this from the Cloudflare Worker:
+## Question 1 — Which LiveKit account and project owns `API7Md`?
+
+I cannot inspect LiveKit's account/project registry from here — only LiveKit knows which project a given key belongs to. The only ways to answer this are:
+
+1. **LiveKit dashboard (you already did this)** — you confirmed you see `API7Md` listed in Settings → Keys of the project whose Settings → Project shows the WebSocket URL `wss://restpilot-ai-6jvalz9y.livekit.cloud`. That is the strongest evidence available on your side.
+2. **LiveKit CLI** — `lk project list` prints every project on your CLI-authenticated account with URL + key prefixes. Not usable from iPhone.
+3. **LiveKit support ticket** — support can query the internal key-to-project mapping directly and settle it definitively.
+
+Given (1) matches, (3) is now the correct next step.
+
+## Question 2 — Does the configured URL belong to that project?
+
+Yes, verified two ways:
+- Dashboard: the Settings → Project → WebSocket URL of the project containing `API7Md` reads `wss://restpilot-ai-6jvalz9y.livekit.cloud`.
+- Preflight: `process.env.LIVEKIT_URL` echoes `wss://restpilot-ai-6jvalz9y.livekit.cloud` byte-for-byte, no scheme/host/whitespace issues.
+
+## Question 3 — Prepare the LiveKit support case
+
+### Where to file
+
+- Primary: in-app support chat inside LiveKit Cloud dashboard (fastest, auto-attaches account context)
+- Secondary: `support@livekit.io`
+- If asked for a plan tier: mention if you're on the paid Cloud tier
+
+### Ticket subject
+
+> All authenticated server APIs return `401 invalid API key` for a key that is present in the project's Keys tab
+
+### Ticket body (copy/paste)
 
 ```
-GET https://restpilot-ai-6jvalz9y.livekit.cloud/rtc/validate?access_token=<JWT>
+Project WebSocket URL: wss://restpilot-ai-6jvalz9y.livekit.cloud
+API Key prefix (first 6 chars): API7Md
+API Key length: 15
+API Secret length: 44 (no leading/trailing whitespace)
+Key age: created less than 24 h ago
+Key status in dashboard: present in Settings → Keys of the above project
+
+Symptom: every authenticated server call to this host returns
+"401 invalid API key" for JWTs signed by this key/secret pair.
+
+Reproduced independently against three endpoints from a Cloudflare
+Worker (Node 20 compat), livekit-server-sdk v2.x:
+
+  1. GET https://restpilot-ai-6jvalz9y.livekit.cloud/rtc/validate?access_token=<JWT>
+     → HTTP 401  body: invalid API key: API7Md…
+
+  2. GET https://restpilot-ai-6jvalz9y.livekit.cloud/rtc/validate
+     Authorization: Bearer <JWT>
+     → HTTP 401  body: invalid API key: API7Md…
+
+  3. RoomServiceClient(host, apiKey, apiSecret).listRooms()
+     (Twirp /twirp/livekit.RoomService/ListRooms)
+     → 401 invalid API key: API7Md…
+
+JWT verification (client-side decode of our own token):
+  alg=HS256, typ=JWT
+  iss=<same as API key>, sub=<user id>, video.roomJoin=true
+  iat, nbf, exp all sane; exp > now by ~55s at send time
+  Worker clock within 1s of NTP
+  SHA-256 fingerprint of secret bytes matches the value we
+  paste in the dashboard (byte-for-byte, no BOM / no whitespace).
+
+We rotated the key/secret pair once after the initial failure; the
+regenerated pair exhibits the identical behavior. Reachability check
+against https://restpilot-ai-6jvalz9y.livekit.cloud/ returns HTTP 200,
+so the host itself is up.
+
+Asks:
+- Please confirm from your side that key `API7Md…` is currently
+  active and mapped to the project served at
+  wss://restpilot-ai-6jvalz9y.livekit.cloud.
+- If it isn't, tell us which project it is registered against, so we
+  can align LIVEKIT_URL to that project.
+- If it is, please investigate why the auth path for this project
+  is rejecting a token signed with a listed key/secret.
 ```
 
-- Method: `GET`
-- No custom headers set (default `fetch()`); LiveKit accepts the token via either the `access_token` query param or an `Authorization: Bearer <JWT>` header — we use the query param
-- Timeout: 4 s via `AbortController`
-- Response body first 160 chars is logged into the `signal.detail` field
+Optional to include if support asks: a fresh preflight screenshot from `/lab/pilot-realtime` showing all six check rows.
 
-## Question 2 — Is that endpoint/auth method correct?
+### What NOT to do while the ticket is open
 
-Yes, verified against LiveKit source (livekit/livekit `pkg/service/auth.go`) and their own troubleshooting guide (livekit.com/blog/token-troubleshooting):
+- Don't rotate the key again — you'd invalidate the exact key ID (`API7Md…`) support is investigating.
+- Don't change `LIVEKIT_URL` — same reason.
+- Don't touch `src/lib/realtime.functions.ts` — the diagnostics are the evidence.
 
-- `/rtc/validate` is the documented pre-flight endpoint the signal server exposes.
-- It accepts the token as `?access_token=…` OR `Authorization: Bearer …`.
-- The exact 401 body `invalid API key: <key>` is emitted by `auth.go` only when either:
-  a) LiveKit's key store for that project does not contain the `iss` in the JWT, OR
-  b) HMAC-SHA256 signature verification fails (i.e. the stored secret for that key does not match the secret used to sign).
+## Code/env plan
 
-There is no other code path that produces that exact error text. It is not a clock-skew error (that would say "token not valid yet"), not an expired-token error ("token expired"), not a grant error ("no permissions to access the room"). It is specifically **key-not-known-or-signature-mismatch**.
+**No changes.** The plan is purely: send the ticket above, wait for LiveKit's response, then act on their answer.
 
-## Question 3 — Can we reproduce with an independent tool?
+## Waiting
 
-Yes. Two independent checks, neither of which changes credentials:
-
-**Check A — swap query param for header.** Same endpoint, different auth channel. If query param and header both 401, LiveKit's key lookup itself is failing (rules out any URL-decoding quirk). If header succeeds and query param 401, our query encoding is at fault.
-
-**Check B — dump the JWT header + payload.** Currently we only echo `iss` prefix. We should also echo:
-- JWT `alg` (must be `HS256`; anything else is rejected)
-- `iat`, `nbf`, `exp` as ISO timestamps
-- Worker's current `Date.now()` as ISO
-- SHA-256 fingerprint (first 8 hex chars) of the secret string used to sign — proves the secret bytes signing the JWT are the exact bytes stored in `process.env`, ruling out any encoding transform (base64 vs raw, hidden Unicode chars)
-
-**Check C — call LiveKit's `RoomServiceClient.listRooms()` from the Worker.** This uses the exact same key/secret pair against a completely different LiveKit API path (`/twirp/livekit.RoomService/ListRooms`). If it also returns "invalid API key", the credentials are genuinely wrong for the project regardless of what the dashboard shows (points at a stale-cache or wrong-account issue on LiveKit's side). If it succeeds, the problem is scoped to `/rtc/validate` and we escalate to LiveKit support with a narrow repro.
-
-## What to build
-
-Extend `realtimePreflight` in `src/lib/realtime.functions.ts` with three additional read-only checks. No code path outside `/lab/pilot-realtime` is touched, no secrets are logged.
-
-- `signal-header` — repeat `/rtc/validate` with `Authorization: Bearer <JWT>` instead of query param. Report status + body snippet.
-- `jwt-detail` — echo `alg`, ISO-formatted `iat`/`nbf`/`exp`, Worker `now`, and an 8-char SHA-256 fingerprint of the secret bytes (not the secret itself).
-- `room-service` — call `RoomServiceClient.listRooms()` from `livekit-server-sdk` (already in deps). Report success or the exact error message.
-
-All three run inside the existing `realtimePreflight` handler so a single "Run preflight" click surfaces them.
-
-## Decision tree from the results
-
-| signal (?access_token) | signal-header (Bearer) | room-service | Conclusion |
-| --- | --- | --- | --- |
-| 401 | 401 | 401 | Credentials genuinely invalid for this project on LiveKit's side. Open a LiveKit support ticket with the repro; do not touch our env. |
-| 401 | 200 | 200 | Bug in query-param encoding — fix in preflight only. |
-| 401 | 401 | 200 | `/rtc/validate` misconfigured on that LiveKit node — escalate to LiveKit. Real signal-socket connection may still work. |
-| 200 | 200 | 200 | Auth is actually fine now; earlier 401 was transient. Try Start Conversation. |
-
-## Files affected
-
-- `src/lib/realtime.functions.ts` — add the three checks to the existing `realtimePreflight` handler, extend the `RealtimePreflightCheck["id"]` union
-- `src/routes/_authenticated/lab.pilot-realtime.tsx` — no change (renders any check the handler returns)
-
-## Confidence
-
-High that the diagnostic will conclusively locate the fault. Given all prior eliminations, my prior on the outcomes is roughly: 60% "credentials genuinely rejected by LiveKit despite dashboard showing key present" (support ticket), 30% "one of the alternate auth paths succeeds and pinpoints an encoding/signature quirk", 10% "transient / now works".
-
-## Waiting for approval
-
-Awaiting your go-ahead to implement the three preflight checks. Also awaiting your one confirmation that `API7Md` is currently listed under Settings → Keys in project `restpilot-ai-6jvalz9y`.
+Your go-ahead to consider this the final diagnostic step and switch to support-case mode. No further edits, publishes, or secret rotations until LiveKit replies.
