@@ -69,12 +69,12 @@ export default defineAgent({
       }
     };
 
-    session.on("user_input_transcribed", (ev) => {
+    session.on(voice.AgentSessionEventTypes.UserInputTranscribed, (ev) => {
       if (!ev.isFinal) return;
       publish({ type: "transcript", from: "user", text: ev.transcript, final: true });
     });
 
-    session.on("conversation_item_added", (ev) => {
+    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev) => {
       const item = ev.item as { role?: string; content?: unknown } | undefined;
       if (!item || item.role !== "assistant") return;
       const text = Array.isArray(item.content)
