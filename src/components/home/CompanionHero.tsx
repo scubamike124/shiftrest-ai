@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { PilotPortrait } from "@/components/companion/PilotPortrait";
 import { HomeCard } from "@/components/home/HomeCard";
 import { resolveHero, type HeroSignals } from "@/lib/companion/hero-state";
-import { periodFor } from "@/lib/companion/brief-window";
+import { currentBriefPeriod } from "@/lib/companion/brief-window";
 import { useOnline } from "@/hooks/use-online";
 
 export type CompanionHeroContext = {
@@ -32,7 +32,7 @@ export function CompanionHero({
 
   const view = useMemo(() => {
     const signals: HeroSignals = {
-      period: periodFor(now),
+      period: currentBriefPeriod(now),
       periodFresh: false,
       actionPending: false,
       offline: !online,
