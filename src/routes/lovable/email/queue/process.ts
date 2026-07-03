@@ -58,6 +58,21 @@ async function moveToDlq(
   if (error) {
     console.error('Failed to move message to DLQ', { queue, msg_id: msg.msg_id, reason, error })
   }
+  // Fire-and-forget owner alert on every DLQ move. Deduped internally.
+  try {
+    const { notifyOwnerAsync } = await import('@/lib/ops/alert.server')
+    notifyOwnerAsync({
+      severity: 'error',
+      service: 'email-queue',
+      message: `Email moved to DLQ (${queue}): ${reason}`,
+      meta: {
+        queue,
+        msg_id: msg.msg_id,
+        recipient: payload.to,
+        template: payload.label ?? null,
+      },
+    })
+  } catch { /* never block */ }
 }
 
 export const Route = createFileRoute("/lovable/email/queue/process")({
