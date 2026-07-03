@@ -1,18 +1,14 @@
 /**
- * /lab/pilot-realtime — Phase 1 hidden beta shell.
+ * /lab/pilot-realtime — hidden Phase 2 beta.
  *
- * This route exists only to prove the token-minting foundation works.
- * It renders a 404 unless `VITE_ENABLE_REALTIME_PILOT=true` AND the
- * signed-in user has the `admin` or `tester` role.
- *
- * No production users reach this route. The current voice pipeline is
- * untouched.
+ * 404 unless VITE_ENABLE_REALTIME_PILOT=true.
+ * Connects to LiveKit + publishes mic; the external LiveKit Agent worker
+ * bridges audio to OpenAI Realtime. The production Companion voice
+ * pipeline is untouched.
  */
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
 import { ENABLE_REALTIME_PILOT } from "@/lib/flags";
-import { mintRealtimePilotToken, type RealtimeTokenResult } from "@/lib/realtime.functions";
+import { useRealtimePilot } from "@/lib/realtime/useRealtimePilot";
 
 export const Route = createFileRoute("/lab/pilot-realtime")({
   head: () => ({
@@ -46,61 +42,89 @@ export const Route = createFileRoute("/lab/pilot-realtime")({
 });
 
 function LabPilotRealtime() {
-  const mint = useServerFn(mintRealtimePilotToken);
-  const [state, setState] = useState<
-    | { kind: "idle" }
-    | { kind: "loading" }
-    | { kind: "ready"; token: RealtimeTokenResult }
-    | { kind: "error"; message: string }
-  >({ kind: "idle" });
+  const rt = useRealtimePilot();
+
+  const connected = rt.status === "connected" || rt.status === "reconnecting";
+  const ttfaMs = rt.metrics.timeToFirstAudioMs;
 
   return (
     <main className="mx-auto max-w-lg p-6">
       <h1 className="text-xl font-semibold">Pilot Realtime — hidden beta</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Phase 1 foundation. This page only mints a LiveKit token to prove
-        the server pipeline works. It does not start a voice session and it
-        does not affect the current Pilot voice.
+        Phase 2. Uses OpenAI Realtime via LiveKit Cloud. This page is the
+        only surface that touches Realtime — production voice is unchanged.
       </p>
 
-      <button
-        className="mt-6 rounded border px-3 py-2 text-sm"
-        disabled={state.kind === "loading"}
-        onClick={async () => {
-          setState({ kind: "loading" });
-          try {
-            const token = await mint();
-            setState({ kind: "ready", token });
-          } catch (e) {
-            setState({
-              kind: "error",
-              message: e instanceof Error ? e.message : String(e),
-            });
-          }
-        }}
-      >
-        {state.kind === "loading" ? "Minting…" : "Mint LiveKit token"}
-      </button>
-
-      {state.kind === "ready" && (
-        <pre className="mt-4 overflow-auto rounded bg-muted p-3 text-xs">
-          {JSON.stringify(
-            {
-              url: state.token.url,
-              room: state.token.room,
-              identity: state.token.identity,
-              expiresAt: new Date(state.token.expiresAt).toISOString(),
-              tokenPreview: state.token.token.slice(0, 24) + "…",
-            },
-            null,
-            2,
+      <section className="mt-6 space-y-3">
+        <div className="flex items-center gap-3">
+          {!connected ? (
+            <button
+              className="rounded bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+              disabled={rt.status === "connecting"}
+              onClick={() => void rt.connect()}
+            >
+              {rt.status === "connecting" ? "Connecting…" : "Start conversation"}
+            </button>
+          ) : (
+            <>
+              <button
+                className="rounded border px-4 py-2 text-sm"
+                onClick={() => void rt.toggleMute()}
+              >
+                {rt.muted ? "Unmute mic" : "Mute mic"}
+              </button>
+              <button
+                className="rounded border px-4 py-2 text-sm"
+                onClick={() => void rt.disconnect()}
+              >
+                End
+              </button>
+            </>
           )}
-        </pre>
-      )}
+        </div>
 
-      {state.kind === "error" && (
-        <p className="mt-4 text-sm text-destructive">Error: {state.message}</p>
-      )}
+        <dl className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+          <dt>Status</dt>
+          <dd className="text-foreground">{rt.status}</dd>
+          <dt>Pilot speaking</dt>
+          <dd className="text-foreground">{rt.remoteSpeaking ? "yes" : "no"}</dd>
+          <dt>Time to first audio</dt>
+          <dd className="text-foreground">
+            {ttfaMs != null ? `${Math.round(ttfaMs)} ms` : "—"}
+          </dd>
+          <dt>Mic</dt>
+          <dd className="text-foreground">{rt.muted ? "muted" : "live"}</dd>
+        </dl>
+
+        {rt.error && (
+          <p className="text-sm text-destructive">Error: {rt.error}</p>
+        )}
+      </section>
+
+      <section className="mt-6">
+        <h2 className="text-sm font-medium">Transcript</h2>
+        {rt.transcript.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No transcript yet. (The agent worker publishes transcript events
+            on the LiveKit data channel; if you don't see any, the worker is
+            either not deployed or not emitting them.)
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1 text-sm">
+            {rt.transcript.map((t) => (
+              <li key={t.id}>
+                <span className="text-xs uppercase text-muted-foreground">
+                  {t.from}:
+                </span>{" "}
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Hidden audio element the hook attaches remote assistant audio to */}
+      <audio ref={rt.remoteAudioRef} autoPlay playsInline className="hidden" />
     </main>
   );
 }
