@@ -48,7 +48,7 @@ function surfaceFor(pathname: string): "marketing" | "app" | "bare" {
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold">Page not found</h2>
@@ -74,7 +74,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -229,7 +229,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PreviewWarningBanner />
       {surface === "marketing" && (
-        <div className="flex min-h-screen flex-col">
+        <div className="flex min-h-dvh flex-col">
           <SiteHeader signedIn={signedIn} />
           <main className="flex-1">
             <Outlet />
@@ -239,9 +239,9 @@ function RootComponent() {
       )}
 
       {surface === "app" && (
-        <div className="flex min-h-screen w-full overflow-x-clip">
+        <div className="flex min-h-dvh w-full overflow-x-clip">
           <AppSidebar />
-          <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
+          <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
             <div className="mx-auto w-full max-w-[480px] px-4 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
               <Outlet />
             </div>
@@ -252,7 +252,7 @@ function RootComponent() {
       )}
 
       {surface === "bare" && (
-        <div className="min-h-screen">
+        <div className="min-h-dvh">
           <Outlet />
         </div>
       )}
