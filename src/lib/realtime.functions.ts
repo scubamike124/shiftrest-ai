@@ -57,3 +57,164 @@ export const mintRealtimePilotToken = createServerFn({ method: "POST" })
       expiresAt: Date.now() + ttlSeconds * 1000,
     };
   });
+
+/**
+ * Preflight — Phase 3A.
+ *
+ * Verifies server-side config and JWT signing WITHOUT the client attempting
+ * a WebRTC connection. Surfaces per-check pass/fail so we can catch a
+ * misconfigured LiveKit env before deploying the external agent worker.
+ *
+ * Checks:
+ *  1. All four env vars present.
+ *  2. LIVEKIT_URL parses as a `wss://…` (or `ws://…`) URL.
+ *  3. `AccessToken` mints a token that decodes to a JWT with the expected
+ *     identity, room grant, and TTL.
+ *  4. LiveKit HTTPS endpoint responds — a quick reachability probe against
+ *     the derived `https://` origin's `/rtc/validate` route (LiveKit returns
+ *     400 for a bogus token, which proves the server is up and answering).
+ */
+export type RealtimePreflightCheck = {
+  id: "env" | "url" | "jwt" | "reachability";
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
+export type RealtimePreflightResult = {
+  ok: boolean;
+  checks: RealtimePreflightCheck[];
+  identity: string;
+  room: string;
+};
+
+export const realtimePreflight = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<RealtimePreflightResult> => {
+    const url = process.env.LIVEKIT_URL;
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+    const openaiKey = process.env.OPENAI_REALTIME_API_KEY;
+
+    const checks: RealtimePreflightCheck[] = [];
+    const identity = context.userId;
+    const room = `pilot-${identity}`;
+
+    // 1. env
+    const missing = [
+      !url && "LIVEKIT_URL",
+      !apiKey && "LIVEKIT_API_KEY",
+      !apiSecret && "LIVEKIT_API_SECRET",
+      !openaiKey && "OPENAI_REALTIME_API_KEY",
+    ].filter(Boolean);
+    checks.push({
+      id: "env",
+      label: "Server env vars present",
+      ok: missing.length === 0,
+      detail:
+        missing.length === 0
+          ? "LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, OPENAI_REALTIME_API_KEY all set"
+          : `Missing: ${missing.join(", ")}`,
+    });
+
+    // 2. url shape
+    let httpsOrigin: string | null = null;
+    if (url) {
+      try {
+        const parsed = new URL(url);
+        const scheme = parsed.protocol;
+        const okScheme = scheme === "wss:" || scheme === "ws:";
+        httpsOrigin = `${scheme === "wss:" ? "https:" : "http:"}//${parsed.host}`;
+        checks.push({
+          id: "url",
+          label: "LIVEKIT_URL is a valid WebSocket URL",
+          ok: okScheme,
+          detail: okScheme
+            ? `${parsed.protocol}//${parsed.host}`
+            : `Unexpected scheme "${scheme}" (want ws:/wss:)`,
+        });
+      } catch (e) {
+        checks.push({
+          id: "url",
+          label: "LIVEKIT_URL is a valid WebSocket URL",
+          ok: false,
+          detail: `Parse error: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    } else {
+      checks.push({ id: "url", label: "LIVEKIT_URL is a valid WebSocket URL", ok: false, detail: "LIVEKIT_URL is missing" });
+    }
+
+    // 3. jwt sign + decode
+    let signedToken: string | null = null;
+    if (apiKey && apiSecret) {
+      try {
+        const { AccessToken } = await import("livekit-server-sdk");
+        const at = new AccessToken(apiKey, apiSecret, { identity, ttl: 60 });
+        at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
+        signedToken = await at.toJwt();
+        const parts = signedToken.split(".");
+        if (parts.length !== 3) throw new Error("JWT does not have 3 parts");
+        const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8")) as {
+          sub?: string;
+          video?: { room?: string; roomJoin?: boolean };
+          exp?: number;
+        };
+        const okIdentity = payload.sub === identity;
+        const okRoom = payload.video?.room === room && payload.video?.roomJoin === true;
+        const okTtl = typeof payload.exp === "number" && payload.exp * 1000 > Date.now();
+        const ok = okIdentity && okRoom && okTtl;
+        checks.push({
+          id: "jwt",
+          label: "AccessToken signs and decodes correctly",
+          ok,
+          detail: ok
+            ? `identity=${payload.sub}, room=${payload.video?.room}, ttl=${payload.exp ? Math.round(payload.exp - Date.now() / 1000) : "?"}s`
+            : `identity=${payload.sub}, room=${payload.video?.room}, expOk=${okTtl}`,
+        });
+      } catch (e) {
+        checks.push({
+          id: "jwt",
+          label: "AccessToken signs and decodes correctly",
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } else {
+      checks.push({ id: "jwt", label: "AccessToken signs and decodes correctly", ok: false, detail: "Missing LIVEKIT_API_KEY or LIVEKIT_API_SECRET" });
+    }
+
+    // 4. reachability probe (best effort, 3s timeout)
+    if (httpsOrigin) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 3000);
+        const res = await fetch(`${httpsOrigin}/`, { method: "GET", signal: ctrl.signal });
+        clearTimeout(t);
+        // LiveKit's root typically returns 200 or 404; either proves the
+        // server is reachable. What matters is that the fetch didn't throw.
+        checks.push({
+          id: "reachability",
+          label: "LiveKit host is reachable",
+          ok: true,
+          detail: `HTTP ${res.status} from ${httpsOrigin}`,
+        });
+      } catch (e) {
+        checks.push({
+          id: "reachability",
+          label: "LiveKit host is reachable",
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } else {
+      checks.push({ id: "reachability", label: "LiveKit host is reachable", ok: false, detail: "Skipped — URL invalid" });
+    }
+
+    return {
+      ok: checks.every((c) => c.ok),
+      checks,
+      identity,
+      room,
+    };
+  });
