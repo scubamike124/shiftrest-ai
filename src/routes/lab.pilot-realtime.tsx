@@ -7,8 +7,11 @@
  * pipeline is untouched.
  */
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { ENABLE_REALTIME_PILOT } from "@/lib/flags";
 import { useRealtimePilot } from "@/lib/realtime/useRealtimePilot";
+import { realtimePreflight, type RealtimePreflightResult } from "@/lib/realtime.functions";
 
 export const Route = createFileRoute("/lab/pilot-realtime")({
   head: () => ({
