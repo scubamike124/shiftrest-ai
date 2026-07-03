@@ -16,7 +16,6 @@ import {
   Heart,
   Send,
   Bell,
-  TrendingDown,
   Sparkles,
   Mic,
   Waves,
@@ -346,29 +345,6 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "go
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-      <span className="h-2 w-2 rounded-sm" style={{ background: color }} />
-      {label}
-    </span>
-  );
-}
-
-/* Smart Alarm section removed for Phase 1 launch. Restored in Phase 2 via
-   src/lib/flags.ts (SMART_ALARM_ENABLED). See git history for the original
-   SmartAlarmSection + SmartAlarmMock components. */
-
-
-
-function CycleChip({ label, sub, active }: { label: string; sub: string; active?: boolean }) {
-  return (
-    <div className={`rounded-xl border px-2 py-2 ${active ? "border-amber/60 bg-amber/10" : "border-border bg-background/40"}`}>
-      <p className="font-semibold text-foreground">{label}</p>
-      <p className="text-muted-foreground">{sub}</p>
-    </div>
-  );
-}
 
 /* ============================================================ DASHBOARD + RECOMMENDATIONS */
 
