@@ -83,6 +83,16 @@ export const Route = createFileRoute("/api/stt")({
         if (!upstream.ok) {
           const detail = await upstream.text().catch(() => "");
           console.error("[stt] upstream", upstream.status, detail);
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: upstream.status === 402 ? "critical" : "error",
+            service: "stt",
+            message:
+              upstream.status === 402
+                ? "STT upstream 402 — AI credits exhausted"
+                : `STT upstream ${upstream.status}`,
+            meta: { status: upstream.status, detail: detail.slice(0, 500) },
+          });
           const msg =
             upstream.status === 402
               ? "AI credits are exhausted."
