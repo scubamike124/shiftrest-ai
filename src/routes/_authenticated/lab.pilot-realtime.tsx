@@ -5,6 +5,9 @@
  * Connects to LiveKit + publishes mic; the external LiveKit Agent worker
  * bridges audio to OpenAI Realtime. The production Companion voice
  * pipeline is untouched.
+ *
+ * This route lives under the _authenticated layout so only signed-in users
+ * can reach it; the URL remains /lab/pilot-realtime.
  */
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,7 +16,7 @@ import { ENABLE_REALTIME_PILOT } from "@/lib/flags";
 import { useRealtimePilot } from "@/lib/realtime/useRealtimePilot";
 import { realtimePreflight, type RealtimePreflightResult } from "@/lib/realtime.functions";
 
-export const Route = createFileRoute("/lab/pilot-realtime")({
+export const Route = createFileRoute("/_authenticated/lab/pilot-realtime")({
   head: () => ({
     meta: [
       { title: "Pilot Realtime (beta) — RestPilot" },
