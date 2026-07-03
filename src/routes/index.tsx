@@ -322,8 +322,16 @@ function LogoTicker() {
 }
 
 /* Dead marketing sections (LiveCoachSection, CoachMock, LongClockSection,
-   TimelineMock) removed — not rendered on the landing page. ChipBtn and
-   Stat are still used below and remain defined. */
+   TimelineMock, Legend) removed — not rendered on the landing page. */
+
+function ChipBtn({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full border border-primary/30 bg-secondary/60 px-3 py-1 text-indigo-glow">
+      {children}
+    </span>
+  );
+}
+
 
 
 
