@@ -47,7 +47,7 @@ export async function notifyOwner({
       severity,
       service,
       message,
-      meta: meta ?? {},
+      meta: (meta ?? {}) as never,
       emailed: willEmail,
     })
   } catch (e) {
