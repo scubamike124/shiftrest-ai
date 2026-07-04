@@ -173,12 +173,13 @@ function SimliPoc() {
     setError(null);
     const t0 = performance.now();
     const { data: sess2 } = await supabase.auth.getSession();
-    const authHdr2 = sess2.session?.access_token
-      ? { Authorization: `Bearer ${sess2.session.access_token}` }
-      : {};
+    const headers2: Record<string, string> = { "Content-Type": "application/json" };
+    if (sess2.session?.access_token) {
+      headers2.Authorization = `Bearer ${sess2.session.access_token}`;
+    }
     const res = await fetch("/api/lab/simli/speak", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHdr2 },
+      headers: headers2,
       body: JSON.stringify({ text, voice }),
     });
     if (!res.ok) {
