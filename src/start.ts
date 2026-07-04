@@ -105,12 +105,10 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
 // document it loaded the page from.
 const cspReportOnlyMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next();
-  const response = (result as { response?: Response }).response;
-  if (response && response.headers) {
-    const ct = response.headers.get("content-type") ?? "";
-    if (ct.includes("text/html") && !response.headers.has("content-security-policy-report-only")) {
-      response.headers.set("content-security-policy-report-only", CSP_REPORT_ONLY);
-    }
+  const response = result.response;
+  const ct = response.headers.get("content-type") ?? "";
+  if (ct.includes("text/html") && !response.headers.has("content-security-policy-report-only")) {
+    response.headers.set("content-security-policy-report-only", CSP_REPORT_ONLY);
   }
   return result;
 });
