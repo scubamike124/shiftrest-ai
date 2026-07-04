@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
-import { TurnstileWidget, isTurnstileEnabled } from "@/components/site/TurnstileWidget";
+import { useRef, useState } from "react";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -21,20 +20,12 @@ export const Route = createFileRoute("/contact")({
 function ContactPage() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const turnstileRequired = isTurnstileEnabled();
-
-  const handleToken = useCallback((token: string | null) => {
-    setTurnstileToken(token);
-  }, []);
+  // Captured on first render — used server-side to reject bots that submit
+  // instantly after rendering the form.
+  const loadedAtRef = useRef<number>(Date.now());
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (turnstileRequired && !turnstileToken) {
-      setErrorMsg("Please complete the challenge before sending.");
-      setState("error");
-      return;
-    }
     setState("sending");
     setErrorMsg(null);
     const fd = new FormData(e.currentTarget);
@@ -44,7 +35,7 @@ function ContactPage() {
       subject: (fd.get("subject") as string) || undefined,
       message: (fd.get("message") as string) || "",
       hp: (fd.get("company") as string) || "",
-      turnstileToken: turnstileToken || undefined,
+      elapsedMs: Date.now() - loadedAtRef.current,
     };
     try {
       const res = await fetch("/api/public/contact", {
@@ -54,7 +45,7 @@ function ContactPage() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Something went wrong.");
+        throw new Error(errorMessageFor(res.status, body?.error));
       }
       setState("sent");
     } catch (err) {
@@ -141,15 +132,13 @@ function ContactPage() {
             />
           </div>
 
-          <TurnstileWidget onToken={handleToken} />
-
           {state === "error" && errorMsg ? (
             <p className="text-sm text-destructive">{errorMsg}</p>
           ) : null}
 
           <button
             type="submit"
-            disabled={state === "sending" || (turnstileRequired && !turnstileToken)}
+            disabled={state === "sending"}
             className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
             {state === "sending" ? "Sending…" : "Send message"}
@@ -166,4 +155,22 @@ function ContactPage() {
       )}
     </main>
   );
+}
+
+function errorMessageFor(status: number, code: string | undefined): string {
+  if (status === 429) {
+    return "You've sent several messages recently. Please wait a few minutes and try again.";
+  }
+  switch (code) {
+    case "invalid_input":
+      return "Please double-check your email and message.";
+    case "too_fast":
+      return "That was a bit quick — please take a moment and resubmit.";
+    case "spam_detected":
+      return "Your message was flagged as spam. Try rephrasing without links or promotional content.";
+    case "processing_failed":
+      return "We couldn't send your message. Please try again shortly.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
 }
