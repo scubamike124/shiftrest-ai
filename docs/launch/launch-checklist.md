@@ -57,6 +57,10 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 3. Live Stripe verification — pending owner approval to charge a real card.
 4. Real-device cross-browser pass (iOS Safari, Android Chrome, iPad, Safari/Firefox/Edge desktop) — owner-driven.
 
+## Final launch-phase deployment (deferred, non-blocking for feature work)
+
+- [ ] Deploy LiveKit Realtime Companion worker to LiveKit Cloud Agents via secure secrets pipeline (no local rebuild). Reserved for final production launch phase; does not block remaining RestPilot feature work or bug fixes.
+
 ## Status
 
 **NOT production-ready** until items 1–4 close. Static codebase, security, accessibility (public surface), and Lighthouse SEO/Best-Practices all meet bar.
