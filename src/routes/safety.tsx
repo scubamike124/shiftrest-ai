@@ -216,10 +216,10 @@ function SafetyCenter() {
             <li>
               Tell us at{" "}
               <a
-                href="mailto:security@restpilot.ai"
+                href="mailto:security@restpilotai.com"
                 className="text-primary underline"
               >
-                security@restpilot.ai
+                security@restpilotai.com
               </a>{" "}
               if you suspect unauthorized access.
             </li>
@@ -266,8 +266,8 @@ function SafetyCenter() {
 
       <footer className="mt-16 border-t border-border/60 pt-6 text-xs text-muted-foreground">
         Questions or safety feedback? Email{" "}
-        <a href="mailto:safety@restpilot.ai" className="text-primary underline">
-          safety@restpilot.ai
+        <a href="mailto:support@restpilotai.com" className="text-primary underline">
+          support@restpilotai.com
         </a>
         .
       </footer>

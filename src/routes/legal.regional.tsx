@@ -57,7 +57,7 @@ export const Route = createFileRoute("/legal/regional")({
         it for cross-context behavioral advertising. To exercise your
         rights, use the Delete Account control in{" "}
         <Link to="/profile">Profile</Link> or email{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a>. We
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>. We
         will not discriminate against you for exercising these rights.
       </p>
 
@@ -66,7 +66,7 @@ export const Route = createFileRoute("/legal/regional")({
         Under PIPEDA you may request access to and correction of personal
         information we hold about you, and you may withdraw consent
         (subject to legal and contractual restrictions). Contact{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a>.
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
       <h2 id="australia">Australia (Privacy Act / APPs)</h2>
@@ -81,7 +81,7 @@ export const Route = createFileRoute("/legal/regional")({
         Brazilian users have rights under the LGPD, including the right to
         confirm processing, access data, correct data, anonymize or delete
         data, port data, and revoke consent. Contact{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a>.
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
       <h2 id="other">Other regions</h2>
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/legal/regional")({
         If you live in another jurisdiction with specific privacy or
         consumer-protection rights, those rights apply where required by
         local law. Email{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a> to
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> to
         exercise them.
       </p>
     </LegalLayout>

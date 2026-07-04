@@ -54,7 +54,7 @@ export const Route = createFileRoute("/legal/security")({
       <ul>
         <li>
           Email{" "}
-          <a href="mailto:security@restpilot.ai">security@restpilot.ai</a>{" "}
+          <a href="mailto:security@restpilotai.com">security@restpilotai.com</a>{" "}
           with a clear description and steps to reproduce.
         </li>
         <li>

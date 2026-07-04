@@ -68,7 +68,7 @@ export const Route = createFileRoute("/legal/acceptable-use")({
       <h2>3. Reporting abuse</h2>
       <p>
         Report violations to{" "}
-        <a href="mailto:abuse@restpilot.ai">abuse@restpilot.ai</a>.
+        <a href="mailto:security@restpilotai.com">security@restpilotai.com</a>.
       </p>
     </LegalLayout>
   ),

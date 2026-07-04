@@ -58,7 +58,7 @@ export const Route = createFileRoute("/legal/license")({
         The Software incorporates open-source components distributed under
         their respective licenses. A list of components and their licenses is
         available on request from{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a>.
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
       <h2>5. Termination</h2>

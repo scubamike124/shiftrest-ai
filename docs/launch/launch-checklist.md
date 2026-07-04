@@ -42,7 +42,7 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 ## Support
 
 - [x] Footer links resolve to `/legal/*` and `/safety`.
-- [x] `mailto:legal@restpilot.ai` present in LegalLayout footer.
+- [x] `mailto:support@restpilotai.com` present in LegalLayout footer.
 
 ## Production environment
 

@@ -73,7 +73,7 @@ export const Route = createFileRoute("/legal/subscription")({
         withdrawal for digital services where you have not waived it),
         subscription fees are non-refundable. If you believe you were charged
         in error, contact{" "}
-        <a href="mailto:billing@restpilot.ai">billing@restpilot.ai</a> within
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> within
         30 days.
       </p>
 
@@ -123,7 +123,7 @@ export const Route = createFileRoute("/legal/subscription")({
 
       <h2>12. Contact</h2>
       <p>
-        Email <a href="mailto:billing@restpilot.ai">billing@restpilot.ai</a>{" "}
+        Email <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>{" "}
         for billing questions.
       </p>
     </LegalLayout>
