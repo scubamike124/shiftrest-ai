@@ -3,6 +3,7 @@
 // minimum-latency conversational testing.
 
 import { createFileRoute } from "@tanstack/react-router";
+import { requireLabAccess } from "@/lib/api/lab-gate.server";
 
 const DEFAULT_VOICE = "EXAVITQu4vr4xnSDxMaL"; // Sarah
 
@@ -10,6 +11,8 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const denied = await requireLabAccess(request);
+        if (denied) return denied;
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
           return Response.json({ error: "ELEVENLABS_API_KEY missing" }, { status: 500 });

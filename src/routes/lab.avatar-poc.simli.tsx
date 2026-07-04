@@ -17,6 +17,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN_VOICE } from "@/lib/companion/renderer-pref";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/lab/avatar-poc/simli")({
   head: () => ({
@@ -115,9 +116,14 @@ function SimliPoc() {
     }
     setStatus("connecting");
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (sess.session?.access_token) {
+        headers.Authorization = `Bearer ${sess.session.access_token}`;
+      }
       const res = await fetch("/api/lab/simli/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ faceId: trimmed, maxSessionLength: 300, maxIdleTime: 60 }),
       });
       if (!res.ok) {
@@ -166,9 +172,14 @@ function SimliPoc() {
     if (!clientRef.current) return;
     setError(null);
     const t0 = performance.now();
+    const { data: sess2 } = await supabase.auth.getSession();
+    const headers2: Record<string, string> = { "Content-Type": "application/json" };
+    if (sess2.session?.access_token) {
+      headers2.Authorization = `Bearer ${sess2.session.access_token}`;
+    }
     const res = await fetch("/api/lab/simli/speak", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers2,
       body: JSON.stringify({ text, voice }),
     });
     if (!res.ok) {
