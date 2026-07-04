@@ -24,8 +24,8 @@ import {
   Repeat,
   Lock,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { OrbBadge } from "@/components/PilotOrb";
+import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -46,7 +46,17 @@ export const Route = createFileRoute("/")({
       { property: "og:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
       { name: "twitter:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
     ],
-    links: [{ rel: "canonical", href: "https://shift-rest-ai.lovable.app/" }],
+    links: [
+      { rel: "canonical", href: "https://shift-rest-ai.lovable.app/" },
+      // Preload the display font used by the hero H1 (LCP candidate).
+      {
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href: instrumentSerif400,
+        crossOrigin: "anonymous",
+      },
+    ],
   }),
   component: Landing,
 });
@@ -55,11 +65,23 @@ function Landing() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [showBelowFold, setShowBelowFold] = useState(false);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    // Defer the supabase-js import so the whole SDK doesn't ship in the
+    // marketing `/` chunk — we only need it to upgrade the CTA target for
+    // already-signed-in visitors.
+    let cancelled = false;
+    import("@/integrations/supabase/client").then(({ supabase }) => {
+      if (cancelled) return;
+      supabase.auth.getSession().then(({ data }) => {
+        if (!cancelled) setSignedIn(!!data.session);
+      });
+    });
     // Defer below-fold work until the browser is idle so hero LCP stays fast.
     const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
     const schedule = w.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
     schedule(() => setShowBelowFold(true));
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const ctaHref = signedIn ? "/dashboard" : "/auth";
 
