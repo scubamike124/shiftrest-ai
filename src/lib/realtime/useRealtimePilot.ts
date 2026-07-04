@@ -177,15 +177,12 @@ export function useRealtimePilot() {
 
       await room.connect(token.url, token.token);
 
-      const micTrack = await createLocalAudioTrack({
+      await room.localParticipant.setMicrophoneEnabled(true, {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
       });
-      await room.localParticipant.publishTrack(micTrack, {
-        source: Track.Source.Microphone,
-        stopMicTrackOnMute: false,
-      });
+
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
