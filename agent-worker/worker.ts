@@ -40,7 +40,16 @@ const SYSTEM_INSTRUCTIONS = [
 export default defineAgent({
   entry: async (ctx: JobContext) => {
     await ctx.connect(undefined, AutoSubscribe.AUDIO_ONLY);
+
+    ctx.room.on("trackSubscribed", (track: any, _pub: any, participant: any) => {
+      console.log(
+        `[worker] TrackSubscribed identity=${participant?.identity} kind=${track?.kind} source=${track?.source}`,
+      );
+    });
+
     const participant = await ctx.waitForParticipant();
+    console.log(`[worker] participant joined identity=${participant.identity}`);
+
 
     const model = new openai.realtime.RealtimeModel({
       apiKey: process.env.OPENAI_REALTIME_API_KEY,
