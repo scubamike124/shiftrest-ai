@@ -17,6 +17,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ELEVEN_VOICES, DEFAULT_ELEVEN_VOICE } from "@/lib/companion/renderer-pref";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/lab/avatar-poc/simli")({
   head: () => ({
@@ -116,12 +117,13 @@ function SimliPoc() {
     setStatus("connecting");
     try {
       const { data: sess } = await supabase.auth.getSession();
-      const authHdr = sess.session?.access_token
-        ? { Authorization: `Bearer ${sess.session.access_token}` }
-        : {};
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (sess.session?.access_token) {
+        headers.Authorization = `Bearer ${sess.session.access_token}`;
+      }
       const res = await fetch("/api/lab/simli/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHdr },
+        headers,
         body: JSON.stringify({ faceId: trimmed, maxSessionLength: 300, maxIdleTime: 60 }),
       });
       if (!res.ok) {
