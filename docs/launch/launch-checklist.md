@@ -12,7 +12,7 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 - [x] Subscription terms, refund/cancellation (`/legal/subscription`)
 - [x] Accessibility statement (`/legal/accessibility`)
 - [x] Open-source notices (`/legal/open-source`)
-- [x] All `/legal/*` routes wired into footer (`src/components/site/SiteFooter.tsx`)
+- [x] All `/legal/*` routes wired into footer (`src/components/site/SiteFooter.tsx`) and serve HTTP 200 on the production custom domain (`https://restpilotai.com/legal/*`). The `shift-rest-ai.lovable.app` host 302-redirects to the custom domain by design — not a 404.
 - [ ] **Blocking** — `/legal/*` routes serve **HTTP 404** on the production edge despite returning HTML. Re-publish after this turn's edits; if it persists, escalate. Tracked in `remaining-issues.md`.
 
 ## User controls
