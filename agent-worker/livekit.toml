@@ -1,0 +1,19 @@
+# LiveKit Cloud Agents deployment manifest.
+# Deploy with:  cd agent-worker && lk agent create
+# Redeploy:     cd agent-worker && lk agent deploy
+[project]
+subdomain = ""   # filled in by `lk agent create` on first deploy
+
+[agent]
+name = "pilot-realtime"
+
+[build]
+# LiveKit Cloud builds from the Dockerfile in this directory.
+dockerfile = "Dockerfile"
+
+# Required runtime secrets — set once in the LiveKit Cloud dashboard
+# (Agents > pilot-realtime > Secrets) or via `lk agent update-secrets`:
+#   LIVEKIT_URL
+#   LIVEKIT_API_KEY
+#   LIVEKIT_API_SECRET
+#   OPENAI_REALTIME_API_KEY
