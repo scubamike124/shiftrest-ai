@@ -61,7 +61,7 @@ export default defineAgent({
         prefix_padding_ms: 500,
         silence_duration_ms: 900,
         create_response: true,
-        interrupt_response: true,
+        interrupt_response: false,
       },
     });
 
