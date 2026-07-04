@@ -9,16 +9,30 @@
 - **CDN** — handled by Lovable's edge.
 - **Image handling** — no large hero images outside `src/assets`; landing-page art uses CSS gradients (aurora).
 
-## Recommended pre-GA actions (deferred — require live measurement)
+## Batch 1 shipped (Launch Performance Polish)
 
-1. **Run Lighthouse** (mobile + desktop) against `/`, `/dashboard`, `/paywall`, `/pricing` on the published URL. Target ≥ 90 Performance.
-2. **Bundle visualizer** — `bun run build` then inspect chunk sizes; flag any route chunk > 250 kB.
-3. **DB indexes** — confirm via `supabase--read_query`:
+Applied 2026-07-04:
+
+1. Removed dead render-blocking Google Fonts stylesheet + preconnects from `src/routes/__root.tsx`. `Inter` and `Space Grotesk` were never referenced — the app uses `Instrument Serif` + `Work Sans` self-hosted via `@fontsource`. One external CSS request + two DNS preconnects removed from every page.
+2. Preloaded the Instrument Serif 400 woff2 on `/` only (LCP font) via the leaf route's `head().links`.
+3. Code-split `@stripe/react-stripe-js` on `/paywall`. Initial `paywall-*.js` chunk is now ~10 KB; Stripe wrappers ship as an async `react-stripe.esm-*.js` (17 KB) fetched only when the user starts checkout. `getStripe` / `loadStripe` continues to defer Stripe.js iframe until click.
+4. Deferred `@supabase/supabase-js` on `/` — dynamic-imported inside the CTA effect so the marketing chunk no longer eagerly pulls the SDK.
+5. rAF-throttled the `SiteHeader` scroll listener to at most one `setState` per frame.
+
+### Verification
+- `bun run build` — succeeded; chunk sizes confirmed above.
+- Grepped served HTML: 0 `googleapis` references, Instrument Serif preload link present on `/`.
+- Paywall renders unchanged; Suspense fallback appears briefly on first checkout open while the Stripe async chunk loads.
+
+## Recommended follow-ups (post-launch tuning)
+
+1. Run Lighthouse (mobile + desktop) against `/`, `/dashboard`, `/paywall`, `/pricing` on the published URL. Target ≥ 90 Performance.
+2. Bundle visualizer — inspect for any surprise regressions.
+3. DB indexes — confirm via `supabase--read_query`:
    - `ai_log(user_id, created_at desc)`
    - `ai_recommendations(user_id, status, created_at desc)`
    - `shifts(user_id, starts_at)`
    - `notification_log(user_id, scheduled_for desc)`
    - `wearable_readings(user_id, date desc)`
-   Add `CREATE INDEX IF NOT EXISTS` migration for any that are missing.
 
 Performance work post-launch is acceptable; current architecture has no known blocking bottleneck.

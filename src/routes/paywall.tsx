@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Check, Sparkles, ShieldCheck } from "lucide-react";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { DISCLAIMER } from "@/lib/shifts";
 import { restorePurchases, type SubscriptionTier } from "@/lib/subscription";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +8,24 @@ import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/str
 import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
 import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
+
+// Stripe's React wrappers ship ~50–70 kB min+gz. Split them into an async
+// chunk so the paywall's plan-selection UI paints without paying that cost.
+const EmbeddedCheckoutView = lazy(async () => {
+  const mod = await import("@stripe/react-stripe-js");
+  return {
+    default: function EmbeddedCheckoutView({ clientSecret }: { clientSecret: string }) {
+      return (
+        <mod.EmbeddedCheckoutProvider
+          stripe={getStripe()}
+          options={{ fetchClientSecret: async () => clientSecret }}
+        >
+          <mod.EmbeddedCheckout />
+        </mod.EmbeddedCheckoutProvider>
+      );
+    },
+  };
+});
 
 export const Route = createFileRoute("/paywall")({
   head: () => ({
@@ -126,9 +143,9 @@ function Paywall() {
         >
           ← Back to plans
         </button>
-        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret: async () => clientSecret }}>
-          <EmbeddedCheckout />
-        </EmbeddedCheckoutProvider>
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-card/60" aria-label="Loading secure checkout" />}>
+          <EmbeddedCheckoutView clientSecret={clientSecret} />
+        </Suspense>
       </main>
     );
   }
