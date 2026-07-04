@@ -64,6 +64,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const apiKey = process.env.ELEVENLABS_API_KEY;
           if (!apiKey) {
             console.error("[tts-elevenlabs] provider_failure reason=config_missing ELEVENLABS_API_KEY not set");
+            const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+            notifyOwnerAsync({
+              severity: "critical",
+              service: "tts-elevenlabs",
+              message: "ELEVENLABS_API_KEY missing on server",
+            });
             return fallback("config", messageFromReason("config"));
           }
 
