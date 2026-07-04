@@ -79,6 +79,12 @@ export const Route = createFileRoute("/api/brief")({
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
 
+        {
+          const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+          const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.ai);
+          if (limited) return limited;
+        }
+
 
         let plan: string | undefined;
         let localTime: string | undefined;
