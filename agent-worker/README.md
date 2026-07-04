@@ -24,29 +24,57 @@ any Node host); the app's Cloudflare Worker runtime cannot host it.
 - `package.json` — worker dependencies (kept separate from the app so it
   does not pollute the Cloudflare Worker bundle).
 
-## Deploy (LiveKit Cloud, recommended)
+## Deploy to LiveKit Cloud Agents (production, 24/7)
+
+The worker is packaged for LiveKit Cloud Agents. Files in this folder:
+
+- `Dockerfile` — production build (Node 20, `npm ci && npm run build`, runs `node dist/worker.js start`).
+- `livekit.toml` — LiveKit Cloud Agents manifest (agent name `pilot-realtime`).
+- `.dockerignore` — keeps local `.env`, `dist`, `node_modules` out of the image.
+
+### One-time setup (per LiveKit project)
 
 ```bash
+# 1. Install the LiveKit CLI (one time, any machine)
+curl -sSL https://get.livekit.io/cli | bash
+
+# 2. Authenticate against the LiveKit Cloud project
+lk cloud auth
+
+# 3. From this folder, create the agent (reads livekit.toml + Dockerfile)
 cd agent-worker
-npm install
-npm run build
-# LiveKit Cloud CLI:
-lk agent deploy --project <livekit-project> --entry dist/worker.js
+lk agent create
 ```
 
-Set the following env vars in the LiveKit Cloud agent runtime:
+`lk agent create` uploads the Dockerfile, builds the image in LiveKit Cloud,
+starts the worker, and registers it against the project. After this it runs
+24/7 with autoscaling and log streaming — no laptop required.
+
+### Required runtime secrets (set once in the LiveKit Cloud dashboard)
+
+Agents → `pilot-realtime` → Secrets, or `lk agent update-secrets`:
 
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
 - `OPENAI_REALTIME_API_KEY`
 
-## Deploy (self-hosted Node process, alternative)
+### Redeploying after worker.ts changes
+
+```bash
+cd agent-worker
+lk agent deploy
+```
+
+No frontend change needed — the app already dispatches into `pilot-<userId>`
+rooms and LiveKit routes the job to the cloud worker.
+
+## Deploy (self-hosted Node, alternative)
 
 ```bash
 LIVEKIT_URL=... LIVEKIT_API_KEY=... LIVEKIT_API_SECRET=... \
 OPENAI_REALTIME_API_KEY=... \
-node dist/worker.js
+node dist/worker.js start
 ```
 
 ## Local dev
