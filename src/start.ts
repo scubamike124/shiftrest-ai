@@ -5,6 +5,65 @@ import { renderErrorPage } from "./lib/error-page";
 // session hydration on iOS Safari (see auth-attacher.custom.ts).
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher.custom";
 
+// Content-Security-Policy in REPORT-ONLY mode. Violations are logged to the
+// browser console and POSTed to /api/public/csp-report but the policy is
+// NOT enforced. This lets us discover any missing origins before flipping
+// to enforcing mode. Do NOT rename this header to `Content-Security-Policy`
+// until we've watched a full week of report traffic and confirmed no
+// unexpected origins.
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  // Stripe.js + Lovable preview loader + inline hydration scripts.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://*.lovable.dev https://*.lovable.app",
+  // Tailwind emits inline <style> tags; keep 'unsafe-inline' for now.
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  // App renders user-attached images from arbitrary hosts (avatars, share previews).
+  "img-src 'self' data: blob: https:",
+  // TTS/STT audio + WebRTC media streams.
+  "media-src 'self' blob: data: https:",
+  [
+    "connect-src 'self'",
+    // Supabase Data API + Realtime (WSS)
+    "https://czsgjqfcjiuqirvmdlps.supabase.co",
+    "wss://czsgjqfcjiuqirvmdlps.supabase.co",
+    // Stripe
+    "https://api.stripe.com",
+    "https://m.stripe.com",
+    "https://m.stripe.network",
+    // ElevenLabs TTS/STT
+    "https://api.elevenlabs.io",
+    "wss://api.elevenlabs.io",
+    // Simli avatar streaming
+    "https://api.simli.ai",
+    "wss://api.simli.ai",
+    // Lovable AI + connector gateways
+    "https://ai.gateway.lovable.dev",
+    "https://connector-gateway.lovable.dev",
+    // ReadyPlayerMe avatar model host
+    "https://models.readyplayer.me",
+    // LiveKit realtime rooms (subdomain varies per project)
+    "https://*.livekit.cloud",
+    "wss://*.livekit.cloud",
+    // OpenAI Realtime (WebRTC + WSS)
+    "https://api.openai.com",
+    "wss://api.openai.com",
+    // Own domains + Lovable preview/publish domains
+    "https://restpilotai.com",
+    "https://www.restpilotai.com",
+    "https://*.lovable.app",
+    "https://*.lovable.dev",
+  ].join(" "),
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  // Allow iframing from the Lovable editor preview but nowhere else.
+  "frame-ancestors 'self' https://*.lovable.dev https://*.lovable.app",
+  "report-uri /api/public/csp-report",
+].join("; ");
+
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   const url = new URL(request.url);
   if (url.pathname.startsWith("/lovable/") || url.pathname === "/email/unsubscribe") {
@@ -41,7 +100,20 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+// Attach CSP-Report-Only to HTML responses only. JSON, images, and other
+// asset responses don't need it — the browser only evaluates CSP for the
+// document it loaded the page from.
+const cspReportOnlyMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next();
+  const response = result.response;
+  const ct = response.headers.get("content-type") ?? "";
+  if (ct.includes("text/html") && !response.headers.has("content-security-policy-report-only")) {
+    response.headers.set("content-security-policy-report-only", CSP_REPORT_ONLY);
+  }
+  return result;
+});
+
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [errorMiddleware, cspReportOnlyMiddleware],
 }));
