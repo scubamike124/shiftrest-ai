@@ -478,7 +478,7 @@ export const realtimePreflight = createServerFn({ method: "POST" })
       });
     }
 
-
+    return {
       ok: checks.every((c) => c.ok),
       checks,
       identity,
