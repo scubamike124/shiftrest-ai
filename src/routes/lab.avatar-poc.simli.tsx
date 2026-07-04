@@ -115,9 +115,13 @@ function SimliPoc() {
     }
     setStatus("connecting");
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const authHdr = sess.session?.access_token
+        ? { Authorization: `Bearer ${sess.session.access_token}` }
+        : {};
       const res = await fetch("/api/lab/simli/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHdr },
         body: JSON.stringify({ faceId: trimmed, maxSessionLength: 300, maxIdleTime: 60 }),
       });
       if (!res.ok) {
@@ -166,9 +170,13 @@ function SimliPoc() {
     if (!clientRef.current) return;
     setError(null);
     const t0 = performance.now();
+    const { data: sess2 } = await supabase.auth.getSession();
+    const authHdr2 = sess2.session?.access_token
+      ? { Authorization: `Bearer ${sess2.session.access_token}` }
+      : {};
     const res = await fetch("/api/lab/simli/speak", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHdr2 },
       body: JSON.stringify({ text, voice }),
     });
     if (!res.ok) {
