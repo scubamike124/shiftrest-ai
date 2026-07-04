@@ -55,6 +55,14 @@ export default defineAgent({
       apiKey: process.env.OPENAI_REALTIME_API_KEY,
       model: "gpt-realtime",
       voice: "marin",
+      turnDetection: {
+        type: "server_vad",
+        threshold: 0.6,
+        prefix_padding_ms: 500,
+        silence_duration_ms: 900,
+        create_response: true,
+        interrupt_response: true,
+      },
     });
 
     const agent = new voice.Agent({
