@@ -18,8 +18,8 @@ import {
   Room,
   RoomEvent,
   Track,
-  createLocalAudioTrack,
   type RemoteParticipant,
+
 } from "livekit-client";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimePilotToken } from "@/lib/realtime.functions";
