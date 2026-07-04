@@ -407,8 +407,78 @@ export const realtimePreflight = createServerFn({ method: "POST" })
       });
     }
 
+    // 10. worker-heartbeat — dispatch an agent job into a temporary room and
+    //     poll for a non-local participant to appear. Confirms a LiveKit
+    //     Agent Worker is registered against this project and can be
+    //     dispatched. If this fails but everything else passes, the
+    //     agent-worker/ process has not been deployed (or is offline).
+    if (httpsOrigin && apiKey && apiSecret) {
+      const hbRoom = `pilot-heartbeat-${identity}-${Date.now().toString(36)}`;
+      let workerJoined = false;
+      let detail = "";
+      let roomServiceClient: unknown = null;
+      try {
+        const { AgentDispatchClient, RoomServiceClient } = await import(
+          "livekit-server-sdk"
+        );
+        const dispatch = new AgentDispatchClient(httpsOrigin, apiKey, apiSecret);
+        const rooms = new RoomServiceClient(httpsOrigin, apiKey, apiSecret);
+        roomServiceClient = rooms;
 
-    return {
+        // Empty agent name → dispatch to any available worker registered
+        // against this project. Matches how LiveKit auto-dispatches to the
+        // default `defineAgent` export in agent-worker/worker.ts.
+        await dispatch.createDispatch(hbRoom, "");
+
+        // Poll for up to ~5s. Worker cold-start on LiveKit Cloud is
+        // typically < 2s; give it a bit of headroom.
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 500));
+          try {
+            const parts = await rooms.listParticipants(hbRoom);
+            if (parts.length > 0) {
+              workerJoined = true;
+              detail = `Worker joined as "${parts[0].identity}" in ${((5000 - (deadline - Date.now())) / 1000).toFixed(1)}s`;
+              break;
+            }
+          } catch {
+            /* room may not exist yet; keep polling */
+          }
+        }
+        if (!workerJoined) {
+          detail =
+            "No worker joined within 5s. Deploy agent-worker/ (see agent-worker/README.md).";
+        }
+      } catch (e) {
+        detail = `Dispatch failed: ${e instanceof Error ? e.message : String(e)}`;
+      } finally {
+        // Best-effort cleanup so heartbeat rooms don't accumulate.
+        try {
+          const rooms = roomServiceClient as
+            | { deleteRoom: (name: string) => Promise<unknown> }
+            | null;
+          if (rooms) await rooms.deleteRoom(hbRoom);
+        } catch {
+          /* noop */
+        }
+      }
+      checks.push({
+        id: "worker-heartbeat",
+        label: "Agent Worker is deployed and joins rooms",
+        ok: workerJoined,
+        detail,
+      });
+    } else {
+      checks.push({
+        id: "worker-heartbeat",
+        label: "Agent Worker is deployed and joins rooms",
+        ok: false,
+        detail: "Skipped — URL/key/secret missing",
+      });
+    }
+
+
       ok: checks.every((c) => c.ok),
       checks,
       identity,
