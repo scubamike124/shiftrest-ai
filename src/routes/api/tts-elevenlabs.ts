@@ -113,9 +113,6 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
 
           if (!upstream.ok) {
             const upstreamBody = await upstream.text().catch(() => "");
-            // Server-side log = PROVIDER failures only. Browser/autoplay
-            // failures never reach this route — they happen client-side
-            // after the 200 response is already on the wire.
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
@@ -123,6 +120,17 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             console.error(
               `[tts-elevenlabs] provider_failure reason=${reason} status=${upstream.status} voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0} body=${upstreamBody.slice(0, 240)}`,
             );
+            // Alert owner on structural provider issues (credits, outage).
+            // Skip rate_limit — user retries handle that transparently.
+            if (reason !== "rate_limit") {
+              const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+              notifyOwnerAsync({
+                severity: reason === "credits" ? "critical" : "high",
+                service: "tts-elevenlabs",
+                message: `ElevenLabs upstream ${reason} (HTTP ${upstream.status})`,
+                meta: { status: upstream.status, voiceId, mode, snippet: upstreamBody.slice(0, 240) },
+              });
+            }
             return fallback(reason, messageFromReason(reason));
           }
 
@@ -136,6 +144,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           console.error(
             `[tts-elevenlabs] provider_failure reason=network ms=${Date.now() - t0} err=${e instanceof Error ? e.message : String(e)}`,
           );
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: "high",
+            service: "tts-elevenlabs",
+            message: `ElevenLabs network error: ${e instanceof Error ? e.message : String(e)}`,
+          });
           return fallback("unavailable", messageFromReason("unavailable"));
         }
       },
