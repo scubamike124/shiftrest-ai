@@ -17,7 +17,9 @@ Updated: 2026-06-27 (Pre-Launch Validation pass).
 - **Native wearable wrappers** (Apple Health / Garmin) — still "coming soon".
 - **Color-contrast fix** (`--indigo-glow` brightened) needs publish + re-run of Lighthouse to confirm Accessibility ≥ 98.
 
-## Resolved this turn
+## Resolved
 
+- `/legal/*` 404 on production edge — cleared. Custom domain (`https://restpilotai.com/legal/*`) returns HTTP 200; `shift-rest-ai.lovable.app` 302-redirects to the custom domain by design.
 - `landmark-no-duplicate-main` / `landmark-main-is-top-level` on legal routes — switched `LegalLayout` + `legal.index` from `<main>` to `<section aria-label>`.
 - Color contrast on `--indigo-glow` — token brightened in `src/styles.css`.
+- LiveKit Realtime Companion cloud deploy — moved to the deferred final-launch-phase section of the launch checklist; not a feature-work blocker.
