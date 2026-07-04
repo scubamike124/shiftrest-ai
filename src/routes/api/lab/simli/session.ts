@@ -2,11 +2,14 @@
 // SIMLI_API_KEY never reaches the browser. Gated behind /lab/* (noindex).
 
 import { createFileRoute } from "@tanstack/react-router";
+import { requireLabAccess } from "@/lib/api/lab-gate.server";
 
 export const Route = createFileRoute("/api/lab/simli/session")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const denied = await requireLabAccess(request);
+        if (denied) return denied;
         const apiKey = process.env.SIMLI_API_KEY;
         if (!apiKey) {
           return Response.json(
