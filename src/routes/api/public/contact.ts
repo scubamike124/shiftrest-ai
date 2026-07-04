@@ -11,6 +11,9 @@ const ContactSchema = z.object({
   message: z.string().min(4).max(4000),
   // Simple honeypot — bots fill hidden fields; humans don't.
   hp: z.string().max(0).optional(),
+  // Cloudflare Turnstile token. Required only when the server is
+  // configured with TURNSTILE_SECRET_KEY (see verifyTurnstile below).
+  turnstileToken: z.string().min(10).max(4096).optional(),
 });
 
 function jsonError(status: number, message: string) {
@@ -18,6 +21,42 @@ function jsonError(status: number, message: string) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+interface TurnstileVerifyResult {
+  success: boolean;
+  "error-codes"?: string[];
+}
+
+async function verifyTurnstile(
+  token: string | undefined,
+  remoteIp: string | null,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  // Not configured — skip enforcement (fail-open until keys are provisioned).
+  if (!secret) return { ok: true };
+  if (!token) return { ok: false, reason: "missing_captcha" };
+
+  try {
+    const body = new URLSearchParams();
+    body.set("secret", secret);
+    body.set("response", token);
+    if (remoteIp) body.set("remoteip", remoteIp);
+    const res = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+      },
+    );
+    if (!res.ok) return { ok: false, reason: "captcha_service_error" };
+    const data = (await res.json()) as TurnstileVerifyResult;
+    if (!data.success) return { ok: false, reason: "invalid_captcha" };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "captcha_service_error" };
+  }
 }
 
 export const Route = createFileRoute("/api/public/contact")({
@@ -36,6 +75,14 @@ export const Route = createFileRoute("/api/public/contact")({
 
         // Honeypot triggered — respond OK to avoid tipping off the bot.
         if (parsed.data.hp) return Response.json({ ok: true });
+
+        const remoteIp =
+          request.headers.get("cf-connecting-ip") ||
+          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          null;
+
+        const captcha = await verifyTurnstile(parsed.data.turnstileToken, remoteIp);
+        if (!captcha.ok) return jsonError(400, captcha.reason);
 
         const { name, email, subject, message } = parsed.data;
 

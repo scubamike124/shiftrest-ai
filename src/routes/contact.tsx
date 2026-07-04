@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { TurnstileWidget, isTurnstileEnabled } from "@/components/site/TurnstileWidget";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -20,9 +21,20 @@ export const Route = createFileRoute("/contact")({
 function ContactPage() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRequired = isTurnstileEnabled();
+
+  const handleToken = useCallback((token: string | null) => {
+    setTurnstileToken(token);
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (turnstileRequired && !turnstileToken) {
+      setErrorMsg("Please complete the challenge before sending.");
+      setState("error");
+      return;
+    }
     setState("sending");
     setErrorMsg(null);
     const fd = new FormData(e.currentTarget);
@@ -32,6 +44,7 @@ function ContactPage() {
       subject: (fd.get("subject") as string) || undefined,
       message: (fd.get("message") as string) || "",
       hp: (fd.get("company") as string) || "",
+      turnstileToken: turnstileToken || undefined,
     };
     try {
       const res = await fetch("/api/public/contact", {
@@ -128,13 +141,15 @@ function ContactPage() {
             />
           </div>
 
+          <TurnstileWidget onToken={handleToken} />
+
           {state === "error" && errorMsg ? (
             <p className="text-sm text-destructive">{errorMsg}</p>
           ) : null}
 
           <button
             type="submit"
-            disabled={state === "sending"}
+            disabled={state === "sending" || (turnstileRequired && !turnstileToken)}
             className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
             {state === "sending" ? "Sending…" : "Send message"}
