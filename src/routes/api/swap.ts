@@ -30,6 +30,12 @@ export const Route = createFileRoute("/api/swap")({
           const auth = await requireUser(request);
           if ("response" in auth) return auth.response;
 
+          {
+            const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+            const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.ai);
+            if (limited) return limited;
+          }
+
           const { context } = (await request.json()) as { context?: string };
           if (!context) {
             return new Response(JSON.stringify({ error: "context required" }), {
