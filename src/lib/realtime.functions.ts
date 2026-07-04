@@ -36,9 +36,33 @@ export const mintRealtimePilotToken = createServerFn({ method: "POST" })
     const room = `pilot-${identity}`;
     const ttlSeconds = 90;
 
+    // Load display name from profile (RLS: user reads their own row).
+    let displayName: string | null = null;
+    let firstName: string | null = null;
+    try {
+      const { data: profile } = await context.supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", identity)
+        .maybeSingle();
+      const raw = (profile?.display_name ?? "").trim();
+      if (raw) {
+        displayName = raw;
+        firstName = raw.split(/\s+/)[0] ?? null;
+      }
+    } catch {
+      /* best-effort personalization; token still mints without a name */
+    }
+
+    const metadata = JSON.stringify({
+      displayName,
+      firstName,
+    });
+
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
       ttl: ttlSeconds,
+      metadata,
     });
     at.addGrant({
       room,
@@ -57,6 +81,7 @@ export const mintRealtimePilotToken = createServerFn({ method: "POST" })
       expiresAt: Date.now() + ttlSeconds * 1000,
     };
   });
+
 
 /**
  * Preflight — Phase 3A.
