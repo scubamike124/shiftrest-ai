@@ -41,6 +41,12 @@ export const Route = createFileRoute("/api/stt")({
         const authed = await requireUser(request);
         if ("response" in authed) return authed.response;
 
+        {
+          const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+          const limited = await enforceRateLimit(authed.userId, RATE_LIMITS.stt);
+          if (limited) return limited;
+        }
+
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
           return Response.json(

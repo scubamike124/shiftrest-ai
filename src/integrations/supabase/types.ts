@@ -1036,6 +1036,27 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_counter: {
+        Row: {
+          bucket_key: string
+          count: number
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       routine_suggestions: {
         Row: {
           created_at: string
@@ -1792,6 +1813,15 @@ export type Database = {
         }
         Returns: number
       }
+      rate_limit_hit: {
+        Args: {
+          _bucket_key: string
+          _increment?: number
+          _window_start: string
+        }
+        Returns: number
+      }
+      rate_limit_prune: { Args: never; Returns: undefined }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {

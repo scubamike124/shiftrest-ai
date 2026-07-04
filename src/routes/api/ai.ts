@@ -281,6 +281,13 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(401, "Sign in required");
         }
 
+        // Per-user rate limit (server-side, cannot be bypassed by client).
+        {
+          const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+          const limited = await enforceRateLimit(userId, RATE_LIMITS.ai);
+          if (limited) return limited;
+        }
+
         // Budget gate
         const ok = await checkAIBudget(admin, userId);
         if (!ok) {

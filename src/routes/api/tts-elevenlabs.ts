@@ -41,6 +41,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
 
+        {
+          const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+          const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.tts);
+          if (limited) return limited;
+        }
+
         try {
           const reqBody = (await request.json()) as {
             text?: string;
