@@ -21,7 +21,7 @@ function configure() {
   if (configured) return;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  const subject = process.env.VAPID_SUBJECT || "mailto:notifications@restpilot.ai";
+  const subject = process.env.VAPID_SUBJECT || "mailto:support@restpilotai.com";
   if (!publicKey || !privateKey) throw new Error("VAPID keys not configured");
   webPush.setVapidDetails(subject, publicKey, privateKey);
   configured = true;

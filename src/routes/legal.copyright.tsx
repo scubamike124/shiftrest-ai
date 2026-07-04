@@ -46,7 +46,7 @@ export const Route = createFileRoute("/legal/copyright")({
       <h2>Designated agent</h2>
       <p>
         Email{" "}
-        <a href="mailto:copyright@restpilot.ai">copyright@restpilot.ai</a>.
+        <a href="mailto:security@restpilotai.com">security@restpilotai.com</a>.
         Physical-address designation will be added at launch.
       </p>
 

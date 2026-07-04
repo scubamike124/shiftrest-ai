@@ -81,7 +81,7 @@ export const Route = createFileRoute("/legal/electronic-consent")({
       <p>
         You can withdraw your consent to electronic communications at any
         time by emailing{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a>.
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
         Withdrawing consent means we may be unable to continue providing
         the Service to you, because the Service is delivered electronically.
       </p>
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/legal/electronic-consent")({
       <h2>6. Questions</h2>
       <p>
         Contact{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a> for any
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> for any
         questions about this disclosure.
       </p>
     </LegalLayout>

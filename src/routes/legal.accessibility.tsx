@@ -51,8 +51,8 @@ export const Route = createFileRoute("/legal/accessibility")({
       <h2>Feedback</h2>
       <p>
         If you encounter an accessibility barrier, email{" "}
-        <a href="mailto:accessibility@restpilot.ai">
-          accessibility@restpilot.ai
+        <a href="mailto:support@restpilotai.com">
+          support@restpilotai.com
         </a>{" "}
         and we will respond within 10 business days.
       </p>

@@ -42,7 +42,7 @@ export const Route = createFileRoute("/legal/terms")({
       <p>
         You are responsible for safeguarding your credentials and for all
         activity under your account. Notify us immediately at{" "}
-        <a href="mailto:security@restpilot.ai">security@restpilot.ai</a> if
+        <a href="mailto:security@restpilotai.com">security@restpilotai.com</a> if
         you suspect unauthorized use.
       </p>
 
@@ -161,7 +161,7 @@ export const Route = createFileRoute("/legal/terms")({
       <h2>17. Dispute resolution &amp; arbitration</h2>
       <p>
         We will first try to resolve any dispute informally by contacting{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a>. If we
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>. If we
         cannot resolve it within 60 days, any dispute will be resolved by
         binding individual arbitration administered by [<em>arbitration body
         to be selected by counsel</em>] under its then-current rules, except
@@ -213,7 +213,7 @@ export const Route = createFileRoute("/legal/terms")({
         unique password; (b) protecting the devices, browsers, and email
         accounts used to access the Service; (c) keeping recovery
         information current; and (d) notifying us immediately at{" "}
-        <a href="mailto:security@restpilot.ai">security@restpilot.ai</a> if
+        <a href="mailto:security@restpilotai.com">security@restpilotai.com</a> if
         you believe your account has been accessed without authorization.
         You are responsible for all activity that occurs under your account
         until you have reported the unauthorized access and we have had a
@@ -269,7 +269,7 @@ export const Route = createFileRoute("/legal/terms")({
 
       <h2 id="contact">25. Contact</h2>
       <p>
-        Email <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a> for
+        Email <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> for
         any questions about these Terms.
       </p>
     </LegalLayout>

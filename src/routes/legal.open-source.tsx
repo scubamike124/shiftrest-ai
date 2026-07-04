@@ -88,7 +88,7 @@ export const Route = createFileRoute("/legal/open-source")({
       <p>
         For a complete machine-readable list of all open-source dependencies
         and their license texts, email{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a>. We will
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>. We will
         provide a copy at no charge.
       </p>
 
@@ -96,7 +96,7 @@ export const Route = createFileRoute("/legal/open-source")({
       <p>
         If you believe an open-source notice is missing or incorrect, please
         email{" "}
-        <a href="mailto:legal@restpilot.ai">legal@restpilot.ai</a> and we
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> and we
         will investigate.
       </p>
     </LegalLayout>

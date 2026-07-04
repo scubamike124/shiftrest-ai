@@ -156,7 +156,7 @@ export const Route = createFileRoute("/legal/third-parties")({
       <h2>Changes</h2>
       <p>
         We will update this page when we add or remove a subprocessor. Email{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a> to
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> to
         receive notice of new subprocessors.
       </p>
     </LegalLayout>

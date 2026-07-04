@@ -90,10 +90,10 @@ export function LegalLayout({ doc, children }: Props) {
             <span>
               Questions about this document? Email{" "}
               <a
-                href="mailto:legal@restpilot.ai"
+                href="mailto:support@restpilotai.com"
                 className="text-primary underline"
               >
-                legal@restpilot.ai
+                support@restpilotai.com
               </a>
               .
             </span>

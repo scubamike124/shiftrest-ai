@@ -207,7 +207,7 @@ export const Route = createFileRoute("/legal/privacy")({
         The Service is not directed to children under 16, and we do not
         knowingly collect personal information from them. If you believe a
         child has provided us personal information, contact{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a>.
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
       <h2>12. Changes</h2>
@@ -219,7 +219,7 @@ export const Route = createFileRoute("/legal/privacy")({
       <h2>13. Contact</h2>
       <p>
         Email{" "}
-        <a href="mailto:privacy@restpilot.ai">privacy@restpilot.ai</a> for
+        <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> for
         questions or to exercise your rights.
       </p>
     </LegalLayout>

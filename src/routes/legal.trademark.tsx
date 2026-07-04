@@ -48,7 +48,7 @@ export const Route = createFileRoute("/legal/trademark")({
       <h2>Requests</h2>
       <p>
         Email{" "}
-        <a href="mailto:brand@restpilot.ai">brand@restpilot.ai</a> to request
+        <a href="mailto:security@restpilotai.com">security@restpilotai.com</a> to request
         permission or report misuse.
       </p>
     </LegalLayout>

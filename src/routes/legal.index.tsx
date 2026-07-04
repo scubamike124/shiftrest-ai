@@ -85,15 +85,15 @@ function LegalIndex() {
 
       <footer className="mt-16 border-t border-border/60 pt-6 text-xs text-muted-foreground">
         Questions? Email{" "}
-        <a href="mailto:legal@restpilot.ai" className="text-primary underline">
-          legal@restpilot.ai
+        <a href="mailto:support@restpilotai.com" className="text-primary underline">
+          support@restpilotai.com
         </a>
         . Security reports go to{" "}
         <a
-          href="mailto:security@restpilot.ai"
+          href="mailto:security@restpilotai.com"
           className="text-primary underline"
         >
-          security@restpilot.ai
+          security@restpilotai.com
         </a>
         .
       </footer>
