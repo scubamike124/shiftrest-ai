@@ -143,9 +143,9 @@ function Paywall() {
         >
           ← Back to plans
         </button>
-        <EmbeddedCheckoutProvider stripe={getStripe()} options={{ fetchClientSecret: async () => clientSecret }}>
-          <EmbeddedCheckout />
-        </EmbeddedCheckoutProvider>
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-card/60" aria-label="Loading secure checkout" />}>
+          <EmbeddedCheckoutView clientSecret={clientSecret} />
+        </Suspense>
       </main>
     );
   }
