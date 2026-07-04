@@ -78,6 +78,7 @@ import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.s
 import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
 import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
+import { Route as ApiPublicCspReportRouteImport } from './routes/api/public/csp-report'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as AuthenticatedLabPilotRealtimeRouteImport } from './routes/_authenticated/lab.pilot-realtime'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -440,6 +441,11 @@ const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
   path: '/api/public/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCspReportRoute = ApiPublicCspReportRouteImport.update({
+  id: '/api/public/csp-report',
+  path: '/api/public/csp-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
   id: '/api/public/contact',
   path: '/api/public/contact',
@@ -600,6 +606,7 @@ export interface FileRoutesByFullPath {
   '/legal/': typeof LegalIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/csp-report': typeof ApiPublicCspReportRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -685,6 +692,7 @@ export interface FileRoutesByTo {
   '/legal': typeof LegalIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/csp-report': typeof ApiPublicCspReportRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -774,6 +782,7 @@ export interface FileRoutesById {
   '/legal/': typeof LegalIndexRoute
   '/_authenticated/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
+  '/api/public/csp-report': typeof ApiPublicCspReportRoute
   '/api/public/health': typeof ApiPublicHealthRoute
   '/api/public/version': typeof ApiPublicVersionRoute
   '/lab/avatar-poc/debug': typeof LabAvatarPocDebugRoute
@@ -863,6 +872,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/csp-report'
     | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -948,6 +958,7 @@ export interface FileRouteTypes {
     | '/legal'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/csp-report'
     | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -1036,6 +1047,7 @@ export interface FileRouteTypes {
     | '/legal/'
     | '/_authenticated/lab/pilot-realtime'
     | '/api/public/contact'
+    | '/api/public/csp-report'
     | '/api/public/health'
     | '/api/public/version'
     | '/lab/avatar-poc/debug'
@@ -1107,6 +1119,7 @@ export interface RootRouteChildren {
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
+  ApiPublicCspReportRoute: typeof ApiPublicCspReportRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -1612,6 +1625,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/csp-report': {
+      id: '/api/public/csp-report'
+      path: '/api/public/csp-report'
+      fullPath: '/api/public/csp-report'
+      preLoaderRoute: typeof ApiPublicCspReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/contact': {
       id: '/api/public/contact'
       path: '/api/public/contact'
@@ -1859,6 +1879,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
+  ApiPublicCspReportRoute: ApiPublicCspReportRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
