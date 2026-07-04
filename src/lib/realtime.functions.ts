@@ -84,7 +84,8 @@ export type RealtimePreflightCheck = {
     | "signal"
     | "signal-header"
     | "jwt-detail"
-    | "room-service";
+    | "room-service"
+    | "worker-heartbeat";
   label: string;
   ok: boolean;
   detail: string;
