@@ -73,6 +73,15 @@ export const Route = createFileRoute("/api/swap")({
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
             console.error("swap error", upstream.status, t);
+            if (upstream.status !== 429 && upstream.status !== 402) {
+              const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+              notifyOwnerAsync({
+                severity: "high",
+                service: "swap",
+                message: `AI gateway upstream ${upstream.status}`,
+                meta: { snippet: t.slice(0, 240) },
+              });
+            }
             return new Response(
               JSON.stringify({
                 error:
@@ -103,6 +112,12 @@ export const Route = createFileRoute("/api/swap")({
           return Response.json(parsed);
         } catch (e) {
           console.error("swap route error:", e);
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: "high",
+            service: "swap",
+            message: `Unhandled route error: ${e instanceof Error ? e.message : String(e)}`,
+          });
           return new Response(
             JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }),
             { status: 500, headers: { "Content-Type": "application/json" } },
