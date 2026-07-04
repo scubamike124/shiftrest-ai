@@ -12,8 +12,8 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 - [x] Subscription terms, refund/cancellation (`/legal/subscription`)
 - [x] Accessibility statement (`/legal/accessibility`)
 - [x] Open-source notices (`/legal/open-source`)
-- [x] All `/legal/*` routes wired into footer (`src/components/site/SiteFooter.tsx`)
-- [ ] **Blocking** — `/legal/*` routes serve **HTTP 404** on the production edge despite returning HTML. Re-publish after this turn's edits; if it persists, escalate. Tracked in `remaining-issues.md`.
+- [x] All `/legal/*` routes wired into footer (`src/components/site/SiteFooter.tsx`) and serve HTTP 200 on the production custom domain (`https://restpilotai.com/legal/*`). The `shift-rest-ai.lovable.app` host 302-redirects to the custom domain by design — not a 404.
+
 
 ## User controls
 
@@ -52,10 +52,9 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 
 ## Pending blocking items
 
-1. `/legal/*` → 404 status on production edge. **Republish required.**
-2. Authenticated E2E regression — pending owner sign-in (`LOVABLE_BROWSER_AUTH_STATUS=signed_out`).
-3. Live Stripe verification — pending owner approval to charge a real card.
-4. Real-device cross-browser pass (iOS Safari, Android Chrome, iPad, Safari/Firefox/Edge desktop) — owner-driven.
+1. Authenticated E2E regression — pending owner sign-in (`LOVABLE_BROWSER_AUTH_STATUS=signed_out`).
+2. Live Stripe verification — pending owner approval to charge a real card.
+3. Real-device cross-browser pass (iOS Safari, Android Chrome, iPad, Safari/Firefox/Edge desktop) — owner-driven.
 
 ## Final launch-phase deployment (deferred, non-blocking for feature work)
 
@@ -63,4 +62,4 @@ Generated: 2026-06-27. Reflects state after Pre-Launch Validation pass.
 
 ## Status
 
-**NOT production-ready** until items 1–4 close. Static codebase, security, accessibility (public surface), and Lighthouse SEO/Best-Practices all meet bar.
+**NOT production-ready** until items 1–3 close. Static codebase, security, accessibility (public surface), and Lighthouse SEO/Best-Practices all meet bar. `/legal/*` 404 blocker cleared: custom-domain edge returns HTTP 200.
