@@ -78,7 +78,15 @@ export default defineAgent({
       }
     };
 
+    const UserStartedSpeaking = (voice.AgentSessionEventTypes as any).UserStartedSpeaking;
+    if (UserStartedSpeaking) {
+      session.on(UserStartedSpeaking, () => {
+        console.log("[worker] UserStartedSpeaking");
+      });
+    }
+
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, (ev) => {
+      console.log(`[worker] UserInputTranscribed final=${ev.isFinal} text=${ev.transcript}`);
       if (!ev.isFinal) return;
       publish({ type: "transcript", from: "user", text: ev.transcript, final: true });
     });
