@@ -54,6 +54,28 @@ node dist/worker.js
 Point the RestPilot app at the same LiveKit project, run this worker
 locally, then open `/lab/pilot-realtime` with `VITE_ENABLE_REALTIME_PILOT=true`.
 
+### Windows local startup (Command Prompt)
+
+1. Copy the example environment file and fill in your own values:
+   ```cmd
+   copy .env.example .env
+   ```
+2. Paste your values into `.env`:
+   - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` — from your LiveKit Cloud project.
+   - `OPENAI_REALTIME_API_KEY` — from your OpenAI account (must start with `sk-`).
+3. Build the worker:
+   ```cmd
+   npm install
+   npm run build
+   ```
+4. Start the worker:
+   ```cmd
+   run-worker.cmd
+   ```
+
+`run-worker.cmd` reads `.env` and sets the variables before starting `node dist/worker.js`.
+
+
 ## Notes
 
 - Persona / instructions live in the worker so the same voice + rules apply
