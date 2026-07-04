@@ -29,13 +29,32 @@ import {
 } from "@livekit/agents";
 import * as openai from "@livekit/agents-plugin-openai";
 
-const SYSTEM_INSTRUCTIONS = [
+const BASE_SYSTEM_INSTRUCTIONS = [
   "You are Pilot, RestPilot's sleep and recovery voice companion.",
   "Speak in short, warm, conversational turns — you are speaking, not writing.",
   "Never introduce yourself twice in a session.",
   "Never use the user's email address prefix as their name.",
   "If the user starts speaking while you are speaking, stop immediately and listen.",
 ].join(" ");
+
+function parseUserName(metadata: string | undefined | null): {
+  displayName: string | null;
+  firstName: string | null;
+} {
+  if (!metadata) return { displayName: null, firstName: null };
+  try {
+    const parsed = JSON.parse(metadata) as {
+      displayName?: string | null;
+      firstName?: string | null;
+    };
+    return {
+      displayName: parsed.displayName ?? null,
+      firstName: parsed.firstName ?? null,
+    };
+  } catch {
+    return { displayName: null, firstName: null };
+  }
+}
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
@@ -50,6 +69,15 @@ export default defineAgent({
     const participant = await ctx.waitForParticipant();
     console.log(`[worker] participant joined identity=${participant.identity}`);
 
+    const { displayName, firstName } = parseUserName(
+      (participant as any).metadata,
+    );
+    const name = firstName ?? displayName;
+    console.log(`[worker] user name=${name ?? "<none>"}`);
+
+    const instructions = name
+      ? `${BASE_SYSTEM_INSTRUCTIONS} The user's name is ${name}. Address them by their first name naturally, but do not overuse it.`
+      : BASE_SYSTEM_INSTRUCTIONS;
 
     const model = new openai.realtime.RealtimeModel({
       apiKey: process.env.OPENAI_REALTIME_API_KEY,
@@ -66,7 +94,7 @@ export default defineAgent({
     });
 
     const agent = new voice.Agent({
-      instructions: SYSTEM_INSTRUCTIONS,
+      instructions,
       llm: model,
     });
 
@@ -116,8 +144,17 @@ export default defineAgent({
 
     await session.start({ agent, room: ctx.room });
 
-    // Reserved: participant identity is `pilot-<userId>`; used in Phase 3B
-    // to fetch RestPilot memory/signals for the session.
+    // Warm the OpenAI Realtime session with an opening greeting so the
+    // first user turn does not pay cold-start latency.
+    const greetingInstructions = name
+      ? `Greet ${name} warmly by name in one short sentence appropriate to the time of day, then ask how you can help.`
+      : "Greet the user warmly in one short sentence appropriate to the time of day, then ask how you can help.";
+    try {
+      await (session as any).generateReply({ instructions: greetingInstructions });
+    } catch (err) {
+      console.log(`[worker] initial generateReply failed: ${(err as Error)?.message ?? err}`);
+    }
+
     void participant;
   },
 });
@@ -125,3 +162,4 @@ export default defineAgent({
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url) }));
 }
+
