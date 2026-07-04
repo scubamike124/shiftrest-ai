@@ -147,8 +147,8 @@ export default defineAgent({
     // Warm the OpenAI Realtime session with an opening greeting so the
     // first user turn does not pay cold-start latency.
     const greetingInstructions = name
-      ? `Greet ${name} warmly by name in one short sentence appropriate to the time of day, then ask how you can help.`
-      : "Greet the user warmly in one short sentence appropriate to the time of day, then ask how you can help.";
+      ? `Greet ${name} warmly by name in exactly two words, such as "Hi ${name}." or "Good morning, ${name}." No second sentence. Do not ask how you can help until the user speaks.`
+      : "Greet the user warmly in exactly two words, such as \"Hi there.\" No second sentence. Do not ask how you can help until the user speaks.";
     try {
       await (session as any).generateReply({ instructions: greetingInstructions });
     } catch (err) {
