@@ -18,8 +18,8 @@ import {
   Room,
   RoomEvent,
   Track,
-  createLocalAudioTrack,
   type RemoteParticipant,
+
 } from "livekit-client";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimePilotToken } from "@/lib/realtime.functions";
@@ -177,15 +177,12 @@ export function useRealtimePilot() {
 
       await room.connect(token.url, token.token);
 
-      const micTrack = await createLocalAudioTrack({
+      await room.localParticipant.setMicrophoneEnabled(true, {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
       });
-      await room.localParticipant.publishTrack(micTrack, {
-        source: Track.Source.Microphone,
-        stopMicTrackOnMute: false,
-      });
+
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
