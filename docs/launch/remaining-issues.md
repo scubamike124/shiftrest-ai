@@ -4,10 +4,9 @@ Updated: 2026-06-27 (Pre-Launch Validation pass).
 
 ## Blocking
 
-1. **`/legal/*` returns HTTP 404 on the production edge** while still rendering the SPA shell. Repro: `curl -sI https://shift-rest-ai.lovable.app/legal/privacy` → `HTTP/2 404`. Crawlers and Lighthouse will treat the pages as missing. Likely an SSR/prerender mismatch — re-publish after the LegalLayout `<main>` → `<section>` fix and re-test. If it persists, inspect Worker logs for the legal subtree.
-2. **Authenticated E2E regression not executed** — sandbox `LOVABLE_BROWSER_AUTH_STATUS=signed_out`. Owner needs to sign in to the live preview to inject a managed Supabase session.
-3. **Live Stripe charge not executed** — requires explicit owner approval (real card, real money).
-4. **Real-device cross-browser pass** — iOS Safari, Android Chrome, iPad, Safari/Firefox/Edge desktop. Owner-driven.
+1. **Authenticated E2E regression not executed** — sandbox `LOVABLE_BROWSER_AUTH_STATUS=signed_out`. Owner needs to sign in to the live preview to inject a managed Supabase session.
+2. **Live Stripe charge not executed** — requires explicit owner approval (real card, real money).
+3. **Real-device cross-browser pass** — iOS Safari, Android Chrome, iPad, Safari/Firefox/Edge desktop. Owner-driven.
 
 ## Non-blocking (post-launch hardening)
 
