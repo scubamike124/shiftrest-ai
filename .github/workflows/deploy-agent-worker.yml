@@ -2,7 +2,7 @@ name: Deploy LiveKit Agent Worker
 
 # Deploys agent-worker/ to LiveKit Cloud whenever its source changes on the
 # default branch. Also runnable on-demand via the "Run workflow" button in
-# the GitHub Actions UI. Sync marker: force refresh to push to GitHub.
+# the GitHub Actions UI. Sync marker: agent id resolved from `lk agent list`.
 on:
   push:
     branches: [main]
@@ -52,15 +52,46 @@ jobs:
             --api-secret "$LIVEKIT_API_SECRET" \
             --default
 
-      - name: Deploy agent-worker to LiveKit Cloud
+      - name: Resolve existing agent id (if any)
+        id: resolve
         working-directory: agent-worker
         run: |
-          # Uses the default ci-project registered in the previous step and
-          # re-deploys the pilot-realtime agent defined in agent-worker/livekit.toml.
-          lk agent deploy
+          set -euo pipefail
+          # `lk agent deploy` requires an agent id, either passed via --id or
+          # stored in livekit.toml. The committed livekit.toml intentionally
+          # has no id (the id is minted by LiveKit Cloud on first create), so
+          # in CI we discover it from `lk agent list` on every run.
+          LIST_OUT="$(lk agent list 2>&1 || true)"
+          printf '%s\n' "$LIST_OUT"
+          # Agent IDs are printed as CA_<opaque>. Grab the first one, if any.
+          AGENT_ID="$(printf '%s\n' "$LIST_OUT" | grep -oE 'CA_[A-Za-z0-9_-]+' | head -n1 || true)"
+          if [ -n "$AGENT_ID" ]; then
+            echo "Found existing agent: $AGENT_ID"
+          else
+            echo "No existing agent found in this project."
+          fi
+          echo "agent_id=$AGENT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Create agent (first deploy only)
+        if: steps.resolve.outputs.agent_id == ''
+        working-directory: agent-worker
+        run: |
+          # First-time deploy: register the agent in LiveKit Cloud. This builds
+          # the Dockerfile in agent-worker/ and mints a new agent id. Runtime
+          # secrets (OPENAI_REALTIME_API_KEY etc.) must be set separately in
+          # the LiveKit Cloud dashboard or via `lk agent update-secrets`.
+          lk agent create .
+
+      - name: Deploy agent-worker to LiveKit Cloud
+        if: steps.resolve.outputs.agent_id != ''
+        working-directory: agent-worker
+        run: |
+          # Redeploy an existing agent. The id is passed explicitly because
+          # the committed livekit.toml does not contain one.
+          lk agent deploy --id "${{ steps.resolve.outputs.agent_id }}" .
 
       - name: Report agent status
         if: always()
         working-directory: agent-worker
-        run: lk agent status || true
+        run: lk agent list || true
 
