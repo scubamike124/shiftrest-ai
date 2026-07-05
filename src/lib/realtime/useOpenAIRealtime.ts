@@ -437,6 +437,7 @@ export function useOpenAIRealtime() {
     error,
     muted,
     transcript,
+    debugEvents,
     metrics,
     connect,
     disconnect,
