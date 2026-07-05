@@ -46,14 +46,12 @@ jobs:
         run: |
           set -eu
           # `lk agent deploy` needs a registered project in ~/.livekit/cli-config.yaml.
-          # In CI there is no interactive `lk cloud auth`, so register one from secrets
+          # In CI there is no interactive `lk cloud auth`, so add the project from secrets
           # and mark it default. Do not echo the api key / secret.
           #
-          # `lk project register` in non-interactive mode (no TTY) requires ALL of:
-          # PROJECT_NAME positional arg + --url + --api-key + --api-secret. If any
-          # is empty it aborts with "non-interactive mode: provide project name as
-          # argument and --url, --api-key, --api-secret". Validate presence first
-          # so a missing GitHub secret produces an obvious error, not a cryptic one.
+          # `lk project add` requires the project name as a positional argument and
+          # --api-key/--api-secret. Validate presence first so a missing GitHub secret
+          # produces an obvious error, not a cryptic one.
           missing=""
           [ -n "${LIVEKIT_PROJECT_NAME:-}" ] || missing="$missing LIVEKIT_PROJECT_NAME"
           [ -n "${LIVEKIT_URL:-}" ]        || missing="$missing LIVEKIT_URL"
@@ -64,11 +62,11 @@ jobs:
             exit 1
           fi
           # CI stdin is not a TTY, so SkipPrompts() is already true; no --yes needed.
-          lk project register "$LIVEKIT_PROJECT_NAME" \
-            --url "$LIVEKIT_URL" \
+          lk project add \
             --api-key "$LIVEKIT_API_KEY" \
             --api-secret "$LIVEKIT_API_SECRET" \
-            --default
+            "$LIVEKIT_PROJECT_NAME"
+          lk project set-default "$LIVEKIT_PROJECT_NAME"
 
 
       - name: Resolve existing agent id (if any)
