@@ -107,9 +107,19 @@ export function useOpenAIRealtime() {
       setStatus("listening");
       turnStartRef.current = performance.now();
     } else if (type === "input_audio_buffer.speech_stopped") {
+      const now = performance.now();
+      turnEndAtRef.current = now;
+      awaitingFirstReplyAudioRef.current = true;
+      console.info("[realtime] turn-end", { turnEndAt: now });
       setStatus("thinking");
     } else if (type === "response.created") {
       if (turnStartRef.current == null) turnStartRef.current = performance.now();
+      // If server VAD didn't emit speech_stopped (e.g. text-triggered response),
+      // treat response.created as the turn-end boundary so latency is still measured.
+      if (turnEndAtRef.current == null) {
+        turnEndAtRef.current = performance.now();
+        awaitingFirstReplyAudioRef.current = true;
+      }
       setStatus("thinking");
     } else if (
       type === "response.output_audio.delta" ||
@@ -117,6 +127,17 @@ export function useOpenAIRealtime() {
     ) {
       const now = performance.now();
       setStatus("speaking");
+      const capturedFirstReply = awaitingFirstReplyAudioRef.current;
+      const turnEndAt = turnEndAtRef.current;
+      if (capturedFirstReply) {
+        awaitingFirstReplyAudioRef.current = false;
+        const latency = turnEndAt != null ? now - turnEndAt : null;
+        console.info("[realtime] first-reply-audio", {
+          firstReplyAudioAt: now,
+          turnEndAt,
+          replyLatencyMs: latency != null ? Math.round(latency) : null,
+        });
+      }
       setMetrics((m) => {
         const next: RealtimeMetrics = { ...m };
         if (m.firstAudioMs == null && connectStartRef.current != null) {
@@ -126,6 +147,12 @@ export function useOpenAIRealtime() {
             firstAudioMs: Math.round(next.firstAudioMs),
           });
         }
+        if (capturedFirstReply) {
+          next.lastFirstReplyAudioAt = now;
+          next.lastTurnEndAt = turnEndAt;
+          next.lastReplyLatencyMs = turnEndAt != null ? now - turnEndAt : null;
+          next.turnCount = m.turnCount + 1;
+        }
         if (turnStartRef.current != null && m.lastTurnMs !== now - turnStartRef.current) {
           next.lastTurnMs = now - turnStartRef.current;
           turnStartRef.current = null;
@@ -133,6 +160,8 @@ export function useOpenAIRealtime() {
         return next;
       });
     } else if (type === "response.done" || type === "response.completed") {
+      turnEndAtRef.current = null;
+      awaitingFirstReplyAudioRef.current = false;
       setStatus("listening");
     }
 
