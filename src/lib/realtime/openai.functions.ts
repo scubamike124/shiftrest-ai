@@ -46,7 +46,8 @@ const INSTRUCTIONS = [
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
-  .handler(async ({ data, context }): Promise<RealtimeSessionResult> => {
+  .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
+
 
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
