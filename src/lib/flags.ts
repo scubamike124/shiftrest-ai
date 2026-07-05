@@ -21,11 +21,9 @@ export const HIDE_COMING_SOON_SKILLS = true;
 // flag to `false` to restore the section for Phase 2.
 export const HIDE_PLANNED_PROVIDERS_ON_HEALTH = true;
 
-// ENABLE_REALTIME_PILOT — Phase 0 kill-switch for the next-gen OpenAI
-// Realtime + LiveKit voice pipeline. Default OFF. Reads
-// `import.meta.env.VITE_ENABLE_REALTIME_PILOT === "true"` so we can flip
-// it per-environment without code changes. When false, all clients use
-// the existing OpenAI TTS + Whisper pipeline (no behavior change).
-// No route, UI, or server endpoint reads this yet — Phase 1 wires it in.
+// ENABLE_REALTIME_PILOT — kill-switch for the OpenAI Realtime WebRTC voice
+// pilot. Default OFF. Reads `import.meta.env.VITE_ENABLE_REALTIME_PILOT ===
+// "true"` so we can flip it per-environment. When false, /lab/pilot-realtime
+// 404s and production voice is unchanged.
 export const ENABLE_REALTIME_PILOT =
   import.meta.env.VITE_ENABLE_REALTIME_PILOT === "true";
