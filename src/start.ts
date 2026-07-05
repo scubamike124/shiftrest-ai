@@ -42,9 +42,6 @@ const CSP_REPORT_ONLY = [
     "https://connector-gateway.lovable.dev",
     // ReadyPlayerMe avatar model host
     "https://models.readyplayer.me",
-    // LiveKit realtime rooms (subdomain varies per project)
-    "https://*.livekit.cloud",
-    "wss://*.livekit.cloud",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
