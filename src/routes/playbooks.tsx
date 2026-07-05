@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { ChevronLeft, Check } from "lucide-react";
 import { useState } from "react";
 import { PLAYBOOKS } from "@/lib/playbooks";
@@ -8,6 +9,8 @@ import { toast } from "sonner";
 
 
 export const Route = createFileRoute("/playbooks")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Recovery Playbooks — RestPilot AI" },

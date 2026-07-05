@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
 
-const DOC = findLegalDoc("third-parties")!;
+export const DOC = findLegalDoc("third-parties")!;
 
 type Row = {
   name: string;

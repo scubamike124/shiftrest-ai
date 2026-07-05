@@ -1,6 +1,7 @@
 // Phase 8 — Health & Wellness trends. Read-only, permission-based, no medical advice.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -34,6 +35,8 @@ import { PROVIDER_LABEL } from "@/lib/wearables/types";
 import { HIDE_PLANNED_PROVIDERS_ON_HEALTH } from "@/lib/flags";
 
 export const Route = createFileRoute("/health")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Health & Wellness | RestPilot AI" },

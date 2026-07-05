@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
 
-const DOC = findLegalDoc("electronic-consent")!;
+export const DOC = findLegalDoc("electronic-consent")!;
 
 export const Route = createFileRoute("/legal/electronic-consent")({
   head: () => ({

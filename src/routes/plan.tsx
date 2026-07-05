@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,6 +32,8 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 
 
 export const Route = createFileRoute("/plan")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Smart Light Plan — RestPilot AI" },

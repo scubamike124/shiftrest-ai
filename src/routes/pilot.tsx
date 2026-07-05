@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Mic, Phone, MessageCircle, Loader2, Settings2, Sparkles } from "lucide-react";
@@ -15,6 +16,8 @@ import { fetchPrefs } from "@/lib/prefs";
 import { greetingLabel } from "@/lib/time/day-part";
 
 export const Route = createFileRoute("/pilot")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Pilot — Talk to your AI companion | RestPilot AI" },

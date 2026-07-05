@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { EventsList } from "@/components/EventsList";
 
 export const Route = createFileRoute("/events")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Events — RestPilot AI" },

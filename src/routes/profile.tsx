@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -49,6 +50,8 @@ import { AssistantSettings } from "@/components/AssistantSettings";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 
 export const Route = createFileRoute("/profile")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Profile & Preferences — RestPilot AI" },

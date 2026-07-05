@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useState } from "react";
 import {
   ChevronLeft,
@@ -16,6 +17,8 @@ import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/swap")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Shift Swap Copilot — RestPilot AI" },
