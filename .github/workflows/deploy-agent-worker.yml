@@ -39,6 +39,7 @@ jobs:
       - name: Register LiveKit project
         working-directory: agent-worker
         env:
+          LIVEKIT_PROJECT_NAME: ${{ secrets.LIVEKIT_PROJECT_NAME }}
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
@@ -48,12 +49,13 @@ jobs:
           # In CI there is no interactive `lk cloud auth`, so register one from secrets
           # and mark it default. Do not echo the api key / secret.
           #
-          # `lk project add` in non-interactive mode (no TTY) requires ALL of:
+          # `lk project register` in non-interactive mode (no TTY) requires ALL of:
           # PROJECT_NAME positional arg + --url + --api-key + --api-secret. If any
           # is empty it aborts with "non-interactive mode: provide project name as
           # argument and --url, --api-key, --api-secret". Validate presence first
           # so a missing GitHub secret produces an obvious error, not a cryptic one.
           missing=""
+          [ -n "${LIVEKIT_PROJECT_NAME:-}" ] || missing="$missing LIVEKIT_PROJECT_NAME"
           [ -n "${LIVEKIT_URL:-}" ]        || missing="$missing LIVEKIT_URL"
           [ -n "${LIVEKIT_API_KEY:-}" ]    || missing="$missing LIVEKIT_API_KEY"
           [ -n "${LIVEKIT_API_SECRET:-}" ] || missing="$missing LIVEKIT_API_SECRET"
@@ -62,7 +64,7 @@ jobs:
             exit 1
           fi
           # CI stdin is not a TTY, so SkipPrompts() is already true; no --yes needed.
-          lk project add ci-project \
+          lk project register "$LIVEKIT_PROJECT_NAME" \
             --url "$LIVEKIT_URL" \
             --api-key "$LIVEKIT_API_KEY" \
             --api-secret "$LIVEKIT_API_SECRET" \
