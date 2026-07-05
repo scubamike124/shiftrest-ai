@@ -1,8 +1,6 @@
 # LiveKit Cloud Agents deployment manifest.
 # Deploy with:  cd agent-worker && lk agent create
 # Redeploy:     cd agent-worker && lk agent deploy
-[project]
-subdomain = ""   # filled in by `lk agent create` on first deploy
 
 [agent]
 name = "pilot-realtime"
