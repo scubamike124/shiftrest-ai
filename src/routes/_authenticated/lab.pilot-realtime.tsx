@@ -108,6 +108,36 @@ function LabPilotRealtime() {
       </section>
 
       <section className="mt-6">
+        <h2 className="text-sm font-medium">Debug (last events)</h2>
+        {rt.debugEvents.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            No events yet. Cutoff details will appear here.
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1 rounded border bg-muted/40 p-2 font-mono text-[11px] leading-tight">
+            {rt.debugEvents.map((e, i) => {
+              const t = new Date(e.at).toLocaleTimeString();
+              if (e.kind === "response.done") {
+                return (
+                  <li key={i} className="break-all">
+                    {t} done · status: {e.status ?? "—"} · reason:{" "}
+                    {e.statusReason ?? e.statusType ?? "—"} · outputTokens:{" "}
+                    {e.outputTokens ?? "—"}
+                  </li>
+                );
+              }
+              return (
+                <li key={i} className="break-all text-destructive">
+                  {t} {e.kind}
+                  {e.message ? ` · ${e.message}` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-6">
         <h2 className="text-sm font-medium">Transcript</h2>
         {rt.transcript.length === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">
