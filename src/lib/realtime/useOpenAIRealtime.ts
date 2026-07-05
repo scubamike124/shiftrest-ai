@@ -260,6 +260,7 @@ export function useOpenAIRealtime() {
     setError(null);
     setStatus("connecting");
     setTranscript([]);
+    setDebugEvents([]);
     setMetrics({
       connectMs: null,
       firstAudioMs: null,
