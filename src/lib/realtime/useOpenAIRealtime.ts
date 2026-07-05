@@ -194,6 +194,17 @@ export function useOpenAIRealtime() {
         totalTokens: usage?.total_tokens,
         full: response,
       });
+      setDebugEvents((prev) => [
+        ...prev.slice(-9),
+        {
+          at: Date.now(),
+          kind: "response.done",
+          status: typeof status === "string" ? status : undefined,
+          statusType: statusDetails?.type,
+          statusReason: statusDetails?.reason,
+          outputTokens: usage?.output_tokens,
+        },
+      ]);
       turnEndAtRef.current = null;
       awaitingFirstReplyAudioRef.current = false;
       setStatus("listening");
@@ -203,6 +214,15 @@ export function useOpenAIRealtime() {
         type,
         event: evt,
       });
+      const errObj = (evt as { error?: { message?: string } }).error;
+      setDebugEvents((prev) => [
+        ...prev.slice(-9),
+        {
+          at: Date.now(),
+          kind: "error",
+          message: errObj?.message ?? type,
+        },
+      ]);
     }
 
     // Transcript events (best-effort — OpenAI event names vary by model version).
