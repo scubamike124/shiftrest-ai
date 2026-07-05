@@ -306,13 +306,38 @@ export function useOpenAIRealtime() {
                 : m.connectMs,
           }));
         } else if (s === "disconnected" || s === "failed") {
+          console.warn("[realtime] peer-connection-state", {
+            at: performance.now(),
+            state: s,
+          });
           setStatus(s === "failed" ? "error" : "disconnected");
+        } else {
+          console.info("[realtime] peer-connection-state", {
+            at: performance.now(),
+            state: s,
+          });
         }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.info("[realtime] ice-connection-state", {
+          at: performance.now(),
+          state: pc.iceConnectionState,
+        });
       };
 
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
+      dc.onopen = () =>
+        console.info("[realtime] datachannel-open", { at: performance.now() });
+      dc.onclose = () =>
+        console.warn("[realtime] datachannel-close", { at: performance.now() });
+      dc.onerror = (e) =>
+        console.error("[realtime] datachannel-error", {
+          at: performance.now(),
+          event: e,
+        });
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
