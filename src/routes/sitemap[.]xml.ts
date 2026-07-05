@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type {} from "@tanstack/react-start";
 
-const BASE_URL = "https://shift-rest-ai.lovable.app";
+const BASE_URL = "https://restpilotai.com";
 
 interface SitemapEntry {
   path: string;
@@ -10,14 +10,15 @@ interface SitemapEntry {
 }
 
 // Phase 1 public, indexable routes. Excludes /qa/*, /lab/*, /version,
-// /api/*, and any authenticated app surface (dashboard, companion, etc.).
+// /api/*, /auth (noindex — sign-in surface), and any authenticated app
+// surface (dashboard, companion, etc.). Legal canonicals live under
+// /legal/*; the bare /privacy and /terms paths only 307-redirect there
+// and are omitted so crawlers index the canonical URL directly.
 const ENTRIES: SitemapEntry[] = [
   { path: "/", changefreq: "weekly", priority: "1.0" },
   { path: "/pricing", changefreq: "monthly", priority: "0.9" },
   { path: "/features", changefreq: "monthly", priority: "0.8" },
-  { path: "/auth", changefreq: "yearly", priority: "0.3" },
-  { path: "/privacy", changefreq: "yearly", priority: "0.4" },
-  { path: "/terms", changefreq: "yearly", priority: "0.4" },
+  { path: "/contact", changefreq: "yearly", priority: "0.4" },
   { path: "/legal", changefreq: "monthly", priority: "0.5" },
   { path: "/legal/acceptable-use", changefreq: "yearly", priority: "0.3" },
   { path: "/legal/accessibility", changefreq: "yearly", priority: "0.3" },
@@ -35,6 +36,7 @@ const ENTRIES: SitemapEntry[] = [
   { path: "/legal/third-parties", changefreq: "yearly", priority: "0.3" },
   { path: "/legal/trademark", changefreq: "yearly", priority: "0.3" },
 ];
+
 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
