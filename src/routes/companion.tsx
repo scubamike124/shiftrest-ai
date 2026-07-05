@@ -541,12 +541,32 @@ function CompanionPage() {
   // (not text typing), and only when nothing else is in flight.
   const handleMicTapRef = useRef(handleMicTap);
   useEffect(() => { handleMicTapRef.current = handleMicTap; });
+  // Track the most recent user gesture. iOS Safari requires a live gesture
+  // context for getUserMedia + AudioContext.resume; if the tab has been idle
+  // or backgrounded, silently re-arming the mic fails and looks like "Aura
+  // stopped listening". We treat the gesture as fresh for 60s.
+  const lastGestureRef = useRef<number>(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mark = () => { lastGestureRef.current = Date.now(); };
+    window.addEventListener("pointerdown", mark, { passive: true });
+    window.addEventListener("keydown", mark);
+    return () => {
+      window.removeEventListener("pointerdown", mark);
+      window.removeEventListener("keydown", mark);
+    };
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onTurnEnded = () => {
       if (!lastTurnViaVoiceRef.current) return;
       if (sending || transcribing) return;
       if (micState !== "idle") return;
+      // Only auto-reopen when the page is actually visible and the user has
+      // interacted recently — otherwise iOS won't grant mic access and the
+      // conversation stalls silently. On failure the user just taps Nova.
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (Date.now() - lastGestureRef.current > 60_000) return;
       lastTurnViaVoiceRef.current = false;
       // Small delay lets the avatar settle to "idle" before re-listening.
       window.setTimeout(() => {
