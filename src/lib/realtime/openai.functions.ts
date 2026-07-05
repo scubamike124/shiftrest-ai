@@ -49,13 +49,14 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
         voice: DEFAULT_VOICE,
         modalities: ["audio", "text"],
         instructions: INSTRUCTIONS,
-        // semantic_vad predicts end-of-turn from linguistic cues instead of a
-        // fixed silence timer, so natural mid-sentence pauses (~1s) don't
-        // trigger a cutoff. eagerness=low waits longer before deciding the
-        // user is done — fewer false cutoffs.
+        // server_vad with a long silence window so natural 2–3s mid-thought
+        // pauses don't get treated as end-of-turn. Threshold + prefix padding
+        // stay at OpenAI defaults.
         turn_detection: {
-          type: "semantic_vad",
-          eagerness: "low",
+          type: "server_vad",
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 2500,
           create_response: true,
           interrupt_response: true,
         },
