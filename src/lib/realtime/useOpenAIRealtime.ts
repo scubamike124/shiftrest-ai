@@ -29,6 +29,14 @@ export type RealtimeMetrics = {
   lastTurnMs: number | null;
   tokenFetchMs: number | null;
   pcConnectedMs: number | null;
+  /** performance.now() when the user's turn ended (speech_stopped). */
+  lastTurnEndAt: number | null;
+  /** performance.now() when the first assistant audio frame for that turn arrived. */
+  lastFirstReplyAudioAt: number | null;
+  /** lastFirstReplyAudioAt - lastTurnEndAt, in ms. The number you actually feel. */
+  lastReplyLatencyMs: number | null;
+  /** Rolling count of completed turns since connect. */
+  turnCount: number;
 };
 
 export type RealtimeTranscriptEvent = {
