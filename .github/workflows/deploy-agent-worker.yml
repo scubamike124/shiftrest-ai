@@ -98,7 +98,7 @@ jobs:
           # the Dockerfile in agent-worker/ and mints a new agent id. Runtime
           # secrets (OPENAI_REALTIME_API_KEY etc.) must be set separately in
           # the LiveKit Cloud dashboard or via `lk agent update-secrets`.
-          lk agent create .
+          lk agent create . --verbose
 
       - name: Deploy agent-worker to LiveKit Cloud
         if: steps.resolve.outputs.agent_id != ''
