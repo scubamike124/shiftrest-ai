@@ -516,7 +516,7 @@ function CompanionPage() {
     try { stopSpeaking(); } catch { /* noop */ }
     prepareVoicePlayback();
     setInput("");
-    emitDebug("realtime-connect");
+    emitDebug("mic-start");
     lastTurnViaVoiceRef.current = true;
     await rt.connect();
   }
