@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { ArrowLeft, Sparkles, ChevronRight } from "lucide-react";
 import { useTodayDecisions, intentLabel, type Decision } from "@/lib/ai/decisions";
 import {
@@ -10,6 +11,8 @@ import {
 import { AIActivityFeed } from "@/components/AIActivityFeed";
 
 export const Route = createFileRoute("/decisions")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "AI Decisions Today — RestPilot AI" },

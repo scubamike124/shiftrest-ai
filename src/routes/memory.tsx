@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -54,6 +55,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/memory")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "My Memory — RestPilot AI" },

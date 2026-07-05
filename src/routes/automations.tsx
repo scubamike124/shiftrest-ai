@@ -2,6 +2,7 @@
 // Confirmation-first execution. Respects Quiet Mode and offline.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -61,6 +62,8 @@ import { track } from "@/lib/companion/analytics";
 import { NLRoutineBuilder } from "@/components/automations/NLRoutineBuilder";
 
 export const Route = createFileRoute("/automations")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Routines | RestPilot AI" },

@@ -2,6 +2,7 @@
 // Mobile-first list + add/edit/delete. RLS-scoped via server fns.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -38,6 +39,8 @@ import {
 import { track } from "@/lib/companion/analytics";
 
 export const Route = createFileRoute("/smart-home")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Smart Home | RestPilot AI" },

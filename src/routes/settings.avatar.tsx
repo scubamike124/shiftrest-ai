@@ -3,6 +3,7 @@
 // across devices. Also supports "custom:" data-URL uploads.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useRef, useState } from "react";
 import { ArrowLeft, Check, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,8 @@ import { useAvatar } from "@/lib/companion/use-avatar";
 import { AVATAR_PRESETS } from "@/lib/companion/avatars";
 
 export const Route = createFileRoute("/settings/avatar")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Choose your Companion avatar | RestPilot AI" },

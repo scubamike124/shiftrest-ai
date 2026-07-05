@@ -10,6 +10,7 @@
 // later steps; this page renders a "Coming soon" badge for unavailable skills.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, Lock, Sparkles, ShieldCheck, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +43,8 @@ import { QuietModeCard } from "@/components/companion/QuietModeCard";
 import { HIDE_COMING_SOON_SKILLS } from "@/lib/flags";
 
 export const Route = createFileRoute("/settings/skills")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Companion Skills | RestPilot AI" },

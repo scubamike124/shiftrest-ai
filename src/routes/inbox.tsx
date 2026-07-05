@@ -2,6 +2,7 @@
 // Mounted at /inbox. Mobile-first. Read & suggest only.
 
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -31,6 +32,8 @@ const searchSchema = z.object({
 });
 
 export const Route = createFileRoute("/inbox")({
+  ssr: false,
+  beforeLoad: requireSession,
   validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [

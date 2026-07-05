@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,8 @@ function orbToPortrait(state: OrbState, listening: boolean): PortraitState {
 
 
 export const Route = createFileRoute("/companion")({
+  ssr: false,
+  beforeLoad: requireSession,
   validateSearch: (s: Record<string, unknown>) => ({
     prompt: typeof s.prompt === "string" ? s.prompt.slice(0, 500) : undefined,
     period:

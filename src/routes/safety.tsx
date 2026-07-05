@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import {
   AlertTriangle,
   Brain,
@@ -13,6 +14,8 @@ import {
 import type { ReactNode } from "react";
 
 export const Route = createFileRoute("/safety")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Safety Center — RestPilot AI" },

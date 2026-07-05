@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
 import { CompanionHero } from "@/components/home/CompanionHero";
 import { HomeCard, HomeCardHeader } from "@/components/home/HomeCard";
@@ -61,6 +62,8 @@ import { getCachedUserIdSync } from "@/lib/offline/cache";
 
 
 export const Route = createFileRoute("/dashboard")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Your Week — RestPilot AI" },

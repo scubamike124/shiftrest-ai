@@ -3,6 +3,7 @@
 // the legacy /settings/morning page for the morning-only layout.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -135,6 +136,8 @@ function RealismCard() {
 }
 
 export const Route = createFileRoute("/settings/companion")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Daily Companion settings | RestPilot AI" },

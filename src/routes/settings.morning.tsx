@@ -2,6 +2,7 @@
 // Mobile-first, no third-party calls; addresses stay private in Wave A.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { requireSession } from "@/lib/require-session";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +15,8 @@ import type { BriefCardId } from "@/lib/morning/types";
 import { SMART_ALARM_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/settings/morning")({
+  ssr: false,
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Morning Brief settings | RestPilot AI" },
