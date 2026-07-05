@@ -108,7 +108,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
           instructions: INSTRUCTIONS,
           // Give longer answers enough room to finish, while the system
           // prompt still keeps the model conversational and concise.
-          max_output_tokens: 1000,
+          max_output_tokens: 2000,
         },
       }),
     });
