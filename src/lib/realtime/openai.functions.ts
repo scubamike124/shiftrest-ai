@@ -150,11 +150,23 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
         ? data.expires_at * 1000
         : Date.now() + 55_000;
 
+    // Time-of-day greeting label derived from the caller's local clock so
+    // the opener matches every other greeting surface in the app.
+    const { greeting } = (await import("@/lib/ai/time-directive")).buildTimeDirective({
+      localTime: input.localTime ?? null,
+      timezone: input.timezone ?? null,
+    });
+    // greetingForHour already collapses "night" → "Good evening".
+    void greetingForHour;
+    const greetingLabel = greeting ?? "Hi";
+
     return {
       clientSecret: value,
       expiresAt,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
       greetingName,
+      greetingLabel,
     };
+
   });
