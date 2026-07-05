@@ -58,6 +58,8 @@ export function useOpenAIRealtime() {
     connectMs: null,
     firstAudioMs: null,
     lastTurnMs: null,
+    tokenFetchMs: null,
+    pcConnectedMs: null,
   });
 
   const teardown = useCallback(async () => {
