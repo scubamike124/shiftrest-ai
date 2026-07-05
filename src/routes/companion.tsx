@@ -381,7 +381,7 @@ function CompanionPage() {
     else if (voiceStatus === "speaking") setOrbState("speaking");
     else if (transcribing || sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, transcribing, sending, voiceStatus]);
+  }, [micState, transcribing, sending, voiceStatus, rt.status]);
 
 
   useEffect(() => {
