@@ -1,88 +1,99 @@
 
-# Migrate voice stack: LiveKit → OpenAI Realtime WebRTC
+# Investigation: OpenAI Realtime voice timing issues
 
-## 1. Migration plan
+## 1. Current realtime config
 
-Today the realtime pilot path is:
+Server (`src/lib/realtime/openai.functions.ts`) mints the session with only two fields:
 
-```
-browser ──WebRTC──▶ LiveKit room ──▶ agent-worker (Node, LiveKit Cloud) ──▶ OpenAI Realtime
-```
-
-Three moving parts we don't need. The new path:
-
-```
-browser ──WebRTC (SDP)──▶ OpenAI Realtime
-    ▲
-    │ ephemeral client_secret (60s)
-    │
-server (TanStack serverFn) ──HTTPS──▶ OpenAI /v1/realtime/sessions
+```json
+{ "model": "gpt-realtime", "voice": "alloy" }
 ```
 
-Flow:
-1. Browser clicks "Start" → calls server fn `mintRealtimeSession()`.
-2. Server fn (auth-gated) calls `POST https://api.openai.com/v1/realtime/sessions` with `OPENAI_API_KEY`, returns the ephemeral `client_secret.value` (short-lived, ~60s).
-3. Browser creates `RTCPeerConnection`, adds mic track, creates data channel `oai-events`, generates SDP offer.
-4. Browser POSTs the SDP to `https://api.openai.com/v1/realtime?model=gpt-realtime` with `Authorization: Bearer <ephemeral>` and applies the returned SDP answer.
-5. Remote audio track auto-plays through a hidden `<audio>` element (same as today).
-6. Data channel receives `response.*` events → drives listening/thinking/speaking UI states and latency diagnostics.
+Everything else uses OpenAI's defaults:
 
-The `OPENAI_API_KEY` never leaves the server. The ephemeral token is single-use and short-lived, safe to hand to the browser.
+- `turn_detection`: **`server_vad`** with `threshold=0.5`, `prefix_padding_ms=300`, **`silence_duration_ms=500`** — this is the ~1 second cutoff the user is hitting (500 ms of silence + audio buffer flush).
+- `instructions`: **none set** — model uses its built-in default persona, which tends toward long, essay-style answers.
+- `modalities`: default `["audio","text"]`.
+- `input_audio_transcription`: **off** (that's why transcripts often don't render).
+- `max_response_output_tokens`: `"inf"` — no cap on reply length.
+- `temperature`: `0.8`.
 
-## 2. Files that will change
+Client (`src/lib/realtime/useOpenAIRealtime.ts`):
 
-New:
-- `src/lib/realtime/openai.functions.ts` — `mintRealtimeSession` server fn (auth-gated, calls OpenAI sessions endpoint, returns `{ clientSecret, expiresAt, model, voice }`).
-- `src/lib/realtime/useOpenAIRealtime.ts` — client hook: mic capture, `RTCPeerConnection`, SDP handshake, data-channel event parsing, status machine (`idle | connecting | listening | thinking | speaking | error`), latency metrics (connect ms, time-to-first-audio, per-turn response latency).
+- Sends SDP offer to `/v1/realtime` and plays whatever OpenAI returns.
+- **Never sends a `session.update`** after connect, so the server-side config above is the whole story.
+- Attaches remote audio to a hidden `<audio autoPlay playsInline>` element. No jitter buffer tuning, no `preservesPitch`, no explicit `latencyHint`. This is normal WebRTC playback and is not the source of gaps — inter-chunk pauses come from the model, not from the audio element.
 
-Edit:
-- `src/routes/_authenticated/lab.pilot-realtime.tsx` — swap `useRealtimePilot` for `useOpenAIRealtime`; keep the same UI shell (mic button, status pill, transcript, mute, diagnostics panel).
-- `package.json` — remove `livekit-client`, `livekit-server-sdk` from the app (kept only if still referenced elsewhere — grep confirms only these three files use them).
-- `.env.example` — add `OPENAI_API_KEY=`.
+Data channel handling drives UI state but has zero effect on model behavior.
 
-Delete (after new path verified):
-- `src/lib/realtime.functions.ts` (LiveKit token + preflight).
-- `src/lib/realtime/useRealtimePilot.ts`.
-- `agent-worker/` (entire folder — worker, Dockerfile, livekit.toml, README).
-- `.github/workflows/deploy-agent-worker.yml`.
-- `.lovable/plan.md` (stale LiveKit plan).
+## 2. Root cause hypothesis
 
-Keep untouched:
-- Companion UI, mic permission flow, `<audio>` element pattern, auth gate, lab-only routing.
+Three separate causes for three separate symptoms — none of them are audio-pipeline bugs:
 
-## 3. New secret
+**(a) "AI cuts me off after ~1s pause"**
+→ Default `server_vad` treats 500 ms of silence as end-of-turn and immediately triggers a response. Natural mid-sentence pauses (breath, thinking) exceed 500 ms and get interpreted as "user done talking." Increasing `silence_duration_ms`, or switching to `semantic_vad`, fixes this. `semantic_vad` uses the model's own linguistic prediction of turn-end instead of raw silence, and exposes an `eagerness` knob (`low`/`medium`/`high`/`auto`) — `low` waits longer before deciding you're done.
 
-- `OPENAI_API_KEY` — server-only. Requested via `add_secret` in the implementation turn. An existing `OPENAI_REALTIME_API_KEY` may already be set; we can reuse it by reading either name, but the canonical name going forward is `OPENAI_API_KEY`.
+**(b) "AI takes too long to start replying"**
+→ Two contributors:
+  - With `server_vad`, the 500 ms silence timer must elapse before the model even starts generating. Every reply has a mandatory 500 ms floor before first token.
+  - No `instructions` means the model plans a full essay-style response before speaking. First audio delta lands late because the model is still composing.
+  Setting a short-reply system prompt and/or `semantic_vad` with higher eagerness reduces both.
 
-No `VITE_*` version. The browser only ever sees the ephemeral `client_secret`.
+**(c) "AI pauses too long between parts of its answer"**
+→ Long-form generated text with sentence/paragraph breaks: TTS naturally inserts pauses at punctuation. When the model is told (implicitly) to give thorough answers, it produces multi-sentence outputs with commas, periods, and paragraph breaks that each become audible gaps. Constraining reply length + style (short conversational sentences, no lists/paragraphs) collapses these gaps. Optionally capping `max_response_output_tokens` (e.g. 200) prevents runaway paragraphs.
 
-## 4. Risks
+None of the three symptoms are caused by network, WebRTC jitter, or the `<audio>` element. All three are governed by session config the server currently isn't sending.
 
-- **Browser compatibility**: OpenAI Realtime WebRTC needs modern `RTCPeerConnection` + `getUserMedia`. Safari iOS 17+ works; older iOS may fail. Mitigation: keep behind the existing `VITE_ENABLE_REALTIME_PILOT` lab flag until validated on target devices.
-- **Ephemeral token TTL**: ~60s. If the user hesitates between mint and "Start", the SDP POST 401s. Mitigation: mint on click, not on page load; auto-retry once on 401.
-- **Mobile background suspend**: iOS may kill the peer connection when the tab backgrounds. Same behavior as today's LiveKit path; surface as `reconnecting` state.
-- **Autoplay policies**: remote audio must attach to an `<audio>` element that was created inside the click gesture that started the session. Same pattern as current hook — low risk.
-- **Cost visibility**: direct OpenAI billing (no LiveKit hop). Add a session-length hard cap (e.g. 5 min) to prevent runaway sessions during testing.
-- **Persona / tools**: LiveKit agent worker was where the future tool bridge (memory, signals, schedule) was going to live. With WebRTC direct, tools become browser-side function calls dispatched from the data channel, which is fine but a different implementation shape. Phase-3 tool work will need re-planning — not in this migration.
-- **Diagnostics reduction**: we lose LiveKit's server-side preflight surface. Replaced with client-side timings only (connect ms, first-audio ms, per-turn latency).
+## 3. Minimal tuning options
 
-## 5. Step-by-step implementation
+Two levers, both applied in a single `session.update` sent by the client immediately after the data channel opens (or, cleaner, baked into the server-side mint payload so the browser never sees them).
 
-1. Add `OPENAI_API_KEY` via `add_secret` (or confirm reuse of `OPENAI_REALTIME_API_KEY`).
-2. Create `src/lib/realtime/openai.functions.ts` with `mintRealtimeSession` server fn:
-   - `.middleware([requireSupabaseAuth])`
-   - POST to `https://api.openai.com/v1/realtime/sessions` with `{ model: "gpt-realtime", voice: "alloy" }` (voice/model configurable later).
-   - Map upstream errors to friendly messages.
-3. Create `src/lib/realtime/useOpenAIRealtime.ts`:
-   - `connect()` — mint session → build `RTCPeerConnection` → `getUserMedia({ audio: true })` → add track → create `oai-events` data channel → `createOffer` → POST SDP to `/v1/realtime?model=...` with bearer → `setRemoteDescription(answer)`.
-   - Attach remote audio track to `remoteAudioRef`.
-   - Data channel: parse `input_audio_buffer.speech_started/stopped`, `response.created/output_audio.delta/done` → drive `status` (`listening | thinking | speaking`) and `metrics` (first-audio ms, per-response latency).
-   - Expose `connect`, `disconnect`, `toggleMute`, `status`, `error`, `transcript`, `metrics`, `remoteAudioRef`.
-4. Rewrite `src/routes/_authenticated/lab.pilot-realtime.tsx` to use the new hook. Preserve existing controls, transcript panel, and add a diagnostics block: "connect ms / first audio ms / last turn ms".
-5. Verify end-to-end in preview: mint call succeeds, WebRTC connects, mic captured, model audio plays, states cycle, latencies render.
-6. Remove LiveKit code:
-   - Delete `src/lib/realtime.functions.ts`, `src/lib/realtime/useRealtimePilot.ts`.
-   - Delete `agent-worker/` and `.github/workflows/deploy-agent-worker.yml`.
-   - `bun remove livekit-client livekit-server-sdk` from the app.
-   - Clear the stale `.lovable/plan.md`.
-7. Publish once stable and hand to user for final acceptance testing.
+**Lever A — turn detection (fixes cutoffs + start latency):**
+
+Option A1 — Stay on `server_vad`, loosen it:
+```json
+"turn_detection": {
+  "type": "server_vad",
+  "threshold": 0.5,
+  "prefix_padding_ms": 300,
+  "silence_duration_ms": 900,
+  "create_response": true,
+  "interrupt_response": true
+}
+```
+Pro: predictable, no model-side judgment.
+Con: still a fixed silence floor before every reply.
+
+Option A2 — Switch to `semantic_vad` (recommended):
+```json
+"turn_detection": {
+  "type": "semantic_vad",
+  "eagerness": "low",
+  "create_response": true,
+  "interrupt_response": true
+}
+```
+Pro: no fixed silence timer; model decides based on whether your sentence sounds finished. Fewer false cutoffs, faster start when you clearly are done.
+Con: newer, occasionally over/underwaits on ambiguous phrasing.
+
+**Lever B — reply shape (fixes long inter-part pauses + slow first audio):**
+
+Add an `instructions` string and a token cap:
+```json
+"instructions": "You are RestPilot, a warm sleep and rest companion. Reply like a person on a phone call: one or two short sentences at a time, plain conversational language, no lists, no headings, no long paragraphs. Pause only when the user might want to speak. If the user asks something big, give the shortest useful answer first and offer to go deeper.",
+"max_response_output_tokens": 200,
+"modalities": ["audio","text"],
+"input_audio_transcription": { "model": "whisper-1" }
+```
+
+Enabling `input_audio_transcription` also fixes the empty transcript panel.
+
+**Bundled recommendation (single stable batch, per user's workflow preference):**
+
+Apply A2 + B together — this is the smallest change set that plausibly addresses all three symptoms in one iteration. If A2 misbehaves on ambiguous phrasing, fall back to A1 with `silence_duration_ms: 900`.
+
+Where to set: cleanest is server-side in the session-mint payload (`session.turn_detection`, `session.instructions`, `session.max_response_output_tokens`, `session.input_audio_transcription`), so behavior is defined once and can't be tampered with from the browser. The client can still send `session.update` for future per-user tweaks.
+
+## 4. No implementation until approved
+
+Awaiting go-ahead to apply the bundled recommendation (semantic_vad + short-reply instructions + transcription + 200-token cap), or to pick a different option combination.
