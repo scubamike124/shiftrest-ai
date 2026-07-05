@@ -17,6 +17,8 @@ export type RealtimeSessionResult = {
   expiresAt: number; // epoch ms
   model: string;
   voice: string;
+  /** First name / preferred name for the greeting; empty if unknown. */
+  greetingName: string;
 };
 
 const DEFAULT_MODEL = "gpt-realtime";
