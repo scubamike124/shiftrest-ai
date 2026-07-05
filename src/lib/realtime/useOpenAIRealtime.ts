@@ -107,6 +107,10 @@ export function useOpenAIRealtime() {
         const next: RealtimeMetrics = { ...m };
         if (m.firstAudioMs == null && connectStartRef.current != null) {
           next.firstAudioMs = now - connectStartRef.current;
+          console.info("[realtime] first-remote-audio-frame", {
+            at: now,
+            firstAudioMs: Math.round(next.firstAudioMs),
+          });
         }
         if (turnStartRef.current != null && m.lastTurnMs !== now - turnStartRef.current) {
           next.lastTurnMs = now - turnStartRef.current;
