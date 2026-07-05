@@ -11,6 +11,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { greetingForHour } from "@/lib/ai/time-directive";
 
 export type RealtimeSessionResult = {
   clientSecret: string;
@@ -19,7 +20,15 @@ export type RealtimeSessionResult = {
   voice: string;
   /** First name / preferred name for the greeting; empty if unknown. */
   greetingName: string;
+  /** "Good morning" | "Good afternoon" | "Good evening"; "Hi" if unknown. */
+  greetingLabel: string;
 };
+
+export type MintRealtimeSessionInput = {
+  localTime?: string | null;
+  timezone?: string | null;
+};
+
 
 const DEFAULT_MODEL = "gpt-realtime";
 const DEFAULT_VOICE = "alloy";
