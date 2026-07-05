@@ -47,6 +47,16 @@ export type RealtimeTranscriptEvent = {
   at: number;
 };
 
+export type RealtimeDebugEvent = {
+  at: number; // Date.now()
+  kind: "response.done" | "error" | "datachannel-close" | "ice";
+  status?: string;
+  statusType?: string;
+  statusReason?: string;
+  outputTokens?: number;
+  message?: string;
+};
+
 const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
