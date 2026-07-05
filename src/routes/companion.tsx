@@ -11,6 +11,7 @@ import { type OrbState } from "@/components/PilotOrb";
 import { PilotPortrait, type PortraitState } from "@/components/companion/PilotPortrait";
 import { avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
+import { useOpenAIRealtime } from "@/lib/realtime/useOpenAIRealtime";
 import {
   isYes,
   isNo,
