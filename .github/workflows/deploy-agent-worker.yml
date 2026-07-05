@@ -2,7 +2,7 @@ name: Deploy LiveKit Agent Worker
 
 # Deploys agent-worker/ to LiveKit Cloud whenever its source changes on the
 # default branch. Also runnable on-demand via the "Run workflow" button in
-# the GitHub Actions UI.
+# the GitHub Actions UI. Sync marker: force refresh to push to GitHub.
 on:
   push:
     branches: [main]
