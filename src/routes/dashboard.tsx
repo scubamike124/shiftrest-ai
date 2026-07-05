@@ -367,8 +367,8 @@ function Dashboard() {
         </HomeCard>
         <HomeCard className="flex flex-col">
           <HomeCardHeader
-            eyebrow="Recovery"
-            title="Today's Readiness"
+            eyebrow="Schedule"
+            title="Schedule stability"
             action={
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
                 <Sparkles className="h-4 w-4" />

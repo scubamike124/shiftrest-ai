@@ -12,6 +12,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
+import {
+  VOICE_OPTIONS,
+  DEFAULT_VOICE_PROFILE,
+  buildInstructions,
+  type PersonalityKey,
+  type VoiceProfile,
+} from "@/lib/voice/profile";
 
 export type RealtimeSessionResult = {
   clientSecret: string;
@@ -31,11 +38,25 @@ export type MintRealtimeSessionInput = {
 
 
 const DEFAULT_MODEL = "gpt-realtime";
-const DEFAULT_VOICE = "alloy";
+// OpenAI's own recommended Realtime voices for best natural quality.
+const DEFAULT_VOICE = "marin";
+
+const VALID_VOICE_IDS = new Set(VOICE_OPTIONS.map((v) => v.id));
+const VALID_PERSONALITIES = new Set<PersonalityKey>([
+  "calm", "friendly", "professional", "motivational", "companion", "coach", "energetic",
+]);
+
+// Realtime API speed range (per OpenAI docs). Broader than the TTS clamp,
+// so we clamp here instead of reusing `clampSpeed` from voice/profile.
+function clampRealtimeSpeed(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return 1.0;
+  return Math.min(1.5, Math.max(0.25, v));
+}
 
 // Reply-shape system prompt — keeps answers conversational and short so
 // audio starts fast and there are no long paragraph gaps between sentences.
-const INSTRUCTIONS = [
+const REPLY_SHAPE = [
   "You are RestPilot, a warm and calm sleep and rest companion.",
   "Speak like a person on a phone call: one or two short sentences at a time.",
   "Use plain, natural conversational language. No lists, no headings, no long paragraphs.",
@@ -43,6 +64,51 @@ const INSTRUCTIONS = [
   "Pause after a beat so the user can respond. Never lecture.",
 ].join(" ");
 
+/**
+ * Speed on the Realtime API only changes playback rate — the model doesn't
+ * self-adjust its cadence. Per OpenAI guidance, pair the speed multiplier
+ * with an instruction so the delivery also feels paced correctly.
+ */
+function pacingHint(speed: number): string {
+  if (speed < 0.95) return "Pace yourself calmly and unhurried, with soft breath between thoughts.";
+  if (speed > 1.05) return "Keep a brisk, energetic pace without rushing the words.";
+  return "Speak at a measured, natural pace.";
+}
+
+async function loadUserVoiceProfileServer(userId: string): Promise<VoiceProfile> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("user_prefs")
+      .select("voice_id, voice_language, voice_accent, voice_personality, voice_speed, voice_instructions")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!data) return DEFAULT_VOICE_PROFILE;
+    const row = data as {
+      voice_id: string | null;
+      voice_language: string | null;
+      voice_accent: string | null;
+      voice_personality: string | null;
+      voice_speed: number | string | null;
+      voice_instructions: string | null;
+    };
+    return {
+      voiceId: VALID_VOICE_IDS.has(row.voice_id ?? "")
+        ? (row.voice_id as string)
+        : DEFAULT_VOICE,
+      language: row.voice_language || DEFAULT_VOICE_PROFILE.language,
+      accent: row.voice_accent || null,
+      personality: VALID_PERSONALITIES.has(row.voice_personality as PersonalityKey)
+        ? (row.voice_personality as PersonalityKey)
+        : DEFAULT_VOICE_PROFILE.personality,
+      speed: clampRealtimeSpeed(row.voice_speed),
+      instructionsOverride: row.voice_instructions || null,
+    };
+  } catch (e) {
+    console.warn("[realtime/openai] voice-profile-load-failed", e);
+    return { ...DEFAULT_VOICE_PROFILE, voiceId: DEFAULT_VOICE };
+  }
+}
 
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -58,6 +124,11 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     if (!apiKey) {
       throw new Error("OpenAI Realtime is not configured");
     }
+
+    // Load the user's saved voice profile (voice, personality, accent, language,
+    // speed, optional custom instructions override) so Profile settings actually
+    // shape the live session.
+    const voiceProfile = await loadUserVoiceProfileServer(context.userId);
 
     // Resolve greeting name (preferred_name → display_name first token).
     // Same personalization source the welcome email uses. Never falls back
@@ -92,6 +163,26 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       console.warn("[realtime/openai] greeting-name-lookup-failed", e);
     }
 
+    // Compose instructions: reply-shape rules + personality/accent/language
+    // from buildInstructions() + pacing hint keyed to speed tier.
+    // If the user set a custom instructions override, buildInstructions()
+    // returns it verbatim and we still prepend the reply-shape rules so the
+    // conversation contract holds.
+    const personalityBlock = buildInstructions(
+      {
+        personality: voiceProfile.personality,
+        accent: voiceProfile.accent,
+        language: voiceProfile.language,
+        instructionsOverride: voiceProfile.instructionsOverride,
+      },
+      "normal",
+    );
+    const instructions = [
+      REPLY_SHAPE,
+      personalityBlock,
+      pacingHint(voiceProfile.speed),
+    ].join(" ");
+
     const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
@@ -103,7 +194,10 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
           type: "realtime",
           model: DEFAULT_MODEL,
           audio: {
-            output: { voice: DEFAULT_VOICE },
+            output: {
+              voice: voiceProfile.voiceId,
+              speed: voiceProfile.speed,
+            },
             input: {
               transcription: { model: "whisper-1" },
               // semantic_vad with `auto` eagerness: end-of-turn is detected
@@ -118,7 +212,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
               },
             },
           },
-          instructions: INSTRUCTIONS,
+          instructions,
           // Give longer answers enough room to finish, while the system
           // prompt still keeps the model conversational and concise.
           max_output_tokens: 2000,
@@ -165,7 +259,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       clientSecret: value,
       expiresAt,
       model: data.session?.model ?? DEFAULT_MODEL,
-      voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
+      voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
       greetingLabel,
     };
