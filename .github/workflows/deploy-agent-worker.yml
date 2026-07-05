@@ -61,10 +61,8 @@ jobs:
             echo "::error::Missing required GitHub secret(s):$missing"
             exit 1
           fi
-          # Pass --yes to explicitly opt into non-interactive mode (belt & braces
           # CI stdin is not a TTY, so SkipPrompts() is already true; no --yes needed.
           lk project add ci-project \
-
             --url "$LIVEKIT_URL" \
             --api-key "$LIVEKIT_API_KEY" \
             --api-secret "$LIVEKIT_API_SECRET" \
