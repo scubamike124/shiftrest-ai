@@ -162,9 +162,33 @@ export function useOpenAIRealtime() {
         return next;
       });
     } else if (type === "response.done" || type === "response.completed") {
+      const response = (evt as { response?: Record<string, unknown> }).response;
+      const status = response?.status;
+      const statusDetails = response?.status_details as
+        | { type?: string; reason?: string; error?: unknown }
+        | undefined;
+      const usage = response?.usage as
+        | { output_tokens?: number; total_tokens?: number }
+        | undefined;
+      console.info("[realtime] response.done", {
+        at: performance.now(),
+        status,
+        statusType: statusDetails?.type,
+        statusReason: statusDetails?.reason,
+        statusError: statusDetails?.error,
+        outputTokens: usage?.output_tokens,
+        totalTokens: usage?.total_tokens,
+        full: response,
+      });
       turnEndAtRef.current = null;
       awaitingFirstReplyAudioRef.current = false;
       setStatus("listening");
+    } else if (type === "error" || type === "response.error") {
+      console.error("[realtime] error-event", {
+        at: performance.now(),
+        type,
+        event: evt,
+      });
     }
 
     // Transcript events (best-effort — OpenAI event names vary by model version).
