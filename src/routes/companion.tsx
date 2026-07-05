@@ -1477,21 +1477,25 @@ function CompanionPage() {
         {localPrefs.voiceInputEnabled && (
           <Button
             type="button"
-            variant={micState === "listening" ? "default" : "outline"}
+            variant={realtimeActive ? "default" : "outline"}
             size="icon"
             className={cn(
               "h-11 w-11 shrink-0 transition",
-              micState === "listening" && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
+              realtimeActive && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
             )}
-            aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
-            aria-pressed={micState === "listening"}
-            disabled={transcribing || sending}
+            aria-label={realtimeActive ? "End voice conversation" : "Start voice conversation"}
+            aria-pressed={realtimeActive}
+            disabled={sending}
             onClick={handleMicClick}
             onPointerDown={handleMicPointerDown}
             onPointerUp={handleMicPointerUp}
             onPointerCancel={handleMicPointerUp}
           >
-            {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+            {rt.status === "connecting" ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
           </Button>
         )}
         <Input
@@ -1513,7 +1517,7 @@ function CompanionPage() {
           </Button>
         )}
       </form>
-      {micState === "listening" && (
+      {realtimeActive && (
         <div className="mt-2 flex items-center justify-center gap-2">
           <button
             type="button"
@@ -1521,11 +1525,16 @@ function CompanionPage() {
             className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />
-            Cancel
+            End
           </button>
-          <span className="text-[11px] text-muted-foreground">or tap mic to send</span>
+          <span className="text-[11px] text-muted-foreground">
+            {rt.status === "connecting" ? "Connecting…" : rt.status === "speaking" ? "Speaking…" : rt.status === "thinking" ? "Thinking…" : "Listening — speak naturally"}
+          </span>
         </div>
       )}
+
+      {/* Remote audio sink for the OpenAI Realtime peer connection. */}
+      <audio ref={rt.remoteAudioRef} autoPlay playsInline className="hidden" />
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
 
