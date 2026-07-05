@@ -112,18 +112,110 @@ export default defineAgent({
       }
     };
 
+    // ── [rt-diag] Realtime turn diagnostics ────────────────────────────
+    // Diagnostics only: no behavior changes. Every turn is tagged with a
+    // monotonic id so one turn can be grepped out of Cloud logs.
+    const TURN_DETECTION_ECHO = {
+      type: "semantic_vad",
+      eagerness: "low",
+      create_response: true,
+      interrupt_response: true,
+    };
+    console.log(
+      `[rt-diag] boot agent=pilot-realtime workerVersion=${process.env.LK_AGENT_VERSION ?? "dev"} turnDetection=${JSON.stringify(TURN_DETECTION_ECHO)}`,
+    );
+
+    type TimingRecord = {
+      id: string;
+      turnStart: number;
+      userFinal: number | null;
+      assistantFirstOut: number | null;
+      assistantFirstOutSource: string | null;
+      transcriptLen: number;
+    };
+    let turnCounter = 0;
+    const formatTurnId = (n: number) => `t${String(n).padStart(6, "0")}`;
+    // Greeting turn is t000000 so cold-start doesn't skew p50/p95.
+    let currentTurn: TimingRecord | null = {
+      id: formatTurnId(0),
+      turnStart: Date.now(),
+      userFinal: null,
+      assistantFirstOut: null,
+      assistantFirstOutSource: null,
+      transcriptLen: 0,
+    };
+    console.log(
+      `[rt-diag] t=${currentTurn.id} phase=turnStart at=${currentTurn.turnStart} source=greeting config=${JSON.stringify({ vad: TURN_DETECTION_ECHO.type, eagerness: TURN_DETECTION_ECHO.eagerness })}`,
+    );
+
+    const openTurn = (source: string) => {
+      turnCounter += 1;
+      currentTurn = {
+        id: formatTurnId(turnCounter),
+        turnStart: Date.now(),
+        userFinal: null,
+        assistantFirstOut: null,
+        assistantFirstOutSource: null,
+        transcriptLen: 0,
+      };
+      console.log(
+        `[rt-diag] t=${currentTurn.id} phase=turnStart at=${currentTurn.turnStart} source=${source} config=${JSON.stringify({ vad: TURN_DETECTION_ECHO.type, eagerness: TURN_DETECTION_ECHO.eagerness })}`,
+      );
+    };
+
+    const markFirstOut = (source: string) => {
+      const t = currentTurn;
+      if (!t || t.assistantFirstOut != null) return;
+      t.assistantFirstOut = Date.now();
+      t.assistantFirstOutSource = source;
+      const vadToFirstOutMs =
+        t.userFinal != null ? t.assistantFirstOut - t.userFinal : -1;
+      console.log(
+        `[rt-diag] t=${t.id} phase=assistantFirstOut at=${t.assistantFirstOut} source=${source} vadToFirstOutMs=${vadToFirstOutMs}`,
+      );
+    };
+
     const UserStartedSpeaking = (voice.AgentSessionEventTypes as any).UserStartedSpeaking;
     if (UserStartedSpeaking) {
       session.on(UserStartedSpeaking, () => {
         console.log("[worker] UserStartedSpeaking");
+        openTurn("UserStartedSpeaking");
       });
     }
 
     session.on(voice.AgentSessionEventTypes.UserInputTranscribed, (ev) => {
       console.log(`[worker] UserInputTranscribed final=${ev.isFinal} text=${ev.transcript}`);
       if (!ev.isFinal) return;
+      // If UserStartedSpeaking wasn't emitted (SDK variance), open a turn here.
+      if (!currentTurn || currentTurn.userFinal != null) {
+        openTurn("UserInputTranscribed");
+      }
+      const t = currentTurn!;
+      t.userFinal = Date.now();
+      t.transcriptLen = (ev.transcript ?? "").length;
+      console.log(
+        `[rt-diag] t=${t.id} phase=userFinal at=${t.userFinal} dtFromStart=${t.userFinal - t.turnStart} transcriptLen=${t.transcriptLen}`,
+      );
       publish({ type: "transcript", from: "user", text: ev.transcript, final: true });
     });
+
+    // Best-effort probe for an assistant "first audio/speaking" event.
+    // Names vary across @livekit/agents versions; whichever exists fires.
+    const ET: any = voice.AgentSessionEventTypes as any;
+    const firstOutCandidates: [string, unknown][] = [
+      ["AgentStartedSpeaking", ET.AgentStartedSpeaking],
+      ["AgentAudioStarted", ET.AgentAudioStarted],
+      ["AgentSpeechCommitted", ET.AgentSpeechCommitted],
+      ["SpeechCreated", ET.SpeechCreated],
+    ];
+    for (const [name, key] of firstOutCandidates) {
+      if (!key) continue;
+      try {
+        session.on(key as any, () => markFirstOut(name));
+      } catch {
+        /* noop */
+      }
+    }
 
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev) => {
       const item = ev.item as { role?: string; content?: unknown } | undefined;
@@ -137,8 +229,33 @@ export default defineAgent({
           ? item.content.trim()
           : "";
       if (!text) return;
+
+      // Flush turn metrics.
+      const t = currentTurn;
+      if (t) {
+        const doneAt = Date.now();
+        if (t.assistantFirstOut == null) {
+          t.assistantFirstOut = doneAt;
+          t.assistantFirstOutSource = "none";
+          const vadToFirstOutMs =
+            t.userFinal != null ? doneAt - t.userFinal : -1;
+          console.log(
+            `[rt-diag] t=${t.id} phase=assistantFirstOut at=${doneAt} source=none vadToFirstOutMs=${vadToFirstOutMs}`,
+          );
+        }
+        const userSpeechMs =
+          t.userFinal != null ? t.userFinal - t.turnStart : -1;
+        const firstOutToDoneMs = doneAt - (t.assistantFirstOut ?? doneAt);
+        const totalTurnMs = doneAt - t.turnStart;
+        console.log(
+          `[rt-diag] t=${t.id} phase=assistantDone at=${doneAt} userSpeechMs=${userSpeechMs} firstOutToDoneMs=${firstOutToDoneMs} totalTurnMs=${totalTurnMs} assistantTextLen=${text.length} transcriptLen=${t.transcriptLen}`,
+        );
+        currentTurn = null;
+      }
+
       publish({ type: "transcript", from: "assistant", text, final: true });
     });
+
 
     await session.start({ agent, room: ctx.room });
 
