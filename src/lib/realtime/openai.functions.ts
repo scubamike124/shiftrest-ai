@@ -18,6 +18,16 @@ export type RealtimeSessionResult = {
 const DEFAULT_MODEL = "gpt-realtime";
 const DEFAULT_VOICE = "alloy";
 
+// Reply-shape system prompt — keeps answers conversational and short so
+// audio starts fast and there are no long paragraph gaps between sentences.
+const INSTRUCTIONS = [
+  "You are RestPilot, a warm and calm sleep and rest companion.",
+  "Speak like a person on a phone call: one or two short sentences at a time.",
+  "Use plain, natural conversational language. No lists, no headings, no long paragraphs.",
+  "Give the shortest useful answer first, then offer to go deeper if the user wants more.",
+  "Pause after a beat so the user can respond. Never lecture.",
+].join(" ");
+
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<RealtimeSessionResult> => {
@@ -37,8 +47,26 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       body: JSON.stringify({
         model: DEFAULT_MODEL,
         voice: DEFAULT_VOICE,
+        modalities: ["audio", "text"],
+        instructions: INSTRUCTIONS,
+        // semantic_vad predicts end-of-turn from linguistic cues instead of a
+        // fixed silence timer, so natural mid-sentence pauses (~1s) don't
+        // trigger a cutoff. eagerness=low waits longer before deciding the
+        // user is done — fewer false cutoffs.
+        turn_detection: {
+          type: "semantic_vad",
+          eagerness: "low",
+          create_response: true,
+          interrupt_response: true,
+        },
+        // Cap replies so the model doesn't compose essay-length answers that
+        // land with long TTS pauses at every paragraph break.
+        max_response_output_tokens: 200,
+        // Enables the transcript panel in the lab UI.
+        input_audio_transcription: { model: "whisper-1" },
       }),
     });
+
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
