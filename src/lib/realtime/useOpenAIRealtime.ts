@@ -47,6 +47,16 @@ export type RealtimeTranscriptEvent = {
   at: number;
 };
 
+export type RealtimeDebugEvent = {
+  at: number; // Date.now()
+  kind: "response.done" | "error" | "datachannel-close" | "ice";
+  status?: string;
+  statusType?: string;
+  statusReason?: string;
+  outputTokens?: number;
+  message?: string;
+};
+
 const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
@@ -64,6 +74,7 @@ export function useOpenAIRealtime() {
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [transcript, setTranscript] = useState<RealtimeTranscriptEvent[]>([]);
+  const [debugEvents, setDebugEvents] = useState<RealtimeDebugEvent[]>([]);
   const [metrics, setMetrics] = useState<RealtimeMetrics>({
     connectMs: null,
     firstAudioMs: null,
@@ -180,6 +191,17 @@ export function useOpenAIRealtime() {
         totalTokens: usage?.total_tokens,
         full: response,
       });
+      setDebugEvents((prev) => [
+        ...prev.slice(-9),
+        {
+          at: Date.now(),
+          kind: "response.done",
+          status: typeof status === "string" ? status : undefined,
+          statusType: statusDetails?.type,
+          statusReason: statusDetails?.reason,
+          outputTokens: usage?.output_tokens,
+        },
+      ]);
       turnEndAtRef.current = null;
       awaitingFirstReplyAudioRef.current = false;
       setStatus("listening");
@@ -189,6 +211,15 @@ export function useOpenAIRealtime() {
         type,
         event: evt,
       });
+      const errObj = (evt as { error?: { message?: string } }).error;
+      setDebugEvents((prev) => [
+        ...prev.slice(-9),
+        {
+          at: Date.now(),
+          kind: "error",
+          message: errObj?.message ?? type,
+        },
+      ]);
     }
 
     // Transcript events (best-effort — OpenAI event names vary by model version).
@@ -229,6 +260,7 @@ export function useOpenAIRealtime() {
     setError(null);
     setStatus("connecting");
     setTranscript([]);
+    setDebugEvents([]);
     setMetrics({
       connectMs: null,
       firstAudioMs: null,
@@ -320,10 +352,17 @@ export function useOpenAIRealtime() {
       };
 
       pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
         console.info("[realtime] ice-connection-state", {
           at: performance.now(),
-          state: pc.iceConnectionState,
+          state: s,
         });
+        if (s === "disconnected" || s === "failed" || s === "closed") {
+          setDebugEvents((prev) => [
+            ...prev.slice(-9),
+            { at: Date.now(), kind: "ice", message: s },
+          ]);
+        }
       };
 
       const dc = pc.createDataChannel("oai-events");
@@ -331,8 +370,13 @@ export function useOpenAIRealtime() {
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
       dc.onopen = () =>
         console.info("[realtime] datachannel-open", { at: performance.now() });
-      dc.onclose = () =>
+      dc.onclose = () => {
         console.warn("[realtime] datachannel-close", { at: performance.now() });
+        setDebugEvents((prev) => [
+          ...prev.slice(-9),
+          { at: Date.now(), kind: "datachannel-close" },
+        ]);
+      };
       dc.onerror = (e) =>
         console.error("[realtime] datachannel-error", {
           at: performance.now(),
@@ -393,6 +437,7 @@ export function useOpenAIRealtime() {
     error,
     muted,
     transcript,
+    debugEvents,
     metrics,
     connect,
     disconnect,
