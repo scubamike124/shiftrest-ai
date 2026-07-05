@@ -173,7 +173,10 @@ function CompanionPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   // Mic for voice input → fills the composer.
-  const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 1000, maxMs: 12_000 });
+  // silenceMs widened from 1000 → 2200: natural mid-sentence pauses on iPhone
+  // Safari often exceed 1s, which previously cut users off. noSpeechMs raised
+  // to 10s so cold-start "thinking before speaking" isn't dropped as empty.
+  const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 2200, maxMs: 15_000, noSpeechMs: 10_000 });
   const [transcribing, setTranscribing] = useState(false);
 
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
