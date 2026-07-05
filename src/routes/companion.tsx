@@ -11,6 +11,7 @@ import { type OrbState } from "@/components/PilotOrb";
 import { PilotPortrait, type PortraitState } from "@/components/companion/PilotPortrait";
 import { avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
+import { useOpenAIRealtime } from "@/lib/realtime/useOpenAIRealtime";
 import {
   isYes,
   isNo,
@@ -179,6 +180,39 @@ function CompanionPage() {
   const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 2200, maxMs: 15_000, noSpeechMs: 10_000 });
   const [transcribing, setTranscribing] = useState(false);
 
+  // Voice engine — OpenAI Realtime over WebRTC. Replaces the legacy
+  // STT → /api/ai → TTS loop for spoken turns. Text (typed) messages still
+  // flow through handleSend + /api/ai + speak() so action cards, intent
+  // routing, quiet hours, and ElevenLabs voice prefs remain intact.
+  const rt = useOpenAIRealtime();
+  const realtimeActive =
+    rt.status === "connecting" ||
+    rt.status === "listening" ||
+    rt.status === "thinking" ||
+    rt.status === "speaking";
+  // Push realtime transcript entries into the conversation as they arrive.
+  const rtSeenTranscriptRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (rt.transcript.length === 0) return;
+    const seen = rtSeenTranscriptRef.current;
+    const fresh = rt.transcript.filter((t) => !seen.has(t.id));
+    if (fresh.length === 0) return;
+    fresh.forEach((t) => seen.add(t.id));
+    setMessages((cur) => [
+      ...cur,
+      ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg),
+    ]);
+  }, [rt.transcript]);
+  // Surface realtime errors as a toast (once per error).
+  const rtErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (rt.error && rt.error !== rtErrorRef.current) {
+      rtErrorRef.current = rt.error;
+      toast.error(rt.error);
+    }
+    if (!rt.error) rtErrorRef.current = null;
+  }, [rt.error]);
+
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
   const search = useSearch({ from: Route.id });
@@ -339,11 +373,15 @@ function CompanionPage() {
     // Priority: listening > speaking > thinking > idle. Speaking wins over
     // "thinking" so the avatar's alive presence is visible the moment audio
     // begins, even while the model is still streaming the rest of its reply.
-    if (micState === "listening") setOrbState("listening");
+    // Realtime states win when a WebRTC session is active.
+    if (rt.status === "speaking") setOrbState("speaking");
+    else if (rt.status === "thinking" || rt.status === "connecting") setOrbState("thinking");
+    else if (rt.status === "listening") setOrbState("listening");
+    else if (micState === "listening") setOrbState("listening");
     else if (voiceStatus === "speaking") setOrbState("speaking");
     else if (transcribing || sending) setOrbState("thinking");
     else setOrbState("idle");
-  }, [micState, transcribing, sending, voiceStatus]);
+  }, [micState, transcribing, sending, voiceStatus, rt.status]);
 
 
   useEffect(() => {
@@ -465,167 +503,35 @@ function CompanionPage() {
   }, [micState]);
 
 
+  // Voice turn — OpenAI Realtime over WebRTC. First tap connects and starts
+  // an always-on session (server-side VAD handles turn detection + barge-in).
+  // Subsequent taps end the session. All state transitions
+  // (listening / thinking / speaking) flow from rt.status into orbState.
   async function handleMicTap() {
-    if (micState === "listening") {
-      await micStop();
+    if (realtimeActive) {
+      await rt.disconnect();
       return;
     }
-    if (micState === "requesting" || micState === "encoding") return;
+    // Interrupt any pending greeting/TTS so the session opens cleanly.
+    try { stopSpeaking(); } catch { /* noop */ }
     prepareVoicePlayback();
     setInput("");
-    cancelMicRef.current = false;
     emitDebug("mic-start");
-    await micStart(async (blob) => {
-      emitDebug("mic-stop", blob ? `${blob.size}b` : "empty");
-      if (cancelMicRef.current) {
-        cancelMicRef.current = false;
-        return; // user pressed Cancel — discard without transcribing
-      }
-      if (!blob) {
-        toast.info("I didn't catch that. Tap Nova and try again.");
-        track({ event: "voice_turn_empty_audio" });
-        return;
-      }
-      setTranscribing(true);
-      try {
-        const token = session?.access_token;
-        if (!token) {
-          emitDebug("auth-missing", "stt-no-token");
-          toast.info("Please sign in again before using voice input.");
-          track({ event: "voice_turn_failed", stage: "auth" });
-          return;
-        }
-        const fd = new FormData();
-        fd.append("file", blob, "recording.wav");
-        if (prefs?.voiceLanguage) fd.append("language", prefs.voiceLanguage.split("-")[0]);
-        emitDebug("stt-req");
-        const resp = await fetch("/api/stt", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        const json = (await resp.json().catch(() => ({}))) as { text?: string; error?: string };
-        if (!resp.ok) {
-          emitHttpStatus({ endpoint: "/api/stt", status: resp.status, at: Date.now() });
-          emitDebug("stt-fail", `${resp.status}`);
-          toast.error(json.error || "Couldn't transcribe");
-          track({ event: "voice_turn_failed", stage: "stt" });
-          return;
-        }
-        const text = (json.text || "").trim();
-        if (!text) {
-          emitDebug("stt-ok", "empty");
-          toast.info("I didn't catch any words. You can try again or type it below.");
-          track({ event: "voice_turn_empty_transcript" });
-          return;
-        }
-        emitDebug("stt-ok", `${text.length}c`);
-        track({ event: "voice_turn_transcribed", chars: text.length });
-        setInput(text);
-        // Complete the voice loop: transcript → thinking → assistant reply.
-        // Previously this only filled the composer, which made Nova appear to
-        // stop after listening. Text is still rendered even when TTS is off or fails.
-        lastTurnViaVoiceRef.current = true;
-        void handleSend(undefined, text);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Voice input failed. You can type instead.");
-        track({ event: "voice_turn_failed", stage: "stt" });
-      } finally {
-        setTranscribing(false);
-      }
-    });
+    lastTurnViaVoiceRef.current = true;
+    await rt.connect();
   }
 
-  // Auto-reopen the mic after Aura finishes speaking so the conversation
-  // flows naturally — only when the previous turn was initiated by voice
-  // (not text typing), and only when nothing else is in flight.
+  // Legacy hold-to-talk handlers reduced to a simple tap toggle. Realtime is
+  // always-on while the session is connected, so hold-to-talk is unnecessary.
   const handleMicTapRef = useRef(handleMicTap);
   useEffect(() => { handleMicTapRef.current = handleMicTap; });
-  // Track the most recent user gesture. iOS Safari requires a live gesture
-  // context for getUserMedia + AudioContext.resume; if the tab has been idle
-  // or backgrounded, silently re-arming the mic fails and looks like "Aura
-  // stopped listening". We treat the gesture as fresh for 60s.
-  const lastGestureRef = useRef<number>(0);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mark = () => { lastGestureRef.current = Date.now(); };
-    window.addEventListener("pointerdown", mark, { passive: true });
-    window.addEventListener("keydown", mark);
-    return () => {
-      window.removeEventListener("pointerdown", mark);
-      window.removeEventListener("keydown", mark);
-    };
-  }, []);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onTurnEnded = () => {
-      if (!lastTurnViaVoiceRef.current) return;
-      if (sending || transcribing) return;
-      if (micState !== "idle") return;
-      // Only auto-reopen when the page is actually visible and the user has
-      // interacted recently — otherwise iOS won't grant mic access and the
-      // conversation stalls silently. On failure the user just taps Nova.
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      if (Date.now() - lastGestureRef.current > 60_000) return;
-      lastTurnViaVoiceRef.current = false;
-      // Small delay lets the avatar settle to "idle" before re-listening.
-      window.setTimeout(() => {
-        if (sending || transcribing || micState !== "idle") return;
-        void handleMicTapRef.current?.();
-      }, 350);
-    };
-    window.addEventListener("companion:turn-ended", onTurnEnded);
-    return () => window.removeEventListener("companion:turn-ended", onTurnEnded);
-  }, [sending, transcribing, micState]);
-
   async function cancelMicCapture() {
-    cancelMicRef.current = true;
-    await micStop();
+    await rt.disconnect();
   }
+  function handleMicPointerDown() { /* no-op: tap toggle only */ }
+  function handleMicPointerUp() { /* no-op: tap toggle only */ }
+  function handleMicClick() { void handleMicTap(); }
 
-  // Phase E — true hold-to-talk with tap-toggle fallback.
-  // - pointerdown remembers when the press began
-  // - pointerup within HOLD_THRESHOLD_MS = tap (handled by onClick toggle)
-  // - pointerup after threshold = release-to-send (stops recording)
-  const holdStartRef = useRef<number>(0);
-  const heldRef = useRef(false);
-  const pointerStartedRecordingRef = useRef(false);
-  const HOLD_THRESHOLD_MS = 350;
-  function handleMicPointerDown() {
-    if (transcribing || sending) return;
-    holdStartRef.current = performance.now();
-    heldRef.current = false;
-    pointerStartedRecordingRef.current = false;
-    // If currently idle, start capture eagerly so audio begins under the gesture.
-    if (micState === "idle") {
-      pointerStartedRecordingRef.current = true;
-      void handleMicTap();
-    }
-  }
-  function handleMicPointerUp() {
-    if (holdStartRef.current === 0) return;
-    const dt = performance.now() - holdStartRef.current;
-    holdStartRef.current = 0;
-    if (dt >= HOLD_THRESHOLD_MS && micState === "listening") {
-      heldRef.current = true;
-      void micStop(); // release sends
-    }
-    // Otherwise let the click handler toggle (tap behavior).
-  }
-  function handleMicClick() {
-    // Pointer-down already started this tap/hold gesture. Do not let the
-    // follow-up click immediately stop the recorder, especially on mobile.
-    if (pointerStartedRecordingRef.current) {
-      pointerStartedRecordingRef.current = false;
-      return;
-    }
-    // Suppress the synthetic click that follows a hold-release.
-    if (heldRef.current) {
-      heldRef.current = false;
-      return;
-    }
-    void handleMicTap();
-  }
 
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
@@ -1571,21 +1477,25 @@ function CompanionPage() {
         {localPrefs.voiceInputEnabled && (
           <Button
             type="button"
-            variant={micState === "listening" ? "default" : "outline"}
+            variant={realtimeActive ? "default" : "outline"}
             size="icon"
             className={cn(
               "h-11 w-11 shrink-0 transition",
-              micState === "listening" && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
+              realtimeActive && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
             )}
-            aria-label={micState === "listening" ? "Stop recording" : "Hold or tap to talk"}
-            aria-pressed={micState === "listening"}
-            disabled={transcribing || sending}
+            aria-label={realtimeActive ? "End voice conversation" : "Start voice conversation"}
+            aria-pressed={realtimeActive}
+            disabled={sending}
             onClick={handleMicClick}
             onPointerDown={handleMicPointerDown}
             onPointerUp={handleMicPointerUp}
             onPointerCancel={handleMicPointerUp}
           >
-            {transcribing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
+            {rt.status === "connecting" ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
           </Button>
         )}
         <Input
@@ -1607,7 +1517,7 @@ function CompanionPage() {
           </Button>
         )}
       </form>
-      {micState === "listening" && (
+      {realtimeActive && (
         <div className="mt-2 flex items-center justify-center gap-2">
           <button
             type="button"
@@ -1615,11 +1525,16 @@ function CompanionPage() {
             className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />
-            Cancel
+            End
           </button>
-          <span className="text-[11px] text-muted-foreground">or tap mic to send</span>
+          <span className="text-[11px] text-muted-foreground">
+            {rt.status === "connecting" ? "Connecting…" : rt.status === "speaking" ? "Speaking…" : rt.status === "thinking" ? "Thinking…" : "Listening — speak naturally"}
+          </span>
         </div>
       )}
+
+      {/* Remote audio sink for the OpenAI Realtime peer connection. */}
+      <audio ref={rt.remoteAudioRef} autoPlay playsInline className="hidden" />
 
       <BreathingOverlay open={breathingOpen} onClose={() => setBreathingOpen(false)} />
 

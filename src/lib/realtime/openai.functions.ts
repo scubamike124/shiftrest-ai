@@ -1,9 +1,13 @@
 /**
- * OpenAI Realtime — ephemeral session mint.
+ * OpenAI Realtime — ephemeral client_secret mint.
  *
  * Server-only. Exchanges the server-side OpenAI API key for a short-lived
- * client_secret that the browser uses to open a WebRTC session directly
- * against OpenAI Realtime. The API key never leaves the server.
+ * ephemeral token (`ek_…`) that the browser uses to open a WebRTC session
+ * directly against OpenAI Realtime via POST /v1/realtime/calls. The API
+ * key never leaves the server.
+ *
+ * Uses the newer POST /v1/realtime/client_secrets endpoint (replaces the
+ * deprecated /v1/realtime/sessions flow).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -31,71 +35,75 @@ const INSTRUCTIONS = [
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<RealtimeSessionResult> => {
-    // Reuse OPENAI_REALTIME_API_KEY if present, fall back to OPENAI_API_KEY.
+    // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
+    // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
+    // both are standard OpenAI keys.
     const apiKey =
       process.env.OPENAI_API_KEY || process.env.OPENAI_REALTIME_API_KEY;
     if (!apiKey) {
       throw new Error("OpenAI Realtime is not configured");
     }
 
-    const res = await fetch("https://api.openai.com/v1/realtime/sessions", {
+    const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        voice: DEFAULT_VOICE,
-        modalities: ["audio", "text"],
-        instructions: INSTRUCTIONS,
-        // server_vad with a long silence window so natural 2–3s mid-thought
-        // pauses don't get treated as end-of-turn. Threshold + prefix padding
-        // stay at OpenAI defaults.
-        turn_detection: {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 2500,
-          create_response: true,
-          interrupt_response: true,
+        session: {
+          type: "realtime",
+          model: DEFAULT_MODEL,
+          audio: {
+            output: { voice: DEFAULT_VOICE },
+            input: {
+              transcription: { model: "whisper-1" },
+              // semantic_vad, low eagerness → matches the tuned LiveKit
+              // behavior: natural 2–3s mid-sentence pauses don't end the turn.
+              turn_detection: {
+                type: "semantic_vad",
+                eagerness: "low",
+                create_response: true,
+                interrupt_response: true,
+              },
+            },
+          },
+          instructions: INSTRUCTIONS,
+          // Cap replies so the model doesn't compose essay-length answers.
+          max_output_tokens: 200,
         },
-        // Cap replies so the model doesn't compose essay-length answers that
-        // land with long TTS pauses at every paragraph break.
-        max_response_output_tokens: 200,
-        // Enables the transcript panel in the lab UI.
-        input_audio_transcription: { model: "whisper-1" },
       }),
     });
-
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error(
-        `[realtime/openai] session_mint_fail status=${res.status} body=${detail.slice(0, 240)}`,
+        `[realtime/openai] client_secret_mint_fail status=${res.status} body=${detail.slice(0, 240)}`,
       );
       if (res.status === 429) throw new Error("OpenAI rate limit reached");
       if (res.status === 401) throw new Error("OpenAI key rejected");
-      throw new Error("Failed to mint realtime session");
+      throw new Error("Failed to mint realtime client secret");
     }
 
+    // POST /v1/realtime/client_secrets returns:
+    //   { value: "ek_…", expires_at: <epoch seconds>, session: {...} }
     const data = (await res.json()) as {
-      client_secret?: { value?: string; expires_at?: number };
-      model?: string;
-      voice?: string;
+      value?: string;
+      expires_at?: number;
+      session?: { model?: string; audio?: { output?: { voice?: string } } };
     };
-    const value = data.client_secret?.value;
-    if (!value) throw new Error("Missing client_secret in session response");
+    const value = data.value;
+    if (!value) throw new Error("Missing client_secret value in mint response");
 
-    // OpenAI returns expires_at as epoch seconds; convert to ms.
-    const expSec = data.client_secret?.expires_at;
     const expiresAt =
-      typeof expSec === "number" ? expSec * 1000 : Date.now() + 55_000;
+      typeof data.expires_at === "number"
+        ? data.expires_at * 1000
+        : Date.now() + 55_000;
 
     return {
       clientSecret: value,
       expiresAt,
-      model: data.model ?? DEFAULT_MODEL,
-      voice: data.voice ?? DEFAULT_VOICE,
+      model: data.session?.model ?? DEFAULT_MODEL,
+      voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
     };
   });

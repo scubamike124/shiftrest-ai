@@ -27,6 +27,8 @@ export type RealtimeMetrics = {
   connectMs: number | null;
   firstAudioMs: number | null;
   lastTurnMs: number | null;
+  tokenFetchMs: number | null;
+  pcConnectedMs: number | null;
 };
 
 export type RealtimeTranscriptEvent = {
@@ -37,7 +39,7 @@ export type RealtimeTranscriptEvent = {
   at: number;
 };
 
-const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime";
+const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
   const mint = useServerFn(mintRealtimeSession);
@@ -56,6 +58,8 @@ export function useOpenAIRealtime() {
     connectMs: null,
     firstAudioMs: null,
     lastTurnMs: null,
+    tokenFetchMs: null,
+    pcConnectedMs: null,
   });
 
   const teardown = useCallback(async () => {
@@ -103,6 +107,10 @@ export function useOpenAIRealtime() {
         const next: RealtimeMetrics = { ...m };
         if (m.firstAudioMs == null && connectStartRef.current != null) {
           next.firstAudioMs = now - connectStartRef.current;
+          console.info("[realtime] first-remote-audio-frame", {
+            at: now,
+            firstAudioMs: Math.round(next.firstAudioMs),
+          });
         }
         if (turnStartRef.current != null && m.lastTurnMs !== now - turnStartRef.current) {
           next.lastTurnMs = now - turnStartRef.current;
@@ -152,12 +160,42 @@ export function useOpenAIRealtime() {
     setError(null);
     setStatus("connecting");
     setTranscript([]);
-    setMetrics({ connectMs: null, firstAudioMs: null, lastTurnMs: null });
+    setMetrics({
+      connectMs: null,
+      firstAudioMs: null,
+      lastTurnMs: null,
+      tokenFetchMs: null,
+      pcConnectedMs: null,
+    });
     connectStartRef.current = performance.now();
 
     try {
-      const session = await mint();
+      // 1) Mic FIRST — the ephemeral token is short-lived (~60s). If we
+      //    minted it before requesting mic permission, the iOS Safari
+      //    permission prompt could easily expire the token.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      micStreamRef.current = stream;
 
+      // 2) Mint ephemeral client_secret.
+      const tTokenStart = performance.now();
+      console.info("[realtime] token-fetch-start", { at: tTokenStart });
+      const session = await mint();
+      const tTokenEnd = performance.now();
+      const tokenFetchMs = tTokenEnd - tTokenStart;
+      console.info("[realtime] token-received", {
+        at: tTokenEnd,
+        tokenFetchMs: Math.round(tokenFetchMs),
+        expiresInMs: session.expiresAt - Date.now(),
+      });
+      setMetrics((m) => ({ ...m, tokenFetchMs }));
+
+      // 3) Peer connection.
       const pc = new RTCPeerConnection();
       pcRef.current = pc;
 
@@ -165,19 +203,33 @@ export function useOpenAIRealtime() {
         const el = remoteAudioRef.current;
         if (el && e.streams[0]) {
           el.srcObject = e.streams[0];
-          el.play().catch(() => { /* user gesture already satisfied by click */ });
+          el.play().catch(() => {
+            /* user gesture already satisfied by click */
+          });
         }
       };
 
       pc.onconnectionstatechange = () => {
         const s = pc.connectionState;
         if (s === "connected") {
+          const now = performance.now();
+          console.info("[realtime] peer-connection-established", {
+            at: now,
+            connectMs:
+              connectStartRef.current != null
+                ? Math.round(now - connectStartRef.current)
+                : null,
+          });
           setStatus("listening");
           setMetrics((m) => ({
             ...m,
+            pcConnectedMs:
+              connectStartRef.current != null
+                ? now - connectStartRef.current
+                : m.pcConnectedMs,
             connectMs:
               connectStartRef.current != null
-                ? performance.now() - connectStartRef.current
+                ? now - connectStartRef.current
                 : m.connectMs,
           }));
         } else if (s === "disconnected" || s === "failed") {
@@ -189,23 +241,14 @@ export function useOpenAIRealtime() {
       dcRef.current = dc;
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
 
-      // Mic capture.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      micStreamRef.current = stream;
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // SDP handshake with OpenAI Realtime.
+      // 4) SDP handshake with OpenAI Realtime (new /v1/realtime/calls endpoint).
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       const sdpRes = await fetch(
-        `${OPENAI_REALTIME_URL}?model=${encodeURIComponent(session.model)}`,
+        `${OPENAI_REALTIME_CALLS_URL}?model=${encodeURIComponent(session.model)}`,
         {
           method: "POST",
           body: offer.sdp,
@@ -217,7 +260,9 @@ export function useOpenAIRealtime() {
       );
       if (!sdpRes.ok) {
         const detail = await sdpRes.text().catch(() => "");
-        throw new Error(`OpenAI SDP exchange failed (${sdpRes.status}): ${detail.slice(0, 160)}`);
+        throw new Error(
+          `OpenAI SDP exchange failed (${sdpRes.status}): ${detail.slice(0, 160)}`,
+        );
       }
       const answerSdp = await sdpRes.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
