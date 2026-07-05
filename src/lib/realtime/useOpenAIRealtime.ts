@@ -290,7 +290,16 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
-      const session = await mint();
+      const session = await mint({
+        data: {
+          localTime: new Date().toISOString(),
+          timezone:
+            (typeof Intl !== "undefined" &&
+              Intl.DateTimeFormat().resolvedOptions().timeZone) ||
+            null,
+        },
+      });
+
       const tTokenEnd = performance.now();
       const tokenFetchMs = tTokenEnd - tTokenStart;
       console.info("[realtime] token-received", {
@@ -374,9 +383,12 @@ export function useOpenAIRealtime() {
         if (greetingSent) return;
         greetingSent = true;
         const name = session.greetingName?.trim();
+        const label = (session.greetingLabel?.trim() || "Hi");
+        const opener = name ? `${label}, ${name}.` : `${label}.`;
         const greetingInstructions = name
-          ? `Greet ${name} warmly in exactly two words, such as "Hi ${name}." or "Good afternoon, ${name}." No second sentence. Do not ask how you can help until the user speaks.`
-          : `Greet the user warmly in exactly two words, such as "Hi there." or "Good afternoon." No second sentence. Do not ask how you can help until the user speaks.`;
+          ? `Greet ${name} warmly by saying exactly: "${opener}" No second sentence. Do not ask how you can help until the user speaks.`
+          : `Greet the user warmly by saying exactly: "${opener}" No second sentence. Do not ask how you can help until the user speaks.`;
+
         try {
           dc.send(
             JSON.stringify({

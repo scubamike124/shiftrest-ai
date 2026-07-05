@@ -11,6 +11,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildTimeDirective } from "@/lib/ai/time-directive";
 
 export type RealtimeSessionResult = {
   clientSecret: string;
@@ -19,7 +20,15 @@ export type RealtimeSessionResult = {
   voice: string;
   /** First name / preferred name for the greeting; empty if unknown. */
   greetingName: string;
+  /** "Good morning" | "Good afternoon" | "Good evening"; "Hi" if unknown. */
+  greetingLabel: string;
 };
+
+export type MintRealtimeSessionInput = {
+  localTime?: string | null;
+  timezone?: string | null;
+};
+
 
 const DEFAULT_MODEL = "gpt-realtime";
 const DEFAULT_VOICE = "alloy";
@@ -36,7 +45,10 @@ const INSTRUCTIONS = [
 
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<RealtimeSessionResult> => {
+  .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
+  .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
+
+
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
     // both are standard OpenAI keys.
@@ -138,11 +150,23 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
         ? data.expires_at * 1000
         : Date.now() + 55_000;
 
+    // Time-of-day greeting label derived from the caller's local clock so
+    // the opener matches every other greeting surface in the app.
+    // buildTimeDirective collapses "night" → "Good evening".
+    const { greeting } = buildTimeDirective({
+      localTime: input.localTime ?? null,
+      timezone: input.timezone ?? null,
+    });
+    const greetingLabel = greeting ?? "Hi";
+
+
     return {
       clientSecret: value,
       expiresAt,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
       greetingName,
+      greetingLabel,
     };
+
   });
