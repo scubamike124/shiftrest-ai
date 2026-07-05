@@ -58,11 +58,13 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
             output: { voice: DEFAULT_VOICE },
             input: {
               transcription: { model: "whisper-1" },
-              // semantic_vad, low eagerness → matches the tuned LiveKit
-              // behavior: natural 2–3s mid-sentence pauses don't end the turn.
+              // semantic_vad with `auto` eagerness: end-of-turn is detected
+              // in ~500ms after natural pauses instead of the multi-second
+              // wait `low` imposes. Still tolerates mid-sentence pauses
+              // because semantic VAD scores intent, not silence length.
               turn_detection: {
                 type: "semantic_vad",
-                eagerness: "low",
+                eagerness: "auto",
                 create_response: true,
                 interrupt_response: true,
               },
