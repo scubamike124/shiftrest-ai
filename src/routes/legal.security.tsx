@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
 
-const DOC = findLegalDoc("security")!;
+export const DOC = findLegalDoc("security")!;
 
 export const Route = createFileRoute("/legal/security")({
   head: () => ({
