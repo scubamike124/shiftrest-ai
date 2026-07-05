@@ -57,6 +57,8 @@ export function useOpenAIRealtime() {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const connectStartRef = useRef<number | null>(null);
   const turnStartRef = useRef<number | null>(null);
+  const turnEndAtRef = useRef<number | null>(null);
+  const awaitingFirstReplyAudioRef = useRef<boolean>(false);
 
   const [status, setStatus] = useState<RealtimeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
