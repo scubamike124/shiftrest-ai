@@ -373,7 +373,11 @@ function CompanionPage() {
     // Priority: listening > speaking > thinking > idle. Speaking wins over
     // "thinking" so the avatar's alive presence is visible the moment audio
     // begins, even while the model is still streaming the rest of its reply.
-    if (micState === "listening") setOrbState("listening");
+    // Realtime states win when a WebRTC session is active.
+    if (rt.status === "speaking") setOrbState("speaking");
+    else if (rt.status === "thinking" || rt.status === "connecting") setOrbState("thinking");
+    else if (rt.status === "listening") setOrbState("listening");
+    else if (micState === "listening") setOrbState("listening");
     else if (voiceStatus === "speaking") setOrbState("speaking");
     else if (transcribing || sending) setOrbState("thinking");
     else setOrbState("idle");
