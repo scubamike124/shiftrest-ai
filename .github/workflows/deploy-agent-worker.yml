@@ -63,6 +63,7 @@ jobs:
           fi
           # CI stdin is not a TTY, so SkipPrompts() is already true; no --yes needed.
           lk project add \
+            --url "$LIVEKIT_URL" \
             --api-key "$LIVEKIT_API_KEY" \
             --api-secret "$LIVEKIT_API_SECRET" \
             "$LIVEKIT_PROJECT_NAME"
