@@ -180,6 +180,39 @@ function CompanionPage() {
   const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 2200, maxMs: 15_000, noSpeechMs: 10_000 });
   const [transcribing, setTranscribing] = useState(false);
 
+  // Voice engine — OpenAI Realtime over WebRTC. Replaces the legacy
+  // STT → /api/ai → TTS loop for spoken turns. Text (typed) messages still
+  // flow through handleSend + /api/ai + speak() so action cards, intent
+  // routing, quiet hours, and ElevenLabs voice prefs remain intact.
+  const rt = useOpenAIRealtime();
+  const realtimeActive =
+    rt.status === "connecting" ||
+    rt.status === "listening" ||
+    rt.status === "thinking" ||
+    rt.status === "speaking";
+  // Push realtime transcript entries into the conversation as they arrive.
+  const rtSeenTranscriptRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (rt.transcript.length === 0) return;
+    const seen = rtSeenTranscriptRef.current;
+    const fresh = rt.transcript.filter((t) => !seen.has(t.id));
+    if (fresh.length === 0) return;
+    fresh.forEach((t) => seen.add(t.id));
+    setMessages((cur) => [
+      ...cur,
+      ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg),
+    ]);
+  }, [rt.transcript]);
+  // Surface realtime errors as a toast (once per error).
+  const rtErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (rt.error && rt.error !== rtErrorRef.current) {
+      rtErrorRef.current = rt.error;
+      toast.error(rt.error);
+    }
+    if (!rt.error) rtErrorRef.current = null;
+  }, [rt.error]);
+
   // Slice 4 — sound command bridge. Pending confirmation for low-confidence guesses.
   const navigate = useNavigate();
   const search = useSearch({ from: Route.id });
