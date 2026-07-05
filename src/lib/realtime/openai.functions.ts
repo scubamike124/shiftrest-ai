@@ -11,7 +11,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { greetingForHour } from "@/lib/ai/time-directive";
+import { buildTimeDirective } from "@/lib/ai/time-directive";
 
 export type RealtimeSessionResult = {
   clientSecret: string;
