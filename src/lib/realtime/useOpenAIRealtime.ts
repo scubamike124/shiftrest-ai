@@ -27,6 +27,8 @@ export type RealtimeMetrics = {
   connectMs: number | null;
   firstAudioMs: number | null;
   lastTurnMs: number | null;
+  tokenFetchMs: number | null;
+  pcConnectedMs: number | null;
 };
 
 export type RealtimeTranscriptEvent = {
@@ -37,7 +39,7 @@ export type RealtimeTranscriptEvent = {
   at: number;
 };
 
-const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime";
+const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
   const mint = useServerFn(mintRealtimeSession);
