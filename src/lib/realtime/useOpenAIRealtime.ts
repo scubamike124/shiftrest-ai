@@ -68,6 +68,10 @@ export function useOpenAIRealtime() {
     lastTurnMs: null,
     tokenFetchMs: null,
     pcConnectedMs: null,
+    lastTurnEndAt: null,
+    lastFirstReplyAudioAt: null,
+    lastReplyLatencyMs: null,
+    turnCount: 0,
   });
 
   const teardown = useCallback(async () => {
