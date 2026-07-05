@@ -290,7 +290,16 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
-      const session = await mint();
+      const session = await mint({
+        data: {
+          localTime: new Date().toISOString(),
+          timezone:
+            (typeof Intl !== "undefined" &&
+              Intl.DateTimeFormat().resolvedOptions().timeZone) ||
+            null,
+        },
+      });
+
       const tTokenEnd = performance.now();
       const tokenFetchMs = tTokenEnd - tTokenStart;
       console.info("[realtime] token-received", {
