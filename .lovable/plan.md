@@ -1,43 +1,58 @@
-# Plan
+# Plan — Recovery label fix + Realtime voice wiring
 
-## 1) Greeting fix — time-of-day salutation
+Two independent fixes shipped in one publish.
 
-Change the auto-greeting sent right after the WebRTC data channel opens so it uses the user's actual local time-of-day label ("Good morning" / "Good afternoon" / "Good evening") followed by their name, instead of the current generic "Hi {name}."
+## 1) Relabel the schedule-shape score
 
-### Where
+Rename the `100 - circadian debt` number everywhere it appears, so it stops colliding with the wearable-aware "Recovery" score in the AI Coach Brief. No math changes.
 
-- `src/lib/realtime/openai.functions.ts` — the `mintRealtimeSession` server function that returns the session payload consumed by the client. It already returns `greetingName`; it will also return `greetingLabel` derived from the caller's local time.
-  - Accept an optional `localTime` (ISO string) and `timezone` input from the client (same shape used elsewhere via `buildTimeDirective`).
-  - Compute the label server-side using the existing canonical helper `greetingForHour` from `src/lib/ai/time-directive.ts` (which delegates to `getDayPart` in `src/lib/time/day-part.ts`) so it stays consistent with every other greeting surface in the app. Collapse "night" → "Good evening" as that helper already does.
-  - Return `greetingLabel: "Good morning" | "Good afternoon" | "Good evening"` (fallback `"Hi"` if time is missing).
+**`src/components/home/CompanionHero.tsx`** — hero context strip:
+- `Recovery {recoveryScore}% · Sleep debt {debtScore}` → `Schedule stability {recoveryScore}% · Sleep debt {debtScore}`
 
-- `src/lib/realtime/useOpenAIRealtime.ts` — the `connect()` flow and `dc.onopen` greeting trigger.
-  - Pass `localTime: new Date().toISOString()` and `timezone: Intl.DateTimeFormat().resolvedOptions().timeZone` into `mint()`.
-  - In `dc.onopen`, build the greeting instructions from `session.greetingLabel` + `session.greetingName`:
-    - With name: `Greet {name} warmly in exactly two words: "{label}, {name}." No second sentence. Do not ask how you can help until the user speaks.`
-    - Without name: `Greet the user warmly in exactly two words: "{label}." No second sentence. Do not ask how you can help until the user speaks.`
-  - Keep the existing once-per-session guard (`greetingSent`) so it never fires twice.
+**`src/routes/dashboard.tsx`** — the "Today's Readiness" card at ~line 365-394:
+- Eyebrow `"Recovery"` → `"Schedule"`
+- Title `"Today's Readiness"` → `"Schedule stability"`
+- Keep the `stability` number, rotation label, and "Circadian debt: X/100" line as-is.
 
-No other surfaces or business logic change.
+The `CompanionHero` internal prop name stays `recoveryScore` (it's just a variable), so no other call sites change. The AI Coach Brief keeps its "Recovery" label — that one is the true wearable-aware score.
 
-## 2) Silent-stop — investigate only, no code changes
+## 2) Wire Profile voice/personality/speed to the live Realtime session
 
-Before touching anything, capture what the Realtime API actually reported for the turn that ended on "…relaxing your body and mind."
+All changes in **`src/lib/realtime/openai.functions.ts`**.
 
-### How I'll investigate
+### Load the user's voice profile
+Add a helper that loads the same six `user_prefs` columns `/api/tts.ts` reads (`voice_id`, `voice_language`, `voice_accent`, `voice_personality`, `voice_speed`, `voice_instructions`) using `supabaseAdmin` inside the handler (same pattern as the greeting-name lookup already there). Returns `DEFAULT_VOICE_PROFILE` on any miss so a signed-in user with no saved prefs still gets a sensible session.
 
-- Read the AI Gateway logs for the most recent Realtime session and inspect the `response.done` event for that turn (`status`, `status_details.type`, `status_details.reason`, `usage.output_tokens`). The client already logs and surfaces these in the debug HUD (`src/lib/realtime/useOpenAIRealtime.ts` → `debugEvents`), and the same info is available in the gateway request detail.
-- Compare against a real cutoff turn (mid-word "gentle stretch") to confirm the signature difference.
+### Map to session config
+- **Voice**: validate `voice_id` against `VOICE_OPTIONS` from `src/lib/voice/profile.ts`. If invalid or missing, fall back to `"marin"` (per OpenAI's Realtime voice recommendations); update `DEFAULT_VOICE` accordingly. Feed into `session.audio.output.voice`.
+- **Speed**: clamp `voice_speed` to `[0.25, 1.5]` (Realtime API range) and set `session.audio.output.speed`. Default 1.0.
+- **Instructions**: build a combined string:
+  1. Existing reply-shape rules (short sentences, clear follow-up question, no lecturing) — kept verbatim.
+  2. `buildInstructions({ personality, accent, language, instructionsOverride }, "normal")` from `src/lib/voice/profile.ts` — adds tone, accent, language.
+  3. A pacing hint derived from the speed tier — e.g. `speed < 0.95` → "Pace yourself calmly and unhurried."; `speed > 1.05` → "Keep a brisk, energetic pace."; otherwise "Speak at a measured, natural pace." Per OpenAI guidance the model doesn't self-adjust cadence from the speed multiplier alone; this closes the gap.
 
-### Decision matrix (no fix applied yet — will report back first)
+If the user has a non-empty `voice_instructions` override, `buildInstructions()` already returns that verbatim — respected as-is.
 
-- `status: "completed"` → model finished its turn normally. Root cause is conversation design (assistant treated it as a natural pause and is waiting for the user). Fix would live in the session `instructions` / turn-detection settings, not `max_output_tokens`. I will propose that fix in a follow-up plan.
-- `status: "incomplete"`, `reason: "max_output_tokens"`, `output_tokens: 2000` → same category as the earlier cutoffs, 2000 still not enough. Fix would be another bump (or removing the hard cap and relying on prompt discipline).
-- Anything else (e.g. `content_filter`, `interruption`, transport error, no `response.done` at all) → separate root cause; I'll report the exact event and propose a targeted fix.
+### Return shape
+Add `voice` (validated) to the existing `RealtimeSessionResult` (already there) and leave the greeting fields untouched. The client hook already reads `session.voice` for logging only, so nothing else needs to change.
 
-I will report the raw event fields back to you before implementing anything for #2.
+## Technical notes
 
-## Out of scope
+- All lookups happen server-side inside `.handler()` — no client changes, no new server functions.
+- `supabaseAdmin` is loaded lazily inside the handler (same pattern already used for greeting-name), safe under Cloudflare Worker rules.
+- `VOICE_OPTIONS` and `buildInstructions` are already client-safe pure modules; importing them at the top of the server-fn file is fine.
+- Speed can only change between turns (OpenAI constraint). We set it once at session mint; that matches the pref surface — users pick once in Profile.
+- The Realtime API sends the greeting `response.create` from the client hook (`useOpenAIRealtime.ts:381-405`). The session-level `instructions` set at mint time apply to that greeting *and* every subsequent turn, so no changes are needed in the client hook.
 
-- No changes to token limits, turn detection, VAD, or system instructions in this plan.
-- No changes to any other greeting surface (Home, Companion cards, briefs) — those already use the canonical helper.
+## Verification before publishing
+
+1. Typecheck.
+2. Read back the file to confirm the `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chain is intact.
+3. Publish.
+4. Ask you to switch to a distinctly different voice (e.g. Ash — male, steady) + Coach personality + speed 1.2 in Profile, start a Companion session, and confirm both voice timbre and pacing changed.
+
+## Files touched
+
+- `src/components/home/CompanionHero.tsx` — one line, label swap
+- `src/routes/dashboard.tsx` — two strings in the Readiness card
+- `src/lib/realtime/openai.functions.ts` — profile lookup + session-config wiring
