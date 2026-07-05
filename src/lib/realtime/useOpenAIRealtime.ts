@@ -354,10 +354,17 @@ export function useOpenAIRealtime() {
       };
 
       pc.oniceconnectionstatechange = () => {
+        const s = pc.iceConnectionState;
         console.info("[realtime] ice-connection-state", {
           at: performance.now(),
-          state: pc.iceConnectionState,
+          state: s,
         });
+        if (s === "disconnected" || s === "failed" || s === "closed") {
+          setDebugEvents((prev) => [
+            ...prev.slice(-9),
+            { at: Date.now(), kind: "ice", message: s },
+          ]);
+        }
       };
 
       const dc = pc.createDataChannel("oai-events");
@@ -365,8 +372,13 @@ export function useOpenAIRealtime() {
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
       dc.onopen = () =>
         console.info("[realtime] datachannel-open", { at: performance.now() });
-      dc.onclose = () =>
+      dc.onclose = () => {
         console.warn("[realtime] datachannel-close", { at: performance.now() });
+        setDebugEvents((prev) => [
+          ...prev.slice(-9),
+          { at: Date.now(), kind: "datachannel-close" },
+        ]);
+      };
       dc.onerror = (e) =>
         console.error("[realtime] datachannel-error", {
           at: performance.now(),
