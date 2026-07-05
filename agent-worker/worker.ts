@@ -84,12 +84,10 @@ export default defineAgent({
       model: "gpt-realtime",
       voice: "marin",
       turnDetection: {
-        type: "server_vad",
-        threshold: 0.5,
-        prefix_padding_ms: 500,
-        silence_duration_ms: 500,
+        type: "semantic_vad",
+        eagerness: "low",
         create_response: true,
-        interrupt_response: false,
+        interrupt_response: true,
       },
     });
 
