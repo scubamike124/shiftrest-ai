@@ -142,5 +142,6 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       expiresAt,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
+      greetingName,
     };
   });
