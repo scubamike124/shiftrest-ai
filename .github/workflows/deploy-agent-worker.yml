@@ -1,0 +1,59 @@
+name: Deploy LiveKit Agent Worker
+
+# Deploys agent-worker/ to LiveKit Cloud whenever its source changes on the
+# default branch. Also runnable on-demand via the "Run workflow" button in
+# the GitHub Actions UI.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent-worker/**'
+      - '.github/workflows/deploy-agent-worker.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-agent-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: lk agent deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install LiveKit CLI
+        run: |
+          curl -sSL https://get.livekit.io/cli | bash
+          echo "$HOME/.livekit/bin" >> "$GITHUB_PATH"
+          # Fallback: some installers drop the binary into /usr/local/bin.
+          which lk || true
+
+      - name: Verify LiveKit CLI
+        run: lk --version
+
+      - name: Deploy agent-worker to LiveKit Cloud
+        working-directory: agent-worker
+        env:
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+        run: |
+          # `lk agent deploy` re-uses the existing pilot-realtime agent defined
+          # in agent-worker/livekit.toml and rebuilds it from the Dockerfile.
+          # If this is the very first deploy for the project, swap to
+          # `lk agent create` (one-time) — subsequent runs use deploy.
+          lk agent deploy
+
+      - name: Report agent status
+        if: always()
+        working-directory: agent-worker
+        env:
+          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+        run: lk agent status || true
