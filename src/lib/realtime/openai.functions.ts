@@ -106,8 +106,9 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
             },
           },
           instructions: INSTRUCTIONS,
-          // Cap replies so the model doesn't compose essay-length answers.
-          max_output_tokens: 200,
+          // Give longer answers enough room to finish, while the system
+          // prompt still keeps the model conversational and concise.
+          max_output_tokens: 1000,
         },
       }),
     });
