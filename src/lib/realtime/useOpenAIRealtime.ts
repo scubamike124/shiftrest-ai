@@ -162,9 +162,33 @@ export function useOpenAIRealtime() {
         return next;
       });
     } else if (type === "response.done" || type === "response.completed") {
+      const response = (evt as { response?: Record<string, unknown> }).response;
+      const status = response?.status;
+      const statusDetails = response?.status_details as
+        | { type?: string; reason?: string; error?: unknown }
+        | undefined;
+      const usage = response?.usage as
+        | { output_tokens?: number; total_tokens?: number }
+        | undefined;
+      console.info("[realtime] response.done", {
+        at: performance.now(),
+        status,
+        statusType: statusDetails?.type,
+        statusReason: statusDetails?.reason,
+        statusError: statusDetails?.error,
+        outputTokens: usage?.output_tokens,
+        totalTokens: usage?.total_tokens,
+        full: response,
+      });
       turnEndAtRef.current = null;
       awaitingFirstReplyAudioRef.current = false;
       setStatus("listening");
+    } else if (type === "error" || type === "response.error") {
+      console.error("[realtime] error-event", {
+        at: performance.now(),
+        type,
+        event: evt,
+      });
     }
 
     // Transcript events (best-effort — OpenAI event names vary by model version).
@@ -282,13 +306,38 @@ export function useOpenAIRealtime() {
                 : m.connectMs,
           }));
         } else if (s === "disconnected" || s === "failed") {
+          console.warn("[realtime] peer-connection-state", {
+            at: performance.now(),
+            state: s,
+          });
           setStatus(s === "failed" ? "error" : "disconnected");
+        } else {
+          console.info("[realtime] peer-connection-state", {
+            at: performance.now(),
+            state: s,
+          });
         }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.info("[realtime] ice-connection-state", {
+          at: performance.now(),
+          state: pc.iceConnectionState,
+        });
       };
 
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
+      dc.onopen = () =>
+        console.info("[realtime] datachannel-open", { at: performance.now() });
+      dc.onclose = () =>
+        console.warn("[realtime] datachannel-close", { at: performance.now() });
+      dc.onerror = (e) =>
+        console.error("[realtime] datachannel-error", {
+          at: performance.now(),
+          event: e,
+        });
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
