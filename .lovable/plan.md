@@ -1,133 +1,114 @@
-# Final Security Verification
+# RestPilot Pre-Launch QA Plan
 
-Investigation only. Nothing changed. Awaiting your approval before touching anything.
+One-pass end-to-end test. For every item: **Test → Expected → Bug if → Priority** (Blocker / Major / Minor).
 
----
+Priorities:
+- **Blocker** — cannot launch (auth broken, payments broken, data loss, crashes, security hole).
+- **Major** — core feature degraded but launchable with a workaround.
+- **Minor** — polish, copy, layout, non-critical UX.
 
-## 1. Executive Summary
-
-Security posture is **strong and launch-ready** with **zero Critical or High findings**. All previously implemented controls are wired and working:
-
-- Rate limiting (AI, TTS, STT), contact-form spam protection (honeypot + min-time + IP throttle + content heuristics), owner-alert pipeline (ops_alert + dedupe + hourly cap), Stripe webhook signature verification, `/api/lab/*` bearer + role gate, RLS on every user-data table, service-role client isolated to `.server.ts` modules, no secrets in client bundles.
-
-Scanner returned **24 findings — all `warn` level** (Supabase database linter). None are Critical/High. They fall into three groups: 4 functions missing `SET search_path` (defense-in-depth), 20 SECURITY DEFINER functions callable by anon/authenticated (these are the pgmq queue wrappers used by design + `has_role`/`has_active_subscription`/`has_ai_budget`/`get_partner_share`, which SHOULD be callable — the finding is a policy hint, not an exposure).
-
-**One legacy fallback** in cron auth (accepts the anon key as a fallback) is the only meaningful remaining item — Medium, documented as intentional rollover code, safe to remove now that all cron jobs use `CRON_SECRET`.
-
-**No launch blockers.**
+Test on: latest Chrome desktop, latest Safari iOS, latest Chrome Android. Use one fresh test account per flow.
 
 ---
 
-## 2. Security Findings
+## 1. Homepage
+1. Load `/` on desktop and mobile; check hero, nav, CTAs, footer, images, fonts, no console errors.
+2. **Expected:** Renders under 2s, all links resolve, no layout shift, correct title/meta, favicon present.
+3. **Bug if:** Broken image, dead link, wrong brand copy, CLS jump, missing meta/OG tags, hydration warning in console.
+4. **Priority:** Blocker (crash / white screen), Major (dead primary CTA), Minor (spacing, copy).
 
-### Verified Working (no action)
+## 2. Signup
+1. Email+password signup, Google signup, weak-password rejection, duplicate-email rejection, verification email delivery, redirect after signup.
+2. **Expected:** Account created, verification email arrives < 60s, user lands on dashboard or "check email" screen, profile row exists.
+3. **Bug if:** No email, silent failure, account created without profile, error text is a raw stack, verification link 404s, user session not established.
+4. **Priority:** Blocker (any signup path fails or no email), Major (Google works but email doesn't or vice versa), Minor (copy/validation message).
 
-| # | Control | Evidence |
-|---|---|---|
-| S1 | AI rate limit (20/min per user) | `src/routes/api/ai.ts:286-287`, `src/routes/api/brief.ts:83-84` + `RATE_LIMITS.ai` |
-| S2 | TTS rate limit (30/min per user) | `src/routes/api/tts.ts:93`, `src/routes/api/tts-elevenlabs.ts:45` |
-| S3 | STT rate limit (30/min per user) | `src/routes/api/stt.ts:45` |
-| S4 | Rate limiter uses service-role + Postgres RPC (client cannot bypass) | `src/lib/api/ratelimit.server.ts` |
-| S5 | Contact honeypot (`hp` must be empty) | `src/routes/api/public/contact.ts:15` |
-| S6 | Contact min-time-to-submit (3s) | `src/routes/api/public/contact.ts:MIN_ELAPSED_MS` |
-| S7 | Contact IP rate limit (5/15min pre-parse) | `src/routes/api/public/contact.ts` + `enforceRateLimit` |
-| S8 | Contact content heuristics (link density, blocklist, char runs) | `looksLikeSpam` in contact.ts |
-| S9 | Owner alerts: dedupe (10min) + hourly cap (20/service) + always-persist | `src/lib/ops/alert.server.ts` |
-| S10 | Owner alerts wired into ai/tts/tts-elevenlabs/stt/brief/swap/insights/payments/contact/queue/global-error-mw | 12 call sites confirmed |
-| S11 | Stripe webhook HMAC-SHA256 signature verification + 5-min timestamp tolerance | `verifyWebhook` in `src/lib/stripe.server.ts` |
-| S12 | Stripe env keyed by `?env=` query param | `src/routes/api/public/payments/webhook.ts` |
-| S13 | Lab API bearer + role gate (tester or admin) | `src/lib/api/lab-gate.server.ts` |
-| S14 | `_authenticated` layout gates all authenticated routes (integration-managed) | `src/routes/_authenticated/route.tsx` |
-| S15 | Admin/tester checks always via `has_role` RPC (never client-side) | grep confirms only server code calls `has_role` |
-| S16 | Service-role key never imported in client-reachable module scope | all `process.env.SUPABASE_SERVICE_ROLE_KEY` reads are inside `.server.ts`/handlers |
-| S17 | No `import.meta.env.VITE_*` exposes secrets — only URL, publishable key, feature flags, payments client token | `rg import.meta.env.VITE_` review |
-| S18 | No `dangerouslySetInnerHTML` on user input | grep clean |
-| S19 | RLS enabled on all user data tables, `has_role`/`has_active_subscription` SECURITY DEFINER helpers isolate role checks | `supabase-tables` inventory + `db-functions` |
-| S20 | Cron endpoints require `x-cron-secret` header matching `CRON_SECRET` | `src/lib/api/cron-auth.server.ts` |
-| S21 | Same-origin only (no CORS `Allow-Origin: *`) | grep clean |
-| S22 | No debug/health endpoints exposed publicly (lab routes gated) | route audit clean |
+## 3. Login
+1. Correct creds, wrong password, unknown email, Google login, "remember me" across reload, logout, session persistence after browser restart.
+2. **Expected:** Correct creds land on dashboard; wrong creds show clear error; logout clears session and redirects to `/`.
+3. **Bug if:** Infinite spinner, token not cleared on logout, protected route accessible after logout, session lost on reload.
+4. **Priority:** Blocker (login broken or session leaks after logout), Major (Google broken), Minor (error wording).
 
-### Findings To Address (all Low/Medium, none launch-blocking)
+## 4. Password Reset
+1. Request reset from forgot-password page, receive email, follow link, land on `/reset-password`, set new password, log in with new password, confirm old password no longer works.
+2. **Expected:** Email arrives, `/reset-password` shows form (not auto-login), new password works, old fails.
+3. **Bug if:** User auto-logged in without entering a new password, link 404s, new password not saved, no email.
+4. **Priority:** Blocker (auto-login without reset — security), Major (no email), Minor (copy).
 
-| # | Finding | Level | Files |
-|---|---|---|---|
-| F1 | `cron-auth.server.ts` still accepts the Supabase publishable/anon key as a fallback. The anon key is embedded in the client bundle, so anyone could POST to `/api/public/hooks/notify` / `dispatch-alarms` / `ai-learn` / `subscription-lifecycle` / `wearables/cron` and force a run. Comment says "delete this block after rollover is verified" — rollover is done, all cron jobs now use `CRON_SECRET`. | **Medium** | `src/lib/api/cron-auth.server.ts` |
-| F2 | 4 SECURITY DEFINER functions lack `SET search_path = ''`: `enqueue_email`, `read_email_batch`, `delete_email`, `move_to_dlq`. Defense-in-depth against search_path hijacking. All are pgmq wrappers; risk is low because pgmq schema is trusted, but Supabase linter flags it. | Low | migration |
-| F3 | 20 SECURITY DEFINER functions callable by anon/authenticated per linter. Reviewed each: `has_role`, `has_active_subscription`, `has_ai_budget`, `get_partner_share`, `rate_limit_hit`, `rate_limit_prune`, `email_queue_wake`, `email_queue_dispatch`, `handle_new_user`, `set_updated_at`, and the pgmq wrappers. Every one is called intentionally from RLS policies, the app, or triggers. This is a **policy hint, not an exposure**. | Info (accept) | n/a |
-| F4 | No HTTP security headers (`Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`). Lovable's edge sets HSTS and X-Content-Type-Options by default, but CSP is missing. Adding CSP requires cataloguing every third-party origin (Stripe, ElevenLabs, LiveKit, Simli, OpenAI, Supabase, Lovable, web-push) and risks breakage; suggest a `report-only` policy first. | Medium (deferrable) | new `src/routes/__root.tsx` head or edge config |
-| F5 | Auth: leaked-password (HIBP) check status not visible from this side. Should be enabled in Cloud → Users → Auth Settings. | Low (owner confirm) | none |
-| F6 | Contact form heuristics do not include an obvious "message == subject" or "email domain == disposable" check. Optional hardening; current filters are reasonable. | Low (nice-to-have) | `src/routes/api/public/contact.ts` |
+## 5. Dashboard
+1. First-load state for new user, populated state for returning user, all widgets/cards render, navigation between sections, refresh preserves state, unauthenticated user redirected to login.
+2. **Expected:** Data loads with skeleton, no flicker, all links work, empty states are friendly.
+3. **Bug if:** Unauth user sees data, RLS error surfaced to UI, widget stuck loading, wrong user's data visible.
+4. **Priority:** Blocker (cross-user data leak), Major (widget broken), Minor (empty-state copy).
 
----
+## 6. AI Companion
+1. Send a message, receive streamed reply, long conversation (>10 turns), error handling on empty input, rate-limit behavior, message history persists across reload.
+2. **Expected:** Reply streams within 2s, history saved to user's account only, errors surfaced clearly.
+3. **Bug if:** No reply, reply from another user's context, streaming hangs, history lost, key exposed in network tab.
+4. **Priority:** Blocker (key exposed or cross-user leak), Major (no reply / hangs), Minor (typing indicator polish).
 
-## 3. Verification Results
+## 7. Voice / LiveKit
+1. Grant mic permission, start voice session, agent greets, two-way conversation, turn-taking, barge-in (interrupt agent), end session, mic released, reconnect after network blip, mobile Safari + Android Chrome.
+2. **Expected:** Agent connects < 5s, greeting plays, latency feels natural (< ~1s), interruption stops agent audio, session ends cleanly, mic indicator turns off.
+3. **Bug if:** No audio, one-way audio, agent talks over user without stopping, echo, mic stays hot after end, session won't reconnect, LiveKit token errors in console.
+4. **Priority:** Blocker (no audio either direction, mic not released, token failure), Major (bad latency, no barge-in), Minor (greeting wording).
 
-- **Scanner run:** 24 findings, 0 error/critical, 24 warn. Full breakdown in §2/F2/F3.
-- **Type-check:** clean (last verified on last item, no changes since).
-- **Client bundle secret leaks:** none — no `process.env.SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_*_API_KEY`, `LOVABLE_API_KEY`, `ELEVENLABS_API_KEY`, `SIMLI_API_KEY`, `OPENAI_REALTIME_API_KEY`, `LIVEKIT_API_SECRET`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`, `PAYMENTS_*_WEBHOOK_SECRET` in any client-reachable module scope.
-- **Debug endpoints:** none public. `/lab/*` UI hidden in prod and lab APIs gated by tester/admin.
-- **Dev-only code exposed:** `DebugHUD` component gated by `import.meta.env.DEV`; `PWA UpdateBanner` gated by `PROD`. Safe.
-- **Unused admin routes:** none found.
-- **Owner alert pipeline live:** confirmed one recent `ops_alert` row from contact-form send with `emailed=true`.
+## 8. Smart Alarm
+1. Create alarm, edit, delete, alarm triggers at correct time (foreground and background), snooze, notification permission flow, alarm survives reload, timezone correctness.
+2. **Expected:** Fires at exact local time, notification shown, snooze reschedules, deleted alarms don't fire.
+3. **Bug if:** Fires late/early/never, fires in wrong timezone, deleted alarm still rings, no permission prompt.
+4. **Priority:** Blocker (alarm never fires or wrong time), Major (snooze broken), Minor (icon/label).
 
----
+## 9. Payments
+1. Open checkout on test card, complete successful payment, decline card, cancel mid-checkout, verify entitlement unlocks in-app immediately, verify webhook updates DB, verify receipt email, try duplicate payment, verify subscription renewal state (if applicable), refund/cancellation flow.
+2. **Expected:** Success unlocks feature within seconds, DB reflects state, receipt email arrives, decline shows clear message, cancel returns user to prior state with no charge.
+3. **Bug if:** Charge succeeds but entitlement not granted, feature unlocked without payment, double-charge, webhook silently failing, price mismatch vs displayed price.
+4. **Priority:** Blocker (any money/entitlement mismatch), Major (receipt missing, slow unlock > 30s), Minor (copy).
 
-## 4. Remaining Risks
+## 10. Emails / Notifications
+1. Signup confirmation, password reset, transactional (payment receipt, alarm summary, etc.), unsubscribe link works, from-address is branded domain, not in spam (Gmail + Outlook).
+2. **Expected:** All emails arrive < 60s from correct sender, render on mobile and desktop clients, links resolve, unsubscribe honored.
+3. **Bug if:** Landed in spam, wrong sender, broken template, unsubscribe doesn't stop mail, dead link.
+4. **Priority:** Blocker (auth emails missing), Major (spam folder, payment receipt missing), Minor (template polish).
 
-Ordered by residual risk after this audit:
+## 11. Legal Pages
+1. Terms, Privacy, Cookie/consent (if EU), refund policy, contact — reachable from footer, up-to-date date, correct company name, no lorem ipsum.
+2. **Expected:** All present, indexed, readable on mobile, linked from signup and footer.
+3. **Bug if:** 404, placeholder text, missing from signup flow, outdated date.
+4. **Priority:** Blocker (missing Terms/Privacy at signup — legal), Major (placeholder text), Minor (typo).
 
-1. **F1 (Medium)** — legacy cron auth fallback allowing anon-key trigger. Real exposure: anonymous request cost + a chance to force notification/subscription-sweep runs. Cannot exfiltrate data (all writes are for the logged-in user's own state); mostly a nuisance/abuse vector.
-2. **F4 (Medium)** — missing CSP. Reduces defense-in-depth against XSS if a template escape ever slips; no user-generated HTML is rendered today, so risk is low.
-3. **F2 (Low)** — search_path on pgmq wrappers.
-4. **F5 (Low)** — HIBP enable confirmation.
-5. **F6 (Low)** — extra contact heuristics.
+## 12. Mobile Home Screen App Behavior
+1. iOS Safari "Add to Home Screen": correct name, icon, splash color, standalone display, status-bar style, no browser chrome. Same on Android Chrome install.
+2. **Expected:** Installs with correct branding, opens standalone, safe-area respected (notch/home indicator), no white flash.
+3. **Bug if:** Generic icon, wrong name, opens in browser tab, content hidden behind notch, no manifest.
+4. **Priority:** Major (broken install), Minor (icon polish, splash color).
 
----
+## 13. Error Handling
+1. Kill network mid-request, submit invalid forms, hit unknown route, force a server 500, expired session while using app, offline reload.
+2. **Expected:** Friendly error UI, retry option where applicable, 404 page for unknown routes, expired session redirects to login without data loss where possible.
+3. **Bug if:** White screen, raw stack trace shown, unhandled promise rejection in console, silent data loss on submit.
+4. **Priority:** Blocker (white screen on common error), Major (stack traces visible), Minor (wording).
 
-## 5. Files Affected (by proposed fix)
+## 14. Performance
+1. Lighthouse mobile run on homepage + dashboard, LCP, CLS, TBT, bundle size, image formats, cached reload, cold reload on 4G throttling.
+2. **Expected:** LCP < 2.5s, CLS < 0.1, TBT < 300ms, images lazy/optimized, no > 500KB single JS chunk.
+3. **Bug if:** LCP > 4s, CLS > 0.25, unoptimized images, blocking third-party scripts.
+4. **Priority:** Major (LCP > 4s on mobile), Minor (image format, small CLS).
 
-- F1: `src/lib/api/cron-auth.server.ts` (delete the ~10-line legacy fallback block; keep `x-cron-secret` path only).
-- F2: one new migration setting `SET search_path = ''` on the 4 pgmq wrapper functions.
-- F4: `src/routes/__root.tsx` (add meta CSP report-only) OR platform-level headers if Lovable exposes them.
-- F5: no code — Cloud dashboard toggle.
-- F6: `src/routes/api/public/contact.ts` (optional).
-
----
-
-## 6. Risk Levels
-
-- **Critical:** none.
-- **High:** none.
-- **Medium:** F1, F4.
-- **Low:** F2, F5, F6.
-- **Info (accept):** F3.
-
----
-
-## 7. Recommended Implementation Order
-
-Each row is one small, testable batch you approve before I move on.
-
-```text
-1. F1  Remove legacy anon-key fallback in cron-auth              Medium   (small)
-2. F2  Add SET search_path = '' to 4 pgmq wrappers (migration)   Low      (small)
-3. F4  Add CSP header (report-only first)                        Medium   (needs origin audit)
-4. F5  You enable HIBP in Cloud UI                               Low      (no code)
-5. F6  Optional extra contact-form heuristics                    Low      (optional)
-```
+## 15. Security Sanity Checks
+1. Try to read another user's data via direct API call, check RLS on every user-scoped table, inspect network for exposed service-role/admin keys, check auth email link expiry, verify HTTPS everywhere, verify logout invalidates token server-side, look for secrets in client bundle, run built-in security scan.
+2. **Expected:** All cross-user reads denied, only publishable/anon key in client, no secrets in bundle, scan clean.
+3. **Bug if:** Any cross-user read succeeds, service-role key in client, admin routes reachable without auth, mixed content.
+4. **Priority:** Blocker (any of the above), Major (scan warnings), Minor (best-practice hardening).
 
 ---
 
-## 8. Launch Blockers
+## Exit Criteria
+- Zero Blockers open.
+- Majors triaged with owner + fix-or-defer decision.
+- Minors listed in a post-launch polish backlog.
 
-**None.** Every finding above is Medium or Low.
+## Suggested Order
+Homepage → Signup → Login → Password reset → Dashboard → Payments → Emails → AI Companion → Voice → Smart Alarm → Legal → Mobile install → Error handling → Performance → Security.
 
----
-
-## Status
-
-The security phase is **substantively complete** for launch. The remaining items are hardening. If you want a truly clean scan and zero warnings, approve batches 1 and 2 first (they clear the two categories the scanner cares about that are safe to change without risk). Batch 3 (CSP) is worth doing but takes an origin inventory pass and should ship in report-only mode first to avoid breaking third-party embeds.
-
-**Recommendation:** approve batches 1 + 2 as a single small change (both are ~10 lines of code combined and touch nothing user-facing), then proceed to end-to-end QA. Batches 3–5 can be follow-ups after launch or a separate hardening sprint.
-
-Awaiting your call on how to proceed.
+Run each section once end-to-end and log findings in a shared sheet (columns: Section, Step, Result, Priority, Owner, Status) before any code changes.
