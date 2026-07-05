@@ -36,27 +36,31 @@ jobs:
       - name: Verify LiveKit CLI
         run: lk --version
 
-      - name: Deploy agent-worker to LiveKit Cloud
+      - name: Register LiveKit project
         working-directory: agent-worker
         env:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          LIVEKIT_PROJECT_ID: ${{ secrets.LIVEKIT_PROJECT_ID }}
         run: |
-          # `lk agent deploy` re-uses the existing pilot-realtime agent defined
-          # in agent-worker/livekit.toml and rebuilds it from the Dockerfile.
-          # --project is required in CI because there is no interactive
-          # `lk cloud auth` step to select a default project.
-          lk agent deploy --project "${LIVEKIT_PROJECT_ID}"
+          # `lk agent deploy` needs a registered project in ~/.livekit/cli-config.yaml.
+          # In CI there is no interactive `lk cloud auth`, so register one from secrets
+          # and mark it default. Do not echo the api key / secret.
+          lk project add ci-project \
+            --url "$LIVEKIT_URL" \
+            --api-key "$LIVEKIT_API_KEY" \
+            --api-secret "$LIVEKIT_API_SECRET" \
+            --default
+
+      - name: Deploy agent-worker to LiveKit Cloud
+        working-directory: agent-worker
+        run: |
+          # Uses the default ci-project registered in the previous step and
+          # re-deploys the pilot-realtime agent defined in agent-worker/livekit.toml.
+          lk agent deploy
 
       - name: Report agent status
         if: always()
         working-directory: agent-worker
-        env:
-          LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          LIVEKIT_PROJECT_ID: ${{ secrets.LIVEKIT_PROJECT_ID }}
-        run: lk agent status --project "${LIVEKIT_PROJECT_ID}" || true
+        run: lk agent status || true
 
