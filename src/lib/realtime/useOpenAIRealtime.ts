@@ -91,6 +91,8 @@ export function useOpenAIRealtime() {
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     connectStartRef.current = null;
     turnStartRef.current = null;
+    turnEndAtRef.current = null;
+    awaitingFirstReplyAudioRef.current = false;
   }, []);
 
   const handleEvent = useCallback((raw: string) => {
