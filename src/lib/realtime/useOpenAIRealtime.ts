@@ -368,8 +368,29 @@ export function useOpenAIRealtime() {
       const dc = pc.createDataChannel("oai-events");
       dcRef.current = dc;
       dc.onmessage = (e) => handleEvent(typeof e.data === "string" ? e.data : "");
-      dc.onopen = () =>
+      let greetingSent = false;
+      dc.onopen = () => {
         console.info("[realtime] datachannel-open", { at: performance.now() });
+        if (greetingSent) return;
+        greetingSent = true;
+        const name = session.greetingName?.trim();
+        const greetingInstructions = name
+          ? `Greet ${name} warmly in exactly two words, such as "Hi ${name}." or "Good afternoon, ${name}." No second sentence. Do not ask how you can help until the user speaks.`
+          : `Greet the user warmly in exactly two words, such as "Hi there." or "Good afternoon." No second sentence. Do not ask how you can help until the user speaks.`;
+        try {
+          dc.send(
+            JSON.stringify({
+              type: "response.create",
+              response: { instructions: greetingInstructions },
+            }),
+          );
+          console.info("[realtime] greeting-triggered", {
+            hasName: Boolean(name),
+          });
+        } catch (err) {
+          console.warn("[realtime] greeting-send-failed", err);
+        }
+      };
       dc.onclose = () => {
         console.warn("[realtime] datachannel-close", { at: performance.now() });
         setDebugEvents((prev) => [

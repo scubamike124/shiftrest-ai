@@ -17,6 +17,8 @@ export type RealtimeSessionResult = {
   expiresAt: number; // epoch ms
   model: string;
   voice: string;
+  /** First name / preferred name for the greeting; empty if unknown. */
+  greetingName: string;
 };
 
 const DEFAULT_MODEL = "gpt-realtime";
@@ -34,7 +36,7 @@ const INSTRUCTIONS = [
 
 export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<RealtimeSessionResult> => {
+  .handler(async ({ context }): Promise<RealtimeSessionResult> => {
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
     // both are standard OpenAI keys.
@@ -42,6 +44,39 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       process.env.OPENAI_API_KEY || process.env.OPENAI_REALTIME_API_KEY;
     if (!apiKey) {
       throw new Error("OpenAI Realtime is not configured");
+    }
+
+    // Resolve greeting name (preferred_name → display_name first token).
+    // Same personalization source the welcome email uses. Never falls back
+    // to email prefix.
+    let greetingName = "";
+    try {
+      const { supabaseAdmin } = await import(
+        "@/integrations/supabase/client.server"
+      );
+      const { loadPreferredNameServer } = await import(
+        "@/lib/user/display-name.server"
+      );
+      const preferred = await loadPreferredNameServer(
+        supabaseAdmin,
+        context.userId,
+      );
+      let name = preferred;
+      if (!name) {
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("display_name, email")
+          .eq("id", context.userId)
+          .maybeSingle();
+        const display = (profile?.display_name ?? "").trim();
+        const emailPrefix = (profile?.email ?? "").split("@")[0];
+        if (display && display.toLowerCase() !== emailPrefix.toLowerCase()) {
+          name = display;
+        }
+      }
+      greetingName = (name.split(/\s+/)[0] ?? "").trim();
+    } catch (e) {
+      console.warn("[realtime/openai] greeting-name-lookup-failed", e);
     }
 
     const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
@@ -107,5 +142,6 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       expiresAt,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? DEFAULT_VOICE,
+      greetingName,
     };
   });
