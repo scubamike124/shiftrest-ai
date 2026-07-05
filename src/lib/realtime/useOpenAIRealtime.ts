@@ -75,9 +75,6 @@ export function useOpenAIRealtime() {
   const [muted, setMuted] = useState(false);
   const [transcript, setTranscript] = useState<RealtimeTranscriptEvent[]>([]);
   const [debugEvents, setDebugEvents] = useState<RealtimeDebugEvent[]>([]);
-  const pushDebug = useCallback((evt: RealtimeDebugEvent) => {
-    setDebugEvents((prev) => [...prev.slice(-9), evt]);
-  }, []);
   const [metrics, setMetrics] = useState<RealtimeMetrics>({
     connectMs: null,
     firstAudioMs: null,
