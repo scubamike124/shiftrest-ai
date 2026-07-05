@@ -42,12 +42,13 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          LIVEKIT_PROJECT_ID: ${{ secrets.LIVEKIT_PROJECT_ID }}
         run: |
           # `lk agent deploy` re-uses the existing pilot-realtime agent defined
           # in agent-worker/livekit.toml and rebuilds it from the Dockerfile.
-          # If this is the very first deploy for the project, swap to
-          # `lk agent create` (one-time) — subsequent runs use deploy.
-          lk agent deploy
+          # --project is required in CI because there is no interactive
+          # `lk cloud auth` step to select a default project.
+          lk agent deploy --project "${LIVEKIT_PROJECT_ID}"
 
       - name: Report agent status
         if: always()
@@ -56,4 +57,6 @@ jobs:
           LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
           LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
           LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-        run: lk agent status || true
+          LIVEKIT_PROJECT_ID: ${{ secrets.LIVEKIT_PROJECT_ID }}
+        run: lk agent status --project "${LIVEKIT_PROJECT_ID}" || true
+
