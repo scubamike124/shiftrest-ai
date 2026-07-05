@@ -112,3 +112,5 @@ locally, then open `/lab/pilot-realtime` with `VITE_ENABLE_REALTIME_PILOT=true`.
 - Tool bridge (memory, signals, sleep, recovery, schedule) is Phase 3 —
   the worker currently runs Realtime with no tools so we can validate the
   transport, voice quality, and barge-in in isolation.
+
+<!-- deploy-trigger: semantic_vad rollout (2026-07-05) -->
