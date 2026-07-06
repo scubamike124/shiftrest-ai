@@ -285,6 +285,11 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
       greetingLabel,
+      trial: {
+        isTrial: trialState.isTrial,
+        remainingSeconds: trialState.remainingSeconds,
+        capSeconds: trialState.capSeconds,
+      },
     };
 
   });
