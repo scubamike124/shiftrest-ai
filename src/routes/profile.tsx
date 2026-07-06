@@ -48,6 +48,8 @@ import { WearableCard } from "@/components/WearableCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
+import { AssistantModeDebugPanel } from "@/components/debug/AssistantModeDebugPanel";
+import { amDebugPush } from "@/lib/debug/assistantModeDebug";
 
 export const Route = createFileRoute("/profile")({
   ssr: false,
