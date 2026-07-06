@@ -71,7 +71,7 @@ async function readUsage(
 }
 
 export async function loadTrialUsageState(
-  supabase: SupaFromContext,
+  supabase: SupabaseLike,
   userId: string,
   env: StripeEnv,
 ): Promise<TrialUsageState> {
@@ -100,7 +100,7 @@ export const getTrialUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) => data)
   .handler(async ({ data, context }): Promise<TrialUsageState> => {
-    return loadTrialUsageState(context.supabase as SupaFromContext, context.userId, data.environment);
+    return loadTrialUsageState(context.supabase as SupabaseLike, context.userId, data.environment);
   });
 
 export const recordTrialVoiceUsage = createServerFn({ method: "POST" })
@@ -111,7 +111,7 @@ export const recordTrialVoiceUsage = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<TrialUsageState> => {
     const { isTrial } = await loadTrialContext(
-      context.supabase as SupaFromContext,
+      context.supabase as SupabaseLike,
       context.userId,
       data.environment,
     );
