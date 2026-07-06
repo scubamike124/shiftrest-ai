@@ -1,38 +1,41 @@
-## What actually happened
+## What I found
 
-The timing instrumentation publish did **not** remove or hide the Voice briefing button. I re-read `src/components/VoicePlayer.tsx` end-to-end: the button's render condition is unchanged (`{!speaking && !loading && (<button …>Voice briefing</button>)}`) and nothing in the instrumentation gates it.
+I fetched the currently-live bundle from `https://restpilotai.com/plan` (`assets/plan-Zp6eEaf-.js`) and grepped it:
 
-Root cause is a pre-existing layout rule in `src/routes/plan.tsx`:
+- ✅ contains `"Voice briefing"` and `"No shift scheduled"`
+- ❌ does **not** contain `"Rest day for"` — the exact string from the off-day fallback I added to `buildPlanText()` last turn
 
-```tsx
-{!shift ? (
-  <div>…No shift scheduled for this day…</div>
-) : (
-  <>
-    <VoicePlayer buildPlanText={buildPlanText} />
-    …rest of plan…
-  </>
-)}
+That string is in the source (`src/routes/plan.tsx`, `buildPlanText()` off-day branch). So **the last "Published" click did not actually deploy the fix** — the live bundle still has the old JSX where `<VoicePlayer>` sits *inside* the `shift ? … : …` branch. This is the same publish/cache gap you flagged.
+
+Consequence: on any day the app decides "no shift", the whole VoicePlayer + Share row disappears — exactly what you're seeing. And "no shift" is decided by:
+
+```ts
+const shift =
+  shiftsForDate(safeShifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0]
+  ?? safeShifts.find(s => s.day === activeDay && (s.weekIndex ?? 0) === 0);
 ```
 
-`VoicePlayer` is only mounted when the active day has a shift. On any off-day (or if the schedule/rotation hasn't loaded yet), the whole block — including the Voice briefing button — is replaced by the "No shift scheduled" card. That's why the button "disappeared" after the publish: the day you opened had no shift, so the button was never rendered. The instrumentation is innocent.
+So there **is** a second failure mode beyond "off-day": if your shifts were saved with a `weekIndex` that doesn't match today's rotation slot (e.g. multi-week rotation, or `cycleAnchor` unset), `shiftsForDate` returns `[]`, the `weekIndex === 0` fallback also misses, and the page renders "No shift scheduled" **even on a day you clearly scheduled a shift** — hiding the button in the current live bundle.
 
-## Fix
+## Fix (small, UI-only, matches the previously-approved intent)
 
-Make the Voice briefing button available on every day of the Smart Light Plan so the timing test can be run without hunting for a shift day.
+1. **Republish** the current source. The already-merged edit that hoists `<VoicePlayer>` + Share out of the `shift ? … : …` branch and adds the rest-day script is already in `src/routes/plan.tsx` — it just needs to actually reach production this time.
 
-1. In `src/routes/plan.tsx`, lift the **VoicePlayer + Share** row out of the `shift ? … : …` branch so it always renders (below the day strip and sunrise/sunset row).
-2. Adjust `buildPlanText()` so it also returns a short, speakable plan on off-days (e.g. "Rest day for {weekday}. Protect your normal sleep window. Next shift is {day} at {time}.") instead of `null`. This keeps the existing `toast.info("Nothing to brief yet")` as a last-resort fallback only when there is genuinely nothing to say.
-3. Keep the "No shift scheduled for this day" card exactly where it is for the rest of the plan body — only the voice/share row moves out.
-4. Leave the timing panel and all `[brief-timing #xxxxx]` instrumentation untouched.
+2. **Belt-and-suspenders in `src/routes/plan.tsx`**: broaden the shift-day fallback so a mis-tagged `weekIndex` can't make a real shift invisible:
+   ```ts
+   const shift =
+     shiftsForDate(safeShifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0]
+     ?? safeShifts.find(s => s.day === activeDay && (s.weekIndex ?? 0) === 0)
+     ?? safeShifts.find(s => s.day === activeDay); // any weekIndex
+   ```
+   This only affects which day is treated as a "shift day" for the plan body; it doesn't touch scheduling storage, cycle math elsewhere, or the VoicePlayer render path (which is already unconditional after step 1).
 
-No pipeline, no TTS, no auth, no other route touched. Purely a JSX/hoisting change plus a tiny off-day text fallback.
+3. **No other files touched.** No pipeline, TTS, auth, service-worker, or routing changes. The timing panel and `[brief-timing #xxxxx]` instrumentation stay exactly as they are.
 
-## Verification before handing back
+## Verification I will do before saying it's fixed
 
-- `tsgo` clean, dev build clean.
-- Load `/plan`, switch through every day of the week (including known off-days): Voice briefing button is visible on all of them.
-- Tap it on an off-day → briefing generates and the black timing panel renders with t0–t5 rows.
-- Tap it on a shift day → identical behavior to before the regression report.
+- `tsgo` clean.
+- `curl https://restpilotai.com/assets/plan-*.js | grep 'Rest day for'` returns a match (proves the new bundle actually shipped, not just built).
+- Drive the published `/plan` with Playwright signed in as a test session, switch across weekdays, and confirm the **Voice briefing** button is in the DOM on every day — screenshot both a shift day and an off-day.
 
-Only after those pass do I publish, and then ask you to run the on-phone timing screenshot test.
+Only after those three pass do I hand it back to you for the on-phone timing screenshot.
