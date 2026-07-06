@@ -73,23 +73,40 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     const traceId = Math.random().toString(36).slice(2, 7);
     const t0 = performance.now();
     let last = t0;
-    const mark = (label: string) => {
+    setTiming({ traceId, rows: [] });
+    const mark = (key: string, label: string) => {
       const now = performance.now();
-      const dPrev = (now - last).toFixed(0);
-      const dTotal = (now - t0).toFixed(0);
+      const dPrev = Math.round(now - last);
+      const dTotal = Math.round(now - t0);
       // eslint-disable-next-line no-console
       console.info(
         `[brief-timing #${traceId}] ${label} +${dPrev}ms (total ${dTotal}ms)`,
       );
       last = now;
+      setTiming((prev) => {
+        if (!prev || prev.traceId !== traceId) return prev;
+        const rows = [...prev.rows, { key, label, dPrev, dTotal }];
+        let summary = prev.summary;
+        if (key === "t5") {
+          const t2 = rows.find((r) => r.key === "t2")?.dTotal ?? 0;
+          const t1 = rows.find((r) => r.key === "t1")?.dTotal ?? 0;
+          const t4 = rows.find((r) => r.key === "t4")?.dTotal ?? 0;
+          summary = {
+            llmMs: Math.max(0, t2 - t1),
+            ttsPlayMs: Math.max(0, dTotal - t4),
+            totalMs: dTotal,
+          };
+        }
+        return { ...prev, rows, summary };
+      });
     };
-    mark("t0 tap");
+    mark("t0", "t0 tap");
 
     // One-shot listener for the first "started" audio event of this tap.
     const onStarted = (e: Event) => {
       const detail = (e as CustomEvent).detail as { status?: string };
       if (detail?.status === "started") {
-        mark("t5 first audio started");
+        mark("t5", "t5 first audio started");
         window.removeEventListener("companion:voice-status", onStarted);
       }
     };
@@ -99,6 +116,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       () => window.removeEventListener("companion:voice-status", onStarted),
       30_000,
     );
+
 
     // Arm the shared audio pipeline INSIDE the user gesture (iOS Safari).
     prepareVoicePlayback();
