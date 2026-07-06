@@ -434,6 +434,7 @@ function Dashboard() {
         </div>
       </HomeCard>
 
+      <div id="schedule" className="scroll-mt-20" aria-hidden />
       <HomeCard>
         <HomeCardHeader
           eyebrow="Daily Schedule"
