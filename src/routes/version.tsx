@@ -8,7 +8,8 @@
  * new release (the controller's build is shown alongside the page build).
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { readBreadcrumbs, clearBreadcrumbs, type PwaBreadcrumb } from "@/lib/pwa/breadcrumbs";
 
 declare const __BUILD_ID__: string;
 
@@ -39,9 +40,13 @@ function VersionPage() {
   const [error, setError] = useState<string | null>(null);
   const [swState, setSwState] = useState<string>("checking…");
   const [host, setHost] = useState<string>("");
+  const [log, setLog] = useState<PwaBreadcrumb[]>([]);
+
+  const refreshLog = useCallback(() => setLog(readBreadcrumbs()), []);
 
   useEffect(() => {
     setHost(window.location.host);
+    refreshLog();
     fetch("/api/public/version", { cache: "no-store" })
       .then((r) => r.json())
       .then(setServer)
