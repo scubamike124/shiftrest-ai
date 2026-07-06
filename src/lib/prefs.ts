@@ -11,6 +11,18 @@ export type AssistantMode =
   | "motivational"
   | "supportive";
 
+const ALLOWED_ASSISTANT_MODES: ReadonlySet<AssistantMode> = new Set<AssistantMode>([
+  "coach",
+  "companion",
+  "minimal",
+  "friend",
+  "professional",
+  "warm",
+  "encouraging",
+  "motivational",
+  "supportive",
+]);
+
 export type Prefs = {
   windDownMin: number;
   sleepHours: number;
@@ -235,7 +247,7 @@ function rowToPrefs(r: Row): Prefs {
     cycleWeeks: Math.max(1, Math.min(6, cw)),
     cycleAnchor: r.cycle_anchor ?? null,
     assistantName: r.assistant_name?.trim() || "RestPilot",
-    assistantMode: mode === "companion" || mode === "minimal" ? mode : "coach",
+    assistantMode: ALLOWED_ASSISTANT_MODES.has(mode) ? mode : "coach",
     memoryEnabled: Boolean(r.memory_enabled),
     memoryLearningPaused: Boolean(r.memory_learning_paused),
     predictiveEnabled: r.predictive_enabled ?? true,
