@@ -19,9 +19,18 @@ type Props = {
   className?: string;
 };
 
+type TimingRow = { key: string; label: string; dPrev: number; dTotal: number };
+type Timing = {
+  traceId: string;
+  rows: TimingRow[];
+  summary?: { llmMs: number; ttsPlayMs: number; totalMs: number };
+};
+
 export function VoicePlayer({ buildPlanText, className }: Props) {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [timing, setTiming] = useState<Timing | null>(null);
+
 
   // Reflect the shared pipeline's status so Play/Stop UI stays accurate.
   useEffect(() => {
@@ -64,23 +73,40 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     const traceId = Math.random().toString(36).slice(2, 7);
     const t0 = performance.now();
     let last = t0;
-    const mark = (label: string) => {
+    setTiming({ traceId, rows: [] });
+    const mark = (key: string, label: string) => {
       const now = performance.now();
-      const dPrev = (now - last).toFixed(0);
-      const dTotal = (now - t0).toFixed(0);
+      const dPrev = Math.round(now - last);
+      const dTotal = Math.round(now - t0);
       // eslint-disable-next-line no-console
       console.info(
         `[brief-timing #${traceId}] ${label} +${dPrev}ms (total ${dTotal}ms)`,
       );
       last = now;
+      setTiming((prev) => {
+        if (!prev || prev.traceId !== traceId) return prev;
+        const rows = [...prev.rows, { key, label, dPrev, dTotal }];
+        let summary = prev.summary;
+        if (key === "t5") {
+          const t2 = rows.find((r) => r.key === "t2")?.dTotal ?? 0;
+          const t1 = rows.find((r) => r.key === "t1")?.dTotal ?? 0;
+          const t4 = rows.find((r) => r.key === "t4")?.dTotal ?? 0;
+          summary = {
+            llmMs: Math.max(0, t2 - t1),
+            ttsPlayMs: Math.max(0, dTotal - t4),
+            totalMs: dTotal,
+          };
+        }
+        return { ...prev, rows, summary };
+      });
     };
-    mark("t0 tap");
+    mark("t0", "t0 tap");
 
     // One-shot listener for the first "started" audio event of this tap.
     const onStarted = (e: Event) => {
       const detail = (e as CustomEvent).detail as { status?: string };
       if (detail?.status === "started") {
-        mark("t5 first audio started");
+        mark("t5", "t5 first audio started");
         window.removeEventListener("companion:voice-status", onStarted);
       }
     };
@@ -90,6 +116,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       () => window.removeEventListener("companion:voice-status", onStarted),
       30_000,
     );
+
 
     // Arm the shared audio pipeline INSIDE the user gesture (iOS Safari).
     prepareVoicePlayback();
@@ -116,7 +143,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         toast.info("Sign in to use voice briefing.");
         return;
       }
-      mark("t1 /api/brief request sent");
+      mark("t1", "t1 /api/brief sent");
       const briefRes = await fetch("/api/brief", {
         method: "POST",
         headers: {
@@ -125,14 +152,14 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         },
         body: JSON.stringify({ plan, localTime, timezone }),
       });
-      mark("t2 /api/brief response headers");
+      mark("t2", "t2 /api/brief headers");
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
       try {
         briefData = await briefRes.json();
       } catch {
         /* non-JSON */
       }
-      mark("t3 /api/brief JSON parsed");
+      mark("t3", "t3 /api/brief parsed");
       if (!briefRes.ok || briefData.error) {
         toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
         return;
@@ -152,7 +179,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       // Prepend a soft lead-in ("… ") so ElevenLabs starts the very first
       // utterance with a half-breath instead of a cold, louder/faster opener.
       const spoken = "… " + expandForSpeech(script).slice(0, 1200);
-      mark("t4 speakQueued invoked");
+      mark("t4", "t4 speakQueued");
       speakQueued(spoken, { source: "assistant_reply" });
     } catch (e) {
       console.error("VoicePlayer error", e);
@@ -169,39 +196,77 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   }
 
   return (
-    <div className={`rounded-2xl border border-border bg-card ${className ?? ""}`}>
-      {!speaking && !loading && (
-        <button
-          onClick={generateAndPlay}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
-        >
-          <Volume2 className="h-4 w-4" /> Voice briefing
-        </button>
-      )}
-
-      {loading && (
-        <div className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Preparing your briefing…
-        </div>
-      )}
-
-      {speaking && !loading && (
-        <div className="flex items-center gap-3 p-3">
+    <div className={className ?? ""}>
+      <div className="rounded-2xl border border-border bg-card">
+        {!speaking && !loading && (
           <button
-            onClick={stop}
-            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold text-foreground active:scale-[0.99]"
-            aria-label="Stop briefing"
+            onClick={generateAndPlay}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
           >
-            <Square className="h-4 w-4" /> Stop briefing
+            <Volume2 className="h-4 w-4" /> Voice briefing
           </button>
-          <Link
-            to="/profile"
-            className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
-          >
-            Change voice
-          </Link>
+        )}
+
+        {loading && (
+          <div className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Preparing your briefing…
+          </div>
+        )}
+
+        {speaking && !loading && (
+          <div className="flex items-center gap-3 p-3">
+            <button
+              onClick={stop}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold text-foreground active:scale-[0.99]"
+              aria-label="Stop briefing"
+            >
+              <Square className="h-4 w-4" /> Stop briefing
+            </button>
+            <Link
+              to="/profile"
+              className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Change voice
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {timing && (
+        <div className="mt-2 rounded-2xl border border-border bg-black/80 p-3 font-mono text-[11px] leading-tight text-white">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold">brief-timing #{timing.traceId}</span>
+            <button
+              onClick={() => setTiming(null)}
+              className="rounded px-2 py-0.5 text-white/70 hover:bg-white/10"
+              aria-label="Dismiss timing panel"
+            >
+              ×
+            </button>
+          </div>
+          <div className="border-t border-white/20 pt-1">
+            {timing.rows.map((r) => (
+              <div key={r.key} className="flex justify-between gap-2 tabular-nums">
+                <span className="truncate">{r.label}</span>
+                <span className="whitespace-nowrap text-white/70">
+                  +{r.dPrev}ms ({r.dTotal}ms)
+                </span>
+              </div>
+            ))}
+            {timing.rows.length === 0 && (
+              <div className="text-white/50">waiting…</div>
+            )}
+          </div>
+          {timing.summary && (
+            <div className="mt-2 border-t border-white/20 pt-1 tabular-nums">
+              <div className="flex justify-between"><span>LLM step</span><span>{timing.summary.llmMs} ms</span></div>
+              <div className="flex justify-between"><span>TTS + play</span><span>{timing.summary.ttsPlayMs} ms</span></div>
+              <div className="flex justify-between font-semibold"><span>TOTAL</span><span>{timing.summary.totalMs} ms</span></div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
