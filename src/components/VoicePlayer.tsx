@@ -196,39 +196,77 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   }
 
   return (
-    <div className={`rounded-2xl border border-border bg-card ${className ?? ""}`}>
-      {!speaking && !loading && (
-        <button
-          onClick={generateAndPlay}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
-        >
-          <Volume2 className="h-4 w-4" /> Voice briefing
-        </button>
-      )}
-
-      {loading && (
-        <div className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Preparing your briefing…
-        </div>
-      )}
-
-      {speaking && !loading && (
-        <div className="flex items-center gap-3 p-3">
+    <div className={className ?? ""}>
+      <div className="rounded-2xl border border-border bg-card">
+        {!speaking && !loading && (
           <button
-            onClick={stop}
-            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold text-foreground active:scale-[0.99]"
-            aria-label="Stop briefing"
+            onClick={generateAndPlay}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99]"
           >
-            <Square className="h-4 w-4" /> Stop briefing
+            <Volume2 className="h-4 w-4" /> Voice briefing
           </button>
-          <Link
-            to="/profile"
-            className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
-          >
-            Change voice
-          </Link>
+        )}
+
+        {loading && (
+          <div className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary text-sm font-semibold text-primary-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Preparing your briefing…
+          </div>
+        )}
+
+        {speaking && !loading && (
+          <div className="flex items-center gap-3 p-3">
+            <button
+              onClick={stop}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold text-foreground active:scale-[0.99]"
+              aria-label="Stop briefing"
+            >
+              <Square className="h-4 w-4" /> Stop briefing
+            </button>
+            <Link
+              to="/profile"
+              className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Change voice
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {timing && (
+        <div className="mt-2 rounded-2xl border border-border bg-black/80 p-3 font-mono text-[11px] leading-tight text-white">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold">brief-timing #{timing.traceId}</span>
+            <button
+              onClick={() => setTiming(null)}
+              className="rounded px-2 py-0.5 text-white/70 hover:bg-white/10"
+              aria-label="Dismiss timing panel"
+            >
+              ×
+            </button>
+          </div>
+          <div className="border-t border-white/20 pt-1">
+            {timing.rows.map((r) => (
+              <div key={r.key} className="flex justify-between gap-2 tabular-nums">
+                <span className="truncate">{r.label}</span>
+                <span className="whitespace-nowrap text-white/70">
+                  +{r.dPrev}ms ({r.dTotal}ms)
+                </span>
+              </div>
+            ))}
+            {timing.rows.length === 0 && (
+              <div className="text-white/50">waiting…</div>
+            )}
+          </div>
+          {timing.summary && (
+            <div className="mt-2 border-t border-white/20 pt-1 tabular-nums">
+              <div className="flex justify-between"><span>LLM step</span><span>{timing.summary.llmMs} ms</span></div>
+              <div className="flex justify-between"><span>TTS + play</span><span>{timing.summary.ttsPlayMs} ms</span></div>
+              <div className="flex justify-between font-semibold"><span>TOTAL</span><span>{timing.summary.totalMs} ms</span></div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
