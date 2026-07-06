@@ -143,6 +143,71 @@ function emitTurnEnded() {
   window.dispatchEvent(new CustomEvent("companion:turn-ended"));
 }
 
+export const TTS_PATH_DIAGNOSTIC_BUILD = "tts-path-diagnostic-2026-07-06-01";
+
+type TtsPathDiagnostic = {
+  build: string;
+  path: "managed-media-source" | "media-source" | "blob-fallback" | "cache-blob";
+  label: string;
+  provider: string;
+  endpoint: string;
+  reason?: string;
+  contentType?: string;
+  hasManagedMediaSource: boolean;
+  hasMediaSource: boolean;
+  mseTypeSupported: boolean | null;
+  hasReadableStream: boolean;
+};
+
+function getMseAvailability(): {
+  MseCtor: typeof MediaSource | null;
+  path: "managed-media-source" | "media-source" | null;
+  hasManagedMediaSource: boolean;
+  hasMediaSource: boolean;
+  mseTypeSupported: boolean | null;
+} {
+  if (typeof window === "undefined") {
+    return {
+      MseCtor: null,
+      path: null,
+      hasManagedMediaSource: false,
+      hasMediaSource: false,
+      mseTypeSupported: null,
+    };
+  }
+  const managed = (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource;
+  const native = typeof MediaSource !== "undefined" ? MediaSource : undefined;
+  const MseCtor = managed ?? native ?? null;
+  let mseTypeSupported: boolean | null = null;
+  if (MseCtor && typeof MseCtor.isTypeSupported === "function") {
+    try {
+      mseTypeSupported = MseCtor.isTypeSupported("audio/mpeg");
+    } catch {
+      mseTypeSupported = false;
+    }
+  }
+  return {
+    MseCtor,
+    path: managed ? "managed-media-source" : native ? "media-source" : null,
+    hasManagedMediaSource: !!managed,
+    hasMediaSource: !!native,
+    mseTypeSupported,
+  };
+}
+
+function emitTtsPathDiagnostic(detail: Omit<TtsPathDiagnostic, "build">): void {
+  if (typeof window === "undefined") return;
+  const full: TtsPathDiagnostic = { build: TTS_PATH_DIAGNOSTIC_BUILD, ...detail };
+  try {
+    (window as unknown as { __restpilotLastTtsPath?: TtsPathDiagnostic }).__restpilotLastTtsPath = full;
+  } catch {
+    /* noop */
+  }
+  // eslint-disable-next-line no-console
+  console.info(`[tts-path ${TTS_PATH_DIAGNOSTIC_BUILD}] ${full.label}`, full);
+  window.dispatchEvent(new CustomEvent("companion:tts-path", { detail: full }));
+}
+
 // ── Sequential turn queue ──────────────────────────────────────────────
 let turnId = 0;
 type QueueItem = { text: string; opts: SpeakOptions; turn: number };
@@ -597,6 +662,21 @@ async function playOnce(
   let streamingMediaSource: MediaSource | null = null;
   let streamingSrc: string | null = null;
 
+  if (blob) {
+    const mse = getMseAvailability();
+    emitTtsPathDiagnostic({
+      path: "cache-blob",
+      label: "using cached Blob",
+      provider,
+      endpoint,
+      reason: "TTS response cache hit; no network stream used for this utterance",
+      hasManagedMediaSource: mse.hasManagedMediaSource,
+      hasMediaSource: mse.hasMediaSource,
+      mseTypeSupported: mse.mseTypeSupported,
+      hasReadableStream: false,
+    });
+  }
+
   if (!blob) {
     // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
     // don't arrive in time, abort and fall through to OpenAI for this session.
@@ -605,6 +685,7 @@ async function playOnce(
       ? setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, 2500)
       : null;
     let resp: Response;
+    let effectiveEndpoint = endpoint;
     try {
       resp = await fetch(endpoint, {
         method: "POST",
@@ -620,6 +701,7 @@ async function playOnce(
         console.warn("[speak] ElevenLabs stalled, falling back to OpenAI for this session");
         elevenLabsBlocked = true;
         try { setTtsProvider("openai"); } catch { /* noop */ }
+        effectiveEndpoint = "/api/tts";
         resp = await fetch("/api/tts", {
           method: "POST",
           headers: {
@@ -644,6 +726,7 @@ async function playOnce(
       console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
       elevenLabsBlocked = true;
       try { setTtsProvider("openai"); } catch { /* noop */ }
+      effectiveEndpoint = "/api/tts";
       resp = await fetch("/api/tts", {
         method: "POST",
         headers: {
@@ -668,17 +751,25 @@ async function playOnce(
     // waiting for the whole file (~8 s previously).
     const finalProvider = elevenLabsBlocked ? "openai" : provider;
     const finalCacheKey = `${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`;
-    const MseCtor: typeof MediaSource | null =
-      typeof window !== "undefined"
-        ? ((window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
-            ?? (typeof MediaSource !== "undefined" ? MediaSource : null))
-        : null;
+    const mse = getMseAvailability();
+    const MseCtor = mse.MseCtor;
     const canStreamMse =
       MseCtor != null &&
       typeof MseCtor.isTypeSupported === "function" &&
       MseCtor.isTypeSupported("audio/mpeg") &&
       resp.body != null;
     if (canStreamMse) {
+      emitTtsPathDiagnostic({
+        path: mse.path === "managed-media-source" ? "managed-media-source" : "media-source",
+        label: mse.path === "managed-media-source" ? "using ManagedMediaSource" : "using MediaSource",
+        provider: finalProvider,
+        endpoint: effectiveEndpoint,
+        contentType: resp.headers.get("content-type") ?? undefined,
+        hasManagedMediaSource: mse.hasManagedMediaSource,
+        hasMediaSource: mse.hasMediaSource,
+        mseTypeSupported: mse.mseTypeSupported,
+        hasReadableStream: resp.body != null,
+      });
       streamingMediaSource = new MseCtor!();
       streamingSrc = URL.createObjectURL(streamingMediaSource);
       void pumpBodyIntoMediaSource(
@@ -687,6 +778,25 @@ async function playOnce(
         (finalBlob) => ttsCachePut(finalCacheKey, finalBlob),
       );
     } else {
+      const reason = !MseCtor
+        ? "no MediaSource or ManagedMediaSource constructor available"
+        : mse.mseTypeSupported === false
+          ? "audio/mpeg is not supported by selected MediaSource constructor"
+          : resp.body == null
+            ? "fetch response body stream is unavailable"
+            : "MediaSource streaming capability check failed";
+      emitTtsPathDiagnostic({
+        path: "blob-fallback",
+        label: "using blob fallback",
+        provider: finalProvider,
+        endpoint: effectiveEndpoint,
+        reason,
+        contentType: resp.headers.get("content-type") ?? undefined,
+        hasManagedMediaSource: mse.hasManagedMediaSource,
+        hasMediaSource: mse.hasMediaSource,
+        mseTypeSupported: mse.mseTypeSupported,
+        hasReadableStream: resp.body != null,
+      });
       blob = await resp.blob();
       ttsCachePut(finalCacheKey, blob);
     }
