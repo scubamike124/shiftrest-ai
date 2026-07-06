@@ -2,8 +2,8 @@
  * Trial voice-usage accounting.
  *
  * Small server functions the browser calls while an OpenAI Realtime session
- * is running. Only trial subscribers are gated; paying subscribers get an
- * ok=true response with unlimited usage.
+ * is running. Only trial subscribers are gated; paying subscribers get a
+ * passthrough state.
  */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -23,43 +23,20 @@ export type TrialUsageState = {
   remainingSeconds: number;
 };
 
-type SupabaseLike = {
-  from: (table: string) => {
-    select: (cols: string) => {
-      eq: (c: string, v: unknown) => {
-        eq: (c: string, v: unknown) => {
-          order: (c: string, o: { ascending: boolean }) => {
-            limit: (n: number) => {
-              maybeSingle: () => Promise<{ data: { status: string; current_period_end: string | null } | null }>;
-            };
-          };
-        };
-      };
-    };
-  };
-};
-
-async function loadTrialContext(
-  supabase: SupabaseLike,
-  userId: string,
-  env: StripeEnv,
-): Promise<{ isTrial: boolean }> {
-  const { data } = await supabase
+async function isUserOnTrial(userId: string, env: StripeEnv): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
     .from("subscriptions")
-    .select("status, current_period_end")
+    .select("status")
     .eq("user_id", userId)
     .eq("environment", env)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!data) return { isTrial: false };
-  return { isTrial: data.status === "trialing" };
+  return data?.status === "trialing";
 }
 
-async function readUsage(
-  userId: string,
-  env: StripeEnv,
-): Promise<number> {
+async function readUsage(userId: string, env: StripeEnv): Promise<number> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("trial_usage")
@@ -70,21 +47,16 @@ async function readUsage(
   return data?.voice_seconds_used ?? 0;
 }
 
+function passthrough(): TrialUsageState {
+  return { isTrial: false, limitReached: false, usedSeconds: 0, capSeconds: 0, remainingSeconds: 0 };
+}
+
 export async function loadTrialUsageState(
-  supabase: SupabaseLike,
   userId: string,
   env: StripeEnv,
 ): Promise<TrialUsageState> {
-  const { isTrial } = await loadTrialContext(supabase, userId, env);
-  if (!isTrial) {
-    return {
-      isTrial: false,
-      limitReached: false,
-      usedSeconds: 0,
-      capSeconds: 0,
-      remainingSeconds: 0,
-    };
-  }
+  const isTrial = await isUserOnTrial(userId, env);
+  if (!isTrial) return passthrough();
   const used = await readUsage(userId, env);
   const remaining = Math.max(0, TRIAL_VOICE_SECONDS_CAP - used);
   return {
@@ -100,7 +72,7 @@ export const getTrialUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv }) => data)
   .handler(async ({ data, context }): Promise<TrialUsageState> => {
-    return loadTrialUsageState(context.supabase as SupabaseLike, context.userId, data.environment);
+    return loadTrialUsageState(context.userId, data.environment);
   });
 
 export const recordTrialVoiceUsage = createServerFn({ method: "POST" })
@@ -110,21 +82,8 @@ export const recordTrialVoiceUsage = createServerFn({ method: "POST" })
     return { seconds: n, environment: data.environment };
   })
   .handler(async ({ data, context }): Promise<TrialUsageState> => {
-    const { isTrial } = await loadTrialContext(
-      context.supabase as SupabaseLike,
-      context.userId,
-      data.environment,
-    );
-    // Paying subscribers: don't record. Just return a passthrough state.
-    if (!isTrial) {
-      return {
-        isTrial: false,
-        limitReached: false,
-        usedSeconds: 0,
-        capSeconds: 0,
-        remainingSeconds: 0,
-      };
-    }
+    const isTrial = await isUserOnTrial(context.userId, data.environment);
+    if (!isTrial) return passthrough();
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const current = await readUsage(context.userId, data.environment);
