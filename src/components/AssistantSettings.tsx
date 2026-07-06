@@ -29,12 +29,24 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
   const [name, setName] = useState(prefs.assistantName);
   useEffect(() => setName(prefs.assistantName), [prefs.assistantName]);
 
+  const buildStamp =
+    typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "unknown";
+
   return (
     <section className="rounded-2xl border border-border bg-card p-4 space-y-5">
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-primary" />
         <h2 className="text-base font-semibold">Your AI assistant</h2>
       </div>
+
+      {/* TEMP diagnostic — remove once Conversation-style bug is fixed. */}
+      <p
+        className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-700"
+        data-testid="assistant-settings-buildstamp"
+      >
+        build {buildStamp} · modes:{MODE_OPTIONS.length} · selected:
+        {prefs.assistantMode}
+      </p>
 
       {/* Name */}
       <div className="space-y-1.5">
@@ -62,27 +74,64 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
       {/* Mode */}
       <div className="space-y-2">
         <p className="text-sm font-medium">Conversation style</p>
-        <div className="grid gap-2">
-          {MODE_OPTIONS.map((opt) => {
-            const active = prefs.assistantMode === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => onChange("assistantMode", opt.value)}
-                className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
-                  active
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-muted/50"
-                }`}
-              >
-                <div className="font-semibold">{opt.label}</div>
-                <div className="text-xs text-muted-foreground">{opt.desc}</div>
-              </button>
-            );
-          })}
-        </div>
+        <ModeGridBoundary
+          fallback={(err) => (
+            <div className="space-y-2">
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-[11px] text-red-700">
+                <div className="font-semibold">
+                  Mode grid crashed: {err.name}
+                </div>
+                <div>{err.message}</div>
+                {err.stack ? (
+                  <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-tight">
+                    {err.stack.split("\n").slice(0, 6).join("\n")}
+                  </pre>
+                ) : null}
+              </div>
+              {/* Fallback flat list so the section is never fully hidden. */}
+              <ul className="grid gap-1 rounded-lg border border-border p-2 text-xs">
+                {MODE_OPTIONS.map((opt) => (
+                  <li key={opt.value}>
+                    <button
+                      type="button"
+                      onClick={() => onChange("assistantMode", opt.value)}
+                      className={`w-full rounded px-2 py-1 text-left ${
+                        prefs.assistantMode === opt.value
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        >
+          <div className="grid gap-2">
+            {MODE_OPTIONS.map((opt) => {
+              const active = prefs.assistantMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onChange("assistantMode", opt.value)}
+                  className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    active
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <div className="font-semibold">{opt.label}</div>
+                  <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </ModeGridBoundary>
       </div>
+
 
       {/* Memory */}
       <div className="space-y-3 border-t border-border pt-4">
