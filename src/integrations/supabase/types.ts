@@ -1368,6 +1368,27 @@ export type Database = {
         }
         Relationships: []
       }
+      trial_usage: {
+        Row: {
+          environment: string
+          last_updated_at: string
+          user_id: string
+          voice_seconds_used: number
+        }
+        Insert: {
+          environment: string
+          last_updated_at?: string
+          user_id: string
+          voice_seconds_used?: number
+        }
+        Update: {
+          environment?: string
+          last_updated_at?: string
+          user_id?: string
+          voice_seconds_used?: number
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
           arrive_utc: string
