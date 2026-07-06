@@ -486,6 +486,59 @@ async function prefetchTts(text: string, opts: SpeakOptions): Promise<void> {
   }
 }
 
+/**
+ * Feed a streaming ElevenLabs (or other audio/mpeg) response body into a
+ * MediaSource so <audio> can start playing at first byte. On successful
+ * completion, invokes `onDone` with the accumulated Blob so playOnce()'s
+ * response cache still gets populated for a subsequent replay.
+ */
+async function pumpBodyIntoMediaSource(
+  ms: MediaSource,
+  body: ReadableStream<Uint8Array>,
+  onDone: (blob: Blob) => void,
+): Promise<void> {
+  try {
+    await new Promise<void>((resolve) => {
+      if (ms.readyState === "open") resolve();
+      else ms.addEventListener("sourceopen", () => resolve(), { once: true });
+    });
+    let sb: SourceBuffer;
+    try {
+      sb = ms.addSourceBuffer("audio/mpeg");
+    } catch {
+      try { ms.endOfStream(); } catch { /* noop */ }
+      return;
+    }
+    const reader = body.getReader();
+    const collected: Uint8Array[] = [];
+    const waitForIdle = () =>
+      new Promise<void>((resolve) => {
+        if (!sb.updating) return resolve();
+        sb.addEventListener("updateend", () => resolve(), { once: true });
+      });
+    let ok = true;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      collected.push(value);
+      await waitForIdle();
+      try {
+        sb.appendBuffer(value);
+      } catch {
+        ok = false;
+        break;
+      }
+      await waitForIdle();
+    }
+    try { ms.endOfStream(); } catch { /* noop */ }
+    if (ok) onDone(new Blob(collected as BlobPart[], { type: "audio/mpeg" }));
+  } catch {
+    try { ms.endOfStream(); } catch { /* noop */ }
+  }
+}
+
+
 
 async function playOnce(
   text: string,
