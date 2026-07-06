@@ -173,13 +173,29 @@ function PlanPage() {
 
 
   function buildPlanText(): string | null {
-    if (!shift || events.length === 0) return null;
-    const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
-    const body = events
-      .map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`)
-      .join("\n");
-    return `${intro}\n${body}`;
+    if (shift && events.length > 0) {
+      const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
+      const body = events
+        .map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`)
+        .join("\n");
+      return `${intro}\n${body}`;
+    }
+    // Off-day fallback: give the voice pipeline something meaningful to say
+    // so the timing test and briefing still work on rest days.
+    const nextShiftIdx = (() => {
+      for (let i = 1; i <= 7; i++) {
+        const d = (activeDay + i) % 7;
+        if (safeShifts.some((s) => s.day === d)) return d;
+      }
+      return -1;
+    })();
+    const nextLine =
+      nextShiftIdx >= 0
+        ? ` Your next shift is ${DAYS[nextShiftIdx]}.`
+        : "";
+    return `Rest day for ${DAYS[activeDay]}. Protect your normal sleep window, get morning light, and stay hydrated.${nextLine}`;
   }
+
 
   return (
     <main className="flex flex-col gap-6 px-5 pt-12">
