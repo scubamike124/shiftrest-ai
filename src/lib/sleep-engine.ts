@@ -1,5 +1,6 @@
 import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
 import { tzOffsetMinutes } from "./time/tz";
+import { detectDeviceTz } from "./tz";
 
 // ───── Sunrise / sunset (NOAA simplified). Returns minutes from local midnight
 // AT THE GIVEN LOCATION — never the browser timezone.
@@ -65,7 +66,14 @@ export function sunTimes(
   } else if (typeof tzOrOffset === "string" && tzOrOffset.length > 0) {
     offsetMin = tzOffsetMinutes(date, tzOrOffset);
   } else {
-    offsetMin = Math.round(lon / 15) * 60;
+    // DST-aware fallback: prefer the runtime IANA zone so a user without a
+    // saved home/current tz still gets their real offset (e.g. PDT vs PST).
+    // Longitude math ignores DST — keep it only as a true last resort for
+    // environments where Intl is unavailable.
+    const deviceTz = detectDeviceTz();
+    offsetMin = deviceTz
+      ? tzOffsetMinutes(date, deviceTz)
+      : Math.round(lon / 15) * 60;
   }
   const norm = (m: number) => ((Math.round(m + offsetMin) % 1440) + 1440) % 1440;
   return { sunrise: norm(sunriseUTC), sunset: norm(sunsetUTC) };

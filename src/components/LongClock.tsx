@@ -5,6 +5,7 @@ import type { Shift } from "@/lib/shifts";
 import { endAbsolute } from "@/lib/shifts";
 import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
+import { detectDeviceTz } from "@/lib/tz";
 import { useDecisionsByIntent } from "@/lib/ai/decisions";
 import {
   RecommendationActions,
@@ -89,7 +90,7 @@ export function LongClock({
   now: Date;
 }) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const tz = prefs.currentTz ?? prefs.homeTz ?? undefined;
+  const tz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
   const { sunrise, sunset } = useMemo(
     () => sunTimes(now, prefs.lat ?? null, prefs.lon ?? null, tz),
     [now, prefs.lat, prefs.lon, tz],

@@ -13,6 +13,7 @@ import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
 import type { Insights } from "./insights";
 import type { Prefs } from "./prefs";
 import { sunTimes } from "./sleep-engine";
+import { detectDeviceTz } from "./tz";
 
 export type Recommendation = {
   /** Absolute minutes from now when the user should act (for sorting). */
@@ -63,7 +64,7 @@ export function buildRecommendations(
   const recs: Recommendation[] = [];
   const target = insights.todayShift ?? insights.nextShift?.shift;
 
-  const recsTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
+  const recsTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
   const sun = location
     ? sunTimes(now, location.lat ?? null, location.lon ?? null, recsTz)
     : { sunrise: null, sunset: null };
