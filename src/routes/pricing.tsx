@@ -26,7 +26,7 @@ const tiers = [
     name: "Monthly",
     price: "$7.99",
     cadence: "/ month",
-    trial: "7-day free trial",
+    trial: "14-day free trial",
     perks: [
       "AI coach with memory",
       "Long Clock (7-day plan)",

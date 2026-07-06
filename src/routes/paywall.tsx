@@ -155,7 +155,7 @@ function Paywall() {
     ? "Please wait…"
     : isLifetime
       ? "Become a Founding Member"
-      : "Start 7-day free trial";
+      : "Start 14-day free trial";
 
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
@@ -193,7 +193,7 @@ function Paywall() {
         <PlanCard
           label="Monthly"
           price="$7.99"
-          sub="per month · 7-day free trial"
+          sub="per month · 14-day free trial"
           selected={selectedTier === "monthly"}
           onSelect={() => setSelectedTier("monthly")}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
@@ -201,7 +201,7 @@ function Paywall() {
         <PlanCard
           label="Annual"
           price="$49.99"
-          sub="per year · save 48% · 7-day free trial"
+          sub="per year · save 48% · 14-day free trial"
           highlighted
           badge="Most popular"
           selected={selectedTier === "annual"}
