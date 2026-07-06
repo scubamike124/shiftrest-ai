@@ -189,7 +189,7 @@ function Features() {
               See it in your own week.
             </h2>
             <p className="mt-5 text-lg text-muted-foreground">
-              7 days free. No card games. Cancel anytime from your account.
+              14 days free. No card games. Cancel anytime from your account.
             </p>
             <Link
               to="/auth"
