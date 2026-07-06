@@ -259,6 +259,19 @@ function PlanPage() {
         </div>
       )}
 
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <VoicePlayer buildPlanText={buildPlanText} />
+        </div>
+        <Link
+          to="/share"
+          className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground active:scale-95"
+          aria-label="Share with partner"
+        >
+          <Share2 className="h-4 w-4" />
+        </Link>
+      </div>
+
       {!shift ? (
         signedIn === null || (signedIn === true && shifts === undefined) || shiftsFetching ? (
           <div className="rounded-2xl border border-border bg-card p-6 text-center">
@@ -283,18 +296,7 @@ function PlanPage() {
 
       ) : (
         <>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <VoicePlayer buildPlanText={buildPlanText} />
-            </div>
-            <Link
-              to="/share"
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card text-foreground active:scale-95"
-              aria-label="Share with partner"
-            >
-              <Share2 className="h-4 w-4" />
-            </Link>
-          </div>
+
 
           {recommendations.length > 0 && (
             <section className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card p-4">
