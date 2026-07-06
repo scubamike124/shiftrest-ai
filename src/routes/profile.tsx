@@ -51,24 +51,9 @@ import { VoiceSettings } from "@/components/voice/VoiceSettings";
 import { AssistantModeDebugPanel } from "@/components/debug/AssistantModeDebugPanel";
 import { amDebugPush } from "@/lib/debug/assistantModeDebug";
 
-// TEMP: `?debug=1` renders ONLY <AssistantSettings> with DEFAULT_PREFS and
-// no auth, so the AssistantSettings component can be inspected in isolation
-// while diagnosing the Conversation-style bug. Remove once fixed.
-function isDebugBypass(href: string): boolean {
-  try {
-    const q = href.split("?")[1] ?? "";
-    return new URLSearchParams(q).get("debug") === "1";
-  } catch {
-    return false;
-  }
-}
-
 export const Route = createFileRoute("/profile")({
   ssr: false,
-  beforeLoad: async (ctx) => {
-    if (isDebugBypass(ctx.location.href)) return;
-    return requireSession(ctx);
-  },
+  beforeLoad: requireSession,
   head: () => ({
     meta: [
       { title: "Profile & Preferences — RestPilot AI" },
@@ -81,22 +66,6 @@ export const Route = createFileRoute("/profile")({
   component: Profile,
 });
 
-function ProfileDebugIsolated() {
-  // Local mirror of DEFAULT_PREFS so a "select mode" click updates the UI.
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
-  const update = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
-    setPrefs((p) => ({ ...p, [key]: value }));
-  };
-  return (
-    <div className="mx-auto max-w-md space-y-4 p-4">
-      <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700">
-        <strong>Isolated diagnostic view.</strong> No auth, no user data, no
-        network. Renders only &lt;AssistantSettings&gt; against DEFAULT_PREFS.
-      </div>
-      <AssistantSettings prefs={prefs} signedIn={false} onChange={update} />
-    </div>
-  );
-}
 
 
 function Profile() {
