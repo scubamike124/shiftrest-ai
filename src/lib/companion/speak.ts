@@ -520,6 +520,8 @@ async function playOnce(
   // repeat often; reusing the blob skips the network and provider cost.
   const cacheKey = `${provider}|${voice ?? "-"}|${mode}|${spoken}`;
   let blob: Blob | null = ttsCacheGet(cacheKey);
+  let streamingMediaSource: MediaSource | null = null;
+  let streamingSrc: string | null = null;
 
   if (!blob) {
     // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
