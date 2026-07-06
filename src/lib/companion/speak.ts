@@ -524,7 +524,7 @@ async function pumpBodyIntoMediaSource(
       collected.push(value);
       await waitForIdle();
       try {
-        sb.appendBuffer(value);
+        sb.appendBuffer(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer);
       } catch {
         ok = false;
         break;
