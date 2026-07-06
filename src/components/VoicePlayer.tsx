@@ -60,6 +60,37 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       return;
     }
 
+    // ---- Timing instrumentation (temporary; see .lovable/plan.md) ----
+    const traceId = Math.random().toString(36).slice(2, 7);
+    const t0 = performance.now();
+    let last = t0;
+    const mark = (label: string) => {
+      const now = performance.now();
+      const dPrev = (now - last).toFixed(0);
+      const dTotal = (now - t0).toFixed(0);
+      // eslint-disable-next-line no-console
+      console.info(
+        `[brief-timing #${traceId}] ${label} +${dPrev}ms (total ${dTotal}ms)`,
+      );
+      last = now;
+    };
+    mark("t0 tap");
+
+    // One-shot listener for the first "started" audio event of this tap.
+    const onStarted = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { status?: string };
+      if (detail?.status === "started") {
+        mark("t5 first audio started");
+        window.removeEventListener("companion:voice-status", onStarted);
+      }
+    };
+    window.addEventListener("companion:voice-status", onStarted);
+    // Safety: drop the listener after 30s in case audio never starts.
+    setTimeout(
+      () => window.removeEventListener("companion:voice-status", onStarted),
+      30_000,
+    );
+
     // Arm the shared audio pipeline INSIDE the user gesture (iOS Safari).
     prepareVoicePlayback();
 
@@ -85,6 +116,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         toast.info("Sign in to use voice briefing.");
         return;
       }
+      mark("t1 /api/brief request sent");
       const briefRes = await fetch("/api/brief", {
         method: "POST",
         headers: {
@@ -93,12 +125,14 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         },
         body: JSON.stringify({ plan, localTime, timezone }),
       });
+      mark("t2 /api/brief response headers");
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
       try {
         briefData = await briefRes.json();
       } catch {
         /* non-JSON */
       }
+      mark("t3 /api/brief JSON parsed");
       if (!briefRes.ok || briefData.error) {
         toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
         return;
@@ -118,6 +152,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       // Prepend a soft lead-in ("… ") so ElevenLabs starts the very first
       // utterance with a half-breath instead of a cold, louder/faster opener.
       const spoken = "… " + expandForSpeech(script).slice(0, 1200);
+      mark("t4 speakQueued invoked");
       speakQueued(spoken, { source: "assistant_reply" });
     } catch (e) {
       console.error("VoicePlayer error", e);
@@ -126,6 +161,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       setLoading(false);
     }
   }
+
 
   function stop() {
     stopSpeaking();
