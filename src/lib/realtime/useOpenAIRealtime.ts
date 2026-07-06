@@ -71,6 +71,7 @@ const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
   const mint = useServerFn(mintRealtimeSession);
+  const recordUsage = useServerFn(recordTrialVoiceUsage);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -80,11 +81,17 @@ export function useOpenAIRealtime() {
   const turnEndAtRef = useRef<number | null>(null);
   const awaitingFirstReplyAudioRef = useRef<boolean>(false);
 
+  // Trial voice usage bookkeeping.
+  const sessionStartAtRef = useRef<number | null>(null);
+  const lastFlushAtRef = useRef<number | null>(null);
+  const heartbeatIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [status, setStatus] = useState<RealtimeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [transcript, setTranscript] = useState<RealtimeTranscriptEvent[]>([]);
   const [debugEvents, setDebugEvents] = useState<RealtimeDebugEvent[]>([]);
+  const [trial, setTrial] = useState<TrialSnapshot | null>(null);
   const [metrics, setMetrics] = useState<RealtimeMetrics>({
     connectMs: null,
     firstAudioMs: null,
@@ -97,7 +104,39 @@ export function useOpenAIRealtime() {
     turnCount: 0,
   });
 
+  const flushUsage = useCallback(async () => {
+    if (!isPaymentsConfigured()) return;
+    const now = performance.now();
+    const last = lastFlushAtRef.current ?? sessionStartAtRef.current;
+    if (last == null) return;
+    const seconds = Math.max(0, Math.floor((now - last) / 1000));
+    if (seconds < 1) return;
+    lastFlushAtRef.current = now;
+    try {
+      const env = getStripeEnvironment();
+      const state = await recordUsage({ data: { seconds, environment: env } });
+      if (state.isTrial) {
+        setTrial({
+          isTrial: true,
+          remainingSeconds: state.remainingSeconds,
+          capSeconds: state.capSeconds,
+          limitReached: state.limitReached,
+        });
+      }
+    } catch {
+      /* best-effort */
+    }
+  }, [recordUsage]);
+
   const teardown = useCallback(async () => {
+    if (heartbeatIdRef.current) {
+      clearInterval(heartbeatIdRef.current);
+      heartbeatIdRef.current = null;
+    }
+    // Flush any remaining seconds before we forget the session start.
+    if (sessionStartAtRef.current != null) {
+      await flushUsage();
+    }
     try {
       dcRef.current?.close();
     } catch { /* noop */ }
@@ -114,7 +153,9 @@ export function useOpenAIRealtime() {
     turnStartRef.current = null;
     turnEndAtRef.current = null;
     awaitingFirstReplyAudioRef.current = false;
-  }, []);
+    sessionStartAtRef.current = null;
+    lastFlushAtRef.current = null;
+  }, [flushUsage]);
 
   const handleEvent = useCallback((raw: string) => {
     let evt: { type?: string; transcript?: string; delta?: string } & Record<string, unknown>;
