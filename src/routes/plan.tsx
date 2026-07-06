@@ -257,6 +257,7 @@ function PlanPage() {
             </p>
             <Link
               to="/dashboard"
+              hash="schedule"
               className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
             >
               Open Schedule
