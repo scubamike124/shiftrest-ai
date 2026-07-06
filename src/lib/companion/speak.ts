@@ -586,10 +586,29 @@ async function playOnce(
       track({ event: "voice_skipped", reason: "superseded" });
       return;
     }
-    blob = await resp.blob();
-    // Cache by (post-fallback) provider — speakers may have changed.
+    // Streaming path: with the ElevenLabs /stream endpoint the server ships
+    // the first MP3 bytes in ~300–600 ms. Feed those bytes into a
+    // MediaSource so <audio> can start playing at first-byte instead of
+    // waiting for the whole file (~8 s previously).
     const finalProvider = elevenLabsBlocked ? "openai" : provider;
-    ttsCachePut(`${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`, blob);
+    const finalCacheKey = `${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`;
+    const canStreamMse =
+      typeof window !== "undefined" &&
+      typeof MediaSource !== "undefined" &&
+      MediaSource.isTypeSupported("audio/mpeg") &&
+      resp.body != null;
+    if (canStreamMse) {
+      streamingMediaSource = new MediaSource();
+      streamingSrc = URL.createObjectURL(streamingMediaSource);
+      void pumpBodyIntoMediaSource(
+        streamingMediaSource,
+        resp.body!,
+        (finalBlob) => ttsCachePut(finalCacheKey, finalBlob),
+      );
+    } else {
+      blob = await resp.blob();
+      ttsCachePut(finalCacheKey, blob);
+    }
   }
   if (!stillValid()) {
     track({ event: "voice_skipped", reason: "superseded" });
@@ -615,7 +634,8 @@ async function playOnce(
   // Match perceived loudness across providers: OpenAI fallback is hotter
   // than ElevenLabs, so attenuate the element when EL is blocked.
   audio.volume = elevenLabsBlocked || provider === "openai" ? OPENAI_FALLBACK_ATTEN : 1;
-  const url = URL.createObjectURL(blob);
+  const url =
+    streamingSrc ?? URL.createObjectURL(blob!);
   audio.src = url;
   currentAudio = audio;
   currentUrl = url;
