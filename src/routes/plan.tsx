@@ -21,6 +21,7 @@ import {
 import { DAYS, fmt, fetchShifts, type Shift } from "@/lib/shifts";
 import { useQuery } from "@tanstack/react-query";
 import { buildLightPlan, sunTimes, type PlanEvent } from "@/lib/sleep-engine";
+import { detectDeviceTz } from "@/lib/tz";
 import { shiftsForDate } from "@/lib/schedule";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchEmployers } from "@/lib/employers";
@@ -129,7 +130,7 @@ function PlanPage() {
   const isCoordsLabel = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawLabel);
   const hasVerifiedLocation = rawLabel.length > 0 && !isCoordsLabel;
   const displayLabel = hasVerifiedLocation ? rawLabel : "";
-  const planTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
+  const planTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
   const sun = useMemo(
     () =>
       hasVerifiedLocation

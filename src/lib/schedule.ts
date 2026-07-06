@@ -8,6 +8,7 @@
 import { type Shift, endAbsolute } from "./shifts";
 import type { Prefs } from "./prefs";
 import { sunTimes } from "./sleep-engine";
+import { detectDeviceTz } from "./tz";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -259,7 +260,7 @@ export function buildMultiDayPlan(
     date.setDate(start.getDate() + i);
     const dayShifts = shiftsForDate(shifts, date, prefs.cycleAnchor, prefs.cycleWeeks);
     const primary = dayShifts[0];
-    const planTz = prefs.currentTz ?? prefs.homeTz ?? undefined;
+    const planTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
     const sun = location
       ? sunTimes(date, location.lat ?? null, location.lon ?? null, planTz)
       : { sunrise: null, sunset: null };
