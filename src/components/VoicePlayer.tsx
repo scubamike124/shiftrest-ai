@@ -39,6 +39,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [timing, setTiming] = useState<Timing | null>(null);
+  const [diag, setDiag] = useState<{ heard: number; gate: "pending" | "pass" | "reject"; lastLabel?: string }>({ heard: 0, gate: "pending" });
 
 
   // Reflect the shared pipeline's status so Play/Stop UI stays accurate.
