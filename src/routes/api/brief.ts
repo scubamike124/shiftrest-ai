@@ -148,12 +148,19 @@ export const Route = createFileRoute("/api/brief")({
           }
           const system = languageDirective(language, accent) + BRIEF_SYSTEM + timeDirective;
 
+          console.log(`[brief] provider_start user=${userId ?? "-"} lang=${language}`);
+          const providerT0 = Date.now();
           const result = await chatJSON({
             messages: [
               { role: "system", content: system },
               { role: "user", content: plan },
             ],
           });
+          console.log(
+            `[brief] provider_done ms=${Date.now() - providerT0} prompt_tokens=${result.promptTokens ?? "-"} completion_tokens=${result.completionTokens ?? "-"} chars=${result.text?.length ?? 0}`,
+          );
+
+
 
 
           if (!result.text) {
