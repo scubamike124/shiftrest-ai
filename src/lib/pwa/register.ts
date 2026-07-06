@@ -190,7 +190,113 @@ export async function registerAppShell(): Promise<void> {
         reg.update().catch(() => { /* offline ok */ });
       }
     });
+
+    // Stale-bundle guards. Marker: PWA_STALE_GUARD_BUILD =
+    // "pwa-stale-guard-2026-07-06-01" — grep production JS to confirm
+    // this file shipped.
+    installStaleBundleGuards(reg);
   } catch (err) {
     console.warn("[pwa] SW registration failed", err);
   }
+}
+
+/**
+ * PWA_STALE_GUARD_BUILD = "pwa-stale-guard-2026-07-06-01"
+ *
+ * Three defenses against users sitting on a stale JS bundle when the SW's
+ * own update flow misses (foregrounded-only visits, bfcache-restored tabs,
+ * iOS Safari holding the previous controller):
+ *
+ *   1. pageshow → reg.update()  (also fires on bfcache restore)
+ *   2. bfcache guard: if event.persisted AND server buildId ≠ current, reload once
+ *   3. 60s poll of /api/public/version while visible; if buildId drifts
+ *      for 2 checks in a row, emit `available` so UpdateBanner shows.
+ *      Tapping Update reloads even without a waiting SW.
+ */
+function installStaleBundleGuards(reg: ServiceWorkerRegistration): void {
+  const CURRENT_BUILD = __BUILD_ID__;
+  const BFCACHE_RELOAD_TOKEN = `rpai:bfcache-reloaded:${CURRENT_BUILD}`;
+
+  let mismatchStreak = 0;
+  let banneredForBuild: string | null = null;
+
+  const fetchServerBuildId = async (): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/public/version", { cache: "no-store" });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { buildId?: string };
+      return typeof json.buildId === "string" ? json.buildId : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const checkForDrift = async (source: string): Promise<void> => {
+    const serverBuild = await fetchServerBuildId();
+    if (!serverBuild) return;
+    if (serverBuild === CURRENT_BUILD) {
+      mismatchStreak = 0;
+      return;
+    }
+    mismatchStreak += 1;
+    console.info(
+      `[pwa] build-id drift (${source}) server=${serverBuild} current=${CURRENT_BUILD} streak=${mismatchStreak}`,
+    );
+    // Nudge the SW to fetch the new script; if it's really new the
+    // normal updatefound/waiting path will fire and the banner appears
+    // via wireUpdateDetection.
+    reg.update().catch(() => { /* offline ok */ });
+    if (mismatchStreak >= 2 && banneredForBuild !== serverBuild) {
+      banneredForBuild = serverBuild;
+      emitUpdate({ type: "available", reg });
+    }
+  };
+
+  // (2) bfcache guard — fires when Safari restores a persisted page.
+  window.addEventListener("pageshow", (event: PageTransitionEvent) => {
+    // (1) always re-check for a new SW on pageshow (covers bfcache too).
+    reg.update().catch(() => { /* offline ok */ });
+
+    if (!event.persisted) return;
+    (async () => {
+      const serverBuild = await fetchServerBuildId();
+      if (!serverBuild || serverBuild === CURRENT_BUILD) return;
+      try {
+        if (sessionStorage.getItem(BFCACHE_RELOAD_TOKEN) === "1") return;
+        sessionStorage.setItem(BFCACHE_RELOAD_TOKEN, "1");
+      } catch { /* private mode ok */ }
+      console.info(
+        `[pwa] bfcache restore with stale build (server=${serverBuild}) — reloading`,
+      );
+      window.location.reload();
+    })();
+  });
+
+  // (3) Poll every 60s while visible. Skip when hidden to conserve battery.
+  const POLL_MS = 60_000;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const startPoll = () => {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void checkForDrift("poll");
+      }
+    }, POLL_MS);
+  };
+  const stopPoll = () => {
+    if (!pollTimer) return;
+    clearInterval(pollTimer);
+    pollTimer = null;
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void checkForDrift("visibilitychange");
+      startPoll();
+    } else {
+      stopPoll();
+    }
+  });
+  // Initial check after a short delay so we don't race the first paint.
+  setTimeout(() => { void checkForDrift("initial"); }, 8000);
+  startPoll();
 }
