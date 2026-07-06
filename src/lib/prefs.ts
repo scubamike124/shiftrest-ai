@@ -376,9 +376,25 @@ export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
   }
 
   const row = prefsToRowPartial(partial);
-  const { error } = await supabase
+  const isModeSave = partial.assistantMode !== undefined || "assistant_mode" in row;
+  if (isModeSave) {
+    console.log("[assistantMode-debug] savePrefs partial:", partial);
+    console.log("[assistantMode-debug] savePrefs row -> upsert:", row);
+  }
+  const { data, error } = await supabase
     .from("user_prefs")
-    .upsert({ user_id: uid, ...row }, { onConflict: "user_id" });
+    .upsert({ user_id: uid, ...row }, { onConflict: "user_id" })
+    .select("assistant_mode")
+    .single();
+  if (isModeSave) {
+    console.log("[assistantMode-debug] upsert response data:", data);
+    console.log("[assistantMode-debug] upsert response error:", error && {
+      code: (error as { code?: string }).code,
+      message: error.message,
+      details: (error as { details?: string }).details,
+      hint: (error as { hint?: string }).hint,
+    });
+  }
   if (error) {
     console.error("savePrefs failed", error);
     throw error;

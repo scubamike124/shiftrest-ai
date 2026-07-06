@@ -92,12 +92,18 @@ function Profile() {
   const mutation = useMutation({
     mutationFn: (partial: Partial<Prefs>) => savePrefs(partial),
     onMutate: async (partial) => {
+      if (partial.assistantMode !== undefined) {
+        console.log("[assistantMode-debug] mutation.onMutate partial:", partial);
+      }
       await queryClient.cancelQueries({ queryKey: ["prefs"] });
       const prev = queryClient.getQueryData<Prefs>(["prefs"]);
       queryClient.setQueryData<Prefs>(["prefs"], { ...(prev ?? DEFAULT_PREFS), ...partial });
       return { prev };
     },
-    onError: (err, _v, ctx) => {
+    onError: (err, vars, ctx) => {
+      if ((vars as Partial<Prefs>).assistantMode !== undefined) {
+        console.log("[assistantMode-debug] mutation.onError err:", err);
+      }
       if (ctx?.prev) queryClient.setQueryData(["prefs"], ctx.prev);
       if (err instanceof AuthRequiredError) {
         toast.error("Sign in to save your location", {
@@ -110,7 +116,13 @@ function Profile() {
         toast.error("Couldn't save — please try again.");
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["prefs"] }),
+    onSettled: async (_data, _err, vars) => {
+      await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+      if ((vars as Partial<Prefs>)?.assistantMode !== undefined) {
+        const after = queryClient.getQueryData<Prefs>(["prefs"]);
+        console.log("[assistantMode-debug] onSettled cache assistantMode:", after?.assistantMode);
+      }
+    },
   });
 
   const { data: subState, refetch: refetchSub } = useQuery({
