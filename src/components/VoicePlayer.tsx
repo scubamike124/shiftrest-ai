@@ -8,6 +8,7 @@ import {
   speakQueued,
   stopSpeaking,
   prepareVoicePlayback,
+  TTS_PATH_DIAGNOSTIC_BUILD,
 } from "@/lib/companion/speak";
 
 type Props = {
@@ -24,6 +25,14 @@ type Timing = {
   traceId: string;
   rows: TimingRow[];
   summary?: { llmMs: number; ttsPlayMs: number; totalMs: number };
+  ttsPath?: {
+    build: string;
+    label: string;
+    path: string;
+    provider: string;
+    endpoint: string;
+    reason?: string;
+  };
 };
 
 export function VoicePlayer({ buildPlanText, className }: Props) {
@@ -114,6 +123,21 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     // Safety: drop the listener after 30s in case audio never starts.
     setTimeout(
       () => window.removeEventListener("companion:voice-status", onStarted),
+      30_000,
+    );
+
+    const onTtsPath = (e: Event) => {
+      const detail = (e as CustomEvent).detail as Timing["ttsPath"];
+      if (!detail) return;
+      setTiming((prev) => {
+        if (!prev || prev.traceId !== traceId) return prev;
+        return { ...prev, ttsPath: detail };
+      });
+      window.removeEventListener("companion:tts-path", onTtsPath);
+    };
+    window.addEventListener("companion:tts-path", onTtsPath);
+    setTimeout(
+      () => window.removeEventListener("companion:tts-path", onTtsPath),
       30_000,
     );
 
@@ -264,6 +288,19 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
               <div className="flex justify-between font-semibold"><span>TOTAL</span><span>{timing.summary.totalMs} ms</span></div>
             </div>
           )}
+          <div className="mt-2 border-t border-white/20 pt-1">
+            <div className="flex justify-between gap-2">
+              <span>TTS path</span>
+              <span className="text-right text-white/80">
+                {timing.ttsPath?.label ?? "waiting…"}
+              </span>
+            </div>
+            <div className="mt-1 break-all text-white/50">
+              build {timing.ttsPath?.build ?? TTS_PATH_DIAGNOSTIC_BUILD}
+              {timing.ttsPath ? ` · ${timing.ttsPath.provider} · ${timing.ttsPath.endpoint}` : ""}
+              {timing.ttsPath?.reason ? ` · ${timing.ttsPath.reason}` : ""}
+            </div>
+          </div>
         </div>
       )}
     </div>
