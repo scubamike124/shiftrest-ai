@@ -130,11 +130,20 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
 
     const onTtsPath = (e: Event) => {
       const detail = (e as CustomEvent).detail as Timing["ttsPath"];
+      // Unconditional: count every fire and stash the label BEFORE any gate.
+      setDiag((prev) => ({
+        heard: prev.heard + 1,
+        gate: prev.gate,
+        lastLabel: detail?.label,
+      }));
       if (!detail) return;
+      let gated: "pass" | "reject" = "reject";
       setTiming((prev) => {
         if (!prev || prev.traceId !== traceId) return prev;
+        gated = "pass";
         return { ...prev, ttsPath: detail };
       });
+      setDiag((prev) => ({ ...prev, gate: gated }));
       window.removeEventListener("companion:tts-path", onTtsPath);
     };
     window.addEventListener("companion:tts-path", onTtsPath);
