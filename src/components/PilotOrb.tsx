@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 import { useAvatar } from "@/lib/companion/use-avatar";
+import pilotPortraitFallback from "@/assets/pilot-portrait.jpg";
+
 
 export type OrbState = "idle" | "listening" | "thinking" | "speaking";
 
@@ -18,6 +20,9 @@ export function PilotOrb({
 }) {
   const scale = state === "listening" ? 1 + Math.min(level * 4, 0.35) : 1;
   const { src: portraitUrl } = useAvatar();
+  // Always fall back to the bundled pilot portrait so the ring is never empty
+  // (covers SSR/hydration, custom-avatar URLs that 404, or an unresolved id).
+  const imgSrc = portraitUrl || pilotPortraitFallback;
   return (
     <div className={cn("relative aspect-square w-56 max-w-[60vw]", className)}>
       {/* outer aurora ring */}
@@ -37,14 +42,17 @@ export function PilotOrb({
       >
         {/* portrait avatar — same image used on Home + active session */}
         <div className="relative h-full w-full overflow-hidden rounded-full border border-white/15 bg-background">
-          {portraitUrl && (
-            <img
-              src={portraitUrl}
-              alt=""
-              className="h-full w-full object-cover"
-              draggable={false}
-            />
-          )}
+          <img
+            src={imgSrc}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+            onError={(e) => {
+              // If the selected avatar URL fails, swap in the bundled fallback.
+              const el = e.currentTarget;
+              if (el.src !== pilotPortraitFallback) el.src = pilotPortraitFallback;
+            }}
+          />
         </div>
       </div>
       {/* subtle inner rim for depth */}
