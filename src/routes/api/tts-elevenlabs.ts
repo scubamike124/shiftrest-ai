@@ -89,6 +89,10 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           : mode === "thinking"     ? { stability: 0.70, similarity: 0.80, style: 0.08, speed: 0.92, prefix: "",          boost: false }
                                     : { stability: 0.72, similarity: 0.80, style: 0.05, speed: 0.88, prefix: "",          boost: false };
 
+          console.log(
+            `[tts-elevenlabs] provider_start voice=${voiceId} mode=${mode} textLen=${textLen}`,
+          );
+          const providerT0 = Date.now();
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
             {
@@ -110,6 +114,10 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
               }),
             },
           );
+          console.log(
+            `[tts-elevenlabs] provider_headers ms=${Date.now() - providerT0} status=${upstream.status}`,
+          );
+
 
           if (!upstream.ok) {
             const upstreamBody = await upstream.text().catch(() => "");
