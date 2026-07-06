@@ -28,6 +28,7 @@
  */
 
 import { emitUpdate } from "./update-channel";
+import { logBreadcrumb } from "./breadcrumbs";
 
 const SW_PATH = "/sw.js";
 
@@ -94,6 +95,9 @@ function autoActivateIfPossible(reg: ServiceWorkerRegistration): void {
   } catch {
     /* private mode — fall through; controllerchange reload is still gated */
   }
+  logBreadcrumb("auto-skip-waiting", __BUILD_ID__, {
+    waitingScript: reg.waiting.scriptURL,
+  });
   reg.waiting.postMessage({ type: "SKIP_WAITING" });
 }
 
@@ -136,6 +140,7 @@ function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
     } catch { /* private mode ok */ }
     reloading = true;
     emitUpdate({ type: "activated" });
+    logBreadcrumb("reload", __BUILD_ID__, { source });
     console.info(`[pwa] reloading after SW activation (${source})`);
     window.location.reload();
   };
@@ -178,6 +183,10 @@ export async function registerAppShell(): Promise<void> {
     const reg = await navigator.serviceWorker.register(SW_PATH, {
       scope: "/",
       updateViaCache: "none",
+    });
+    logBreadcrumb("registered", __BUILD_ID__, {
+      scope: reg.scope,
+      hasController: !!navigator.serviceWorker.controller,
     });
     wireUpdateDetection(reg);
 
@@ -242,6 +251,11 @@ function installStaleBundleGuards(reg: ServiceWorkerRegistration): void {
     console.info(
       `[pwa] build-id drift (${source}) server=${serverBuild} current=${CURRENT_BUILD} streak=${mismatchStreak}`,
     );
+    logBreadcrumb("drift-detected", CURRENT_BUILD, {
+      source,
+      serverBuild,
+      streak: mismatchStreak,
+    });
     // Nudge the SW to fetch the new script; if it's really new the
     // normal updatefound/waiting path will fire and the banner appears
     // via wireUpdateDetection.
@@ -265,6 +279,8 @@ function installStaleBundleGuards(reg: ServiceWorkerRegistration): void {
         if (sessionStorage.getItem(BFCACHE_RELOAD_TOKEN) === "1") return;
         sessionStorage.setItem(BFCACHE_RELOAD_TOKEN, "1");
       } catch { /* private mode ok */ }
+      logBreadcrumb("bfcache-restore-stale", CURRENT_BUILD, { serverBuild });
+      logBreadcrumb("reload", CURRENT_BUILD, { source: "bfcache" });
       console.info(
         `[pwa] bfcache restore with stale build (server=${serverBuild}) — reloading`,
       );

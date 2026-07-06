@@ -8,7 +8,8 @@
  * new release (the controller's build is shown alongside the page build).
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { readBreadcrumbs, clearBreadcrumbs, type PwaBreadcrumb } from "@/lib/pwa/breadcrumbs";
 
 declare const __BUILD_ID__: string;
 
@@ -39,9 +40,13 @@ function VersionPage() {
   const [error, setError] = useState<string | null>(null);
   const [swState, setSwState] = useState<string>("checking…");
   const [host, setHost] = useState<string>("");
+  const [log, setLog] = useState<PwaBreadcrumb[]>([]);
+
+  const refreshLog = useCallback(() => setLog(readBreadcrumbs()), []);
 
   useEffect(() => {
     setHost(window.location.host);
+    refreshLog();
     fetch("/api/public/version", { cache: "no-store" })
       .then((r) => r.json())
       .then(setServer)
@@ -75,7 +80,7 @@ function VersionPage() {
             Verify which build is being served right now.
           </p>
           <p className="mt-2 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-300">
-            🟠 Publish canary v4 — stale-guard live test. If this appears without a Safari restart, the guards worked.
+            🟠 Publish canary v5 — breadcrumb test. Log below records every PWA lifecycle event.
           </p>
         </header>
 
@@ -120,12 +125,69 @@ function VersionPage() {
           </p>
         </section>
 
+        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-white/50">
+              Recent PWA activity ({log.length})
+            </h2>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={refreshLog}
+                className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/80 hover:bg-white/10"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => { clearBreadcrumbs(); refreshLog(); }}
+                className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/80 hover:bg-white/10"
+              >
+                Clear log
+              </button>
+            </div>
+          </div>
+          {log.length === 0 ? (
+            <p className="mt-3 text-sm text-white/60">
+              No breadcrumbs yet. If SW is registered, a "registered" entry should appear on next load.
+            </p>
+          ) : (
+            <ol className="mt-3 space-y-2">
+              {[...log].reverse().map((entry, i) => {
+                const { ts, type, build, ...rest } = entry;
+                return (
+                  <li
+                    key={`${ts}-${i}`}
+                    className="rounded-lg border border-white/10 bg-black/30 p-2 text-xs"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-semibold text-white">{type}</span>
+                      <span className="font-mono text-white/50">{ts}</span>
+                    </div>
+                    <div className="mt-1 font-mono text-white/60">build: {build}</div>
+                    {Object.keys(rest).length > 0 && (
+                      <pre className="mt-1 overflow-x-auto font-mono text-white/70">
+                        {JSON.stringify(rest, null, 2)}
+                      </pre>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+          <p className="mt-3 text-xs text-white/50">
+            drift-detected → auto-skip-waiting → reload = poll guard fired.
+            bfcache-restore-stale → reload = bfcache guard fired.
+          </p>
+        </section>
+
         <p className="text-xs text-white/40">
           Compare this Build ID on Preview and Production after every publish.
           Different IDs = production rotated. Identical IDs = either no new
           publish promoted, or your browser cached the old build (use the
           Update banner, or visit <code>?sw=off</code> to bypass the worker).
         </p>
+
       </div>
     </main>
   );
