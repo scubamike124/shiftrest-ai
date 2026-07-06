@@ -1,47 +1,46 @@
-# Publish-reliability: what's actually going wrong, and how I'll change my behavior
+## Findings
 
-## 1. Why "published" hasn't matched what's actually live
+Prod bundle audit (`assets/plan-CojTM1f4.js`, currently served) confirms all diagnostic code is present:
+- `companion:tts-path` listener is registered
+- The "TTS path" JSX row renders unconditionally whenever `timing` is set (with `"waiting…"` fallback)
+- `emitTtsPathDiagnostic` call sites in `speak.ts` (cache-blob / MSE / blob-fallback) all run BEFORE audio start
+- `TTS_PATH_DIAGNOSTIC_BUILD` and `__restpilotLastTtsPath` global are wired
 
-Based on this conversation's evidence (sunrise/sunset fix, Conversation-style debug panel, TTS path diagnostic — each absent from the production bundle after being reported as shipped), the failure is not a single bug. It's a combination of the following, in likely order of impact:
+So the section should at minimum display "waiting…" and the build tag as soon as the timing panel appears. If the screenshot shows summary rows but not even the "TTS path" label, the JSX block is being skipped by the render pass — most likely because a stale `plan-*.js` chunk is still in the browser cache from before publish, OR the setTiming state gate (`prev.traceId !== traceId`) silently drops the event in an edge case (e.g. component remount between tap and event dispatch clears traceId).
 
-**a. I claimed "live" from the tool acknowledgement, not from the bundle.**
-`preview_ui--publish` returns as soon as a deploy is *scheduled*. It does not wait for the build to finish, does not report build success/failure, and does not confirm the new bundle is being served. I was treating the tool's success response as proof of deployment. That's the single biggest cause of the pattern you noticed.
+## Root-cause investigation plan
 
-**b. Publish covers frontend only, and requires the dialog "Update" click for the live site.**
-Per Lovable's model, edits in the editor go to the preview immediately, but the public `restpilotai.com` domain updates only when a publish is actually committed and the build succeeds. If a publish is scheduled but the build fails, or if a prior publish is still in-flight, the live bundle stays on the previous version — with no error surfaced back to me unless I go look.
+Add unconditional, cache-busting instrumentation so the next test tells us definitively which branch is failing: (a) event never fires, (b) event fires but state gate rejects it, or (c) state updates but JSX doesn't render.
 
-**c. Custom domain + CDN caching.**
-`restpilotai.com` is a custom domain fronted by a CDN. Even after a successful deploy, HTML and hashed JS bundles can be served from cache for a short window. A fetch a few seconds after publish can still return the old `index-*.js`. Without checking the bundle hash and its contents, "it's live" is a guess.
+### Changes
 
-**d. Multiple rapid publishes racing.**
-When I published several times in a row during the TTS diagnostic work, later builds can supersede earlier ones, and a failed intermediate build can leave the previously-successful bundle in place — again, silently from my side.
+1. **`src/components/VoicePlayer.tsx`**
+   - Add a new `diag` state `{ heard: number; lastDetail: TtsPathDetail | null }` updated inside `onTtsPath` BEFORE the traceId gate — so it increments even if the gate rejects.
+   - Also read `window.__restpilotLastTtsPath` on every render as a last-resort fallback source for the displayed path.
+   - Render three new always-visible lines in the timing panel:
+     - `heard: N` (listener fire count)
+     - `gate: pass|reject` (whether the state update actually applied)
+     - `global: <path|—>` (value of `window.__restpilotLastTtsPath?.label`)
+   - Keep the existing "TTS path / build …" rows.
 
-**e. Preview vs production confusion.**
-The preview URL (`id-preview--….lovable.app`) and the published production URL (`restpilotai.com`) are different deployments. Verifying on preview does not verify production. I did not always distinguish these when telling you something was "live."
+2. **`src/lib/companion/speak.ts`**
+   - Bump `TTS_PATH_DIAGNOSTIC_BUILD` to `tts-path-diagnostic-2026-07-06-02` so we can verify a fresh bundle in prod.
+   - No behavior change to the emit sites.
 
-None of these are individually a "bug in the publish pipeline." The real defect is in my workflow: I was reporting deploy status from a signal (tool response) that never actually carried that information.
+### Verification (I do this before asking you to test)
 
-## 2. The rule I'll follow going forward
+1. Build finishes clean (no TS errors).
+2. Fetch prod HTML → note new `plan-*.js` chunk hash (must differ from `plan-CojTM1f4.js`).
+3. `curl` that chunk and grep for:
+   - `tts-path-diagnostic-2026-07-06-02` (new tag)
+   - `heard:` and `gate:` (new UI strings)
+4. Report the hash + grep counts verbatim, then hand off.
 
-I will not tell you something is "live" or "published" unless I have directly verified it against the production bundle. Concretely, after every publish that matters:
+### Expected outcomes when you run the test
 
-1. Fetch `https://restpilotai.com/` HTML.
-2. Extract the referenced `assets/index-*.js` (and CSS if relevant) filenames — note the hash.
-3. Download those assets and grep for a unique marker from the change (a build tag string, a distinctive class name, a literal like `tts-path-diagnostic-2026-07-06-01`, etc.).
-4. Only if the marker is present in the served bundle, report it as live.
-5. If the marker is missing, report exactly that — "publish was scheduled but the production bundle does not yet contain <marker>" — and either wait/retry or investigate the build, rather than asking you to test.
+- `heard: 0` → the event never fires → bug is in `speak.ts` emit path (network/error branch bypasses emit).
+- `heard: ≥1` and `gate: reject` → the traceId guard is dropping it → fix the state gate.
+- `heard: ≥1`, `gate: pass`, but UI still blank → React render issue (very unlikely given bundle audit); we'll investigate DOM directly.
+- `global:` shows a value but state rows don't → confirms the state gate is the culprit.
 
-Language I will use:
-- Before verification: *"I've triggered a publish but haven't confirmed it's live yet."*
-- After verification passes: *"Verified live on restpilotai.com — bundle `index-<hash>.js` contains `<marker>`."*
-- After verification fails: *"Publish did not take — production bundle still does not contain `<marker>`. Not asking you to test."*
-
-For any change that has no natural marker in the output, I'll add a small, unique string (build tag, comment-turned-string, data attribute) specifically so the served bundle can be grepped. No marker, no "live" claim.
-
-## 3. What I'd like to do next (only with your go-ahead)
-
-- Apply the rule above immediately, retroactively, to any pending change.
-- Before resuming the Voice briefing latency work, do one clean cycle end-to-end on a trivial marker change (add a build tag, publish, verify by fetching the bundle, report back) so you can see the new workflow work once on something low-stakes.
-- Then, and only then, return to the TTS path diagnostic and the underlying t4→t5 latency question.
-
-I'm not touching the Voice briefing code until you confirm you're satisfied with this change in how I report deploy status.
+Tripwire markers left in place — not touching them.

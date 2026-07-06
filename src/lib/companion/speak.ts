@@ -143,7 +143,7 @@ function emitTurnEnded() {
   window.dispatchEvent(new CustomEvent("companion:turn-ended"));
 }
 
-export const TTS_PATH_DIAGNOSTIC_BUILD = "tts-path-diagnostic-2026-07-06-01";
+export const TTS_PATH_DIAGNOSTIC_BUILD = "tts-path-diagnostic-2026-07-06-02";
 
 type TtsPathDiagnostic = {
   build: string;

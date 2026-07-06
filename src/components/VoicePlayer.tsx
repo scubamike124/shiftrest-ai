@@ -39,6 +39,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [timing, setTiming] = useState<Timing | null>(null);
+  const [diag, setDiag] = useState<{ heard: number; gate: "pending" | "pass" | "reject"; lastLabel?: string }>({ heard: 0, gate: "pending" });
 
 
   // Reflect the shared pipeline's status so Play/Stop UI stays accurate.
@@ -83,6 +84,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     const t0 = performance.now();
     let last = t0;
     setTiming({ traceId, rows: [] });
+    setDiag({ heard: 0, gate: "pending" });
     const mark = (key: string, label: string) => {
       const now = performance.now();
       const dPrev = Math.round(now - last);
@@ -128,11 +130,20 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
 
     const onTtsPath = (e: Event) => {
       const detail = (e as CustomEvent).detail as Timing["ttsPath"];
+      // Unconditional: count every fire and stash the label BEFORE any gate.
+      setDiag((prev) => ({
+        heard: prev.heard + 1,
+        gate: prev.gate,
+        lastLabel: detail?.label,
+      }));
       if (!detail) return;
+      let gated: "pass" | "reject" = "reject";
       setTiming((prev) => {
         if (!prev || prev.traceId !== traceId) return prev;
+        gated = "pass";
         return { ...prev, ttsPath: detail };
       });
+      setDiag((prev) => ({ ...prev, gate: gated }));
       window.removeEventListener("companion:tts-path", onTtsPath);
     };
     window.addEventListener("companion:tts-path", onTtsPath);
@@ -300,7 +311,23 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
               {timing.ttsPath ? ` · ${timing.ttsPath.provider} · ${timing.ttsPath.endpoint}` : ""}
               {timing.ttsPath?.reason ? ` · ${timing.ttsPath.reason}` : ""}
             </div>
+            <div className="mt-1 flex justify-between gap-2 text-white/70">
+              <span>heard:</span><span>{diag.heard}</span>
+            </div>
+            <div className="flex justify-between gap-2 text-white/70">
+              <span>gate:</span><span>{diag.gate}</span>
+            </div>
+            <div className="flex justify-between gap-2 text-white/70">
+              <span>global:</span>
+              <span className="text-right">
+                {(typeof window !== "undefined" &&
+                  (window as unknown as { __restpilotLastTtsPath?: { label?: string } }).__restpilotLastTtsPath?.label) ||
+                  diag.lastLabel ||
+                  "—"}
+              </span>
+            </div>
           </div>
+
         </div>
       )}
     </div>
