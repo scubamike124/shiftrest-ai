@@ -121,7 +121,8 @@ function PlanPage() {
   }, [today, activeDay, weekday]);
   const shift =
     shiftsForDate(safeShifts, activeDate, prefs.cycleAnchor, prefs.cycleWeeks)[0] ??
-    safeShifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0);
+    safeShifts.find((s: Shift) => s.day === activeDay && (s.weekIndex ?? 0) === 0) ??
+    safeShifts.find((s: Shift) => s.day === activeDay);
 
   // Only compute sunrise/sunset when the user has VERIFIED a real location.
   // A coords-shaped label like "33.66, -117.88" is a legacy fallback from a
