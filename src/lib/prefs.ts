@@ -378,8 +378,9 @@ export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
   const row = prefsToRowPartial(partial);
   const isModeSave = partial.assistantMode !== undefined || "assistant_mode" in row;
   if (isModeSave) {
-    console.log("[assistantMode-debug] savePrefs partial:", partial);
-    console.log("[assistantMode-debug] savePrefs row -> upsert:", row);
+    const { amDebugPush } = await import("@/lib/debug/assistantModeDebug");
+    amDebugPush("savePrefs partial", partial);
+    amDebugPush("savePrefs row -> upsert", row);
   }
   const { data, error } = await supabase
     .from("user_prefs")
@@ -387,12 +388,14 @@ export async function savePrefs(partial: Partial<Prefs>): Promise<void> {
     .select("assistant_mode")
     .single();
   if (isModeSave) {
-    console.log("[assistantMode-debug] upsert response data:", data);
-    console.log("[assistantMode-debug] upsert response error:", error && {
+    const { amDebugPush } = await import("@/lib/debug/assistantModeDebug");
+    amDebugPush("upsert response data", data);
+    amDebugPush("upsert response error", error && {
       code: (error as { code?: string }).code,
       message: error.message,
       details: (error as { details?: string }).details,
       hint: (error as { hint?: string }).hint,
+      status: (error as { status?: number }).status,
     });
   }
   if (error) {
