@@ -66,6 +66,8 @@ export const Route = createFileRoute("/profile")({
   component: Profile,
 });
 
+
+
 function Profile() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
