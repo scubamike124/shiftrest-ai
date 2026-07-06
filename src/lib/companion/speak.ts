@@ -668,13 +668,18 @@ async function playOnce(
     // waiting for the whole file (~8 s previously).
     const finalProvider = elevenLabsBlocked ? "openai" : provider;
     const finalCacheKey = `${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`;
+    const MseCtor: typeof MediaSource | null =
+      typeof window !== "undefined"
+        ? ((window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
+            ?? (typeof MediaSource !== "undefined" ? MediaSource : null))
+        : null;
     const canStreamMse =
-      typeof window !== "undefined" &&
-      typeof MediaSource !== "undefined" &&
-      MediaSource.isTypeSupported("audio/mpeg") &&
+      MseCtor != null &&
+      typeof MseCtor.isTypeSupported === "function" &&
+      MseCtor.isTypeSupported("audio/mpeg") &&
       resp.body != null;
     if (canStreamMse) {
-      streamingMediaSource = new MediaSource();
+      streamingMediaSource = new MseCtor!();
       streamingSrc = URL.createObjectURL(streamingMediaSource);
       void pumpBodyIntoMediaSource(
         streamingMediaSource,
@@ -685,6 +690,7 @@ async function playOnce(
       blob = await resp.blob();
       ttsCachePut(finalCacheKey, blob);
     }
+
   }
   if (!stillValid()) {
     track({ event: "voice_skipped", reason: "superseded" });
