@@ -341,6 +341,7 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
+      const environment = isPaymentsConfigured() ? getStripeEnvironment() : undefined;
       const session = await mint({
         data: {
           localTime: new Date().toISOString(),
@@ -348,8 +349,29 @@ export function useOpenAIRealtime() {
             (typeof Intl !== "undefined" &&
               Intl.DateTimeFormat().resolvedOptions().timeZone) ||
             null,
+          ...(environment && { environment }),
         },
       });
+
+      // Expose trial info to the UI (idle chip / upgrade card).
+      if (session.trial) {
+        setTrial({
+          isTrial: session.trial.isTrial,
+          remainingSeconds: session.trial.remainingSeconds,
+          capSeconds: session.trial.capSeconds,
+          limitReached: session.trial.isTrial && session.trial.remainingSeconds <= 0,
+        });
+      }
+
+      // Start the usage clock now — SDP handshake and greeting will still
+      // happen, but from the user's perspective this is when the session
+      // began costing them minutes.
+      sessionStartAtRef.current = performance.now();
+      lastFlushAtRef.current = sessionStartAtRef.current;
+      if (heartbeatIdRef.current) clearInterval(heartbeatIdRef.current);
+      heartbeatIdRef.current = setInterval(() => {
+        void flushUsage();
+      }, TRIAL_VOICE_HEARTBEAT_MS);
 
       const tTokenEnd = performance.now();
       const tokenFetchMs = tTokenEnd - tTokenStart;
