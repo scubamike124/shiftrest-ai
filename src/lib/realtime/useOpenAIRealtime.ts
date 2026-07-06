@@ -551,6 +551,7 @@ export function useOpenAIRealtime() {
     transcript,
     debugEvents,
     metrics,
+    trial,
     connect,
     disconnect,
     toggleMute,
