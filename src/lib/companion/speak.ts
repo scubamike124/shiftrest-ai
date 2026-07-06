@@ -509,6 +509,14 @@ async function pumpBodyIntoMediaSource(
       try { ms.endOfStream(); } catch { /* noop */ }
       return;
     }
+    // ManagedMediaSource (iOS Safari 17.1+) uses startstreaming/endstreaming
+    // to signal when the UA wants more bytes. We treat it as advisory —
+    // append as chunks arrive, but pause reads while the UA has told us to
+    // stop so Safari does not throttle us.
+    let streamingAllowed = true;
+    const anyMs = ms as unknown as EventTarget;
+    anyMs.addEventListener("startstreaming", () => { streamingAllowed = true; });
+    anyMs.addEventListener("endstreaming", () => { streamingAllowed = false; });
     const reader = body.getReader();
     const collected: Uint8Array[] = [];
     const waitForIdle = () =>
@@ -516,6 +524,17 @@ async function pumpBodyIntoMediaSource(
         if (!sb.updating) return resolve();
         sb.addEventListener("updateend", () => resolve(), { once: true });
       });
+    const waitForResume = async () => {
+      while (!streamingAllowed) {
+        await new Promise<void>((resolve) => {
+          const onResume = () => {
+            anyMs.removeEventListener("startstreaming", onResume);
+            resolve();
+          };
+          anyMs.addEventListener("startstreaming", onResume);
+        });
+      }
+    };
     let ok = true;
     while (true) {
       const { value, done } = await reader.read();
@@ -523,6 +542,7 @@ async function pumpBodyIntoMediaSource(
       if (!value) continue;
       collected.push(value);
       await waitForIdle();
+      await waitForResume();
       try {
         sb.appendBuffer(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer);
       } catch {
@@ -537,6 +557,7 @@ async function pumpBodyIntoMediaSource(
     try { ms.endOfStream(); } catch { /* noop */ }
   }
 }
+
 
 
 
@@ -647,13 +668,18 @@ async function playOnce(
     // waiting for the whole file (~8 s previously).
     const finalProvider = elevenLabsBlocked ? "openai" : provider;
     const finalCacheKey = `${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`;
+    const MseCtor: typeof MediaSource | null =
+      typeof window !== "undefined"
+        ? ((window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource
+            ?? (typeof MediaSource !== "undefined" ? MediaSource : null))
+        : null;
     const canStreamMse =
-      typeof window !== "undefined" &&
-      typeof MediaSource !== "undefined" &&
-      MediaSource.isTypeSupported("audio/mpeg") &&
+      MseCtor != null &&
+      typeof MseCtor.isTypeSupported === "function" &&
+      MseCtor.isTypeSupported("audio/mpeg") &&
       resp.body != null;
     if (canStreamMse) {
-      streamingMediaSource = new MediaSource();
+      streamingMediaSource = new MseCtor!();
       streamingSrc = URL.createObjectURL(streamingMediaSource);
       void pumpBodyIntoMediaSource(
         streamingMediaSource,
@@ -664,6 +690,7 @@ async function playOnce(
       blob = await resp.blob();
       ttsCachePut(finalCacheKey, blob);
     }
+
   }
   if (!stillValid()) {
     track({ event: "voice_skipped", reason: "superseded" });
@@ -689,9 +716,15 @@ async function playOnce(
   // Match perceived loudness across providers: OpenAI fallback is hotter
   // than ElevenLabs, so attenuate the element when EL is blocked.
   audio.volume = elevenLabsBlocked || provider === "openai" ? OPENAI_FALLBACK_ATTEN : 1;
+  // ManagedMediaSource (iOS Safari) requires disableRemotePlayback so the
+  // UA does not try to route the stream to AirPlay before it's complete.
+  if (streamingSrc) {
+    try { (audio as HTMLAudioElement & { disableRemotePlayback: boolean }).disableRemotePlayback = true; } catch { /* noop */ }
+  }
   const url =
     streamingSrc ?? URL.createObjectURL(blob!);
   audio.src = url;
+
   currentAudio = audio;
   currentUrl = url;
   track({ event: "voice_played", chars: text.length });
