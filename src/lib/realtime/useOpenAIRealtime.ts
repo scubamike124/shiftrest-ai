@@ -515,11 +515,17 @@ export function useOpenAIRealtime() {
       const answerSdp = await sdpRes.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("trial_limit_reached")) {
+        setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
+        setError("Trial voice minutes used up.");
+      } else {
+        setError(msg);
+      }
       setStatus("error");
       await teardown();
     }
-  }, [mint, handleEvent, teardown]);
+  }, [mint, handleEvent, teardown, flushUsage]);
 
   const disconnect = useCallback(async () => {
     await teardown();
