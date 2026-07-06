@@ -84,6 +84,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
     const t0 = performance.now();
     let last = t0;
     setTiming({ traceId, rows: [] });
+    setDiag({ heard: 0, gate: "pending" });
     const mark = (key: string, label: string) => {
       const now = performance.now();
       const dPrev = Math.round(now - last);
