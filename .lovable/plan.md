@@ -1,66 +1,56 @@
-## Answering your questions first (evidence)
+# Client-Side Buffering — Confirmed on iOS Safari
 
-**1. Is ElevenLabs streaming?** No. Two independent non-streaming choices stack up:
+## Direct answers
 
-- **Server (`src/routes/api/tts-elevenlabs.ts`, line 96–116)** calls the **non-streaming** endpoint:
-  ```
-  POST https://api.elevenlabs.io/v1/text-to-speech/{voiceId}?output_format=mp3_44100_128
-  ```
-  Not `/v1/text-to-speech/{voiceId}/stream`. ElevenLabs' non-stream endpoint buffers the full MP3 before sending the first byte, so `upstream.body` doesn't actually stream — headers come back only when generation is done.
+**1. Is the client streaming or buffering the whole body?**
+The client code in `src/lib/companion/speak.ts` (`playOnce`) has TWO paths:
 
-- **Client (`src/lib/companion/speak.ts`, `playOnce()` line 589)** does `blob = await resp.blob()` — waits for the entire response body, then builds an `objectURL`, then sets `audio.src`. So even if the server streamed, the client would re-buffer to a Blob before playback.
+- **Streaming path** — uses `MediaSource` + `SourceBuffer.appendBuffer(...)` fed by a `ReadableStream` reader as chunks arrive. This is the correct incremental-playback path.
+- **Fallback path** — `blob = await resp.blob()` which waits for the ENTIRE response body before assigning `audio.src`.
 
-Result: `t4 speakQueued → t5 first audio started` = server generation of the full briefing MP3 + full body download + Blob build. That's your 8.3 s.
+Which path runs is gated by:
 
-**2. Does the streaming endpoint exist?** Yes — `POST /v1/text-to-speech/{voiceId}/stream` with the same body. With `eleven_turbo_v2_5` first bytes typically arrive in 300–600 ms.
+```
+MediaSource.isTypeSupported("audio/mpeg")
+```
 
-**3. LLM step (2.9 s).** `/api/brief` is already a dedicated short-briefing prompt (not the full Companion conversational prompt). Non-streaming completion of ~1–2 sentences on the current model. Real, but secondary — leave it alone this batch as you said.
+**2. Is the full response awaited before `audio.src` is set?**
+On iOS Safari (the device the timing tests are running on — viewport 375×598) `window.MediaSource` is **undefined**, so `canStreamMse` is false and the code falls into `await resp.blob()` — the full ElevenLabs stream is buffered before playback starts. This exactly matches the observed 8–10 s delay that scales with clip length and network.
 
-## Fix (TTS-only; no LLM change, no UI change)
+Desktop Chrome/Firefox would stream correctly today; iPhone Safari would not. This is the smoking gun.
 
-Two coordinated changes plus a client tweak — all confined to the TTS layer. Nothing else in the pipeline moves.
+## Root cause
 
-### 1. Server — switch to ElevenLabs streaming endpoint
+Safari on iOS does not expose the classic `MediaSource` API for `<audio>`. Since 17.1 it ships `ManagedMediaSource` (same shape, different global) specifically designed for streaming into media elements from a `ReadableStream`. Our feature detection only checks `MediaSource`, so iOS always falls back to the buffered blob path — negating the server-side `/stream` fix entirely on the device the user is testing on.
 
-`src/routes/api/tts-elevenlabs.ts`:
+## Fix (small, surgical)
 
-- Change the URL to `.../stream?output_format=mp3_44100_128`.
-- Keep the same request body and `eleven_turbo_v2_5` model.
-- Return `upstream.body` unchanged (already correct) with `Content-Type: audio/mpeg` and `Cache-Control: no-store`. No `TransformStream` wrapper (would re-buffer).
-- Keep all existing error handling (402/429/config/network → fallback envelope) — unchanged.
-- Keep the 2.5 s TTFB watchdog on the client — a streaming endpoint returns headers even faster, so the watchdog just becomes safer, not stricter.
+Edit only `src/lib/companion/speak.ts`:
 
-### 2. Client — play incrementally instead of buffering to a Blob
+1. Add a helper that resolves the streaming MSE constructor:
+   ```
+   const MSE = (typeof window !== "undefined"
+     && ((window as any).ManagedMediaSource ?? window.MediaSource)) || null;
+   ```
+2. Replace the `canStreamMse` check with `MSE && MSE.isTypeSupported("audio/mpeg") && resp.body != null`.
+3. Construct `new MSE()` instead of `new MediaSource()`.
+4. For `ManagedMediaSource`, set `audio.disableRemotePlayback = true` and listen for the `startstreaming` / `endstreaming` events to pace `appendBuffer` (required by the spec; without it Safari may throttle appends).
+5. Keep the existing `MediaSource` path as-is for desktop.
 
-`src/lib/companion/speak.ts`, `playOnce()`:
-
-Introduce an `objectURL` built from the streaming `Response` body so `<audio>` can start playing at first bytes:
-
-- On `content-type: audio/mpeg` responses, wrap `resp.body` in a `new Response(resp.body).blob()`-alternative: use **`MediaSource` + `SourceBuffer('audio/mpeg')`** and append chunks as they arrive from `resp.body.getReader()`. Set `audio.src = URL.createObjectURL(mediaSource)`. Call `audio.play()` as soon as the first buffer is appended and `mediaSource.readyState === "open"`.
-- Fallback path: if `MediaSource` or `audio/mpeg` isn't supported (older iOS Safari can be flaky here), fall back to today's `await resp.blob()` path so behavior degrades gracefully instead of going silent.
-- Do **not** change the audio graph, gain, soft-clip, level meter, or turn-queue semantics. `MediaElementSource` still wraps the same `primedAudio` element, so loudness/EQ/analyser all work identically.
-- The response cache (`ttsCache`) stays. For streaming responses we tee the body: play from one branch, accumulate the other into a Blob and store it on `ended` so a repeat play is still a cache hit.
-
-### 3. Cache-key note
-
-Only the audio delivery changes — the same bytes come back for the same `(provider, voice, mode, spoken)` tuple. Existing cached blobs stay valid.
+No server changes. No other files. Pure iOS Safari compatibility fix for the streaming path we already built.
 
 ## Expected impact
 
-- **t4 → t5** goes from ~8.3 s to roughly **0.4–0.9 s** (ElevenLabs TTFB with turbo v2.5 + one MSE append).
-- **Total** for the same briefing drops from ~11.4 s to roughly **~3.5 s** (LLM 2.9 s dominates).
-- No effect on Companion voice chat behavior — it already benefits from small chunk sizes; it'll just also get faster first-byte for its bigger replies.
+- iPhone Safari: `t4 → t5` drops from ~8–10 s to ~0.5–1.5 s (matches desktop, matches realtime voice chat).
+- Desktop: unchanged (already streaming).
+- If Safari version is < 17.1 (no `ManagedMediaSource`), falls back to today's blob behaviour — no regression.
 
-## Verification before handing back
+## Verification
 
-1. `tsgo` clean.
-2. Local `curl` against the deployed `/api/tts-elevenlabs` after publish: check response headers arrive in <1 s and body streams (chunks arrive over time, not all at once).
-3. Playwright on `/plan`: tap Voice briefing on a shift day, watch the black timing panel — `t4 → t5` and TTS + play row should each drop to <1 s. Screenshot both.
-4. Sanity check Companion voice chat on `/companion` still speaks normally with no regression (same pipeline, same audio graph).
+- Typecheck.
+- Publish once.
+- One final on-device timing run to confirm `t4 → t5` collapses.
 
-Only after those pass do I publish and ask you to run the on-phone timing test.
+## Out of scope
 
-## Out of scope for this batch (intentionally)
-
-- LLM step tuning (2.9 s → maybe 1.5 s with a smaller model / streaming completions). Separate proposal if you want it after we see the streamed-TTS numbers.
-- The other 5 items from your earlier list (light plan navigation, light toggle, debug scaffolding removal, PWA caching, avatar mismatch) — still their own batch.
+- Server prompt shortening for the 2.9 s LLM step — noted but deferred until this TTS fix lands and we re-measure.

@@ -509,6 +509,14 @@ async function pumpBodyIntoMediaSource(
       try { ms.endOfStream(); } catch { /* noop */ }
       return;
     }
+    // ManagedMediaSource (iOS Safari 17.1+) uses startstreaming/endstreaming
+    // to signal when the UA wants more bytes. We treat it as advisory —
+    // append as chunks arrive, but pause reads while the UA has told us to
+    // stop so Safari does not throttle us.
+    let streamingAllowed = true;
+    const anyMs = ms as unknown as EventTarget;
+    anyMs.addEventListener("startstreaming", () => { streamingAllowed = true; });
+    anyMs.addEventListener("endstreaming", () => { streamingAllowed = false; });
     const reader = body.getReader();
     const collected: Uint8Array[] = [];
     const waitForIdle = () =>
@@ -516,6 +524,17 @@ async function pumpBodyIntoMediaSource(
         if (!sb.updating) return resolve();
         sb.addEventListener("updateend", () => resolve(), { once: true });
       });
+    const waitForResume = async () => {
+      while (!streamingAllowed) {
+        await new Promise<void>((resolve) => {
+          const onResume = () => {
+            anyMs.removeEventListener("startstreaming", onResume);
+            resolve();
+          };
+          anyMs.addEventListener("startstreaming", onResume);
+        });
+      }
+    };
     let ok = true;
     while (true) {
       const { value, done } = await reader.read();
@@ -523,6 +542,7 @@ async function pumpBodyIntoMediaSource(
       if (!value) continue;
       collected.push(value);
       await waitForIdle();
+      await waitForResume();
       try {
         sb.appendBuffer(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer);
       } catch {
@@ -537,6 +557,7 @@ async function pumpBodyIntoMediaSource(
     try { ms.endOfStream(); } catch { /* noop */ }
   }
 }
+
 
 
 
