@@ -31,6 +31,8 @@ import { ensureDefaultEmployer } from "../lib/employers";
 import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 
+const LOVABLE_PUBLISH_MARKER = "publish-verify-marker-2026-07-06-alpha7q3";
+if (typeof window !== "undefined") (window as unknown as Record<string, string>).__LOVABLE_PUBLISH_MARKER = LOVABLE_PUBLISH_MARKER;
 const MARKETING_ROUTES = new Set(["/", "/pricing", "/features", "/privacy", "/terms"]);
 const MARKETING_PREFIXES = ["/legal"];
 const BARE_ROUTES = ["/auth", "/reset-password", "/share"];
