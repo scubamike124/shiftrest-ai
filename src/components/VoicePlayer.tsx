@@ -311,7 +311,23 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
               {timing.ttsPath ? ` · ${timing.ttsPath.provider} · ${timing.ttsPath.endpoint}` : ""}
               {timing.ttsPath?.reason ? ` · ${timing.ttsPath.reason}` : ""}
             </div>
+            <div className="mt-1 flex justify-between gap-2 text-white/70">
+              <span>heard:</span><span>{diag.heard}</span>
+            </div>
+            <div className="flex justify-between gap-2 text-white/70">
+              <span>gate:</span><span>{diag.gate}</span>
+            </div>
+            <div className="flex justify-between gap-2 text-white/70">
+              <span>global:</span>
+              <span className="text-right">
+                {(typeof window !== "undefined" &&
+                  (window as unknown as { __restpilotLastTtsPath?: { label?: string } }).__restpilotLastTtsPath?.label) ||
+                  diag.lastLabel ||
+                  "—"}
+              </span>
+            </div>
           </div>
+
         </div>
       )}
     </div>
