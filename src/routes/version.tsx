@@ -74,8 +74,8 @@ function VersionPage() {
           <p className="mt-1 text-sm text-white/60">
             Verify which build is being served right now.
           </p>
-          <p className="mt-2 inline-block rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300">
-            🟢 Publish canary v3 — if you see this, the latest build is live.
+          <p className="mt-2 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-300">
+            🟠 Publish canary v4 — stale-guard live test. If this appears without a Safari restart, the guards worked.
           </p>
         </header>
 
