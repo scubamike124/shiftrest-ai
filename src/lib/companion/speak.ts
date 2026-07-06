@@ -486,6 +486,59 @@ async function prefetchTts(text: string, opts: SpeakOptions): Promise<void> {
   }
 }
 
+/**
+ * Feed a streaming ElevenLabs (or other audio/mpeg) response body into a
+ * MediaSource so <audio> can start playing at first byte. On successful
+ * completion, invokes `onDone` with the accumulated Blob so playOnce()'s
+ * response cache still gets populated for a subsequent replay.
+ */
+async function pumpBodyIntoMediaSource(
+  ms: MediaSource,
+  body: ReadableStream<Uint8Array>,
+  onDone: (blob: Blob) => void,
+): Promise<void> {
+  try {
+    await new Promise<void>((resolve) => {
+      if (ms.readyState === "open") resolve();
+      else ms.addEventListener("sourceopen", () => resolve(), { once: true });
+    });
+    let sb: SourceBuffer;
+    try {
+      sb = ms.addSourceBuffer("audio/mpeg");
+    } catch {
+      try { ms.endOfStream(); } catch { /* noop */ }
+      return;
+    }
+    const reader = body.getReader();
+    const collected: Uint8Array[] = [];
+    const waitForIdle = () =>
+      new Promise<void>((resolve) => {
+        if (!sb.updating) return resolve();
+        sb.addEventListener("updateend", () => resolve(), { once: true });
+      });
+    let ok = true;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      collected.push(value);
+      await waitForIdle();
+      try {
+        sb.appendBuffer(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer);
+      } catch {
+        ok = false;
+        break;
+      }
+      await waitForIdle();
+    }
+    try { ms.endOfStream(); } catch { /* noop */ }
+    if (ok) onDone(new Blob(collected as BlobPart[], { type: "audio/mpeg" }));
+  } catch {
+    try { ms.endOfStream(); } catch { /* noop */ }
+  }
+}
+
+
 
 async function playOnce(
   text: string,
@@ -520,6 +573,8 @@ async function playOnce(
   // repeat often; reusing the blob skips the network and provider cost.
   const cacheKey = `${provider}|${voice ?? "-"}|${mode}|${spoken}`;
   let blob: Blob | null = ttsCacheGet(cacheKey);
+  let streamingMediaSource: MediaSource | null = null;
+  let streamingSrc: string | null = null;
 
   if (!blob) {
     // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
@@ -586,10 +641,29 @@ async function playOnce(
       track({ event: "voice_skipped", reason: "superseded" });
       return;
     }
-    blob = await resp.blob();
-    // Cache by (post-fallback) provider — speakers may have changed.
+    // Streaming path: with the ElevenLabs /stream endpoint the server ships
+    // the first MP3 bytes in ~300–600 ms. Feed those bytes into a
+    // MediaSource so <audio> can start playing at first-byte instead of
+    // waiting for the whole file (~8 s previously).
     const finalProvider = elevenLabsBlocked ? "openai" : provider;
-    ttsCachePut(`${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`, blob);
+    const finalCacheKey = `${finalProvider}|${voice ?? "-"}|${mode}|${spoken}`;
+    const canStreamMse =
+      typeof window !== "undefined" &&
+      typeof MediaSource !== "undefined" &&
+      MediaSource.isTypeSupported("audio/mpeg") &&
+      resp.body != null;
+    if (canStreamMse) {
+      streamingMediaSource = new MediaSource();
+      streamingSrc = URL.createObjectURL(streamingMediaSource);
+      void pumpBodyIntoMediaSource(
+        streamingMediaSource,
+        resp.body!,
+        (finalBlob) => ttsCachePut(finalCacheKey, finalBlob),
+      );
+    } else {
+      blob = await resp.blob();
+      ttsCachePut(finalCacheKey, blob);
+    }
   }
   if (!stillValid()) {
     track({ event: "voice_skipped", reason: "superseded" });
@@ -615,7 +689,8 @@ async function playOnce(
   // Match perceived loudness across providers: OpenAI fallback is hotter
   // than ElevenLabs, so attenuate the element when EL is blocked.
   audio.volume = elevenLabsBlocked || provider === "openai" ? OPENAI_FALLBACK_ATTEN : 1;
-  const url = URL.createObjectURL(blob);
+  const url =
+    streamingSrc ?? URL.createObjectURL(blob!);
   audio.src = url;
   currentAudio = audio;
   currentUrl = url;
