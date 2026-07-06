@@ -27,7 +27,6 @@ import { Route as PlaybooksRouteImport } from './routes/playbooks'
 import { Route as PlanRouteImport } from './routes/plan'
 import { Route as PilotRouteImport } from './routes/pilot'
 import { Route as PaywallRouteImport } from './routes/paywall'
-import { Route as OrbCheckRouteImport } from './routes/orb-check'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
 import { Route as InboxRouteImport } from './routes/inbox'
@@ -187,11 +186,6 @@ const PilotRoute = PilotRouteImport.update({
 const PaywallRoute = PaywallRouteImport.update({
   id: '/paywall',
   path: '/paywall',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrbCheckRoute = OrbCheckRouteImport.update({
-  id: '/orb-check',
-  path: '/orb-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoryRoute = MemoryRouteImport.update({
@@ -568,7 +562,6 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
-  '/orb-check': typeof OrbCheckRoute
   '/paywall': typeof PaywallRoute
   '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
@@ -657,7 +650,6 @@ export interface FileRoutesByTo {
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/memory': typeof MemoryRoute
-  '/orb-check': typeof OrbCheckRoute
   '/paywall': typeof PaywallRoute
   '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
@@ -748,7 +740,6 @@ export interface FileRoutesById {
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
   '/memory': typeof MemoryRoute
-  '/orb-check': typeof OrbCheckRoute
   '/paywall': typeof PaywallRoute
   '/pilot': typeof PilotRoute
   '/plan': typeof PlanRoute
@@ -840,7 +831,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/legal'
     | '/memory'
-    | '/orb-check'
     | '/paywall'
     | '/pilot'
     | '/plan'
@@ -929,7 +919,6 @@ export interface FileRouteTypes {
     | '/health'
     | '/inbox'
     | '/memory'
-    | '/orb-check'
     | '/paywall'
     | '/pilot'
     | '/plan'
@@ -1019,7 +1008,6 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/legal'
     | '/memory'
-    | '/orb-check'
     | '/paywall'
     | '/pilot'
     | '/plan'
@@ -1111,7 +1099,6 @@ export interface RootRouteChildren {
   InboxRoute: typeof InboxRoute
   LegalRoute: typeof LegalRouteWithChildren
   MemoryRoute: typeof MemoryRoute
-  OrbCheckRoute: typeof OrbCheckRoute
   PaywallRoute: typeof PaywallRoute
   PilotRoute: typeof PilotRoute
   PlanRoute: typeof PlanRoute
@@ -1292,13 +1279,6 @@ declare module '@tanstack/react-router' {
       path: '/paywall'
       fullPath: '/paywall'
       preLoaderRoute: typeof PaywallRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/orb-check': {
-      id: '/orb-check'
-      path: '/orb-check'
-      fullPath: '/orb-check'
-      preLoaderRoute: typeof OrbCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memory': {
@@ -1887,7 +1867,6 @@ const rootRouteChildren: RootRouteChildren = {
   InboxRoute: InboxRoute,
   LegalRoute: LegalRouteWithChildren,
   MemoryRoute: MemoryRoute,
-  OrbCheckRoute: OrbCheckRoute,
   PaywallRoute: PaywallRoute,
   PilotRoute: PilotRoute,
   PlanRoute: PlanRoute,
