@@ -716,9 +716,15 @@ async function playOnce(
   // Match perceived loudness across providers: OpenAI fallback is hotter
   // than ElevenLabs, so attenuate the element when EL is blocked.
   audio.volume = elevenLabsBlocked || provider === "openai" ? OPENAI_FALLBACK_ATTEN : 1;
+  // ManagedMediaSource (iOS Safari) requires disableRemotePlayback so the
+  // UA does not try to route the stream to AirPlay before it's complete.
+  if (streamingSrc) {
+    try { (audio as HTMLAudioElement & { disableRemotePlayback: boolean }).disableRemotePlayback = true; } catch { /* noop */ }
+  }
   const url =
     streamingSrc ?? URL.createObjectURL(blob!);
   audio.src = url;
+
   currentAudio = audio;
   currentUrl = url;
   track({ event: "voice_played", chars: text.length });
