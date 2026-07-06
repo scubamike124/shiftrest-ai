@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { Sparkles, Brain } from "lucide-react";
 import type { AssistantMode, Prefs } from "@/lib/prefs";
 import { AIMemoryManager } from "./AIMemoryManager";
+import { ModeGridBoundary } from "./debug/ModeGridBoundary";
+
+// Injected at build time by vite.config.ts → define.__BUILD_ID__.
+declare const __BUILD_ID__: string;
 
 type Props = {
   prefs: Prefs;
