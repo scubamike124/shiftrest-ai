@@ -94,7 +94,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           );
           const providerT0 = Date.now();
           const upstream = await fetch(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
             {
               method: "POST",
               headers: {
