@@ -12,6 +12,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimeSession } from "@/lib/realtime/openai.functions";
+import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
+import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
+import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
+
+export type TrialSnapshot = {
+  isTrial: boolean;
+  remainingSeconds: number;
+  capSeconds: number;
+  limitReached: boolean;
+};
 
 export type RealtimeStatus =
   | "idle"
