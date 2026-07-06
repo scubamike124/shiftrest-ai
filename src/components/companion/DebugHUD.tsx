@@ -33,15 +33,17 @@ export type DebugHUDProps = {
 type StepRow = { step: DebugStep; at: number; info?: string };
 
 export function DebugHUD(props: DebugHUDProps) {
-  // Production guard: HUD is only ever rendered in dev, or when the user
-  // explicitly opts in via `?debug=1` / `localStorage.companion_debug=1` /
-  // the Cmd+Shift+D shortcut. This prevents leaking internal AI event
-  // logs, HTTP codes, and orb state to end users on the live site.
-  const isDev = import.meta.env.DEV;
+  // Production guard: HUD is only ever rendered when the user explicitly
+  // opts in via `?debug=1` / `localStorage.companion_debug=1` / the
+  // Cmd+Shift+D shortcut. Previously auto-enabled in dev, but the Lovable
+  // preview is served by the Vite dev server, so `import.meta.env.DEV`
+  // was true there and the 260px HUD overlay covered mobile content
+  // (e.g. the Conversation-style grid on /profile). Explicit opt-in only.
   const hasQueryFlag =
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("debug");
-  const allowed = isDev || hasQueryFlag || isDebugEnabled();
+  const allowed = hasQueryFlag || isDebugEnabled();
+
   const [enabled, setEnabled] = useState<boolean>(() => allowed && isDebugEnabled());
   const [audioLevel, setAudioLevel] = useState(0);
   const [permission, setPermission] = useState<string>("unknown");
