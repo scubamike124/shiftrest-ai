@@ -100,6 +100,13 @@ function ProfileDebugIsolated() {
 
 
 function Profile() {
+  // TEMP: `?debug=1` short-circuits into the isolated AssistantSettings view.
+  if (
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("debug") === "1"
+  ) {
+    return <ProfileDebugIsolated />;
+  }
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const deleteAccount = useServerFn(deleteAccountFn);
