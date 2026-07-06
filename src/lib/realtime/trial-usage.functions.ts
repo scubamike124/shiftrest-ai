@@ -23,8 +23,24 @@ export type TrialUsageState = {
   remainingSeconds: number;
 };
 
+type SupabaseLike = {
+  from: (table: string) => {
+    select: (cols: string) => {
+      eq: (c: string, v: unknown) => {
+        eq: (c: string, v: unknown) => {
+          order: (c: string, o: { ascending: boolean }) => {
+            limit: (n: number) => {
+              maybeSingle: () => Promise<{ data: { status: string; current_period_end: string | null } | null }>;
+            };
+          };
+        };
+      };
+    };
+  };
+};
+
 async function loadTrialContext(
-  supabase: Awaited<ReturnType<typeof getSupa>>,
+  supabase: SupabaseLike,
   userId: string,
   env: StripeEnv,
 ): Promise<{ isTrial: boolean }> {
@@ -39,8 +55,6 @@ async function loadTrialContext(
   if (!data) return { isTrial: false };
   return { isTrial: data.status === "trialing" };
 }
-type SupaFromContext = { from: (t: string) => unknown };
-function getSupa(x: SupaFromContext) { return x; }
 
 async function readUsage(
   userId: string,
