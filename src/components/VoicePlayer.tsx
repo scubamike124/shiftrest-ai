@@ -143,7 +143,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         toast.info("Sign in to use voice briefing.");
         return;
       }
-      mark("t1 /api/brief request sent");
+      mark("t1", "t1 /api/brief sent");
       const briefRes = await fetch("/api/brief", {
         method: "POST",
         headers: {
@@ -152,14 +152,14 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         },
         body: JSON.stringify({ plan, localTime, timezone }),
       });
-      mark("t2 /api/brief response headers");
+      mark("t2", "t2 /api/brief headers");
       let briefData: { script?: string; fallback?: boolean; message?: string; error?: string } = {};
       try {
         briefData = await briefRes.json();
       } catch {
         /* non-JSON */
       }
-      mark("t3 /api/brief JSON parsed");
+      mark("t3", "t3 /api/brief parsed");
       if (!briefRes.ok || briefData.error) {
         toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
         return;
@@ -179,7 +179,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
       // Prepend a soft lead-in ("… ") so ElevenLabs starts the very first
       // utterance with a half-breath instead of a cold, louder/faster opener.
       const spoken = "… " + expandForSpeech(script).slice(0, 1200);
-      mark("t4 speakQueued invoked");
+      mark("t4", "t4 speakQueued");
       speakQueued(spoken, { source: "assistant_reply" });
     } catch (e) {
       console.error("VoicePlayer error", e);
