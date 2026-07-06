@@ -11,6 +11,18 @@ export type AssistantMode =
   | "motivational"
   | "supportive";
 
+const ALLOWED_ASSISTANT_MODES: ReadonlySet<AssistantMode> = new Set<AssistantMode>([
+  "coach",
+  "companion",
+  "minimal",
+  "friend",
+  "professional",
+  "warm",
+  "encouraging",
+  "motivational",
+  "supportive",
+]);
+
 export type Prefs = {
   windDownMin: number;
   sleepHours: number;
