@@ -29,11 +29,23 @@ export type RealtimeSessionResult = {
   greetingName: string;
   /** "Good morning" | "Good afternoon" | "Good evening"; "Hi" if unknown. */
   greetingLabel: string;
+  /**
+   * Trial state at mint time. Consumers can show a countdown or upgrade CTA.
+   * When `isTrial=false` the caller is a paying subscriber (or non-payments
+   * build) and has no cap.
+   */
+  trial: {
+    isTrial: boolean;
+    remainingSeconds: number;
+    capSeconds: number;
+  };
 };
 
 export type MintRealtimeSessionInput = {
   localTime?: string | null;
   timezone?: string | null;
+  /** Which Stripe env the browser is on — 'sandbox' in preview, 'live' in prod. */
+  environment?: "sandbox" | "live";
 };
 
 
