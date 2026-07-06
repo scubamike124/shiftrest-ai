@@ -156,7 +156,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 to={ctaHref}
                 className="group inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition hover:opacity-90"
               >
-                Start free — 7 days
+                Start free — 14 days
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -179,6 +179,11 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             <p className="mt-5 text-xs text-muted-foreground">
               <Shield className="mr-1.5 inline h-3.5 w-3.5 text-indigo-glow" />
               Private by default · Fitbit & Oura sync · Personalized memory
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <Link to="/science" className="text-indigo-glow underline-offset-2 hover:underline">
+                Grounded in circadian & shift-work research →
+              </Link>
             </p>
           </div>
 
@@ -852,7 +857,7 @@ function Testimonials() {
 function PricingPreview({ ctaHref }: { ctaHref: string }) {
   const tiers = [
     { name: "Monthly",  price: "$7.99",  cadence: "/ month",
-      perks: ["7-day free trial", "All AI features", "Wearable sync"], featured: false },
+      perks: ["14-day free trial", "All AI features", "Wearable sync"], featured: false },
     { name: "Annual",   price: "$49.99", cadence: "/ year",
       perks: ["Save 48% vs monthly", "Priority AI capacity", "Everything in Monthly"], featured: true },
     { name: "Lifetime", price: "$99",    cadence: "one-time",
@@ -934,7 +939,7 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
             Your next great week of sleep starts tonight.
           </h2>
           <p className="mt-5 text-lg text-muted-foreground">
-            Free for 7 days. No card games. Cancel from your account anytime.
+            Free for 14 days. No card games. Cancel from your account anytime.
           </p>
           <Link
             to={ctaHref}

@@ -1532,6 +1532,22 @@ function CompanionPage() {
           </span>
         </div>
       )}
+      {rt.trial?.isTrial && (
+        <div className="mt-2 flex items-center justify-center">
+          {rt.trial.limitReached ? (
+            <Link
+              to="/paywall"
+              className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
+            >
+              Trial voice minutes used up · Upgrade →
+            </Link>
+          ) : (
+            <span className="rounded-full border border-border bg-card px-3 py-1 text-[10px] font-medium text-muted-foreground">
+              Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of {Math.round(rt.trial.capSeconds / 60)} min left
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Remote audio sink for the OpenAI Realtime peer connection. */}
       <audio ref={rt.remoteAudioRef} autoPlay playsInline className="hidden" />

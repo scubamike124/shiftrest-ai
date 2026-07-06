@@ -28,6 +28,7 @@ export function SiteFooter() {
           links={[
             { to: "/features", label: "Features" },
             { to: "/pricing", label: "Pricing" },
+            { to: "/science", label: "The Science" },
             { to: "/dashboard", label: "Dashboard" },
             { to: "/safety", label: "Safety Center" },
           ]}

@@ -155,7 +155,7 @@ function Paywall() {
     ? "Please wait…"
     : isLifetime
       ? "Become a Founding Member"
-      : "Start 7-day free trial";
+      : "Start 14-day free trial";
 
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
@@ -189,11 +189,20 @@ function Paywall() {
         ))}
       </ul>
 
+      <Link
+        to="/science"
+        className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+      >
+        <ShieldCheck className="h-3 w-3" /> Backed by circadian & shift-work research
+      </Link>
+
+
+
       <div className="mt-6 flex flex-col gap-3">
         <PlanCard
           label="Monthly"
           price="$7.99"
-          sub="per month · 7-day free trial"
+          sub="per month · 14-day free trial"
           selected={selectedTier === "monthly"}
           onSelect={() => setSelectedTier("monthly")}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
@@ -201,7 +210,7 @@ function Paywall() {
         <PlanCard
           label="Annual"
           price="$49.99"
-          sub="per year · save 48% · 7-day free trial"
+          sub="per year · save 48% · 14-day free trial"
           highlighted
           badge="Most popular"
           selected={selectedTier === "annual"}

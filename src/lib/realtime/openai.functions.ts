@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
+import { loadTrialUsageState } from "@/lib/realtime/trial-usage.functions";
 import {
   VOICE_OPTIONS,
   DEFAULT_VOICE_PROFILE,
@@ -29,11 +30,23 @@ export type RealtimeSessionResult = {
   greetingName: string;
   /** "Good morning" | "Good afternoon" | "Good evening"; "Hi" if unknown. */
   greetingLabel: string;
+  /**
+   * Trial state at mint time. Consumers can show a countdown or upgrade CTA.
+   * When `isTrial=false` the caller is a paying subscriber (or non-payments
+   * build) and has no cap.
+   */
+  trial: {
+    isTrial: boolean;
+    remainingSeconds: number;
+    capSeconds: number;
+  };
 };
 
 export type MintRealtimeSessionInput = {
   localTime?: string | null;
   timezone?: string | null;
+  /** Which Stripe env the browser is on — 'sandbox' in preview, 'live' in prod. */
+  environment?: "sandbox" | "live";
 };
 
 
@@ -115,6 +128,16 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
   .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
   .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
 
+
+    // Trial gate: hard-block minting once the trial voice cap is exhausted.
+    // Paying subscribers pass through with isTrial=false / cap=0.
+    const env = input.environment === "live" ? "live" : "sandbox";
+    const trialState = await loadTrialUsageState(context.userId, env);
+    if (trialState.isTrial && trialState.limitReached) {
+      throw new Error(
+        "trial_limit_reached: You've used your trial voice minutes. Upgrade to keep talking to Pilot.",
+      );
+    }
 
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
@@ -262,6 +285,11 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
       greetingLabel,
+      trial: {
+        isTrial: trialState.isTrial,
+        remainingSeconds: trialState.remainingSeconds,
+        capSeconds: trialState.capSeconds,
+      },
     };
 
   });

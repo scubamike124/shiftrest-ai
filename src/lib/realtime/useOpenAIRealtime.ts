@@ -12,6 +12,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimeSession } from "@/lib/realtime/openai.functions";
+import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
+import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
+import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
+
+export type TrialSnapshot = {
+  isTrial: boolean;
+  remainingSeconds: number;
+  capSeconds: number;
+  limitReached: boolean;
+};
 
 export type RealtimeStatus =
   | "idle"
@@ -61,6 +71,7 @@ const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 
 export function useOpenAIRealtime() {
   const mint = useServerFn(mintRealtimeSession);
+  const recordUsage = useServerFn(recordTrialVoiceUsage);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -70,11 +81,17 @@ export function useOpenAIRealtime() {
   const turnEndAtRef = useRef<number | null>(null);
   const awaitingFirstReplyAudioRef = useRef<boolean>(false);
 
+  // Trial voice usage bookkeeping.
+  const sessionStartAtRef = useRef<number | null>(null);
+  const lastFlushAtRef = useRef<number | null>(null);
+  const heartbeatIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [status, setStatus] = useState<RealtimeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [transcript, setTranscript] = useState<RealtimeTranscriptEvent[]>([]);
   const [debugEvents, setDebugEvents] = useState<RealtimeDebugEvent[]>([]);
+  const [trial, setTrial] = useState<TrialSnapshot | null>(null);
   const [metrics, setMetrics] = useState<RealtimeMetrics>({
     connectMs: null,
     firstAudioMs: null,
@@ -87,7 +104,39 @@ export function useOpenAIRealtime() {
     turnCount: 0,
   });
 
+  const flushUsage = useCallback(async () => {
+    if (!isPaymentsConfigured()) return;
+    const now = performance.now();
+    const last = lastFlushAtRef.current ?? sessionStartAtRef.current;
+    if (last == null) return;
+    const seconds = Math.max(0, Math.floor((now - last) / 1000));
+    if (seconds < 1) return;
+    lastFlushAtRef.current = now;
+    try {
+      const env = getStripeEnvironment();
+      const state = await recordUsage({ data: { seconds, environment: env } });
+      if (state.isTrial) {
+        setTrial({
+          isTrial: true,
+          remainingSeconds: state.remainingSeconds,
+          capSeconds: state.capSeconds,
+          limitReached: state.limitReached,
+        });
+      }
+    } catch {
+      /* best-effort */
+    }
+  }, [recordUsage]);
+
   const teardown = useCallback(async () => {
+    if (heartbeatIdRef.current) {
+      clearInterval(heartbeatIdRef.current);
+      heartbeatIdRef.current = null;
+    }
+    // Flush any remaining seconds before we forget the session start.
+    if (sessionStartAtRef.current != null) {
+      await flushUsage();
+    }
     try {
       dcRef.current?.close();
     } catch { /* noop */ }
@@ -104,7 +153,9 @@ export function useOpenAIRealtime() {
     turnStartRef.current = null;
     turnEndAtRef.current = null;
     awaitingFirstReplyAudioRef.current = false;
-  }, []);
+    sessionStartAtRef.current = null;
+    lastFlushAtRef.current = null;
+  }, [flushUsage]);
 
   const handleEvent = useCallback((raw: string) => {
     let evt: { type?: string; transcript?: string; delta?: string } & Record<string, unknown>;
@@ -290,6 +341,7 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
+      const environment = isPaymentsConfigured() ? getStripeEnvironment() : undefined;
       const session = await mint({
         data: {
           localTime: new Date().toISOString(),
@@ -297,8 +349,29 @@ export function useOpenAIRealtime() {
             (typeof Intl !== "undefined" &&
               Intl.DateTimeFormat().resolvedOptions().timeZone) ||
             null,
+          ...(environment && { environment }),
         },
       });
+
+      // Expose trial info to the UI (idle chip / upgrade card).
+      if (session.trial) {
+        setTrial({
+          isTrial: session.trial.isTrial,
+          remainingSeconds: session.trial.remainingSeconds,
+          capSeconds: session.trial.capSeconds,
+          limitReached: session.trial.isTrial && session.trial.remainingSeconds <= 0,
+        });
+      }
+
+      // Start the usage clock now — SDP handshake and greeting will still
+      // happen, but from the user's perspective this is when the session
+      // began costing them minutes.
+      sessionStartAtRef.current = performance.now();
+      lastFlushAtRef.current = sessionStartAtRef.current;
+      if (heartbeatIdRef.current) clearInterval(heartbeatIdRef.current);
+      heartbeatIdRef.current = setInterval(() => {
+        void flushUsage();
+      }, TRIAL_VOICE_HEARTBEAT_MS);
 
       const tTokenEnd = performance.now();
       const tokenFetchMs = tTokenEnd - tTokenStart;
@@ -442,11 +515,17 @@ export function useOpenAIRealtime() {
       const answerSdp = await sdpRes.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("trial_limit_reached")) {
+        setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
+        setError("Trial voice minutes used up.");
+      } else {
+        setError(msg);
+      }
       setStatus("error");
       await teardown();
     }
-  }, [mint, handleEvent, teardown]);
+  }, [mint, handleEvent, teardown, flushUsage]);
 
   const disconnect = useCallback(async () => {
     await teardown();
@@ -472,6 +551,7 @@ export function useOpenAIRealtime() {
     transcript,
     debugEvents,
     metrics,
+    trial,
     connect,
     disconnect,
     toggleMute,

@@ -1,76 +1,145 @@
-# Smart Alarm — Preview-Only Verification Test
 
-## Goal
+# Plan — 14-day Trial, Trial Usage Cap, Science Trust Section
 
-Determine whether the shelved Smart Alarm code path actually fires an iOS Web Push notification end-to-end on an installed PWA, so we can decide if Phase 1 restoration is a UI-flip or a rebuild.
+Two independent workstreams. Both are frontend-heavy plus a small server-side gate for the voice cap.
 
-## Scope Guardrails
+---
 
-- Flag flip lives on **preview only** — production stays at `SMART_ALARM_ENABLED = false`.
-- No schema changes, no cron changes, no VAPID rotation.
-- Test device: user's iPhone, PWA opened **from Home Screen icon** (not Safari tab). iOS Web Push does not deliver in a browser tab context — this must be confirmed before the alarm is set.
-- After the test, flag flips back to `false` regardless of outcome.
+## 1) Trial length: 7 days → 14 days
 
-## Steps
+### 1a) Stripe/billing config (source of truth)
+- `src/lib/billing.functions.ts` line 102: change `trial_period_days: 7` → `trial_period_days: 14`.
+- No Stripe product/price change needed — `trial_period_days` is set per checkout session, not on the price. Existing subscribers/trials are unaffected; only new checkouts get 14 days.
 
-1. **Preview-only flag flip**
-   - Edit `src/lib/flags.ts`: `SMART_ALARM_ENABLED = import.meta.env.DEV || window.location.hostname.includes('id-preview--')`
-   - This keeps production hard-off; only the preview URL (`id-preview--...lovable.app`) enables the feature.
-   - Verify SmartAlarmCard renders on preview, does not render on production build.
+### 1b) Copy sweep
+Every user-visible "7-day" / "7 days" trial reference:
+- `src/routes/paywall.tsx`
+  - L158 CTA: `"Start 7-day free trial"` → `"Start 14-day free trial"`
+  - L196 Monthly sub: `"per month · 7-day free trial"` → `"per month · 14-day free trial"`
+  - L204 Annual sub: `"per year · save 48% · 7-day free trial"` → `"per year · save 48% · 14-day free trial"`
+- `src/routes/pricing.tsx`
+  - L29 Monthly `trial: "7-day free trial"` → `"14-day free trial"`
+  - L32 / L70 "Long Clock (7-day plan)" — this is a product feature, NOT the trial. Leave unchanged.
+- `src/routes/index.tsx`
+  - L159 `"Start free — 7 days"` → `"Start free — 14 days"`
+  - L855 perks `"7-day free trial"` → `"14-day free trial"`
+  - L937 `"Free for 7 days. No card games…"` → `"Free for 14 days. No card games…"`
+- `src/routes/features.tsx`
+  - L192 `"7 days free. No card games…"` → `"14 days free. No card games…"`
+- `src/lib/email-templates/trial-ending.tsx` — copy is already parameterized by `daysRemaining`, no change.
+- `src/routes/legal.subscription.tsx` — currently generic ("If we offer a free trial…"), no change needed.
 
-2. **User pre-flight (screenshots requested in the report)**
-   - Confirm PWA is installed: home-screen icon exists, tapping it opens standalone (no Safari chrome).
-   - Screenshot: Settings → Notifications → RestPilot AI (permission = Allow, Sounds on, Banners on, Lock Screen on).
-   - Screenshot: Settings → Focus (nothing active — no Sleep, no DND, no Personal/Work focus).
-   - Note iOS version and whether the PWA was opened from icon vs. tab.
+No other 7-day trial strings exist (verified via ripgrep).
 
-3. **Alarm test**
-   - Open PWA from home-screen icon.
-   - Grant notification permission if prompted (first-run only).
-   - Set a 2-minute Smart Alarm with a distinct title (e.g. "test-2min-A").
-   - Lock the phone immediately. Do not touch it.
-   - Wait 3 minutes.
+---
 
-4. **Capture result**
-   - Exactly one of: notification fires with sound / fires silent / fires late / does not fire.
-   - If it fires: note delay from scheduled time.
-   - If it doesn't: unlock, reopen PWA, screenshot any in-app state.
+## 2) Trial voice/AI Companion usage cap (60 minutes over the 14 days)
 
-5. **Backend evidence pull (regardless of outcome)**
-   - `dispatch-alarms` function logs for the test window — did the row get scanned, did `web-push` return 201, or 404/410/timeout?
-   - `push_subscriptions` row for this device — endpoint present, `expiration_time` value.
-   - `smart_alarms` row for "test-2min-A" — `dispatched_at` set?
+Goal: hard cap on OpenAI Realtime session minutes for users in `status = "trialing"`. Paying subscribers are unaffected.
 
-6. **Revert**
-   - Flip `SMART_ALARM_ENABLED` back to `false` on preview.
-   - No production deploy in this plan.
+### 2a) Schema (single migration)
+New table `trial_usage`:
+```
+user_id uuid PK references auth.users on delete cascade
+environment text not null              -- 'sandbox' | 'live'
+voice_seconds_used integer not null default 0
+last_updated_at timestamptz not null default now()
+```
+- RLS enabled. Policy: `SELECT` only own row (authenticated). No client `INSERT/UPDATE` — writes go through the server function only.
+- GRANTs: `SELECT` to `authenticated`, `ALL` to `service_role`.
+- Composite unique on `(user_id, environment)` via PK swap: PK = `(user_id, environment)`.
 
-## Report Addendum
+### 2b) Server-side gate on session mint
+`src/lib/realtime/openai.functions.ts` (`mintRealtimeSession`) — add before the OpenAI `client_secrets` call:
+1. Load subscription state via existing `context.supabase` (`subscriptions` row, latest for env).
+2. Compute `isTrial` = `status === "trialing"`. Paid tiers (`active`/`lifetime`/`canceled`-with-future-end) skip the cap entirely.
+3. If `isTrial`:
+   - Read `trial_usage.voice_seconds_used` for `(userId, env)` via `supabaseAdmin` (dynamic import in handler).
+   - If `>= TRIAL_VOICE_SECONDS_CAP` (constant = `60 * 60`), return `{ error: "trial_limit_reached", limitReached: true, capMinutes: 60 }` — DO NOT mint session.
+4. Return the client secret plus `{ trialRemainingSeconds }` so the client can show a countdown.
 
-Update the docx report with a new section:
+### 2c) Usage accounting (client → server)
+`src/lib/realtime/useOpenAIRealtime.ts`:
+- Track `sessionStartAt` when datachannel opens.
+- On `disconnect()` / component unmount / `pagehide` / peer-connection failure, compute elapsed seconds and POST to a new server fn `recordTrialVoiceUsage({ seconds, environment })`.
+- Use `navigator.sendBeacon` with a JSON blob to a small server route (`src/routes/api/trial-usage-beacon.ts`) as a fallback when the page is unloading — server fns can't be reached from `sendBeacon` cleanly.
+- Server route validates the Supabase JWT (existing pattern in `src/routes/api/*`), then `UPSERT`s `voice_seconds_used = voice_seconds_used + :delta`, clamped at cap.
 
-- **Test context:** installed PWA vs. browser tab (per user requirement).
-- **Permission + Focus state** at test time (from screenshots).
-- **Outcome + backend evidence** table.
-- **Known platform reliability gap (new):** iOS Web Push subscriptions are documented to silently expire after ~1–2 weeks of inactivity, requiring PWA reinstall + resubscribe. Even a green test today does not mean Phase 1 is production-ready without a fallback (e.g. local notification, SMS via Twilio, or scheduled email) or a resubscribe-on-launch flow.
+### 2d) UX
+- Idle Pilot screen: if `isTrial` and remaining < cap, show a subtle chip: `"Trial voice minutes: 42 / 60 left"`.
+- On mint failure `trial_limit_reached`: replace the "Tap to Talk" affordance with a card — "You've used your 60 trial voice minutes. Upgrade to keep talking to Pilot." + CTA to `/paywall`.
+- No cap for text-only AI (chat prompts through `/api/ai`, `/api/coach`) in this pass — the user asked specifically about voice/Companion conversation minutes, which is where the real cost is. If they want text-token gating later, that's a separate scope.
 
-## Decision Matrix (what the outcome means)
+### 2e) Constants
+`src/lib/trial-limits.ts`:
+```ts
+export const TRIAL_VOICE_MINUTES_CAP = 60;
+export const TRIAL_VOICE_SECONDS_CAP = TRIAL_VOICE_MINUTES_CAP * 60;
+```
+Single source of truth; imported by server + client.
 
-| Result | Interpretation | Next action |
-|---|---|---|
-| Fires on time, with sound | Existing code is functional. Shelving was premature. | Plan Phase 1 restoration + resubscribe-on-launch flow for the 1–2 week expiry gap. |
-| Fires late / silent | Delivery works, config bug (payload, sound field, priority). | Small targeted fix, re-test, then Phase 1 with fallback. |
-| Does not fire, backend shows 201 sent | On-device delivery gap (iOS/APNs). Focus, permission, or subscription expiry. | Check subscription `expiration_time`, resubscribe, re-test. |
-| Does not fire, backend shows scan-miss or 404/410 | Server path still broken (case-sensitivity, endpoint stale, VAPID subject). | Fix server, re-test before any Phase 1 discussion. |
-| Does not fire, no backend activity at all | Cron/pg_net not hitting the function on preview URL. | Verify cron target URL matches preview build. |
+---
 
-## What I Need From You
+## 3) Science / trust section
 
-- Confirm plan.
-- Then: screenshots (permission + Focus), confirmation the PWA was opened from the home-screen icon, and the alarm title you used. I'll pull the backend logs and write up the addendum.
+Two placements:
 
-## Out of Scope
+### 3a) Marketing site — new route `src/routes/science.tsx`
+Public page at `/science`, linked from:
+- Site footer (`src/components/site/SiteFooter.tsx`) under a "Learn" column.
+- Paywall (`src/routes/paywall.tsx`) — small "Backed by circadian research →" link under the perks list.
+- Landing page (`src/routes/index.tsx`) — new section between features and pricing.
 
-- Any production deploy.
-- Rebuilding on a new provider (OneSignal, FCM, Twilio) — that's a Phase 2 decision after this test.
-- Rotating VAPID keys or touching `push_subscriptions` schema.
+Content structure:
+1. **Hero** — "RestPilot's recommendations are grounded in decades of circadian and shift-work research."
+2. **The science we build on** — 4–6 short cards, each with a plain-language claim + a citation to a public, established source. Candidates:
+   - Circadian rhythm & the SCN — Czeisler / Duffy (Harvard Med) reviews; NIH/NIGMS circadian primer.
+   - Shift-work sleep disorder — AASM ICSD-3 definition; NIOSH "Interim NIOSH Training for Nurses on Shift Work and Long Work Hours".
+   - Light exposure & melatonin suppression — Zeitzer et al., Rüger & Scheer reviews.
+   - Strategic caffeine timing — Reyner & Horne (nap+caffeine), Wesensten et al. (military fatigue countermeasures).
+   - Sleep debt & cognitive performance — Van Dongen et al. 2003 (Sleep journal).
+   - Sleep cycle wake timing (~90 min) — Dement & Kleitman baseline; contemporary Walker synthesis.
+3. **How we translate research into recommendations** — 3-step diagram: (a) your rotation + wearable signals → (b) circadian model → (c) plain-English plan. Emphasizes: we don't invent advice; the AI selects from research-supported interventions.
+4. **What we DON'T do** — honest limits. Not a medical device; not a substitute for a sleep specialist; individual variation matters. Links to existing `/legal/disclaimers` and `/safety`.
+5. **Further reading** — external links to NIOSH, CDC NIOSH shift-work resources, AASM patient pages, Sleep Foundation shift-work section. Real URLs only.
+
+`head()` metadata: title "The science behind RestPilot AI — circadian & shift-work research", real description, og tags.
+
+### 3b) In-app — trust affordance
+Add a small `<ScienceBadge />` to:
+- `CoachTipCard` and `AIBriefCard` footers: `"Based on circadian research →"` linking to `/science#[anchor]` matching the recommendation type (light, caffeine, wake-window).
+- Companion recommendation detail sheet (`RecommendationDetailSheet.tsx`) if it has a footer slot — add "Why this works" link.
+
+The link is the trust signal. Copy is short so it doesn't crowd the card.
+
+---
+
+## Technical section
+
+### Files to add
+- `supabase/migrations/<ts>_trial_usage.sql`
+- `src/lib/trial-limits.ts`
+- `src/lib/realtime/trial-usage.functions.ts` (record + get remaining)
+- `src/routes/api/trial-usage-beacon.ts` (sendBeacon target)
+- `src/routes/science.tsx`
+- `src/components/trust/ScienceBadge.tsx`
+
+### Files to modify
+- `src/lib/billing.functions.ts` (trial_period_days)
+- `src/routes/paywall.tsx`, `src/routes/pricing.tsx`, `src/routes/index.tsx`, `src/routes/features.tsx` (copy)
+- `src/lib/realtime/openai.functions.ts` (mint-time gate)
+- `src/lib/realtime/useOpenAIRealtime.ts` (elapsed tracking + beacon)
+- `src/routes/pilot.tsx` and `src/routes/_authenticated/lab.pilot-realtime.tsx` (trial remaining chip + upgrade card)
+- `src/components/site/SiteFooter.tsx` (footer link)
+- `src/components/CoachTipCard.tsx`, `src/components/AIBriefCard.tsx`, `src/components/ai/trust/RecommendationDetailSheet.tsx` (ScienceBadge)
+
+### Out of scope
+- Changing text/token limits for existing paid tiers.
+- Metering text-only AI usage during trial.
+- Rewriting legal/subscription copy beyond the trial-length swap.
+- Adding new medical/citable claims we can't verify — every citation on `/science` will be a public research org (NIOSH, CDC, AASM, NIH, published Sleep-journal papers), no proprietary or unverified sources.
+
+### Verification
+- After edits: build passes, `rg "7-day\|7 days"` returns only the "Long Clock 7-day plan" (product feature) matches.
+- Manually open `/paywall` in preview — CTA says 14-day, plan cards say 14-day.
+- Trial cap test on preview: seed a `trial_usage` row at 3599s, open Pilot, confirm one more session mints and hits the cap on next attempt with the upgrade card.

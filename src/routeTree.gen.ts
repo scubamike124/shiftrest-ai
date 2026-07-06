@@ -17,6 +17,7 @@ import { Route as SmartHomeRouteImport } from './routes/smart-home'
 import { Route as SleepRouteImport } from './routes/sleep'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as ScienceRouteImport } from './routes/science'
 import { Route as SafetyRouteImport } from './routes/safety'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -135,6 +136,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const ShareRoute = ShareRouteImport.update({
   id: '/share',
   path: '/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScienceRoute = ScienceRouteImport.update({
+  id: '/science',
+  path: '/science',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SafetyRoute = SafetyRouteImport.update({
@@ -565,6 +571,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
+  '/science': typeof ScienceRoute
   '/share': typeof ShareRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
@@ -652,6 +659,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
+  '/science': typeof ScienceRoute
   '/share': typeof ShareRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
@@ -741,6 +749,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/safety': typeof SafetyRoute
+  '/science': typeof ScienceRoute
   '/share': typeof ShareRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sleep': typeof SleepRoute
@@ -831,6 +840,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/safety'
+    | '/science'
     | '/share'
     | '/sitemap.xml'
     | '/sleep'
@@ -918,6 +928,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/safety'
+    | '/science'
     | '/share'
     | '/sitemap.xml'
     | '/sleep'
@@ -1006,6 +1017,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/safety'
+    | '/science'
     | '/share'
     | '/sitemap.xml'
     | '/sleep'
@@ -1096,6 +1108,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SafetyRoute: typeof SafetyRoute
+  ScienceRoute: typeof ScienceRoute
   ShareRoute: typeof ShareRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SleepRoute: typeof SleepRoute
@@ -1196,6 +1209,13 @@ declare module '@tanstack/react-router' {
       path: '/share'
       fullPath: '/share'
       preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/science': {
+      id: '/science'
+      path: '/science'
+      fullPath: '/science'
+      preLoaderRoute: typeof ScienceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/safety': {
@@ -1856,6 +1876,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SafetyRoute: SafetyRoute,
+  ScienceRoute: ScienceRoute,
   ShareRoute: ShareRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SleepRoute: SleepRoute,
