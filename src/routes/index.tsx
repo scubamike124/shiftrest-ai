@@ -180,6 +180,11 @@ function Hero({ ctaHref }: { ctaHref: string }) {
               <Shield className="mr-1.5 inline h-3.5 w-3.5 text-indigo-glow" />
               Private by default · Fitbit & Oura sync · Personalized memory
             </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <Link to="/science" className="text-indigo-glow underline-offset-2 hover:underline">
+                Grounded in circadian & shift-work research →
+              </Link>
+            </p>
           </div>
 
           <div className="relative mx-auto w-full max-w-lg">
