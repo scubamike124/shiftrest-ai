@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
+import { loadTrialUsageState } from "@/lib/realtime/trial-usage.functions";
 import {
   VOICE_OPTIONS,
   DEFAULT_VOICE_PROFILE,
@@ -127,6 +128,16 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
   .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
   .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
 
+
+    // Trial gate: hard-block minting once the trial voice cap is exhausted.
+    // Paying subscribers pass through with isTrial=false / cap=0.
+    const env = input.environment === "live" ? "live" : "sandbox";
+    const trialState = await loadTrialUsageState(context.userId, env);
+    if (trialState.isTrial && trialState.limitReached) {
+      throw new Error(
+        "trial_limit_reached: You've used your trial voice minutes. Upgrade to keep talking to Pilot.",
+      );
+    }
 
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
