@@ -19,9 +19,18 @@ type Props = {
   className?: string;
 };
 
+type TimingRow = { key: string; label: string; dPrev: number; dTotal: number };
+type Timing = {
+  traceId: string;
+  rows: TimingRow[];
+  summary?: { llmMs: number; ttsPlayMs: number; totalMs: number };
+};
+
 export function VoicePlayer({ buildPlanText, className }: Props) {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [timing, setTiming] = useState<Timing | null>(null);
+
 
   // Reflect the shared pipeline's status so Play/Stop UI stays accurate.
   useEffect(() => {
