@@ -48,8 +48,6 @@ import { WearableCard } from "@/components/WearableCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
-import { AssistantModeDebugPanel } from "@/components/debug/AssistantModeDebugPanel";
-import { amDebugPush } from "@/lib/debug/assistantModeDebug";
 
 export const Route = createFileRoute("/profile")({
   ssr: false,
@@ -96,25 +94,12 @@ function Profile() {
   const mutation = useMutation({
     mutationFn: (partial: Partial<Prefs>) => savePrefs(partial),
     onMutate: async (partial) => {
-      if (partial.assistantMode !== undefined) {
-        amDebugPush("mutation.onMutate partial", partial);
-      }
       await queryClient.cancelQueries({ queryKey: ["prefs"] });
       const prev = queryClient.getQueryData<Prefs>(["prefs"]);
       queryClient.setQueryData<Prefs>(["prefs"], { ...(prev ?? DEFAULT_PREFS), ...partial });
       return { prev };
     },
-    onError: (err, vars, ctx) => {
-      if ((vars as Partial<Prefs>).assistantMode !== undefined) {
-        amDebugPush("mutation.onError", {
-          name: (err as Error)?.name,
-          message: (err as Error)?.message,
-          code: (err as { code?: string })?.code,
-          details: (err as { details?: string })?.details,
-          hint: (err as { hint?: string })?.hint,
-          status: (err as { status?: number })?.status,
-        });
-      }
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(["prefs"], ctx.prev);
       if (err instanceof AuthRequiredError) {
         toast.error("Sign in to save your location", {
@@ -127,12 +112,8 @@ function Profile() {
         toast.error("Couldn't save — please try again.");
       }
     },
-    onSettled: async (_data, _err, vars) => {
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["prefs"] });
-      if ((vars as Partial<Prefs>)?.assistantMode !== undefined) {
-        const after = queryClient.getQueryData<Prefs>(["prefs"]);
-        amDebugPush("onSettled cache assistantMode", after?.assistantMode);
-      }
     },
   });
 
@@ -625,7 +606,7 @@ function Profile() {
 
       <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
-      <AssistantModeDebugPanel />
+
 
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 

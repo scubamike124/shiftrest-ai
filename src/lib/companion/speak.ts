@@ -143,22 +143,6 @@ function emitTurnEnded() {
   window.dispatchEvent(new CustomEvent("companion:turn-ended"));
 }
 
-export const TTS_PATH_DIAGNOSTIC_BUILD = "tts-path-diagnostic-2026-07-06-02";
-
-type TtsPathDiagnostic = {
-  build: string;
-  path: "managed-media-source" | "media-source" | "blob-fallback" | "cache-blob";
-  label: string;
-  provider: string;
-  endpoint: string;
-  reason?: string;
-  contentType?: string;
-  hasManagedMediaSource: boolean;
-  hasMediaSource: boolean;
-  mseTypeSupported: boolean | null;
-  hasReadableStream: boolean;
-};
-
 function getMseAvailability(): {
   MseCtor: typeof MediaSource | null;
   path: "managed-media-source" | "media-source" | null;
@@ -195,18 +179,6 @@ function getMseAvailability(): {
   };
 }
 
-function emitTtsPathDiagnostic(detail: Omit<TtsPathDiagnostic, "build">): void {
-  if (typeof window === "undefined") return;
-  const full: TtsPathDiagnostic = { build: TTS_PATH_DIAGNOSTIC_BUILD, ...detail };
-  try {
-    (window as unknown as { __restpilotLastTtsPath?: TtsPathDiagnostic }).__restpilotLastTtsPath = full;
-  } catch {
-    /* noop */
-  }
-  // eslint-disable-next-line no-console
-  console.info(`[tts-path ${TTS_PATH_DIAGNOSTIC_BUILD}] ${full.label}`, full);
-  window.dispatchEvent(new CustomEvent("companion:tts-path", { detail: full }));
-}
 
 // ── Sequential turn queue ──────────────────────────────────────────────
 let turnId = 0;
@@ -662,20 +634,8 @@ async function playOnce(
   let streamingMediaSource: MediaSource | null = null;
   let streamingSrc: string | null = null;
 
-  if (blob) {
-    const mse = getMseAvailability();
-    emitTtsPathDiagnostic({
-      path: "cache-blob",
-      label: "using cached Blob",
-      provider,
-      endpoint,
-      reason: "TTS response cache hit; no network stream used for this utterance",
-      hasManagedMediaSource: mse.hasManagedMediaSource,
-      hasMediaSource: mse.hasMediaSource,
-      mseTypeSupported: mse.mseTypeSupported,
-      hasReadableStream: false,
-    });
-  }
+  // (cache-hit path — no diagnostics needed)
+
 
   if (!blob) {
     // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
@@ -759,17 +719,6 @@ async function playOnce(
       MseCtor.isTypeSupported("audio/mpeg") &&
       resp.body != null;
     if (canStreamMse) {
-      emitTtsPathDiagnostic({
-        path: mse.path === "managed-media-source" ? "managed-media-source" : "media-source",
-        label: mse.path === "managed-media-source" ? "using ManagedMediaSource" : "using MediaSource",
-        provider: finalProvider,
-        endpoint: effectiveEndpoint,
-        contentType: resp.headers.get("content-type") ?? undefined,
-        hasManagedMediaSource: mse.hasManagedMediaSource,
-        hasMediaSource: mse.hasMediaSource,
-        mseTypeSupported: mse.mseTypeSupported,
-        hasReadableStream: resp.body != null,
-      });
       streamingMediaSource = new MseCtor!();
       streamingSrc = URL.createObjectURL(streamingMediaSource);
       void pumpBodyIntoMediaSource(
@@ -778,25 +727,6 @@ async function playOnce(
         (finalBlob) => ttsCachePut(finalCacheKey, finalBlob),
       );
     } else {
-      const reason = !MseCtor
-        ? "no MediaSource or ManagedMediaSource constructor available"
-        : mse.mseTypeSupported === false
-          ? "audio/mpeg is not supported by selected MediaSource constructor"
-          : resp.body == null
-            ? "fetch response body stream is unavailable"
-            : "MediaSource streaming capability check failed";
-      emitTtsPathDiagnostic({
-        path: "blob-fallback",
-        label: "using blob fallback",
-        provider: finalProvider,
-        endpoint: effectiveEndpoint,
-        reason,
-        contentType: resp.headers.get("content-type") ?? undefined,
-        hasManagedMediaSource: mse.hasManagedMediaSource,
-        hasMediaSource: mse.hasMediaSource,
-        mseTypeSupported: mse.mseTypeSupported,
-        hasReadableStream: resp.body != null,
-      });
       blob = await resp.blob();
       ttsCachePut(finalCacheKey, blob);
     }

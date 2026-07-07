@@ -4,9 +4,6 @@ import type { AssistantMode, Prefs } from "@/lib/prefs";
 import { AIMemoryManager } from "./AIMemoryManager";
 import { ModeGridBoundary } from "./debug/ModeGridBoundary";
 
-// Injected at build time by vite.config.ts → define.__BUILD_ID__.
-declare const __BUILD_ID__: string;
-
 type Props = {
   prefs: Prefs;
   signedIn: boolean;
@@ -29,24 +26,12 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
   const [name, setName] = useState(prefs.assistantName);
   useEffect(() => setName(prefs.assistantName), [prefs.assistantName]);
 
-  const buildStamp =
-    typeof __BUILD_ID__ === "string" ? __BUILD_ID__ : "unknown";
-
   return (
     <section className="rounded-2xl border border-border bg-card p-4 space-y-5">
       <div className="flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-primary" />
         <h2 className="text-base font-semibold">Your AI assistant</h2>
       </div>
-
-      {/* TEMP diagnostic — remove once Conversation-style bug is fixed. */}
-      <p
-        className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-[10px] text-amber-700"
-        data-testid="assistant-settings-buildstamp"
-      >
-        build {buildStamp} · modes:{MODE_OPTIONS.length} · selected:
-        {prefs.assistantMode}
-      </p>
 
       {/* Name */}
       <div className="space-y-1.5">
