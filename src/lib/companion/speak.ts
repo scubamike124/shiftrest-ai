@@ -719,17 +719,6 @@ async function playOnce(
       MseCtor.isTypeSupported("audio/mpeg") &&
       resp.body != null;
     if (canStreamMse) {
-      emitTtsPathDiagnostic({
-        path: mse.path === "managed-media-source" ? "managed-media-source" : "media-source",
-        label: mse.path === "managed-media-source" ? "using ManagedMediaSource" : "using MediaSource",
-        provider: finalProvider,
-        endpoint: effectiveEndpoint,
-        contentType: resp.headers.get("content-type") ?? undefined,
-        hasManagedMediaSource: mse.hasManagedMediaSource,
-        hasMediaSource: mse.hasMediaSource,
-        mseTypeSupported: mse.mseTypeSupported,
-        hasReadableStream: resp.body != null,
-      });
       streamingMediaSource = new MseCtor!();
       streamingSrc = URL.createObjectURL(streamingMediaSource);
       void pumpBodyIntoMediaSource(
@@ -738,25 +727,6 @@ async function playOnce(
         (finalBlob) => ttsCachePut(finalCacheKey, finalBlob),
       );
     } else {
-      const reason = !MseCtor
-        ? "no MediaSource or ManagedMediaSource constructor available"
-        : mse.mseTypeSupported === false
-          ? "audio/mpeg is not supported by selected MediaSource constructor"
-          : resp.body == null
-            ? "fetch response body stream is unavailable"
-            : "MediaSource streaming capability check failed";
-      emitTtsPathDiagnostic({
-        path: "blob-fallback",
-        label: "using blob fallback",
-        provider: finalProvider,
-        endpoint: effectiveEndpoint,
-        reason,
-        contentType: resp.headers.get("content-type") ?? undefined,
-        hasManagedMediaSource: mse.hasManagedMediaSource,
-        hasMediaSource: mse.hasMediaSource,
-        mseTypeSupported: mse.mseTypeSupported,
-        hasReadableStream: resp.body != null,
-      });
       blob = await resp.blob();
       ttsCachePut(finalCacheKey, blob);
     }
