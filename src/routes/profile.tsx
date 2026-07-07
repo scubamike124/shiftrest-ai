@@ -606,7 +606,7 @@ function Profile() {
 
       <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
-      <AssistantModeDebugPanel />
+
 
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
