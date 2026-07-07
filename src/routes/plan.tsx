@@ -361,7 +361,7 @@ function PlanPage() {
               return (
                 <div
                   key={i}
-                  id={`plan-${e.kind}`}
+                  id={HASH_BY_KIND[e.kind]}
                   data-plan-kind={e.kind}
                   className="flex gap-3 rounded-2xl border border-border bg-card p-3 scroll-mt-20 target:border-primary/60 target:shadow-[0_0_0_2px_var(--primary)]"
                 >
