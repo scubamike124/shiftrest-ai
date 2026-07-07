@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Sparkles,
   MapPin,
-  Activity,
+  
   Users,
   Heart,
   Shield,
@@ -633,15 +633,6 @@ function Profile() {
 
       <NotificationsSection signedIn={signedIn} />
 
-      <section className="rounded-2xl border border-border bg-card">
-        <ToggleRow
-          icon={<Activity className="h-5 w-5" />}
-          label="Low-light interface"
-          desc="Already on. Toggle off for brighter daytime use."
-          checked={prefs.lowLight}
-          onChange={(v) => update("lowLight", v)}
-        />
-      </section>
 
       <section className="rounded-2xl border border-border bg-card">
         <Link
