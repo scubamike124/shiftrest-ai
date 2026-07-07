@@ -61,6 +61,21 @@ const ICONS: Record<PlanEvent["kind"], typeof Sun> = {
   nap: Moon,
 };
 
+// Hash-slug per event kind so cards elsewhere in the app (e.g. RightNowCard's
+// "Start wind-down" CTA) can deep-link to a specific entry with `/plan#slug`.
+const HASH_BY_KIND: Record<PlanEvent["kind"], string> = {
+  wake: "wake",
+  bright: "light",
+  amber: "amber",
+  blackout: "sleep",
+  "caffeine-on": "caffeine",
+  "caffeine-cutoff": "caffeine-cutoff",
+  "shift-start": "shift",
+  "shift-end": "winddown",
+  meal: "meal",
+  nap: "nap",
+};
+
 const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
   "anchor-sleep": Moon,
   "wind-down": Bed,
@@ -346,7 +361,9 @@ function PlanPage() {
               return (
                 <div
                   key={i}
-                  className="flex gap-3 rounded-2xl border border-border bg-card p-3"
+                  id={HASH_BY_KIND[e.kind]}
+                  data-plan-kind={e.kind}
+                  className="flex gap-3 rounded-2xl border border-border bg-card p-3 scroll-mt-20 target:border-primary/60 target:shadow-[0_0_0_2px_var(--primary)]"
                 >
                   <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-secondary/60 text-center">
                     <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
