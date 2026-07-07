@@ -222,13 +222,19 @@ export function RightNowCard({
             </p>
           )}
 
-          <Link
-            to={data.ctaRoute}
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] sm:w-auto sm:self-start sm:px-6"
-            style={{ background: "var(--gradient-cta)" }}
-          >
-            {data.ctaLabel} <ArrowRight className="h-4 w-4" />
-          </Link>
+          {(() => {
+            const cta = resolveCta(data);
+            return (
+              <Link
+                to={cta.to}
+                hash={cta.hash}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] sm:w-auto sm:self-start sm:px-6"
+                style={{ background: "var(--gradient-cta)" }}
+              >
+                {data.ctaLabel} <ArrowRight className="h-4 w-4" />
+              </Link>
+            );
+          })()}
 
           <RecommendationActions
             recommendationId={data.recommendationId}
