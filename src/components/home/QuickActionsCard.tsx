@@ -3,7 +3,7 @@ import { Sun, MessageSquare, Moon, Activity, Mic, CalendarDays } from "lucide-re
 import { HomeCard, HomeCardHeader } from "./HomeCard";
 
 const ACTIONS = [
-  { to: "/plan", label: "Light Plan", icon: Sun },
+  { to: "/plan", label: "Smart Light Plan", icon: Sun },
   { to: "/sleep", label: "Sleep Mode", icon: Moon },
   { to: "/pilot", label: "Voice Pilot", icon: Mic },
   { to: "/events", label: "Events", icon: CalendarDays },
