@@ -79,9 +79,6 @@ function VersionPage() {
           <p className="mt-1 text-sm text-white/60">
             Verify which build is being served right now.
           </p>
-          <p className="mt-2 inline-block rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-300">
-            🟠 Publish canary v5 — breadcrumb test. Log below records every PWA lifecycle event.
-          </p>
         </header>
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
