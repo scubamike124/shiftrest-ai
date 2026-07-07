@@ -1,73 +1,55 @@
-## Verdict: inconclusive — but leaning "guards probably fired silently"
+## Findings before fixing
 
-Your `/version` page shows client and server both on `b-1783381141244` with Match ✓. That single fact alone cannot distinguish two very different scenarios:
+### #2 — Why "Light plan" appears to open "Today's recipe"
+Not actually a wrong route. `Link to="/plan"` (in `src/components/home/QuickActionsCard.tsx`, `BottomNav.tsx`, `AppSidebar.tsx`) correctly navigates to the Smart Light Plan route. The problem is `src/routes/plan.tsx` line 207 renders `<h1>Today's recipe.</h1>` above the "Smart Light Plan" eyebrow. That h1 is stale/placeholder copy — every entry point to `/plan` therefore looks like it went to the wrong page.
 
-**Scenario A — guards worked (silent auto-update):**
-1. You opened the app on canary v3 build.
-2. Backgrounded 90s. Canary v4 published.
-3. Foregrounded → poll or `pageshow` fetched `/api/public/version`, detected drift.
-4. `reg.update()` fetched new `/sw.js`, it installed and became `waiting`.
-5. The registrar's `autoActivateIfPossible` auto-posted `SKIP_WAITING` (no banner shown, by design — that's why the banner isn't guaranteed to appear).
-6. `controllerchange` fired → one silent `window.location.reload()`.
-7. You landed on v4. `/version` now shows v4 == v4. Match ✓.
+So this is a **copy bug on the destination page**, not a routing bug. Same underlying cause as #1 if #1's button also lands on `/plan`.
 
-**Scenario B — test never created drift:**
-1. You happened to open the app *after* v4 was already live (e.g. Safari fetched v4 on the very first foreground before you noticed).
-2. There was never a v3-in-memory vs v4-on-server gap for the guards to catch.
-3. `/version` shows v4 == v4 trivially.
+### #1 — "View wind-down list/plan" button
+I searched all `.tsx` for buttons/links containing "wind-down", "View wind", "wind-down list", "wind-down plan" and found no matching interactive element in the current source. The wind-down surfaces I did find are all passive:
+- `EveningCards.tsx` → `WindDownCard` (informational card, no CTA)
+- `WindDownQuickAction.tsx` (companion overlay trigger)
+- `profile.tsx` "Wind-down window" slider (no navigation)
 
-The current `/version` page doesn't record which build you *started* on, so we can't tell A from B after the fact.
+I need you to point at the exact button (screenshot or route) before I can fix it. Two likely candidates I'd like to confirm:
+1. It's a CTA inside the AI Coach Brief `top_actions` / Tomorrow Preview blocks whose target is dynamic (currently defaults to `/plan`).
+2. It's on a page that requires auth (I'm signed out in the sandbox so couldn't reach dashboards).
 
-## Why I lean toward A
+If you can share the exact page + button text, I'll wire it to the correct wind-down surface in the same pass as #2.
 
-- The canary label on `/version` in the served bundle is v4. If you had been running v3, `/version` would have shown "🟠 v4" on the server side and "🟢 v3" on the client side (mismatch banner) — unless the guards silently reloaded you before you looked. You reported Match ✓, not mismatch. That's consistent with the guards having already reloaded.
-- But it's *also* consistent with you never having loaded v3 in the first place.
+### #4 — Low-light interface toggle
+Confirmed **no-op**. `prefs.lowLight` is written to Supabase via the toggle in `profile.tsx:639-643`, but `grep` finds zero readers of `lowLight` / `low_light` / `low-light` in any component, hook, style, or theme file — nothing consumes it to change contrast, brightness, or a theme class. It's a dead control.
 
-## Definitive next test — instrument the client so we can tell A from B
+### Broader nav-bug pattern (per your request)
+Root cause isn't a systemic Link-wiring bug. It's that a small number of navigation targets have **stale headings that don't match the route's purpose** (e.g. `/plan` says "Today's recipe."). Combined with reused generic route names, users read the h1 as "wrong destination." Real fix is a quick audit of h1s vs. route intent — I'll do it as part of this pass.
 
-Add lightweight breadcrumbs so a single visit to `/version` after the test tells us exactly what happened. No behavior change; observation only.
+---
 
-### Changes
+## Plan
 
-1. **`src/lib/pwa/register.ts`** — when the registrar acts, record a breadcrumb to `localStorage` under `rpai:pwa-log` (bounded ring buffer, ~20 entries). Log entries at:
-   - `registered` (with `__BUILD_ID__`)
-   - `drift-detected` (source, serverBuild, currentBuild, streak)
-   - `auto-skip-waiting` (buildId that was waiting)
-   - `reload` (source: controllerchange / sw-activated-message / bfcache)
-   - `bfcache-restore-stale` (serverBuild)
+### 1. Fix #2 (direct)
+- `src/routes/plan.tsx` line 207: change `<h1>Today's recipe.</h1>` → `<h1>Today's light plan.</h1>` (matches the "Smart Light Plan" eyebrow and the head title).
+- Audit sibling routes (`dashboard`, `coach`, `companion`, `inbox`, `sleep`) for h1s that don't match their route intent; fix any obvious mismatches only.
 
-   Each entry: `{ ts, type, ...fields, build: __BUILD_ID__ }`.
+### 2. Fix #3 (direct) — Remove Fitbit/Oura from Profile
+- `src/components/WearableCard.tsx`: replace the connect/sync UI with a compact "Wearable sync — coming in a future update" placeholder that keeps the card slot but removes both provider rows, both Connect buttons, the OAuth mutations, and the health-trends link. Leave the underlying `wearables.functions.ts` / callback routes untouched so Phase 2 can re-enable without a migration.
+- Do not delete the OAuth callback routes or server functions — Phase 2 will re-enable.
 
-2. **`src/routes/version.tsx`** — add a fourth section "Recent PWA activity" that reads `rpai:pwa-log` and renders the entries newest-first with timestamps. Include a "Clear log" button.
+### 3. Fix #4 (direct) — Remove or wire Low-light toggle
+Two options; I'll take **Option A** unless you say otherwise:
+- **A (recommended, minimal):** remove the "Low-light interface" toggle section from `profile.tsx` (lines 636–644). The app is already dark-themed by default, and shipping a toggle that changes nothing is worse than shipping no toggle. Keep `prefs.lowLight` in the schema untouched.
+- **B (wire it up):** add a `data-low-light` attribute to `<html>` based on `prefs.lowLight`, and add a small CSS block in `styles.css` that dims foreground/background a notch when set. Larger scope; requires design review.
 
-3. **Canary bump** — change the label on `/version` to `🟠 Publish canary v5 — breadcrumb test`.
+### 4. Fix #1 (blocked pending your confirmation)
+Once you tell me the exact button (page + label, or screenshot), I'll change its `to=` to the correct destination in the same commit as the others.
 
-### Verification (internal, before asking you to test)
+### Verify
+- `tsgo` typecheck.
+- Playwright screenshot of `/plan` on mobile viewport confirming new h1.
+- Playwright screenshot of `/profile` confirming Fitbit/Oura rows are gone and low-light toggle is removed.
+- No publish until you sign off on Option A vs B for #4 and identify #1's button.
 
-- Grep the built `register-*.js` for `rpai:pwa-log`, `drift-detected`, `bfcache-restore-stale` — confirm the strings shipped.
-- Curl `/api/public/version` on prod, confirm buildId rotated.
-- Playwright: load `/version`, confirm the new section renders and shows at least the `registered` entry.
-
-### Your test procedure (after I publish v5 and confirm live)
-
-1. Open app on iPhone, visit `/version` once. It should show canary v5, and the PWA log should contain a `registered` entry with `build: <v5-id>`. Tap "Clear log" to start clean.
-2. Navigate to home, background app 90+ seconds.
-3. I publish v6 (I'll do this on your signal).
-4. Foreground the app, wait ~15 seconds, then open `/version`.
-5. Read the PWA log aloud.
-
-### How the log will answer the question definitively
-
-- If you see `drift-detected` → `auto-skip-waiting` → `reload`, guards worked (Scenario A).
-- If you see `bfcache-restore-stale` → guards worked via the bfcache path.
-- If the log is empty except `registered` with `build: <v6-id>` and no drift entries, Safari fetched v6 on its own before the guards had anything to catch (Scenario B / inconclusive again — but then we know the guards weren't needed).
-- If the log shows `drift-detected` repeatedly with no `reload`, the poll is detecting drift but the SW isn't picking up the new script — a real bug we can then fix.
-
-Either way, you'll walk away knowing definitively which mechanism carried the update.
-
-### Files touched
-
-- `src/lib/pwa/register.ts` — add `logBreadcrumb()` helper, call it at the 5 lifecycle points above.
-- `src/routes/version.tsx` — add "Recent PWA activity" section + canary v5 label.
-
-No changes to `sw-src.ts`, no behavior changes to the guards themselves. Purely observability.
+## Technical notes
+- `/plan` route path and file (`src/routes/plan.tsx`) unchanged — only visible copy.
+- `WearableCard` kept as a component so its slot in `profile.tsx` doesn't shift; just its body swaps to a placeholder.
+- `prefs.lowLight` field stays in `src/lib/prefs.ts` and DB schema; only the UI control is removed.

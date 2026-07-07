@@ -204,7 +204,7 @@ function PlanPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Smart Light Plan
         </p>
-        <h1 className="mt-2 text-3xl font-bold">Today's recipe.</h1>
+        <h1 className="mt-2 text-3xl font-bold">Today's light plan.</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Hour-by-hour light, caffeine, and blackout plan
           {displayLabel ? ` — tuned to ${displayLabel}.` : "."}
