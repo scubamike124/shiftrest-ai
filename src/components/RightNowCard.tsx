@@ -57,6 +57,36 @@ const URGENCY_TONE: Record<RightNowResponse["urgency"], { ring: string; tag: str
   later: { ring: "shadow-[0_0_0_1px_rgba(148,163,184,0.35),0_20px_50px_-25px_rgba(148,163,184,0.45)]", tag: "bg-slate-500/15 text-slate-300", label: "Plan for later" },
 };
 
+// Map free-text coach actions to a concrete plan-entry anchor. The AI only
+// returns a coarse ctaRoute (/plan|/events|/coach|/dashboard) plus a free-text
+// ctaLabel + action, so we derive a hash from keywords in the action itself
+// to deep-link the user into the exact entry on the Smart Light Plan page
+// (or the schedule anchor on the dashboard). Anything we can't classify falls
+// back to whatever route the AI chose, without a hash.
+type CtaTarget = { to: "/plan" | "/events" | "/coach" | "/dashboard"; hash?: string };
+
+function resolveCta(data: RightNowResponse): CtaTarget {
+  const text = `${data.action} ${data.ctaLabel}`.toLowerCase();
+  const planHashes: Array<{ re: RegExp; hash: string }> = [
+    { re: /wind[- ]?down|bedtime routine|dim (?:the )?lights|screens off|hot shower/, hash: "winddown" },
+    { re: /bright light|sunlight|sunrise|get outside|morning light/, hash: "light" },
+    { re: /amber|blue[- ]?block|glasses/, hash: "amber" },
+    { re: /caffeine cutoff|last coffee|stop caffeine|no more coffee/, hash: "caffeine-cutoff" },
+    { re: /coffee|caffeine|espresso/, hash: "caffeine" },
+    { re: /blackout|sleep window|go to bed|anchor sleep|start sleep/, hash: "sleep" },
+    { re: /wake|alarm|get up/, hash: "wake" },
+    { re: /\bnap\b|power nap/, hash: "nap" },
+    { re: /meal|eat|snack|protein/, hash: "meal" },
+    { re: /shift start|clock in|leave for work/, hash: "shift" },
+  ];
+  for (const { re, hash } of planHashes) {
+    if (re.test(text)) return { to: "/plan", hash };
+  }
+  if (/schedule|shift|rotation|swap/.test(text)) return { to: "/dashboard", hash: "schedule" };
+  return { to: data.ctaRoute };
+}
+
+
 export function RightNowCard({
   signedIn,
   context,
