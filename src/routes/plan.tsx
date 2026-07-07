@@ -346,7 +346,9 @@ function PlanPage() {
               return (
                 <div
                   key={i}
-                  className="flex gap-3 rounded-2xl border border-border bg-card p-3"
+                  id={`plan-${e.kind}`}
+                  data-plan-kind={e.kind}
+                  className="flex gap-3 rounded-2xl border border-border bg-card p-3 scroll-mt-20 target:border-primary/60 target:shadow-[0_0_0_2px_var(--primary)]"
                 >
                   <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-secondary/60 text-center">
                     <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
