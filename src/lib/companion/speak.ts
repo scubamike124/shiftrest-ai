@@ -143,22 +143,6 @@ function emitTurnEnded() {
   window.dispatchEvent(new CustomEvent("companion:turn-ended"));
 }
 
-export const TTS_PATH_DIAGNOSTIC_BUILD = "tts-path-diagnostic-2026-07-06-02";
-
-type TtsPathDiagnostic = {
-  build: string;
-  path: "managed-media-source" | "media-source" | "blob-fallback" | "cache-blob";
-  label: string;
-  provider: string;
-  endpoint: string;
-  reason?: string;
-  contentType?: string;
-  hasManagedMediaSource: boolean;
-  hasMediaSource: boolean;
-  mseTypeSupported: boolean | null;
-  hasReadableStream: boolean;
-};
-
 function getMseAvailability(): {
   MseCtor: typeof MediaSource | null;
   path: "managed-media-source" | "media-source" | null;
@@ -195,18 +179,6 @@ function getMseAvailability(): {
   };
 }
 
-function emitTtsPathDiagnostic(detail: Omit<TtsPathDiagnostic, "build">): void {
-  if (typeof window === "undefined") return;
-  const full: TtsPathDiagnostic = { build: TTS_PATH_DIAGNOSTIC_BUILD, ...detail };
-  try {
-    (window as unknown as { __restpilotLastTtsPath?: TtsPathDiagnostic }).__restpilotLastTtsPath = full;
-  } catch {
-    /* noop */
-  }
-  // eslint-disable-next-line no-console
-  console.info(`[tts-path ${TTS_PATH_DIAGNOSTIC_BUILD}] ${full.label}`, full);
-  window.dispatchEvent(new CustomEvent("companion:tts-path", { detail: full }));
-}
 
 // ── Sequential turn queue ──────────────────────────────────────────────
 let turnId = 0;
