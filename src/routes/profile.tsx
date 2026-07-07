@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Sparkles,
   MapPin,
-  Activity,
+  
   Users,
   Heart,
   Shield,
