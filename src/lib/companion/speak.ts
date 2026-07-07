@@ -634,20 +634,8 @@ async function playOnce(
   let streamingMediaSource: MediaSource | null = null;
   let streamingSrc: string | null = null;
 
-  if (blob) {
-    const mse = getMseAvailability();
-    emitTtsPathDiagnostic({
-      path: "cache-blob",
-      label: "using cached Blob",
-      provider,
-      endpoint,
-      reason: "TTS response cache hit; no network stream used for this utterance",
-      hasManagedMediaSource: mse.hasManagedMediaSource,
-      hasMediaSource: mse.hasMediaSource,
-      mseTypeSupported: mse.mseTypeSupported,
-      hasReadableStream: false,
-    });
-  }
+  // (cache-hit path — no diagnostics needed)
+
 
   if (!blob) {
     // 2.5 s first-byte timeout for ElevenLabs (the slow path). If headers
