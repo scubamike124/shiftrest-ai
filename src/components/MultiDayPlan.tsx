@@ -15,18 +15,30 @@ function fmtClock(d: Date): string {
 
 function shortKind(k: LongClockEvent["kind"]): string {
   switch (k) {
-    case "wake": return "Wake";
-    case "bright-light": return "Bright light";
-    case "meal": return "Meal";
-    case "caffeine-on": return "Caffeine";
-    case "shift-start": return "Shift in";
-    case "caffeine-cutoff": return "Caf. cutoff";
-    case "shift-end": return "Shift out";
-    case "wind-down": return "Wind-down";
-    case "amber-light": return "Amber glasses";
-    case "blackout": return "Sleep";
-    case "recovery": return "Recovery";
-    case "nap": return "Nap";
+    case "wake":
+      return "Wake";
+    case "bright-light":
+      return "Bright light";
+    case "meal":
+      return "Meal";
+    case "caffeine-on":
+      return "Caffeine";
+    case "shift-start":
+      return "Shift in";
+    case "caffeine-cutoff":
+      return "Caf. cutoff";
+    case "shift-end":
+      return "Shift out";
+    case "wind-down":
+      return "Wind-down";
+    case "amber-light":
+      return "Amber glasses";
+    case "blackout":
+      return "Sleep";
+    case "recovery":
+      return "Recovery";
+    case "nap":
+      return "Nap";
   }
 }
 
@@ -35,15 +47,7 @@ function shortKind(k: LongClockEvent["kind"]): string {
  * meaningful moment between wake and sleep). Multi-week rotations are
  * surfaced via a small "Week A/B/…" chip.
  */
-export function MultiDayPlan({
-  shifts,
-  prefs,
-  now,
-}: {
-  shifts: Shift[];
-  prefs: Prefs;
-  now: Date;
-}) {
+export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: Prefs; now: Date }) {
   const days = useMemo<DayPlan[]>(
     () =>
       buildMultiDayPlan(shifts, prefs, now, 7, {
@@ -96,10 +100,11 @@ export function MultiDayPlan({
               )}
               {d.shift ? (
                 <span className="mt-1 text-[9px] font-semibold text-foreground/80">
-                  {fmtClock(new Date(d.date.getTime())).replace(":00 ", "")}
-                  {d.shift && (() => {
-                    const startStr = `${((d.shift!.start / 60 + 11) % 12 + 1) | 0}${d.shift!.start >= 12 * 60 ? "p" : "a"}`;
-                    return startStr;
+                  {(() => {
+                    const start = d.shift!.start;
+                    const h24 = Math.floor(start / 60) % 24;
+                    const h12 = ((h24 + 11) % 12) + 1;
+                    return `${h12}${h24 >= 12 ? "p" : "a"}`;
                   })()}
                 </span>
               ) : (
@@ -122,7 +127,15 @@ export function MultiDayPlan({
             </p>
             {days[openIdx].shift && (
               <span className="text-[10px] uppercase tracking-widest text-indigo-glow">
-                {fmtClock(new Date(days[openIdx].date).valueOf() ? days[openIdx].date : new Date())}
+                {fmtClock(
+                  new Date(
+                    days[openIdx].date.getFullYear(),
+                    days[openIdx].date.getMonth(),
+                    days[openIdx].date.getDate(),
+                    Math.floor(days[openIdx].shift!.start / 60),
+                    days[openIdx].shift!.start % 60,
+                  ),
+                )}
               </span>
             )}
           </div>

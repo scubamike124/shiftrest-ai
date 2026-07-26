@@ -11,12 +11,20 @@ export const Route = createFileRoute("/pricing")({
           "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
       },
       { property: "og:title", content: "Pricing — RestPilot AI" },
-      { property: "og:description", content: "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers." },
-      { property: "og:url", content: "https://shift-rest-ai.lovable.app/pricing" },
+      {
+        property: "og:description",
+        content:
+          "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
+      },
+      { property: "og:url", content: "https://restpilotai.com/pricing" },
       { name: "twitter:title", content: "Pricing — RestPilot AI" },
-      { name: "twitter:description", content: "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers." },
+      {
+        name: "twitter:description",
+        content:
+          "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
+      },
     ],
-    links: [{ rel: "canonical", href: "https://shift-rest-ai.lovable.app/pricing" }],
+    links: [{ rel: "canonical", href: "https://restpilotai.com/pricing" }],
   }),
   component: Pricing,
 });
@@ -54,19 +62,14 @@ const tiers = [
     price: "$99",
     cadence: "one-time",
     trial: "Pay once, use forever",
-    perks: [
-      "Everything in Annual",
-      "All future updates",
-      "Founders' badge",
-      "No renewals, ever",
-    ],
+    perks: ["Everything in Annual", "All future updates", "Founders' badge", "No renewals, ever"],
     featured: false,
   },
 ];
 
 const matrix = [
   { label: "AI Coach with memory", values: [true, true, true] },
-  
+
   { label: "Long Clock (7-day plan)", values: [true, true, true] },
   { label: "Wearable sync", values: [true, true, true] },
   { label: "Multi-employer rotations", values: [true, true, true] },
@@ -95,8 +98,8 @@ function Pricing() {
             One platform. <span className="italic text-indigo-glow">Three ways to start.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground">
-            Cancel anytime. Billed securely through Stripe. Every plan includes
-            the full RestPilot AI feature set.
+            Cancel anytime. Billed securely through Stripe. Every plan includes the full RestPilot
+            AI feature set.
           </p>
         </div>
       </section>

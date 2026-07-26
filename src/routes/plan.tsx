@@ -31,7 +31,6 @@ import { computeInsights } from "@/lib/insights";
 import { buildRecommendations, type Recommendation } from "@/lib/recommendations";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 
-
 export const Route = createFileRoute("/plan")({
   ssr: false,
   beforeLoad: requireSession,
@@ -90,7 +89,6 @@ const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
   recovery: Sparkles,
 };
 
-
 function PlanPage() {
   const qc = useQueryClient();
   const [mounted, setMounted] = useState(false);
@@ -125,7 +123,6 @@ function PlanPage() {
     return () => sub.subscription.unsubscribe();
   }, [qc]);
 
-
   // Cycle-aware: when activeDay is in the current week, resolve against the
   // user's rotation (cycleWeeks/cycleAnchor). Falls back to weekday match
   // for legacy 1-week schedules.
@@ -150,9 +147,9 @@ function PlanPage() {
   const sun = useMemo(
     () =>
       hasVerifiedLocation
-        ? sunTimes(today, prefs.lat, prefs.lon, planTz)
+        ? sunTimes(activeDate, prefs.lat, prefs.lon, planTz)
         : { sunrise: null, sunset: null },
-    [hasVerifiedLocation, prefs.lat, prefs.lon, today, planTz],
+    [hasVerifiedLocation, prefs.lat, prefs.lon, activeDate, planTz],
   );
   const events = useMemo(
     () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
@@ -186,32 +183,27 @@ function PlanPage() {
     });
   }, [mounted, safeShifts, prefs, today, employers, wearableSummary]);
 
-
-
   function buildPlanText(): string | null {
     if (shift && events.length > 0) {
       const intro = `Plan for ${DAYS[activeDay]}. Shift ${shift.start} to ${shift.end}.`;
-      const body = events
-        .map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`)
-        .join("\n");
+      const body = events.map((e) => `At ${fmt(e.time)} — ${e.title}: ${e.detail}`).join("\n");
       return `${intro}\n${body}`;
     }
     // Off-day fallback: give the voice pipeline something meaningful to say
     // so the timing test and briefing still work on rest days.
     const nextShiftIdx = (() => {
       for (let i = 1; i <= 7; i++) {
-        const d = (activeDay + i) % 7;
-        if (safeShifts.some((s) => s.day === d)) return d;
+        const d = new Date(activeDate);
+        d.setDate(activeDate.getDate() + i);
+        if (shiftsForDate(safeShifts, d, prefs.cycleAnchor, prefs.cycleWeeks).length > 0) {
+          return (activeDay + i) % 7;
+        }
       }
       return -1;
     })();
-    const nextLine =
-      nextShiftIdx >= 0
-        ? ` Your next shift is ${DAYS[nextShiftIdx]}.`
-        : "";
+    const nextLine = nextShiftIdx >= 0 ? ` Your next shift is ${DAYS[nextShiftIdx]}.` : "";
     return `Rest day for ${DAYS[activeDay]}. Protect your normal sleep window, get morning light, and stay hydrated.${nextLine}`;
   }
-
 
   return (
     <main className="flex flex-col gap-6 px-5 pt-12">
@@ -245,7 +237,10 @@ function PlanPage() {
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {DAYS.map((d, i) => {
-          const has = safeShifts.some((s) => s.day === i);
+          const dayDate = new Date(today);
+          dayDate.setDate(today.getDate() + (i - weekday));
+          const has =
+            shiftsForDate(safeShifts, dayDate, prefs.cycleAnchor, prefs.cycleWeeks).length > 0;
           const active = i === activeDay;
           return (
             <button
@@ -297,8 +292,8 @@ function PlanPage() {
           <div className="rounded-2xl border border-border bg-card p-6 text-center">
             <p className="text-sm font-semibold">No shift scheduled for this day</p>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Add a shift and RestPilot AI will generate your personalized
-              light, caffeine, blackout, and recovery plan.
+              Add a shift and RestPilot AI will generate your personalized light, caffeine,
+              blackout, and recovery plan.
             </p>
             <Link
               to="/dashboard"
@@ -309,11 +304,8 @@ function PlanPage() {
             </Link>
           </div>
         )
-
       ) : (
         <>
-
-
           {recommendations.length > 0 && (
             <section className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
@@ -349,15 +341,14 @@ function PlanPage() {
           )}
 
           <section className="flex flex-col gap-2">
-
             {events.map((e, i) => {
               const Icon = ICONS[e.kind] ?? Sparkles;
               const tone =
                 e.kind === "blackout" || e.kind === "shift-start"
                   ? "primary"
                   : e.kind === "amber" || e.kind === "caffeine-cutoff"
-                  ? "amber"
-                  : "mint";
+                    ? "amber"
+                    : "mint";
               return (
                 <div
                   key={i}
@@ -369,9 +360,7 @@ function PlanPage() {
                     <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
                       {fmt(e.time).split(" ")[1]}
                     </span>
-                    <span className="text-sm font-bold">
-                      {fmt(e.time).split(" ")[0]}
-                    </span>
+                    <span className="text-sm font-bold">{fmt(e.time).split(" ")[0]}</span>
                   </div>
                   <div className="flex flex-1 gap-3">
                     <span
@@ -379,8 +368,8 @@ function PlanPage() {
                         tone === "primary"
                           ? "bg-primary/15 text-primary"
                           : tone === "amber"
-                          ? "bg-amber/15 text-amber"
-                          : "bg-mint/15 text-mint"
+                            ? "bg-amber/15 text-amber"
+                            : "bg-mint/15 text-mint"
                       }`}
                     >
                       <Icon className="h-4 w-4" />

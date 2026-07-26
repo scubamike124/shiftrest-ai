@@ -1,0 +1,253 @@
+{
+  "generatedAt": "2026-07-26T07:41:20.856Z",
+  "base": "https://restpilotai.com",
+  "public": [
+    {
+      "path": "/",
+      "status": 200,
+      "ms": 2245,
+      "ok": true,
+      "bytes": 35772,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/auth",
+      "status": 200,
+      "ms": 161,
+      "ok": true,
+      "bytes": 18116,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/plan",
+      "status": 200,
+      "ms": 91,
+      "ok": true,
+      "bytes": 30819,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/pricing",
+      "status": 200,
+      "ms": 81,
+      "ok": true,
+      "bytes": 38482,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/features",
+      "status": 200,
+      "ms": 85,
+      "ok": true,
+      "bytes": 34862,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/science",
+      "status": 200,
+      "ms": 76,
+      "ok": true,
+      "bytes": 50626,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/safety",
+      "status": 200,
+      "ms": 141,
+      "ok": true,
+      "bytes": 29492,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/contact",
+      "status": 200,
+      "ms": 65,
+      "ok": true,
+      "bytes": 30855,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/legal/privacy",
+      "status": 200,
+      "ms": 70,
+      "ok": true,
+      "bytes": 35428,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/legal/terms",
+      "status": 200,
+      "ms": 75,
+      "ok": true,
+      "bytes": 39790,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/api/public/health",
+      "status": 200,
+      "ms": 43,
+      "ok": true,
+      "bytes": 43,
+      "hasRestPilot": false,
+      "hasShiftRest": false
+    },
+    {
+      "path": "/api/public/version",
+      "status": 200,
+      "ms": 1205,
+      "ok": true,
+      "bytes": 129,
+      "hasRestPilot": true,
+      "hasShiftRest": false
+    }
+  ],
+  "auth": [
+    {
+      "path": "/dashboard",
+      "status": 200,
+      "ms": 102,
+      "ok": true,
+      "bytes": 32842,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/plan",
+      "status": 200,
+      "ms": 91,
+      "ok": true,
+      "bytes": 30819,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/events",
+      "status": 200,
+      "ms": 64,
+      "ok": true,
+      "bytes": 29602,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/profile",
+      "status": 200,
+      "ms": 86,
+      "ok": true,
+      "bytes": 31146,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/coach",
+      "status": 200,
+      "ms": 65,
+      "ok": true,
+      "bytes": 29949,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/companion",
+      "status": 200,
+      "ms": 66,
+      "ok": true,
+      "bytes": 35750,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/memory",
+      "status": 200,
+      "ms": 75,
+      "ok": true,
+      "bytes": 30257,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/inbox",
+      "status": 200,
+      "ms": 60,
+      "ok": true,
+      "bytes": 30203,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/decisions",
+      "status": 200,
+      "ms": 71,
+      "ok": true,
+      "bytes": 30161,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/playbooks",
+      "status": 200,
+      "ms": 84,
+      "ok": true,
+      "bytes": 29115,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    },
+    {
+      "path": "/settings/morning",
+      "status": 200,
+      "ms": 62,
+      "ok": true,
+      "bytes": 29924,
+      "hasRestPilot": true,
+      "hasShiftRest": false,
+      "note": "unauthenticated probe only"
+    }
+  ],
+  "responsive": [
+    {
+      "viewport": "mobile-ua",
+      "status": 200,
+      "hasViewportMeta": true,
+      "ok": true
+    },
+    {
+      "viewport": "tablet-ua",
+      "path": "/plan",
+      "status": 200,
+      "ok": true
+    }
+  ],
+  "bugsFound": 0,
+  "bugsFixed": 0,
+  "ownerBlockers": [
+    "RESTPILOT_E2E_EMAIL / RESTPILOT_E2E_PASSWORD not set — authenticated page/button/modal/DB E2E cannot run from this agent."
+  ],
+  "summary": {
+    "publicPass": 12,
+    "publicTotal": 12,
+    "responsivePass": 2,
+    "responsiveTotal": 2,
+    "bugsFound": 0,
+    "authenticatedExecuted": false
+  }
+}

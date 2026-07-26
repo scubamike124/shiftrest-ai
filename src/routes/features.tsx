@@ -22,12 +22,20 @@ export const Route = createFileRoute("/features")({
           "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks.",
       },
       { property: "og:title", content: "Features — RestPilot AI" },
-      { property: "og:description", content: "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks." },
-      { property: "og:url", content: "https://shift-rest-ai.lovable.app/features" },
+      {
+        property: "og:description",
+        content:
+          "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks.",
+      },
+      { property: "og:url", content: "https://restpilotai.com/features" },
       { name: "twitter:title", content: "Features — RestPilot AI" },
-      { name: "twitter:description", content: "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks." },
+      {
+        name: "twitter:description",
+        content:
+          "Every feature inside RestPilot — AI coach with memory, Long Clock, wearable sync, multi-employer rotations, recovery playbooks.",
+      },
     ],
-    links: [{ rel: "canonical", href: "https://shift-rest-ai.lovable.app/features" }],
+    links: [{ rel: "canonical", href: "https://restpilotai.com/features" }],
   }),
   component: Features,
 });
@@ -158,15 +166,10 @@ function Features() {
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/30 bg-secondary/60">
                       <Icon className="h-5 w-5 text-indigo-glow" />
                     </span>
-                    <h3
-                      className="mt-5 text-xl"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
+                    <h3 className="mt-5 text-xl" style={{ fontFamily: "var(--font-display)" }}>
                       {it.title}
                     </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {it.body}
-                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{it.body}</p>
                   </div>
                 );
               })}

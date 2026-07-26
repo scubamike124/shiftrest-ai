@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
-const PRODUCTION_URL = "https://shift-rest-ai.lovable.app";
+const PRODUCTION_URL = "https://restpilotai.com";
 
 function isPreviewOrigin(): boolean {
   if (typeof window === "undefined") return false;
@@ -36,7 +36,8 @@ export function PreviewWarningBanner() {
             You are using a preview build.
           </p>
           <p className="mt-1 text-sm text-amber-foreground/80">
-            Install the app from the production link instead, or you may get stuck on an outdated version.
+            Install the app from the production link instead, or you may get stuck on an outdated
+            version.
           </p>
           <a
             href={PRODUCTION_URL}

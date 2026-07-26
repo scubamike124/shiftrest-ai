@@ -36,18 +36,29 @@ export const Route = createFileRoute("/")({
         content:
           "Meet Aura — the AI sleep companion you can see, tap, and talk to. Calming sounds, wind-down guidance, and a personal assistant built for shift life.",
       },
-      { property: "og:title", content: "Meet the AI companion that helps you unwind, sleep & wake up better" },
+      {
+        property: "og:title",
+        content: "Meet the AI companion that helps you unwind, sleep & wake up better",
+      },
       {
         property: "og:description",
         content:
           "Tap your companion after work. Ask for calming sounds, start a wind-down routine, or let Aura wake you at the right time.",
       },
-      { property: "og:url", content: "https://shift-rest-ai.lovable.app/" },
-      { property: "og:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
-      { name: "twitter:image", content: "https://shift-rest-ai.lovable.app/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg" },
+      { property: "og:url", content: "https://restpilotai.com/" },
+      {
+        property: "og:image",
+        content:
+          "https://restpilotai.com/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://restpilotai.com/__l5e/assets-v1/e4b561a7-322c-41a7-8444-f7749d8ba82f/og-cover.jpg",
+      },
     ],
     links: [
-      { rel: "canonical", href: "https://shift-rest-ai.lovable.app/" },
+      { rel: "canonical", href: "https://restpilotai.com/" },
       // Preload the display font used by the hero H1 (LCP candidate).
       {
         rel: "preload",
@@ -106,18 +117,27 @@ function Landing() {
   );
 }
 
-
 /* ============================================================ HERO */
 
 function Hero({ ctaHref }: { ctaHref: string }) {
   return (
-    <section className="relative isolate">
+    <section className="relative isolate min-h-[70vh]">
       <div
-        className="pointer-events-none absolute inset-0 -z-10"
+        className="pointer-events-none absolute inset-0 -z-10 contain-strict"
         style={{ background: "var(--gradient-hero)" }}
+        aria-hidden
       />
-      <div className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-indigo/30 blur-[160px]" />
-      <div className="pointer-events-none absolute right-0 top-40 -z-10 h-[400px] w-[400px] rounded-full bg-indigo-glow/20 blur-[120px]" />
+      {/* Fixed-size aurora layers reduce CLS while the blur paints (Lighthouse). */}
+      <div
+        className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-[600px] w-[900px] max-w-[100vw] -translate-x-1/2 rounded-full bg-indigo/30 blur-[160px] contain-paint"
+        style={{ minHeight: 600 }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute right-0 top-40 -z-10 h-[400px] w-[400px] rounded-full bg-indigo-glow/20 blur-[120px] contain-paint"
+        style={{ minHeight: 400 }}
+        aria-hidden
+      />
 
       <div className="mx-auto w-full max-w-7xl px-5 pt-20 pb-20 lg:px-10 lg:pt-28 lg:pb-24">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
@@ -132,22 +152,23 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             >
               {/* Mobile: short, punchy */}
               <span className="sm:hidden">
-                Meet the AI <span className="italic text-indigo-glow">companion</span> that helps you sleep better.
+                Meet the AI <span className="italic text-indigo-glow">companion</span> that helps
+                you sleep better.
               </span>
               {/* Tablet + desktop: full editorial line */}
               <span className="hidden sm:inline">
-                Meet the AI{" "}
-                <span className="italic text-indigo-glow">companion</span> that
-                helps you unwind, sleep, and wake up better.
+                Meet the AI <span className="italic text-indigo-glow">companion</span> that helps
+                you unwind, sleep, and wake up better.
               </span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-lg">
               <span className="sm:hidden">
-                Tap to talk. Sleep sounds and wind-down guidance — one calm assistant for the hours that wreck everyone else.
+                Tap to talk. Sleep sounds and wind-down guidance — one calm assistant for the hours
+                that wreck everyone else.
               </span>
               <span className="hidden sm:inline">
-                Tap your companion after work, ask for calming sounds, or start
-                a wind-down routine — a personal assistant built for shift life.
+                Tap your companion after work, ask for calming sounds, or start a wind-down routine
+                — a personal assistant built for shift life.
               </span>
             </p>
 
@@ -205,14 +226,12 @@ function CapChip({ icon: Icon, label }: { icon: typeof Shield; label: string }) 
   );
 }
 
-
 function HeroStack({ ctaHref }: { ctaHref: string }) {
   // Avatar always opens the live Companion experience. If the user isn't
   // signed in yet, the /auth route will round-trip them back to /companion
   // via ?return= so the tap never lands on a dead end.
   const avatarTarget = ctaHref === "/dashboard" ? "/companion" : "/auth";
-  const avatarSearch =
-    ctaHref === "/dashboard" ? { greet: 1 } : { return: "/companion?greet=1" };
+  const avatarSearch = ctaHref === "/dashboard" ? { greet: 1 } : { return: "/companion?greet=1" };
   return (
     <div className="relative w-full lg:aspect-[5/6]">
       {/* Primary: Companion glass card */}
@@ -233,10 +252,7 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-indigo-glow">
             Live · Tap to talk to Aura
           </p>
-          <p
-            className="mt-2 text-3xl sm:text-4xl"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
+          <p className="mt-2 text-3xl sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>
             Meet Aura.
           </p>
           <p className="mt-1.5 max-w-[18rem] text-xs italic text-muted-foreground">
@@ -255,9 +271,15 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
             <span className="pulse-dot ml-1 h-1.5 w-1.5 rounded-full bg-indigo-glow" />
           </span>
           <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Sleep sounds</span>
-            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Coach chat</span>
-            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">Wind-down</span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">
+              Sleep sounds
+            </span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">
+              Coach chat
+            </span>
+            <span className="rounded-full border border-border/60 bg-card/50 px-2.5 py-1">
+              Wind-down
+            </span>
           </div>
         </div>
       </Link>
@@ -272,10 +294,7 @@ function HeroStack({ ctaHref }: { ctaHref: string }) {
             <Moon className="h-3 w-3 text-indigo-glow" />
           </span>
         </div>
-        <p
-          className="mt-1 text-base leading-tight"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
+        <p className="mt-1 text-base leading-tight" style={{ fontFamily: "var(--font-display)" }}>
           Sleep window 8:40 AM
         </p>
         <div className="relative mx-auto mt-1 aspect-square w-full max-w-[140px]">
@@ -294,23 +313,45 @@ function CircadianDial() {
       <svg viewBox="0 0 280 280" className="h-full w-full -rotate-90">
         <circle cx="140" cy="140" r={R} fill="none" stroke="var(--secondary)" strokeWidth="14" />
         <circle
-          cx="140" cy="140" r={R} fill="none"
-          stroke="var(--indigo)" strokeWidth="14" strokeLinecap="round"
-          strokeDasharray={`${C * 0.42} ${C}`} strokeDashoffset={-C * 0.05}
+          cx="140"
+          cy="140"
+          r={R}
+          fill="none"
+          stroke="var(--indigo)"
+          strokeWidth="14"
+          strokeLinecap="round"
+          strokeDasharray={`${C * 0.42} ${C}`}
+          strokeDashoffset={-C * 0.05}
         />
         <circle
-          cx="140" cy="140" r={R} fill="none"
-          stroke="var(--amber)" strokeWidth="10" strokeLinecap="round"
-          opacity="0.85" strokeDasharray={`${C * 0.04} ${C}`} strokeDashoffset={-C * 0.47}
+          cx="140"
+          cy="140"
+          r={R}
+          fill="none"
+          stroke="var(--amber)"
+          strokeWidth="10"
+          strokeLinecap="round"
+          opacity="0.85"
+          strokeDasharray={`${C * 0.04} ${C}`}
+          strokeDashoffset={-C * 0.47}
         />
         <circle
-          cx="140" cy="140" r={R} fill="none"
-          stroke="var(--indigo-glow)" strokeWidth="8" strokeLinecap="round"
-          opacity="0.8" strokeDasharray={`${C * 0.32} ${C}`} strokeDashoffset={-C * 0.51}
+          cx="140"
+          cy="140"
+          r={R}
+          fill="none"
+          stroke="var(--indigo-glow)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          opacity="0.8"
+          strokeDasharray={`${C * 0.32} ${C}`}
+          strokeDashoffset={-C * 0.51}
         />
       </svg>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-4xl" style={{ fontFamily: "var(--font-display)" }}>22</p>
+        <p className="text-4xl" style={{ fontFamily: "var(--font-display)" }}>
+          22
+        </p>
         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Debt · low
         </p>
@@ -323,9 +364,16 @@ function CircadianDial() {
 
 function LogoTicker() {
   const roles = [
-    "ICU Nurses", "Airline Pilots", "Firefighters", "ER Physicians",
-    "Long-haul Drivers", "Police Officers", "Air Traffic Control",
-    "Offshore Crews", "Paramedics", "NICU RNs",
+    "ICU Nurses",
+    "Airline Pilots",
+    "Firefighters",
+    "ER Physicians",
+    "Long-haul Drivers",
+    "Police Officers",
+    "Air Traffic Control",
+    "Offshore Crews",
+    "Paramedics",
+    "NICU RNs",
   ];
   const items = [...roles, ...roles];
   return (
@@ -358,20 +406,18 @@ function ChipBtn({ children }: { children: React.ReactNode }) {
   );
 }
 
-
-
-
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "good" }) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/40 px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </p>
       <p className={`mt-1 text-xl font-semibold ${tone === "good" ? "text-indigo-glow" : ""}`}>
         {value}
       </p>
     </div>
   );
 }
-
 
 /* ============================================================ DASHBOARD + RECOMMENDATIONS */
 
@@ -390,10 +436,22 @@ function DashboardSection() {
           <div className="pointer-events-none absolute -inset-x-10 -inset-y-6 rounded-[44px] bg-indigo/15 blur-3xl" />
           <div className="relative grid gap-4 rounded-[28px] border border-border bg-card/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl lg:grid-cols-12 lg:p-7">
             {/* hero stat */}
-            <div className="lg:col-span-4 rounded-2xl border border-primary/30 p-5" style={{ background: "var(--gradient-cta)" }}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/80">Circadian debt</p>
-              <p className="mt-1 text-6xl font-semibold text-primary-foreground" style={{ fontFamily: "var(--font-display)" }}>22</p>
-              <p className="mt-1 text-xs text-primary-foreground/80">/100 · stable · −3 vs yesterday</p>
+            <div
+              className="lg:col-span-4 rounded-2xl border border-primary/30 p-5"
+              style={{ background: "var(--gradient-cta)" }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/80">
+                Circadian debt
+              </p>
+              <p
+                className="mt-1 text-6xl font-semibold text-primary-foreground"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                22
+              </p>
+              <p className="mt-1 text-xs text-primary-foreground/80">
+                /100 · stable · −3 vs yesterday
+              </p>
               <div className="mt-5 h-1.5 rounded-full bg-background/30">
                 <div className="h-full w-[22%] rounded-full bg-primary-foreground" />
               </div>
@@ -401,7 +459,9 @@ function DashboardSection() {
 
             {/* next sleep */}
             <div className="lg:col-span-4 rounded-2xl border border-border bg-background/40 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">Next sleep</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+                Next sleep
+              </p>
               <p className="mt-1 text-3xl font-semibold">8:40 AM → 4:20 PM</p>
               <p className="text-xs text-muted-foreground">7h 40m · ends 1 cycle before commute</p>
               <div className="mt-4 flex gap-2 text-[11px]">
@@ -412,7 +472,9 @@ function DashboardSection() {
 
             {/* last night */}
             <div className="lg:col-span-4 rounded-2xl border border-border bg-background/40 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">Last night · Oura</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+                Last night · Oura
+              </p>
               <p className="mt-1 text-3xl font-semibold">6h 04m</p>
               <p className="text-xs text-muted-foreground">REM low · HRV 38 · readiness 71</p>
               <div className="mt-4 flex h-2 gap-0.5">
@@ -426,14 +488,24 @@ function DashboardSection() {
             {/* recommendations list */}
             <div className="lg:col-span-7 rounded-2xl border border-border bg-background/40 p-5">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">Today's recommendations</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+                  Today's recommendations
+                </p>
                 <span className="text-[10px] text-muted-foreground">Updated 2 min ago</span>
               </div>
               <ul className="mt-3 divide-y divide-border/60">
                 {[
                   { i: Sun, t: "Bright light 7:00–9:00 PM", s: "Anchors tonight's shift start." },
-                  { i: Coffee, t: "Last caffeine 1:00 AM", s: "Your half-life ≈ 6.2h based on history." },
-                  { i: Moon, t: "Blackout window 7:15 AM", s: "Plan ends one full cycle before alarm." },
+                  {
+                    i: Coffee,
+                    t: "Last caffeine 1:00 AM",
+                    s: "Your half-life ≈ 6.2h based on history.",
+                  },
+                  {
+                    i: Moon,
+                    t: "Blackout window 7:15 AM",
+                    s: "Plan ends one full cycle before alarm.",
+                  },
                   { i: Heart, t: "10-min HRV breathing", s: "Readiness was 71 — protect cycle 3." },
                 ].map((r, i) => (
                   <li key={i} className="flex items-start gap-3 py-3">
@@ -452,9 +524,11 @@ function DashboardSection() {
 
             {/* week strip */}
             <div className="lg:col-span-5 rounded-2xl border border-border bg-background/40 p-5">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">This week</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
+                This week
+              </p>
               <div className="mt-3 grid grid-cols-7 gap-1.5">
-                {["M","T","W","T","F","S","S"].map((d, i) => {
+                {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => {
                   const heights = [40, 70, 55, 80, 60, 25, 30];
                   const active = i === 1;
                   return (
@@ -470,7 +544,11 @@ function DashboardSection() {
                           }}
                         />
                       </div>
-                      <span className={`text-[10px] ${active ? "text-indigo-glow font-semibold" : "text-muted-foreground"}`}>{d}</span>
+                      <span
+                        className={`text-[10px] ${active ? "text-indigo-glow font-semibold" : "text-muted-foreground"}`}
+                      >
+                        {d}
+                      </span>
                     </div>
                   );
                 })}
@@ -500,18 +578,22 @@ function CalendarConflictSection() {
               Catches the conflict before your week does.
             </h2>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground">
-              Drop in shifts from up to three employers, plus personal events
-              and commute. RestPilot flags overlap, sleep starvation, and
-              recovery-killing combos — and offers a fix.
+              Drop in shifts from up to three employers, plus personal events and commute. RestPilot
+              flags overlap, sleep starvation, and recovery-killing combos — and offers a fix.
             </p>
             <ul className="mt-7 space-y-3 text-sm">
               <li className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
-                <span><b>Conflict on Thu 16:</b> night shift ends 7:00 AM, dentist 8:30 AM. Reschedule or skip-nap?</span>
+                <span>
+                  <b>Conflict on Thu 16:</b> night shift ends 7:00 AM, dentist 8:30 AM. Reschedule
+                  or skip-nap?
+                </span>
               </li>
               <li className="flex items-start gap-3">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-glow" />
-                <span><b>Auto-fix:</b> moved dentist to Sat 11 AM and added a 90-min anchor sleep.</span>
+                <span>
+                  <b>Auto-fix:</b> moved dentist to Sat 11 AM and added a 90-min anchor sleep.
+                </span>
               </li>
             </ul>
           </div>
@@ -530,9 +612,17 @@ function CalendarMock() {
     return day >= 1 && day <= total ? day : null;
   });
   const shifts: Record<number, "day" | "night" | "off" | "conflict"> = {
-    13: "day", 14: "night", 15: "night", 16: "conflict",
-    17: "night", 20: "day", 21: "day", 24: "night", 25: "night",
-    27: "off", 28: "off",
+    13: "day",
+    14: "night",
+    15: "night",
+    16: "conflict",
+    17: "night",
+    20: "day",
+    21: "day",
+    24: "night",
+    25: "night",
+    27: "off",
+    28: "off",
   };
 
   return (
@@ -540,23 +630,35 @@ function CalendarMock() {
       <div className="pointer-events-none absolute -inset-6 rounded-[44px] bg-indigo/15 blur-3xl" />
       <div className="relative overflow-hidden rounded-[28px] border border-border bg-card/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-widest text-indigo-glow">October 2025</span>
-          <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-muted-foreground">3 employers</span>
+          <span className="font-semibold uppercase tracking-widest text-indigo-glow">
+            October 2025
+          </span>
+          <span className="rounded-full border border-border bg-secondary/60 px-2 py-0.5 text-muted-foreground">
+            3 employers
+          </span>
         </div>
 
         <div className="mt-4 grid grid-cols-7 gap-1.5 text-[10px] text-muted-foreground">
-          {["M","T","W","T","F","S","S"].map((d) => <span key={d} className="text-center">{d}</span>)}
+          {["M", "T", "W", "T", "F", "S", "S"].map((d) => (
+            <span key={d} className="text-center">
+              {d}
+            </span>
+          ))}
         </div>
 
         <div className="mt-1 grid grid-cols-7 gap-1.5">
           {cells.map((d, i) => {
             const kind = d ? shifts[d] : undefined;
             const styles =
-              kind === "day"      ? "bg-indigo/30 text-foreground border-indigo/50" :
-              kind === "night"    ? "bg-indigo-glow/20 text-foreground border-indigo-glow/40" :
-              kind === "off"      ? "bg-mint/15 text-foreground border-mint/30" :
-              kind === "conflict" ? "bg-amber/25 text-foreground border-amber/60 ring-2 ring-amber/60" :
-              "bg-background/40 text-muted-foreground border-border/50";
+              kind === "day"
+                ? "bg-indigo/30 text-foreground border-indigo/50"
+                : kind === "night"
+                  ? "bg-indigo-glow/20 text-foreground border-indigo-glow/40"
+                  : kind === "off"
+                    ? "bg-mint/15 text-foreground border-mint/30"
+                    : kind === "conflict"
+                      ? "bg-amber/25 text-foreground border-amber/60 ring-2 ring-amber/60"
+                      : "bg-background/40 text-muted-foreground border-border/50";
             return (
               <div
                 key={i}
@@ -580,7 +682,9 @@ function CalendarMock() {
 
         <div className="mt-4 rounded-xl border border-amber/50 bg-amber/10 p-3 text-xs">
           <p className="font-semibold text-amber">Conflict · Thu Oct 16</p>
-          <p className="mt-0.5 text-foreground/80">Night ends 7:00 AM · dentist 8:30 AM · sleep deficit 4.5h</p>
+          <p className="mt-0.5 text-foreground/80">
+            Night ends 7:00 AM · dentist 8:30 AM · sleep deficit 4.5h
+          </p>
           <div className="mt-2 flex gap-2 text-[10px]">
             <ChipBtn>Move appointment</ChipBtn>
             <ChipBtn>Add anchor nap</ChipBtn>
@@ -604,14 +708,23 @@ function CommuteSection() {
               Leave at the safest time, not the latest.
             </h2>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-muted-foreground">
-              The drive home after a night shift is the most dangerous part of
-              your day. RestPilot predicts your alertness curve and tells you
-              when to leave, when to caffeinate, and when to pull over.
+              The drive home after a night shift is the most dangerous part of your day. RestPilot
+              predicts your alertness curve and tells you when to leave, when to caffeinate, and
+              when to pull over.
             </p>
             <ul className="mt-7 space-y-3 text-sm">
-              <li className="flex items-start gap-3"><Car className="mt-0.5 h-4 w-4 text-indigo-glow" /><span>Drowsiness windows mapped to your shift end</span></li>
-              <li className="flex items-start gap-3"><Coffee className="mt-0.5 h-4 w-4 text-indigo-glow" /><span>Espresso-nap recommendation if alertness ≤ 40%</span></li>
-              <li className="flex items-start gap-3"><Bell className="mt-0.5 h-4 w-4 text-indigo-glow" /><span>Leave-now notification at the optimal window</span></li>
+              <li className="flex items-start gap-3">
+                <Car className="mt-0.5 h-4 w-4 text-indigo-glow" />
+                <span>Drowsiness windows mapped to your shift end</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Coffee className="mt-0.5 h-4 w-4 text-indigo-glow" />
+                <span>Espresso-nap recommendation if alertness ≤ 40%</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Bell className="mt-0.5 h-4 w-4 text-indigo-glow" />
+                <span>Leave-now notification at the optimal window</span>
+              </li>
             </ul>
           </div>
           <CommuteMock />
@@ -626,7 +739,9 @@ function CommuteMock() {
     <div className="relative mx-auto w-full max-w-lg">
       <div className="relative overflow-hidden rounded-[28px] border border-border bg-card/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-widest text-indigo-glow">Drive home</span>
+          <span className="font-semibold uppercase tracking-widest text-indigo-glow">
+            Drive home
+          </span>
           <span className="text-muted-foreground">Fri · post-night #3</span>
         </div>
 
@@ -645,7 +760,9 @@ function CommuteMock() {
             />
             <path
               d="M0 30 Q 40 10, 80 30 T 160 70 T 240 90 T 320 60"
-              fill="none" stroke="var(--indigo-glow)" strokeWidth="2.5"
+              fill="none"
+              stroke="var(--indigo-glow)"
+              strokeWidth="2.5"
             />
             {/* danger band */}
             <rect x="160" y="0" width="80" height="120" fill="var(--amber)" opacity="0.08" />
@@ -662,7 +779,10 @@ function CommuteMock() {
           <CommuteChip label="ETA home" value="7:10 AM" />
         </div>
 
-        <div className="mt-5 rounded-xl border border-primary/30 p-3" style={{ background: "var(--gradient-cta)" }}>
+        <div
+          className="mt-5 rounded-xl border border-primary/30 p-3"
+          style={{ background: "var(--gradient-cta)" }}
+        >
           <p className="text-xs text-primary-foreground">
             <b>Leave now:</b> alertness drops 22% in 35 min. Drive ends before the danger band.
           </p>
@@ -674,7 +794,9 @@ function CommuteMock() {
 
 function CommuteChip({ label, value, tone }: { label: string; value: string; tone?: "good" }) {
   return (
-    <div className={`rounded-xl border px-2 py-2 ${tone === "good" ? "border-indigo-glow/50 bg-indigo-glow/10" : "border-border bg-background/40"}`}>
+    <div
+      className={`rounded-xl border px-2 py-2 ${tone === "good" ? "border-indigo-glow/50 bg-indigo-glow/10" : "border-border bg-background/40"}`}
+    >
       <p className="text-muted-foreground">{label}</p>
       <p className="mt-0.5 font-semibold text-foreground">{value}</p>
     </div>
@@ -726,9 +848,17 @@ function BeforeAfterSection() {
 }
 
 function SidePanel({
-  tone, label, stat, statLabel, rows,
+  tone,
+  label,
+  stat,
+  statLabel,
+  rows,
 }: {
-  tone: "good" | "bad"; label: string; stat: string; statLabel: string; rows: string[];
+  tone: "good" | "bad";
+  label: string;
+  stat: string;
+  statLabel: string;
+  rows: string[];
 }) {
   const good = tone === "good";
   return (
@@ -738,19 +868,25 @@ function SidePanel({
       }`}
       style={good ? { boxShadow: "var(--shadow-glow)" } : undefined}
     >
-      <p className={`text-[10px] font-semibold uppercase tracking-[0.25em] ${good ? "text-indigo-glow" : "text-muted-foreground"}`}>
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-[0.25em] ${good ? "text-indigo-glow" : "text-muted-foreground"}`}
+      >
         {label}
       </p>
       <p className="mt-3 flex items-baseline gap-2">
-        <span className="text-6xl" style={{ fontFamily: "var(--font-display)" }}>{stat}</span>
+        <span className="text-6xl" style={{ fontFamily: "var(--font-display)" }}>
+          {stat}
+        </span>
         <span className="text-sm text-muted-foreground">{statLabel}</span>
       </p>
       <ul className="mt-5 space-y-2.5 text-sm">
         {rows.map((r) => (
           <li key={r} className="flex items-start gap-3">
-            {good
-              ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-glow" />
-              : <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-destructive/70" />}
+            {good ? (
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-glow" />
+            ) : (
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-destructive/70" />
+            )}
             <span className={good ? "text-foreground/90" : "text-muted-foreground"}>{r}</span>
           </li>
         ))}
@@ -763,8 +899,16 @@ function SidePanel({
 
 function RecoveryPlaybookSection() {
   const steps = [
-    { h: "−24h", t: "Pre-load", b: "Push bedtime 90 min earlier. Light from 6–8 PM. Hydration target hit." },
-    { h: "Shift end", t: "Cool-down", b: "Amber glasses on the drive. No screen blue light at home." },
+    {
+      h: "−24h",
+      t: "Pre-load",
+      b: "Push bedtime 90 min earlier. Light from 6–8 PM. Hydration target hit.",
+    },
+    {
+      h: "Shift end",
+      t: "Cool-down",
+      b: "Amber glasses on the drive. No screen blue light at home.",
+    },
     { h: "+0h", t: "Anchor sleep", b: "4.5h block ending at cycle. Blackout + 65°F room." },
     { h: "+8h", t: "Top-up", b: "90-min nap before commute back. Sunlight on rise." },
     { h: "+24h", t: "Reset", b: "First full night reclaimed. Debt model back below 20." },
@@ -790,9 +934,13 @@ function RecoveryPlaybookSection() {
                 <p className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-secondary/60 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-glow">
                   <Lightbulb className="h-3 w-3" /> {s.h}
                 </p>
-                <h3 className="mt-3 text-xl" style={{ fontFamily: "var(--font-display)" }}>{s.t}</h3>
+                <h3 className="mt-3 text-xl" style={{ fontFamily: "var(--font-display)" }}>
+                  {s.t}
+                </h3>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.b}</p>
-                <span className="absolute right-4 top-4 text-[10px] text-muted-foreground/60">0{i + 1}</span>
+                <span className="absolute right-4 top-4 text-[10px] text-muted-foreground/60">
+                  0{i + 1}
+                </span>
               </div>
             ))}
           </div>
@@ -856,12 +1004,27 @@ function Testimonials() {
 
 function PricingPreview({ ctaHref }: { ctaHref: string }) {
   const tiers = [
-    { name: "Monthly",  price: "$7.99",  cadence: "/ month",
-      perks: ["14-day free trial", "All AI features", "Wearable sync"], featured: false },
-    { name: "Annual",   price: "$49.99", cadence: "/ year",
-      perks: ["Save 48% vs monthly", "Priority AI capacity", "Everything in Monthly"], featured: true },
-    { name: "Lifetime", price: "$99",    cadence: "one-time",
-      perks: ["Pay once, use forever", "All future updates", "Founders' badge"], featured: false },
+    {
+      name: "Monthly",
+      price: "$7.99",
+      cadence: "/ month",
+      perks: ["14-day free trial", "All AI features", "Wearable sync"],
+      featured: false,
+    },
+    {
+      name: "Annual",
+      price: "$49.99",
+      cadence: "/ year",
+      perks: ["Save 48% vs monthly", "Priority AI capacity", "Everything in Monthly"],
+      featured: true,
+    },
+    {
+      name: "Lifetime",
+      price: "$99",
+      cadence: "one-time",
+      perks: ["Pay once, use forever", "All future updates", "Founders' badge"],
+      featured: false,
+    },
   ];
   return (
     <section className="py-24 lg:py-32" id="pricing">
@@ -877,7 +1040,9 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
             <div
               key={t.name}
               className={`relative overflow-hidden rounded-3xl border p-8 transition ${
-                t.featured ? "border-primary/50 bg-card shadow-[var(--shadow-glow)]" : "border-border/60 bg-card/50"
+                t.featured
+                  ? "border-primary/50 bg-card shadow-[var(--shadow-glow)]"
+                  : "border-border/60 bg-card/50"
               }`}
             >
               {t.featured && (
@@ -887,7 +1052,9 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
               )}
               <p className="text-sm font-semibold text-muted-foreground">{t.name}</p>
               <p className="mt-3 flex items-baseline gap-1">
-                <span className="text-5xl" style={{ fontFamily: "var(--font-display)" }}>{t.price}</span>
+                <span className="text-5xl" style={{ fontFamily: "var(--font-display)" }}>
+                  {t.price}
+                </span>
                 <span className="text-sm text-muted-foreground">{t.cadence}</span>
               </p>
               <ul className="mt-6 space-y-2.5">
@@ -901,7 +1068,9 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
               <Link
                 to={ctaHref}
                 className={`mt-8 flex h-12 items-center justify-center rounded-full text-sm font-semibold transition ${
-                  t.featured ? "bg-foreground text-background hover:opacity-90" : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
+                  t.featured
+                    ? "bg-foreground text-background hover:opacity-90"
+                    : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
                 }`}
               >
                 Get started
@@ -998,8 +1167,10 @@ const dayMoments = [
 function DayInLifeSection() {
   return (
     <section className="relative py-24 lg:py-32">
-      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70"
-        style={{ background: "var(--gradient-hero)" }} />
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 opacity-70"
+        style={{ background: "var(--gradient-hero)" }}
+      />
       <div className="mx-auto w-full max-w-7xl px-5 lg:px-10">
         <div className="text-center">
           <Eyebrow>A day with RestPilot</Eyebrow>
@@ -1007,8 +1178,8 @@ function DayInLifeSection() {
             Six small decisions. One genuinely better day.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
-            This is Tuesday for an ICU nurse on a 2/2/3 rotation. Every moment
-            is a real decision the AI makes on her behalf.
+            This is Tuesday for an ICU nurse on a 2/2/3 rotation. Every moment is a real decision
+            the AI makes on her behalf.
           </p>
         </div>
 
@@ -1027,7 +1198,9 @@ function DayInLifeSection() {
                     <span className="pulse-dot h-2 w-2 rounded-full bg-indigo-glow" />
                   </span>
 
-                  <div className={`pl-12 lg:pl-0 ${right ? "lg:col-start-2 lg:pl-10" : "lg:pr-10 lg:text-right"}`}>
+                  <div
+                    className={`pl-12 lg:pl-0 ${right ? "lg:col-start-2 lg:pl-10" : "lg:pr-10 lg:text-right"}`}
+                  >
                     <div
                       className={`relative overflow-hidden rounded-2xl border p-5 backdrop-blur-xl ${
                         m.final
@@ -1035,7 +1208,9 @@ function DayInLifeSection() {
                           : "border-border/60 bg-card/70"
                       }`}
                     >
-                      <div className={`flex items-center gap-3 ${right ? "" : "lg:flex-row-reverse"}`}>
+                      <div
+                        className={`flex items-center gap-3 ${right ? "" : "lg:flex-row-reverse"}`}
+                      >
                         <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-secondary/60">
                           <Icon className="h-4 w-4 text-indigo-glow" />
                         </span>
@@ -1048,10 +1223,10 @@ function DayInLifeSection() {
                           </p>
                         </div>
                       </div>
-                      <p className="mt-3 text-sm leading-relaxed text-foreground/85">
-                        {m.body}
-                      </p>
-                      <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 py-0.5 text-[10px] text-muted-foreground ${right ? "" : "lg:float-right"}`}>
+                      <p className="mt-3 text-sm leading-relaxed text-foreground/85">{m.body}</p>
+                      <span
+                        className={`mt-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-2.5 py-0.5 text-[10px] text-muted-foreground ${right ? "" : "lg:float-right"}`}
+                      >
                         <Sparkles className="h-3 w-3 text-indigo-glow" />
                         {m.tag}
                       </span>
@@ -1087,11 +1262,31 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
   const skills: { icon: typeof Moon; title: string; body: string }[] = [
-    { icon: Heart, title: "Wind-down after shift", body: "Decompress with paced breathing and a calm voice that knows your night." },
-    { icon: Waves, title: "Sleep sounds & mixes", body: "Rain, jet, ocean — start by voice, save your perfect mix." },
-    { icon: MessageCircle, title: "Nightly guidance", body: "Checks in before bed and again at wake — never preachy." },
-    { icon: Repeat, title: "Routines & reminders", body: "‘Goodnight’ runs your full wind-down. One word, one tap." },
-    { icon: Lock, title: "Private memory", body: "Yours alone. View it, export it, wipe it — anytime." },
+    {
+      icon: Heart,
+      title: "Wind-down after shift",
+      body: "Decompress with paced breathing and a calm voice that knows your night.",
+    },
+    {
+      icon: Waves,
+      title: "Sleep sounds & mixes",
+      body: "Rain, jet, ocean — start by voice, save your perfect mix.",
+    },
+    {
+      icon: MessageCircle,
+      title: "Nightly guidance",
+      body: "Checks in before bed and again at wake — never preachy.",
+    },
+    {
+      icon: Repeat,
+      title: "Routines & reminders",
+      body: "‘Goodnight’ runs your full wind-down. One word, one tap.",
+    },
+    {
+      icon: Lock,
+      title: "Private memory",
+      body: "Yours alone. View it, export it, wipe it — anytime.",
+    },
   ];
   return (
     <section id="meet-aura" className="relative py-24 lg:py-32">
@@ -1105,10 +1300,12 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
         <div className="mx-auto max-w-2xl text-center">
           <Eyebrow>The companion</Eyebrow>
           <h2 className="mt-3 text-4xl leading-tight tracking-tight lg:text-5xl">
-            A real AI sleep assistant. <em className="not-italic text-indigo-glow">Always one tap away.</em>
+            A real AI sleep assistant.{" "}
+            <em className="not-italic text-indigo-glow">Always one tap away.</em>
           </h2>
           <p className="mt-5 text-base leading-relaxed text-muted-foreground">
-            Aura lives in the corner of every screen. Tap to talk — by voice or text — for sleep, sounds, alarms, recovery, and nightly check-ins built around your real shifts.
+            Aura lives in the corner of every screen. Tap to talk — by voice or text — for sleep,
+            sounds, alarms, recovery, and nightly check-ins built around your real shifts.
           </p>
         </div>
 
@@ -1128,10 +1325,7 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
             <div className="my-8">
               <OrbBadge state="idle" size="lg" />
             </div>
-            <p
-              className="text-2xl leading-tight"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
+            <p className="text-2xl leading-tight" style={{ fontFamily: "var(--font-display)" }}>
               "Goodnight. Want me to start your wind-down?"
             </p>
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
@@ -1168,5 +1362,3 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
     </section>
   );
 }
-
-
