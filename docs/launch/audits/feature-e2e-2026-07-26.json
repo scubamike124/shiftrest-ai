@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-07-26T09:40:37.250Z",
+  "base": "https://restpilotai.com",
+  "checks": [
+    {
+      "name": "has_token",
+      "pass": true
+    },
+    {
+      "name": "ai_coach",
+      "pass": true,
+      "status": 200,
+      "ms": 4162,
+      "bytes": 2455,
+      "looksStream": true,
+      "snippet": "data: {\"id\":\"gen-1785058839-MuhcniYhXeNsVsFm3jiU\",\"object\":\"chat.completion.chunk\",\"created\":1785058839,\"model\":\"google/gemini-3-flash-preview\",\"choices\":[{\"ind"
+    },
+    {
+      "name": "ai_right_now",
+      "pass": true,
+      "status": 200,
+      "bytes": 1078,
+      "snippet": "{\"action\":\"Step outside for 15 minutes of direct sunlight immediately\",\"why\":\"Your body clock needs a strong light signa"
+    },
+    {
+      "name": "tts",
+      "pass": true,
+      "status": 200,
+      "bytes": 0
+    },
+    {
+      "name": "profile_read",
+      "pass": true,
+      "status": 200,
+      "rows": 1
+    },
+    {
+      "name": "shift_create",
+      "pass": true,
+      "status": 201,
+      "err": null
+    },
+    {
+      "name": "shift_update",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "shift_read",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "shift_delete",
+      "pass": true,
+      "status": 204
+    },
+    {
+      "name": "alarm_event_create",
+      "pass": true,
+      "status": 201,
+      "err": null
+    },
+    {
+      "name": "alarm_event_delete",
+      "pass": true,
+      "status": 204
+    },
+    {
+      "name": "page_/companion",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/pilot",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/coach",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/plan",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/events",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/dashboard",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/profile",
+      "pass": true,
+      "status": 200
+    }
+  ],
+  "ok": true
+}

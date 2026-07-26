@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# E2E / local secrets
+.e2e-session.json
+.tmp-mail-body.json
+.env.local
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

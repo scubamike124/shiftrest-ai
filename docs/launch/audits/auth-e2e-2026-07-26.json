@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-07-26T09:38:21.217Z",
+  "base": "https://restpilotai.com",
+  "email": "rp.e2e.1785057096729@mailinator.com",
+  "checks": [
+    {
+      "name": "password_login",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "get_user",
+      "pass": true,
+      "status": 200,
+      "emailConfirmed": true
+    },
+    {
+      "name": "refresh_session",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/dashboard",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/plan",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/profile",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/events",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "page_/auth/callback",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "password_recovery_request",
+      "pass": true,
+      "status": 200
+    },
+    {
+      "name": "logout",
+      "pass": true,
+      "status": 204
+    },
+    {
+      "name": "relogin_after_logout",
+      "pass": true,
+      "status": 200
+    }
+  ],
+  "ok": true
+}

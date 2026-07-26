@@ -5,13 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-type VerifyType =
-  | "signup"
-  | "invite"
-  | "magiclink"
-  | "recovery"
-  | "email_change"
-  | "email";
+type VerifyType = "signup" | "invite" | "magiclink" | "recovery" | "email_change" | "email";
 
 export const Route = createFileRoute("/auth/callback")({
   head: () => ({
@@ -33,10 +27,35 @@ function AuthCallbackPage() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const tokenHash = url.searchParams.get("token_hash");
+    const otpToken = url.searchParams.get("token");
+    const email = url.searchParams.get("email");
     const rawType = url.searchParams.get("type") as VerifyType | null;
     const next = url.searchParams.get("next") || "/dashboard";
 
-    if (!tokenHash || !rawType) {
+    // Supabase may redirect here with a session in the URL hash after /auth/v1/verify.
+    if (!tokenHash && !otpToken && !rawType) {
+      (async () => {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (data.session) {
+            toast.success("You're signed in.");
+            navigate({
+              to: (next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard") as never,
+              replace: true,
+            });
+            return;
+          }
+        } catch {
+          /* fall through to missing-info error */
+        }
+        setStatus("error");
+        setMessage("This link is missing required information.");
+      })();
+      return;
+    }
+
+    if (!rawType || (!tokenHash && !(otpToken && email))) {
       setStatus("error");
       setMessage("This link is missing required information.");
       return;
@@ -46,10 +65,18 @@ function AuthCallbackPage() {
 
     (async () => {
       try {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: rawType as any,
-        });
+        const { error } = await supabase.auth.verifyOtp(
+          tokenHash
+            ? {
+                token_hash: tokenHash,
+                type: rawType as never,
+              }
+            : {
+                email: email!,
+                token: otpToken!,
+                type: rawType as never,
+              },
+        );
         if (error) {
           setStatus("error");
           setMessage(
@@ -77,18 +104,16 @@ function AuthCallbackPage() {
         queryClient.invalidateQueries({ queryKey: ["prefs"] });
         queryClient.invalidateQueries({ queryKey: ["employers"] });
 
-        toast.success(
-          isRecovery ? "Verified — set a new password." : "You're signed in.",
-        );
+        toast.success(isRecovery ? "Verified — set a new password." : "You're signed in.");
 
         if (isRecovery) {
           navigate({
             to: "/reset-password",
-            search: { fromRecovery: "1" } as any,
+            search: { fromRecovery: "1" } as never,
             replace: true,
           });
         } else if (next.startsWith("/") && !next.startsWith("//")) {
-          navigate({ to: next as any, replace: true });
+          navigate({ to: next as never, replace: true });
         } else {
           navigate({ to: "/dashboard", replace: true });
         }
@@ -128,15 +153,11 @@ function AuthCallbackPage() {
           >
             Resend verification email
           </button>
-          <a
-            href="/auth"
-            className="text-sm text-muted-foreground underline underline-offset-4"
-          >
+          <a href="/auth" className="text-sm text-muted-foreground underline underline-offset-4">
             Back to sign in
           </a>
         </div>
       ) : null}
-
     </main>
   );
 }

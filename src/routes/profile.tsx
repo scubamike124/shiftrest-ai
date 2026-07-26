@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Sparkles,
   MapPin,
-  
   Users,
   Heart,
   Shield,
@@ -19,6 +18,7 @@ import {
   Trash2,
   LogIn,
   LogOut,
+  Lock,
 } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
 import {
@@ -63,8 +63,6 @@ export const Route = createFileRoute("/profile")({
   }),
   component: Profile,
 });
-
-
 
 function Profile() {
   const queryClient = useQueryClient();
@@ -158,7 +156,6 @@ function Profile() {
     return () => sub.subscription.unsubscribe();
   }, [refetchSub]);
 
-
   async function handleSignOut() {
     // Ordered teardown per project guidance:
     // cancelQueries → clear per-user cache → clear React Query → signOut →
@@ -174,7 +171,6 @@ function Profile() {
     toast.success("Signed out.");
     navigate({ to: "/auth", replace: true });
   }
-
 
   async function handleManageSubscription() {
     if (!isPaymentsConfigured()) {
@@ -223,7 +219,9 @@ function Profile() {
       const city =
         j?.city ||
         j?.locality ||
-        j?.localityInfo?.administrative?.find((a: { adminLevel?: number; name?: string }) => a.adminLevel === 8)?.name ||
+        j?.localityInfo?.administrative?.find(
+          (a: { adminLevel?: number; name?: string }) => a.adminLevel === 8,
+        )?.name ||
         j?.principalSubdivision;
       const region = j?.principalSubdivision || j?.countryName;
       if (!city) return null;
@@ -233,7 +231,9 @@ function Profile() {
     }
   }
 
-  async function geocodeCity(name: string): Promise<{ lat: number; lon: number; label: string } | null> {
+  async function geocodeCity(
+    name: string,
+  ): Promise<{ lat: number; lon: number; label: string } | null> {
     try {
       const r = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`,
@@ -292,7 +292,6 @@ function Profile() {
     );
   }
 
-
   async function saveCity() {
     const q = cityDraft.trim();
     if (!q) return;
@@ -338,15 +337,10 @@ function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, prefs.lat, prefs.lon, prefs.locationLabel]);
 
-
-
-
   return (
     <main className="flex flex-col gap-6 px-5 pt-12">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-          Profile
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Profile</p>
         <h1 className="mt-2 text-3xl font-bold">Your preferences</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Fine-tune how RestPilot plans your recovery windows.
@@ -440,6 +434,10 @@ function Profile() {
         )}
       </section>
 
+      {userEmail ? (
+        <PasswordChangeCard />
+      ) : null}
+
       <section className="rounded-2xl border border-border bg-card">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-start gap-3">
@@ -471,7 +469,9 @@ function Profile() {
         <div className="flex gap-2 px-4 pb-4">
           <input
             type="text"
-            placeholder={signedIn ? "Or type a city (e.g. Austin, TX)" : "Sign in to save your location"}
+            placeholder={
+              signedIn ? "Or type a city (e.g. Austin, TX)" : "Sign in to save your location"
+            }
             value={cityDraft}
             onChange={(e) => setCityDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -503,9 +503,7 @@ function Profile() {
         )}
       </section>
 
-
       <EmployersSection />
-
 
       <section className="rounded-2xl border border-border bg-card">
         <SliderRow
@@ -606,20 +604,14 @@ function Profile() {
 
       <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
-
-
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
       <WearableCard />
 
       <NotificationsSection signedIn={signedIn} />
 
-
       <section className="rounded-2xl border border-border bg-card">
-        <Link
-          to="/privacy"
-          className="flex items-center justify-between p-4"
-        >
+        <Link to="/privacy" className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
               <Shield className="h-5 w-5" />
@@ -629,10 +621,7 @@ function Profile() {
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </Link>
         <Divider />
-        <Link
-          to="/terms"
-          className="flex items-center justify-between p-4"
-        >
+        <Link to="/terms" className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
               <FileText className="h-5 w-5" />
@@ -671,8 +660,12 @@ function Profile() {
               <FileText className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold">{exporting ? "Preparing export…" : "Export my data"}</p>
-              <p className="text-xs text-muted-foreground">Download a JSON copy of your account data.</p>
+              <p className="text-sm font-semibold">
+                {exporting ? "Preparing export…" : "Export my data"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Download a JSON copy of your account data.
+              </p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -681,7 +674,12 @@ function Profile() {
         <button
           disabled={purging}
           onClick={async () => {
-            if (!window.confirm("Erase all long-term AI memory? RestPilot will start fresh and lose personalized context.")) return;
+            if (
+              !window.confirm(
+                "Erase all long-term AI memory? RestPilot will start fresh and lose personalized context.",
+              )
+            )
+              return;
             setPurging(true);
             try {
               await purgeAiMemory({ data: undefined });
@@ -700,7 +698,9 @@ function Profile() {
             </span>
             <div>
               <p className="text-sm font-semibold">{purging ? "Clearing…" : "Erase AI memory"}</p>
-              <p className="text-xs text-muted-foreground">Delete remembered preferences, patterns, and recommendations.</p>
+              <p className="text-xs text-muted-foreground">
+                Delete remembered preferences, patterns, and recommendations.
+              </p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -729,11 +729,17 @@ function Profile() {
               try {
                 localStorage.clear();
                 clearPrefsMigrationFlag();
-              } catch {}
+              } catch {
+                /* ignore storage clear failures during account delete */
+              }
               toast.success("Account deleted.");
               navigate({ to: "/auth", replace: true });
             } catch (err) {
-              toast.error(err instanceof Error ? err.message : "We couldn't delete your account. Please try again.");
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : "We couldn't delete your account. Please try again.",
+              );
               setDeleting(false);
             }
           }}
@@ -754,7 +760,6 @@ function Profile() {
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
-
       </section>
 
       <p className="text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
@@ -812,10 +817,7 @@ function EmployersSection() {
               className="flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3 text-left active:scale-[0.99]"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <span
-                  className="h-8 w-8 shrink-0 rounded-lg"
-                  style={{ background: e.color }}
-                />
+                <span className="h-8 w-8 shrink-0 rounded-lg" style={{ background: e.color }} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{e.name}</p>
                   <p className="text-[11px] text-muted-foreground">
@@ -881,9 +883,7 @@ function EmployerEditor({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-t-3xl border border-border bg-card p-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xl font-bold">
-            {employer ? "Edit employer" : "Add employer"}
-          </h3>
+          <h3 className="text-xl font-bold">{employer ? "Edit employer" : "Add employer"}</h3>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -946,7 +946,11 @@ function EmployerEditor({
         {onDelete && (
           <button
             onClick={() => {
-              if (window.confirm(`Delete "${employer?.name}"? Shifts at this employer will lose their tag but remain on your schedule.`)) {
+              if (
+                window.confirm(
+                  `Delete "${employer?.name}"? Shifts at this employer will lose their tag but remain on your schedule.`,
+                )
+              ) {
                 onDelete();
               }
             }}
@@ -959,7 +963,6 @@ function EmployerEditor({
     </div>
   );
 }
-
 
 function SliderRow({
   icon,
@@ -1092,6 +1095,77 @@ function RotationSection({
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+function PasswordChangeCard() {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      toast.error("Passwords don't match.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setPassword("");
+      setConfirm("");
+      toast.success("Password updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update password");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+          <Lock className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-sm font-semibold">Change password</p>
+          <p className="text-xs text-muted-foreground">
+            Update the password for this account while signed in.
+          </p>
+        </div>
+      </div>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="New password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="h-11 w-full rounded-xl border border-border bg-secondary/40 px-3 text-sm outline-none focus:border-primary"
+        />
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder="Confirm new password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          className="h-11 w-full rounded-xl border border-border bg-secondary/40 px-3 text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={saving || !password || !confirm}
+          className="h-10 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Update password"}
+        </button>
+      </form>
     </section>
   );
 }

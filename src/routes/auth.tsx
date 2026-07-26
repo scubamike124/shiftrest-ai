@@ -78,7 +78,11 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            // Must land on /auth/callback so verifyOtp can exchange token_hash.
+            // Bare origin previously dropped users without completing confirmation.
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
         });
         if (error) throw error;
         // Record acceptance once the session exists. If email confirmation is on,
@@ -128,12 +132,13 @@ function AuthPage() {
       if (result.redirected) return;
       navigate({ to: returnTo as never });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "We couldn't sign you in. Please try again.");
+      toast.error(
+        err instanceof Error ? err.message : "We couldn't sign you in. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   }
-
 
   return (
     <main className="flex min-h-[100dvh] flex-col px-5 pt-16 pb-10">
@@ -154,7 +159,10 @@ function AuthPage() {
           <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
             <span>
-              <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google sign-in does not work inside the Lovable editor preview. Please use <strong>email &amp; password</strong> below to test. Google works normally on the published site.
+              <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
+              sign-in does not work inside the Lovable editor preview. Please use{" "}
+              <strong>email &amp; password</strong> below to test. Google works normally on the
+              published site.
             </span>
           </div>
         )}
@@ -162,13 +170,16 @@ function AuthPage() {
         <button
           onClick={() => handleOAuth("google")}
           disabled={loading || isInIframe}
-          title={isInIframe ? "Google sign-in is disabled in the editor preview. Use email/password." : undefined}
+          title={
+            isInIframe
+              ? "Google sign-in is disabled in the editor preview. Use email/password."
+              : undefined
+          }
           className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
         </button>
       </div>
-
 
       <div className="my-6 flex items-center gap-3">
         <div className="h-px flex-1 bg-border" />
@@ -213,11 +224,26 @@ function AuthPage() {
             />
             <span>
               I am 16 or older and agree to the{" "}
-              <Link to="/legal/terms" className="text-primary underline">Terms</Link>,{" "}
-              <Link to="/legal/privacy" className="text-primary underline">Privacy</Link>,{" "}
-              <Link to="/legal/disclaimers" className="text-primary underline">AI &amp; Health Disclaimers</Link>,{" "}
-              <Link to="/safety" className="text-primary underline">Safety Center</Link>, and{" "}
-              <Link to="/legal/electronic-consent" className="text-primary underline">Electronic Consent</Link>. RestPilot AI is not medical advice or an emergency service.
+              <Link to="/legal/terms" className="text-primary underline">
+                Terms
+              </Link>
+              ,{" "}
+              <Link to="/legal/privacy" className="text-primary underline">
+                Privacy
+              </Link>
+              ,{" "}
+              <Link to="/legal/disclaimers" className="text-primary underline">
+                AI &amp; Health Disclaimers
+              </Link>
+              ,{" "}
+              <Link to="/safety" className="text-primary underline">
+                Safety Center
+              </Link>
+              , and{" "}
+              <Link to="/legal/electronic-consent" className="text-primary underline">
+                Electronic Consent
+              </Link>
+              . RestPilot AI is not medical advice or an emergency service.
             </span>
           </label>
         )}
@@ -245,7 +271,9 @@ function AuthPage() {
               toast.success("If that email exists, a reset link is on the way.");
             } catch (err) {
               toast.error(
-                err instanceof Error ? err.message : "We couldn't send the reset email. Please try again.",
+                err instanceof Error
+                  ? err.message
+                  : "We couldn't send the reset email. Please try again.",
               );
             }
           }}
@@ -259,18 +287,23 @@ function AuthPage() {
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
         className="mt-5 text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
       >
-        {mode === "signin"
-          ? "New here? Create an account"
-          : "Already have an account? Sign In"}
+        {mode === "signin" ? "New here? Create an account" : "Already have an account? Sign In"}
       </button>
-
-
 
       <p className="mt-auto pt-8 text-center text-[10px] text-muted-foreground/70">
         By continuing, you agree to our{" "}
-        <Link to="/legal/terms" className="text-primary underline">Terms</Link>,{" "}
-        <Link to="/legal/privacy" className="text-primary underline">Privacy</Link>, and{" "}
-        <Link to="/legal/disclaimers" className="text-primary underline">Disclaimers</Link>.
+        <Link to="/legal/terms" className="text-primary underline">
+          Terms
+        </Link>
+        ,{" "}
+        <Link to="/legal/privacy" className="text-primary underline">
+          Privacy
+        </Link>
+        , and{" "}
+        <Link to="/legal/disclaimers" className="text-primary underline">
+          Disclaimers
+        </Link>
+        .
       </p>
     </main>
   );

@@ -1,0 +1,220 @@
+{
+  "generatedAt": "2026-07-26T09:15:16.359Z",
+  "base": "https://restpilotai.com",
+  "publicApis": [
+    {
+      "path": "/api/ai",
+      "status": 400,
+      "ms": 44,
+      "ok": true,
+      "softOk": true,
+      "bytes": 27,
+      "snippet": "{\"error\":\"intent required\"}",
+      "expectAuth": true
+    },
+    {
+      "path": "/api/coach",
+      "status": 401,
+      "ms": 1246,
+      "ok": true,
+      "softOk": true,
+      "bytes": 28,
+      "snippet": "{\"error\":\"Sign in required\"}",
+      "expectAuth": true
+    },
+    {
+      "path": "/api/tts",
+      "status": 401,
+      "ms": 65,
+      "ok": true,
+      "softOk": true,
+      "bytes": 33,
+      "snippet": "{\"error\":\"Missing authorization\"}",
+      "expectAuth": true
+    },
+    {
+      "path": "/api/brief",
+      "status": 401,
+      "ms": 39,
+      "ok": true,
+      "softOk": true,
+      "bytes": 33,
+      "snippet": "{\"error\":\"Missing authorization\"}",
+      "expectAuth": true
+    }
+  ],
+  "authenticatedApis": [
+    {
+      "path": "/api/ai",
+      "status": 400,
+      "ms": 40,
+      "ok": true,
+      "softOk": true,
+      "bytes": 27,
+      "snippet": "{\"error\":\"intent required\"}"
+    },
+    {
+      "path": "/dashboard",
+      "status": 200,
+      "ms": 95,
+      "ok": true,
+      "softOk": true,
+      "bytes": 32842,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/plan",
+      "status": 200,
+      "ms": 59,
+      "ok": true,
+      "softOk": true,
+      "bytes": 30819,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/events",
+      "status": 200,
+      "ms": 64,
+      "ok": true,
+      "softOk": true,
+      "bytes": 29602,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/profile",
+      "status": 200,
+      "ms": 63,
+      "ok": true,
+      "softOk": true,
+      "bytes": 31146,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    }
+  ],
+  "pages": [
+    {
+      "path": "/",
+      "status": 200,
+      "ms": 1148,
+      "ok": true,
+      "softOk": true,
+      "bytes": 35772,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/auth",
+      "status": 200,
+      "ms": 86,
+      "ok": true,
+      "softOk": true,
+      "bytes": 18116,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/pricing",
+      "status": 200,
+      "ms": 76,
+      "ok": true,
+      "softOk": true,
+      "bytes": 38482,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/features",
+      "status": 200,
+      "ms": 55,
+      "ok": true,
+      "softOk": true,
+      "bytes": 34862,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/plan",
+      "status": 200,
+      "ms": 64,
+      "ok": true,
+      "softOk": true,
+      "bytes": 30819,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/science",
+      "status": 200,
+      "ms": 91,
+      "ok": true,
+      "softOk": true,
+      "bytes": 50626,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/safety",
+      "status": 200,
+      "ms": 99,
+      "ok": true,
+      "softOk": true,
+      "bytes": 29492,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/contact",
+      "status": 200,
+      "ms": 62,
+      "ok": true,
+      "softOk": true,
+      "bytes": 30855,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/legal/privacy",
+      "status": 200,
+      "ms": 68,
+      "ok": true,
+      "softOk": true,
+      "bytes": 35428,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/legal/terms",
+      "status": 200,
+      "ms": 61,
+      "ok": true,
+      "softOk": true,
+      "bytes": 39790,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/legal/cookies",
+      "status": 200,
+      "ms": 61,
+      "ok": true,
+      "softOk": true,
+      "bytes": 30792,
+      "snippet": "<!DOCTYPE html><html lang=\"en\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-s"
+    },
+    {
+      "path": "/api/public/health",
+      "status": 200,
+      "ms": 61,
+      "ok": true,
+      "softOk": true,
+      "bytes": 43,
+      "snippet": "{\"ok\":true,\"at\":\"2026-07-26T09:15:18.067Z\"}"
+    },
+    {
+      "path": "/api/public/version",
+      "status": 200,
+      "ms": 1130,
+      "ok": true,
+      "softOk": true,
+      "bytes": 129,
+      "snippet": "{\"buildId\":\"b-1783384559242\",\"builtAt\":\"2026-07-07T00:35:59.242Z\",\"servedAt\":\"2026-07-26T09:15:18.796Z\",\"host\":\"restpilo"
+    }
+  ],
+  "ownerBlockers": [],
+  "bugsFound": 0,
+  "bugsFixed": 0,
+  "passwordGrant": {
+    "status": 200,
+    "hasSession": true,
+    "msg": null
+  }
+}
