@@ -29,10 +29,7 @@ function relocatePwaWorker(): Plugin {
   let registered = false;
   const doMove = () => {
     const root = process.cwd();
-    const candidates = [
-      resolve(root, "dist/sw-src.js"),
-      resolve(root, "dist/client/sw-src.js"),
-    ];
+    const candidates = [resolve(root, "dist/sw-src.js"), resolve(root, "dist/client/sw-src.js")];
     const src = candidates.find((p) => existsSync(p));
     const dest = resolve(root, "dist/client/sw.js");
     if (src) {
@@ -40,10 +37,7 @@ function relocatePwaWorker(): Plugin {
       renameSync(src, dest);
     }
     // Strip the raw TS source if Nitro copied it across.
-    for (const stray of [
-      resolve(root, "dist/client/sw-src.ts"),
-      resolve(root, "dist/sw-src.ts"),
-    ]) {
+    for (const stray of [resolve(root, "dist/client/sw-src.ts"), resolve(root, "dist/sw-src.ts")]) {
       if (existsSync(stray)) unlinkSync(stray);
     }
   };
@@ -78,7 +72,6 @@ function relocatePwaWorker(): Plugin {
   };
 }
 
-
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -100,7 +93,7 @@ export default defineConfig({
       alias: {
         "entities/lib/decode.js": resolve(process.cwd(), "node_modules/entities/lib/decode.js"),
         "entities/lib/encode.js": resolve(process.cwd(), "node_modules/entities/lib/encode.js"),
-        "entities": resolve(process.cwd(), "node_modules/entities"),
+        entities: resolve(process.cwd(), "node_modules/entities"),
       },
     },
     plugins: [
@@ -118,13 +111,18 @@ export default defineConfig({
         registerType: "autoUpdate",
         devOptions: { enabled: false },
         injectManifest: {
-          // Precache from the Nitro client bundle so URLs are `/assets/...`
-          // (NOT `/client/assets/...`).
-          globDirectory: "dist/client",
+          // TanStack Start + Nitro emits hashed client chunks into
+          // `.output/public/assets` *after* vite-plugin-pwa runs
+          // injectManifest, so `dist/client` is empty at this step and
+          // produced a noisy empty-glob warning with zero precache.
+          // Precache stable `/public` shell assets (icons, manifest);
+          // hashed `/assets/*` are covered by the SW runtime route in
+          // `public/sw-src.ts` (StaleWhileRevalidate).
+          globDirectory: "public",
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff,woff2,webmanifest}"],
-          // Don't precache the source SW file itself, sourcemaps, or
+          // Don't precache the SW source itself, sourcemaps, or
           // anything that would shadow the runtime worker.
-          globIgnores: ["**/sw-src.*", "**/sw.js", "**/*.map"],
+          globIgnores: ["**/sw-src.*", "**/sw.js", "**/*.map", "**/*.ts"],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           // Offline navigation fallback — guarantees `/` is in the
           // precache so cold offline opens hit the cached app shell

@@ -20,7 +20,11 @@
  * other than the Lovable assets CDN. AI responses, auth tokens, and
  * server-fn payloads stay out of Cache Storage entirely.
  */
-import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from "workbox-precaching";
+import {
+  precacheAndRoute,
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+} from "workbox-precaching";
 import { registerRoute, NavigationRoute } from "workbox-routing";
 import { NetworkFirst, CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
@@ -157,6 +161,17 @@ registerRoute(
   }),
 );
 
+// ─── Hashed app bundles under /assets/: stale-while-revalidate ─────────────
+// Nitro emits these after injectManifest, so they are not in `__WB_MANIFEST`.
+// Runtime caching still lets return visits open offline after a warm load.
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && url.pathname.startsWith("/assets/"),
+  new StaleWhileRevalidate({
+    cacheName: "rpai-assets-v1",
+    plugins: [new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 })],
+  }),
+);
+
 // ─── Fonts and icons in /public: cache-first ───────────────────────────────
 registerRoute(
   ({ url, request }) =>
@@ -192,9 +207,7 @@ self.addEventListener("push", (event: PushEvent) => {
     data: { url: data.url || "/plan", kind: data.kind || null },
     requireInteraction: isAlarm,
     silent: false,
-    vibrate: isAlarm
-      ? [400, 200, 400, 200, 400, 200, 400, 200, 400]
-      : [80, 40, 80],
+    vibrate: isAlarm ? [400, 200, 400, 200, 400, 200, 400, 200, 400] : [80, 40, 80],
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
