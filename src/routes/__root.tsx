@@ -119,6 +119,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // into every match and would override every page's share preview.
       { name: "twitter:card", content: "summary_large_image" },
     ],
+    styles: [
+      {
+        children:
+          '#lovable-badge,[id="lovable-badge"],a[href*="lovable.dev"]{display:none!important;visibility:hidden!important;pointer-events:none!important}',
+      },
+    ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
