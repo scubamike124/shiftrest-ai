@@ -110,7 +110,22 @@ const cspReportOnlyMiddleware = createMiddleware().server(async ({ next }) => {
   return result;
 });
 
+// Baseline security headers on every response.
+const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next();
+  const headers = result.response.headers;
+  headers.set("x-frame-options", "SAMEORIGIN");
+  headers.set(
+    "permissions-policy",
+    "camera=(), geolocation=(), payment=(self), microphone=(self), usb=()",
+  );
+  headers.set("cross-origin-opener-policy", "same-origin-allow-popups");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  return result;
+});
+
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, cspReportOnlyMiddleware],
+  requestMiddleware: [errorMiddleware, cspReportOnlyMiddleware, securityHeadersMiddleware],
 }));
