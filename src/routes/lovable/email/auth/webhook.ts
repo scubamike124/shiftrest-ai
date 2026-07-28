@@ -21,7 +21,8 @@ const EMAIL_SUBJECTS: Record<string, string> = {
 };
 
 // Template mapping
-const EMAIL_TEMPLATES: Record<string, React.ComponentType<unknown>> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
   signup: SignupEmail,
   invite: InviteEmail,
   magiclink: MagicLinkEmail,
@@ -113,7 +114,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
             secret: apiKey,
             parser: parseEmailWebhookPayload,
           });
-          payload = verified.payload as Record<string, unknown>;
+          payload = verified.payload as unknown as Record<string, unknown>;
           run_id = String(payload.run_id ?? "");
         } catch (error) {
           if (error instanceof WebhookError) {
@@ -150,10 +151,11 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
 
         // The email action type is in payload.data.action_type (e.g., "signup", "recovery")
         // payload.type is the hook event type ("auth")
-        const emailType = payload.data.action_type;
+        const data = (payload.data ?? {}) as Record<string, any>;
+        const emailType = String(data.action_type ?? "");
         console.log("Received auth event", {
           emailType,
-          email_redacted: redactEmail(payload.data.email),
+          email_redacted: redactEmail(data.email),
           run_id,
         });
 
@@ -166,16 +168,16 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         // Build template props from payload.data (HookData structure).
         // Rewrite the confirmation URL to our branded /auth/callback handler
         // so recipients never see raw supabase.co links (Gmail flags mismatches).
-        const brandedUrl = buildBrandedUrl(emailType, payload.data);
+        const brandedUrl = buildBrandedUrl(emailType, data);
         const templateProps = {
           siteName: SITE_NAME,
           siteUrl: `https://${ROOT_DOMAIN}`,
-          recipient: payload.data.email,
+          recipient: data.email,
           confirmationUrl: brandedUrl,
-          token: payload.data.token,
-          email: payload.data.email,
-          oldEmail: payload.data.old_email,
-          newEmail: payload.data.new_email,
+          token: data.token,
+          email: data.email,
+          oldEmail: data.old_email,
+          newEmail: data.new_email,
         };
 
         // Render React Email to HTML and plain text
@@ -199,7 +201,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
         await supabase.from("email_send_log").insert({
           message_id: messageId,
           template_name: emailType,
-          recipient_email: payload.data.email,
+          recipient_email: data.email,
           status: "pending",
         });
 
@@ -208,7 +210,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           payload: {
             run_id,
             message_id: messageId,
-            to: payload.data.email,
+            to: data.email,
             from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
             reply_to: REPLY_TO,
             sender_domain: SENDER_DOMAIN,
@@ -226,7 +228,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
           await supabase.from("email_send_log").insert({
             message_id: messageId,
             template_name: emailType,
-            recipient_email: payload.data.email,
+            recipient_email: data.email,
             status: "failed",
             error_message: "Failed to enqueue email",
           });
@@ -235,7 +237,7 @@ export const Route = createFileRoute("/lovable/email/auth/webhook")({
 
         console.log("Auth email enqueued", {
           emailType,
-          email_redacted: redactEmail(payload.data.email),
+          email_redacted: redactEmail(data.email),
           run_id,
         });
 
