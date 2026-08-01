@@ -1,101 +1,101 @@
 {
-  "generatedAt": "2026-07-26T07:41:20.856Z",
+  "generatedAt": "2026-08-01T16:17:20.490Z",
   "base": "https://restpilotai.com",
   "public": [
     {
       "path": "/",
       "status": 200,
-      "ms": 2245,
+      "ms": 1331,
       "ok": true,
-      "bytes": 35772,
+      "bytes": 26620,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/auth",
       "status": 200,
-      "ms": 161,
+      "ms": 46,
       "ok": true,
-      "bytes": 18116,
+      "bytes": 8835,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/plan",
       "status": 200,
-      "ms": 91,
+      "ms": 48,
       "ok": true,
-      "bytes": 30819,
+      "bytes": 21538,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/pricing",
       "status": 200,
-      "ms": 81,
+      "ms": 41,
       "ok": true,
-      "bytes": 38482,
+      "bytes": 29181,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/features",
       "status": 200,
-      "ms": 85,
+      "ms": 48,
       "ok": true,
-      "bytes": 34862,
+      "bytes": 25561,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/science",
       "status": 200,
-      "ms": 76,
+      "ms": 59,
       "ok": true,
-      "bytes": 50626,
+      "bytes": 41345,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/safety",
       "status": 200,
-      "ms": 141,
+      "ms": 38,
       "ok": true,
-      "bytes": 29492,
+      "bytes": 20211,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/contact",
       "status": 200,
-      "ms": 65,
+      "ms": 99,
       "ok": true,
-      "bytes": 30855,
+      "bytes": 21574,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/legal/privacy",
       "status": 200,
-      "ms": 70,
+      "ms": 168,
       "ok": true,
-      "bytes": 35428,
+      "bytes": 26147,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/legal/terms",
       "status": 200,
-      "ms": 75,
+      "ms": 41,
       "ok": true,
-      "bytes": 39790,
+      "bytes": 30509,
       "hasRestPilot": true,
       "hasShiftRest": false
     },
     {
       "path": "/api/public/health",
       "status": 200,
-      "ms": 43,
+      "ms": 28,
       "ok": true,
       "bytes": 43,
       "hasRestPilot": false,
@@ -104,7 +104,7 @@
     {
       "path": "/api/public/version",
       "status": 200,
-      "ms": 1205,
+      "ms": 1929,
       "ok": true,
       "bytes": 129,
       "hasRestPilot": true,
@@ -115,9 +115,9 @@
     {
       "path": "/dashboard",
       "status": 200,
-      "ms": 102,
+      "ms": 109,
       "ok": true,
-      "bytes": 32842,
+      "bytes": 23561,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -125,9 +125,9 @@
     {
       "path": "/plan",
       "status": 200,
-      "ms": 91,
+      "ms": 62,
       "ok": true,
-      "bytes": 30819,
+      "bytes": 21538,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -135,9 +135,9 @@
     {
       "path": "/events",
       "status": 200,
-      "ms": 64,
+      "ms": 38,
       "ok": true,
-      "bytes": 29602,
+      "bytes": 20321,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -145,9 +145,9 @@
     {
       "path": "/profile",
       "status": 200,
-      "ms": 86,
+      "ms": 37,
       "ok": true,
-      "bytes": 31146,
+      "bytes": 21951,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -155,9 +155,9 @@
     {
       "path": "/coach",
       "status": 200,
-      "ms": 65,
+      "ms": 45,
       "ok": true,
-      "bytes": 29949,
+      "bytes": 20668,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -165,9 +165,9 @@
     {
       "path": "/companion",
       "status": 200,
-      "ms": 66,
+      "ms": 43,
       "ok": true,
-      "bytes": 35750,
+      "bytes": 26469,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -175,9 +175,9 @@
     {
       "path": "/memory",
       "status": 200,
-      "ms": 75,
+      "ms": 39,
       "ok": true,
-      "bytes": 30257,
+      "bytes": 20976,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -185,9 +185,9 @@
     {
       "path": "/inbox",
       "status": 200,
-      "ms": 60,
+      "ms": 57,
       "ok": true,
-      "bytes": 30203,
+      "bytes": 20922,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -195,9 +195,9 @@
     {
       "path": "/decisions",
       "status": 200,
-      "ms": 71,
+      "ms": 33,
       "ok": true,
-      "bytes": 30161,
+      "bytes": 20880,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -205,9 +205,9 @@
     {
       "path": "/playbooks",
       "status": 200,
-      "ms": 84,
+      "ms": 35,
       "ok": true,
-      "bytes": 29115,
+      "bytes": 19834,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
@@ -215,9 +215,9 @@
     {
       "path": "/settings/morning",
       "status": 200,
-      "ms": 62,
+      "ms": 42,
       "ok": true,
-      "bytes": 29924,
+      "bytes": 20643,
       "hasRestPilot": true,
       "hasShiftRest": false,
       "note": "unauthenticated probe only"
