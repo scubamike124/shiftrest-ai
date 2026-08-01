@@ -42,6 +42,7 @@ import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
@@ -260,6 +261,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LegalIndexRoute = LegalIndexRouteImport.update({
@@ -611,6 +617,7 @@ export interface FileRoutesByFullPath {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/csp-report': typeof ApiPublicCspReportRoute
@@ -698,6 +705,7 @@ export interface FileRoutesByTo {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/csp-report': typeof ApiPublicCspReportRoute
@@ -789,6 +797,7 @@ export interface FileRoutesById {
   '/settings/morning': typeof SettingsMorningRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/_authenticated/lab/pilot-realtime': typeof AuthenticatedLabPilotRealtimeRoute
   '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/csp-report': typeof ApiPublicCspReportRoute
@@ -880,6 +889,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/settings/'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/csp-report'
@@ -967,6 +977,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal'
+    | '/settings'
     | '/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/csp-report'
@@ -1057,6 +1068,7 @@ export interface FileRouteTypes {
     | '/settings/morning'
     | '/settings/skills'
     | '/legal/'
+    | '/settings/'
     | '/_authenticated/lab/pilot-realtime'
     | '/api/public/contact'
     | '/api/public/csp-report'
@@ -1131,6 +1143,7 @@ export interface RootRouteChildren {
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
   ApiPublicCspReportRoute: typeof ApiPublicCspReportRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
@@ -1384,6 +1397,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/legal/': {
@@ -1899,6 +1919,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
   ApiPublicCspReportRoute: ApiPublicCspReportRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
@@ -1924,13 +1945,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
