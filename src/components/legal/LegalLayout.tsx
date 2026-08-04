@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ReactNode } from "react";
 import { AlertTriangle, FileText, Printer } from "lucide-react";
 import { LEGAL_DOCS, type LegalDoc } from "@/lib/legal/meta";
+import { formatLegalDate } from "@/lib/legal/format-date";
 
 type Props = {
   doc: LegalDoc;
@@ -55,8 +56,8 @@ export function LegalLayout({ doc, children }: Props) {
               {doc.title}
             </h1>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <span>Effective: {formatDate(doc.effective)}</span>
-              <span>Last updated: {formatDate(doc.effective)}</span>
+              <span>Effective: {formatLegalDate(doc.effective)}</span>
+              <span>Last updated: {formatLegalDate(doc.effective)}</span>
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -102,12 +103,4 @@ export function LegalLayout({ doc, children }: Props) {
       </div>
     </section>
   );
-}
-
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }

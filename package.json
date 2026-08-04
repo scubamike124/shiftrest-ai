@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "node --experimental-strip-types --test src/components/legal/__tests__/*.test.ts"
   },
   "dependencies": {
     "@fontsource/instrument-serif": "^5.2.8",
