@@ -5,13 +5,10 @@ import { renderErrorPage } from "./lib/error-page";
 // session hydration on iOS Safari (see auth-attacher.custom.ts).
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher.custom";
 
-// Content-Security-Policy in REPORT-ONLY mode. Violations are logged to the
-// browser console and POSTed to /api/public/csp-report but the policy is
-// NOT enforced. This lets us discover any missing origins before flipping
-// to enforcing mode. Do NOT rename this header to `Content-Security-Policy`
-// until we've watched a full week of report traffic and confirmed no
-// unexpected origins.
-const CSP_REPORT_ONLY = [
+// Content-Security-Policy in ENFORCING mode. The allowlist below is the same
+// one that ran in report-only mode; violations are still POSTed to
+// /api/public/csp-report so we keep visibility after enforcement.
+const CSP = [
   "default-src 'self'",
   // Stripe.js + Lovable preview loader + inline hydration scripts.
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://*.lovable.dev https://*.lovable.app",
@@ -97,21 +94,20 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
-// Attach CSP-Report-Only to HTML responses only. JSON, images, and other
-// asset responses don't need it — the browser only evaluates CSP for the
-// document it loaded the page from.
-const cspReportOnlyMiddleware = createMiddleware().server(async ({ next }) => {
+// Attach CSP to HTML responses only. JSON, images, and other asset responses
+// don't need it — the browser only evaluates CSP for the document it loaded.
+const cspMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next();
   const response = result.response;
   const ct = response.headers.get("content-type") ?? "";
-  if (ct.includes("text/html") && !response.headers.has("content-security-policy-report-only")) {
-    response.headers.set("content-security-policy-report-only", CSP_REPORT_ONLY);
+  if (ct.includes("text/html") && !response.headers.has("content-security-policy")) {
+    response.headers.set("content-security-policy", CSP);
   }
   return result;
 });
 
 // Baseline security headers on every response.
-const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => {
+const securityHeadersMiddleware = createMiddleware().server(async ({ next, request }) => {
   const result = await next();
   const headers = result.response.headers;
   headers.set("x-frame-options", "SAMEORIGIN");
@@ -122,10 +118,19 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => 
   headers.set("cross-origin-opener-policy", "same-origin-allow-popups");
   headers.set("x-content-type-options", "nosniff");
   headers.set("referrer-policy", "strict-origin-when-cross-origin");
+  // HSTS only over real HTTPS (never localhost / plain HTTP dev).
+  try {
+    const url = new URL(request.url);
+    if (url.protocol === "https:" && !url.hostname.includes("localhost")) {
+      headers.set("strict-transport-security", "max-age=31536000; includeSubDomains; preload");
+    }
+  } catch {
+    /* noop */
+  }
   return result;
 });
 
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware, cspReportOnlyMiddleware, securityHeadersMiddleware],
+  requestMiddleware: [errorMiddleware, cspMiddleware, securityHeadersMiddleware],
 }));
