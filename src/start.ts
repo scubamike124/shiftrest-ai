@@ -5,13 +5,10 @@ import { renderErrorPage } from "./lib/error-page";
 // session hydration on iOS Safari (see auth-attacher.custom.ts).
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher.custom";
 
-// Content-Security-Policy in REPORT-ONLY mode. Violations are logged to the
-// browser console and POSTed to /api/public/csp-report but the policy is
-// NOT enforced. This lets us discover any missing origins before flipping
-// to enforcing mode. Do NOT rename this header to `Content-Security-Policy`
-// until we've watched a full week of report traffic and confirmed no
-// unexpected origins.
-const CSP_REPORT_ONLY = [
+// Content-Security-Policy in ENFORCING mode. The allowlist below is the same
+// one that ran in report-only mode; violations are still POSTed to
+// /api/public/csp-report so we keep visibility after enforcement.
+const CSP = [
   "default-src 'self'",
   // Stripe.js + Lovable preview loader + inline hydration scripts.
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://*.lovable.dev https://*.lovable.app",
