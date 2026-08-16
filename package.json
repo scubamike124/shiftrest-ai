@@ -113,7 +113,19 @@
   },
   "pnpm": {
     "overrides": {
-      "entities": "4.5.0"
+      "entities": "4.5.0",
+      "brace-expansion": "^2.1.4",
+      "fast-uri": "^3.1.5",
+      "js-yaml": "^4.3.1",
+      "nanoid": "^3.3.18",
+      "postcss": "8.5.26"
     }
+  },
+  "overrides": {
+    "brace-expansion": "^2.1.4",
+    "fast-uri": "^3.1.5",
+    "js-yaml": "^4.3.1",
+    "nanoid": "^3.3.18",
+    "postcss": "8.5.26"
   }
 }
