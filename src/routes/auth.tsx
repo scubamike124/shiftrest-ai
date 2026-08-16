@@ -10,9 +10,10 @@ import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
 const SIGNUP_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { return?: string } => ({
     return: typeof search.return === "string" ? search.return : undefined,
   }),
+
   head: () => ({
     meta: [
       { title: "Sign In — RestPilot AI" },

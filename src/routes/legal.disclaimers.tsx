@@ -118,7 +118,7 @@ export const Route = createFileRoute("/legal/disclaimers")({
         They do not understand your full medical history or current
         condition. Do not use Companion in place of a medical or
         mental-health professional, and do not rely on it during an
-        emergency. See <Link to="#emergency">Emergency disclaimer</Link>{" "}
+        emergency. See <a href="#emergency">Emergency disclaimer</a>{" "}
         below.
       </p>
 

@@ -335,26 +335,92 @@ export const Route = createFileRoute("/api/ai")({
             });
 
 
-            // Tee the stream so we can extract memories + log usage after.
-            const [forClient, forCapture] = upstream.body!.tee();
+            // Pipe upstream through a TransformStream so logging + memory
+            // extraction complete *before* the response stream closes.
+            // (Fire-and-forget background work is killed on the edge runtime.)
+            const lastUser = [...trimmed].reverse().find((m) => m.role === "user");
+            const userTurn = lastUser?.content ?? "";
+            const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
-            // Fire-and-forget capture
-            if (userId) {
-              const lastUser = [...trimmed].reverse().find((m) => m.role === "user");
-              captureAndExtract({
-                admin,
-                userId,
-                userTurn: lastUser?.content ?? "",
-                memoryEnabled: profile.memoryEnabled,
-                stream: forCapture,
-                started,
-              }).catch((e) => console.error("capture failed", e));
-            } else {
-              // Still drain to free the buffer
-              forCapture.cancel().catch(() => {});
-            }
+            (async () => {
+              const reader = upstream.body!.getReader();
+              const writer = writable.getWriter();
+              const decoder = new TextDecoder();
+              let buf = "";
+              let assistant = "";
+              let usage: { p: number; c: number } | null = null;
 
-            return new Response(forClient, {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  await writer.write(value);
+
+                  buf += decoder.decode(value, { stream: true });
+                  let nl: number;
+                  while ((nl = buf.indexOf("\n")) !== -1) {
+                    let line = buf.slice(0, nl);
+                    buf = buf.slice(nl + 1);
+                    if (line.endsWith("\r")) line = line.slice(0, -1);
+                    if (!line.startsWith("data: ")) continue;
+                    const json = line.slice(6).trim();
+                    if (!json || json === "[DONE]") continue;
+                    try {
+                      const parsed = JSON.parse(json) as {
+                        choices?: { delta?: { content?: string } }[];
+                        usage?: { prompt_tokens?: number; completion_tokens?: number };
+                      };
+                      const chunk = parsed.choices?.[0]?.delta?.content;
+                      if (chunk) assistant += chunk;
+                      if (parsed.usage) {
+                        usage = {
+                          p: parsed.usage.prompt_tokens ?? 0,
+                          c: parsed.usage.completion_tokens ?? 0,
+                        };
+                      }
+                    } catch {
+                      // ignore partial frames
+                    }
+                  }
+                }
+
+                // Upstream finished — persist BEFORE closing the writable.
+                if (userId) {
+                  try {
+                    await logAIRequest(admin, {
+                      user_id: userId,
+                      intent: "coach",
+                      model: DEFAULT_CHAT_MODEL,
+                      prompt_tokens: usage?.p ?? 0,
+                      completion_tokens: usage?.c ?? 0,
+                      latency_ms: Date.now() - started,
+                      status: "ok",
+                    });
+
+                    if (profile.memoryEnabled && userTurn && assistant) {
+                      await extractAndStoreMemories({
+                        admin,
+                        userId,
+                        userTurn,
+                        assistantTurn: assistant,
+                      });
+                    }
+                  } catch (e) {
+                    console.error("coach capture failed", e);
+                  }
+                }
+              } catch (e) {
+                console.error("coach stream failed", e);
+              } finally {
+                try {
+                  await writer.close();
+                } catch {
+                  // client may have already disconnected
+                }
+              }
+            })();
+
+            return new Response(readable, {
               status: 200,
               headers: {
                 "Content-Type": "text/event-stream",
@@ -362,6 +428,7 @@ export const Route = createFileRoute("/api/ai")({
                 Connection: "keep-alive",
               },
             });
+
           }
 
           if (body.intent === "brief") {
@@ -648,72 +715,3 @@ export const Route = createFileRoute("/api/ai")({
     },
   },
 });
-
-/**
- * Drain the cloned SSE stream to reconstruct the assistant turn,
- * then trigger memory extraction + usage logging.
- */
-async function captureAndExtract(opts: {
-  admin: ReturnType<typeof getAdminClient>;
-  userId: string;
-  userTurn: string;
-  memoryEnabled: boolean;
-  stream: ReadableStream<Uint8Array>;
-  started: number;
-}): Promise<void> {
-  const reader = opts.stream.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  let assistant = "";
-  let usage: { p: number; c: number } | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buf.indexOf("\n")) !== -1) {
-      let line = buf.slice(0, nl);
-      buf = buf.slice(nl + 1);
-      if (line.endsWith("\r")) line = line.slice(0, -1);
-      if (!line.startsWith("data: ")) continue;
-      const json = line.slice(6).trim();
-      if (!json || json === "[DONE]") continue;
-      try {
-        const parsed = JSON.parse(json) as {
-          choices?: { delta?: { content?: string } }[];
-          usage?: { prompt_tokens?: number; completion_tokens?: number };
-        };
-        const chunk = parsed.choices?.[0]?.delta?.content;
-        if (chunk) assistant += chunk;
-        if (parsed.usage) {
-          usage = {
-            p: parsed.usage.prompt_tokens ?? 0,
-            c: parsed.usage.completion_tokens ?? 0,
-          };
-        }
-      } catch {
-        // ignore partial frames
-      }
-    }
-  }
-
-  await logAIRequest(opts.admin, {
-    user_id: opts.userId,
-    intent: "coach",
-    model: DEFAULT_CHAT_MODEL,
-    prompt_tokens: usage?.p ?? 0,
-    completion_tokens: usage?.c ?? 0,
-    latency_ms: Date.now() - opts.started,
-    status: "ok",
-  });
-
-  if (opts.memoryEnabled && opts.userTurn && assistant) {
-    await extractAndStoreMemories({
-      admin: opts.admin,
-      userId: opts.userId,
-      userTurn: opts.userTurn,
-      assistantTurn: assistant,
-    });
-  }
-}

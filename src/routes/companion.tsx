@@ -78,7 +78,14 @@ function orbToPortrait(state: OrbState, listening: boolean): PortraitState {
 export const Route = createFileRoute("/companion")({
   ssr: false,
   beforeLoad: requireSession,
-  validateSearch: (s: Record<string, unknown>) => ({
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): {
+    prompt?: string;
+    period?: "morning" | "afternoon" | "evening";
+    intro?: 1;
+    greet?: 1;
+  } => ({
     prompt: typeof s.prompt === "string" ? s.prompt.slice(0, 500) : undefined,
     period:
       s.period === "morning" || s.period === "afternoon" || s.period === "evening"
@@ -87,6 +94,7 @@ export const Route = createFileRoute("/companion")({
     intro: s.intro === 1 || s.intro === "1" ? (1 as const) : undefined,
     greet: s.greet === 1 || s.greet === "1" ? (1 as const) : undefined,
   }),
+
   head: () => ({
     meta: [
       { title: "Companion — Your personal AI | RestPilot AI" },
