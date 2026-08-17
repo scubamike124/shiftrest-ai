@@ -31,6 +31,7 @@ import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as LegalRouteImport } from './routes/legal'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as HealthRouteImport } from './routes/health'
+import { Route as ForSaleRouteImport } from './routes/for-sale'
 import { Route as FeaturesRouteImport } from './routes/features'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DecisionsRouteImport } from './routes/decisions'
@@ -207,6 +208,11 @@ const InboxRoute = InboxRouteImport.update({
 const HealthRoute = HealthRouteImport.update({
   id: '/health',
   path: '/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForSaleRoute = ForSaleRouteImport.update({
+  id: '/for-sale',
+  path: '/for-sale',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeaturesRoute = FeaturesRouteImport.update({
@@ -564,6 +570,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/for-sale': typeof ForSaleRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
@@ -654,6 +661,7 @@ export interface FileRoutesByTo {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/for-sale': typeof ForSaleRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/memory': typeof MemoryRoute
@@ -744,6 +752,7 @@ export interface FileRoutesById {
   '/decisions': typeof DecisionsRoute
   '/events': typeof EventsRoute
   '/features': typeof FeaturesRoute
+  '/for-sale': typeof ForSaleRoute
   '/health': typeof HealthRoute
   '/inbox': typeof InboxRoute
   '/legal': typeof LegalRouteWithChildren
@@ -836,6 +845,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/for-sale'
     | '/health'
     | '/inbox'
     | '/legal'
@@ -926,6 +936,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/for-sale'
     | '/health'
     | '/inbox'
     | '/memory'
@@ -1015,6 +1026,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/events'
     | '/features'
+    | '/for-sale'
     | '/health'
     | '/inbox'
     | '/legal'
@@ -1107,6 +1119,7 @@ export interface RootRouteChildren {
   DecisionsRoute: typeof DecisionsRoute
   EventsRoute: typeof EventsRoute
   FeaturesRoute: typeof FeaturesRoute
+  ForSaleRoute: typeof ForSaleRoute
   HealthRoute: typeof HealthRoute
   InboxRoute: typeof InboxRoute
   LegalRoute: typeof LegalRouteWithChildren
@@ -1320,6 +1333,13 @@ declare module '@tanstack/react-router' {
       path: '/health'
       fullPath: '/health'
       preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/for-sale': {
+      id: '/for-sale'
+      path: '/for-sale'
+      fullPath: '/for-sale'
+      preLoaderRoute: typeof ForSaleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/features': {
@@ -1883,6 +1903,7 @@ const rootRouteChildren: RootRouteChildren = {
   DecisionsRoute: DecisionsRoute,
   EventsRoute: EventsRoute,
   FeaturesRoute: FeaturesRoute,
+  ForSaleRoute: ForSaleRoute,
   HealthRoute: HealthRoute,
   InboxRoute: InboxRoute,
   LegalRoute: LegalRouteWithChildren,

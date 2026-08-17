@@ -47,12 +47,18 @@ export function SiteFooter() {
       <div className="border-t border-border/60">
         <div className="mx-auto flex w-full max-w-7xl flex-col items-start justify-between gap-3 px-5 py-6 text-xs text-muted-foreground lg:flex-row lg:items-center lg:px-10">
           <p>© {new Date().getFullYear()} RestPilot AI. All rights reserved.</p>
-          <p className="opacity-70">
-            Designed for humans who work nights. See our{" "}
-            <Link to="/legal" className="underline hover:text-foreground">
-              legal documents
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 opacity-70">
+            <Link to="/for-sale" className="underline hover:text-foreground">
+              For sale
             </Link>
-            .
+            <span className="hidden sm:inline">·</span>
+            <span className="hidden sm:inline">
+              Designed for humans who work nights. See our{" "}
+              <Link to="/legal" className="underline hover:text-foreground">
+                legal documents
+              </Link>
+              .
+            </span>
           </p>
         </div>
       </div>
