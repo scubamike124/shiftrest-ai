@@ -6,4 +6,4 @@ Disallow: /lab/
 Disallow: /version
 Disallow: /debug
 
-Sitemap: https://shift-rest-ai.lovable.app/sitemap.xml
+Sitemap: https://restpilotai.com/sitemap.xml
