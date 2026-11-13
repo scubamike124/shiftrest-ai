@@ -11,13 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { track } from "@/lib/companion/analytics";
 import { useOnline } from "@/hooks/use-online";
 import { isSkillsFlagOn } from "@/lib/companion/skills/registry";
-import { getCalendarAgenda } from "@/lib/calendar/calendar.functions";
+import { getCalendarAgenda, type CalendarAgendaDTO } from "@/lib/calendar/calendar.functions";
 
 const PERIOD_HEADING: Record<"morning" | "afternoon" | "evening", string> = {
   morning: "Today's agenda",
   afternoon: "Coming up",
   evening: "Tomorrow's preview",
 };
+
+function hasAgenda(data: CalendarAgendaDTO | undefined): data is Extract<CalendarAgendaDTO, { ok: true }> {
+  return data?.ok === true;
+}
 
 export function AgendaCard({
   period,
@@ -30,7 +34,7 @@ export function AgendaCard({
   const flagOn = typeof window !== "undefined" ? isSkillsFlagOn() : false;
   const fetch = useServerFn(getCalendarAgenda);
 
-  const q = useQuery({
+  const q = useQuery<CalendarAgendaDTO>({
     queryKey: ["calendar-agenda", period],
     queryFn: () => fetch({ data: { period } }),
     enabled: signedIn && flagOn && online,
@@ -38,7 +42,8 @@ export function AgendaCard({
     refetchOnWindowFocus: false,
   });
 
-  const ok = q.data?.ok === true ? q.data : null;
+  const data = q.data;
+  const ok = hasAgenda(data) ? data : null;
   const items = useMemo(() => ok?.agenda.items ?? [], [ok]);
 
   useEffect(() => {
@@ -127,7 +132,7 @@ export function AgendaCard({
       )}
 
       <p className="mt-2 text-[10px] text-muted-foreground">
-        Read-only · Reelo can't add, move, or delete events.
+        Read-only · RestPilot can't add, move, or delete events.
       </p>
     </Card>
   );

@@ -8,7 +8,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Check, Clock, Inbox, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 
 import { Card } from "@/components/ui/card";
@@ -27,14 +26,14 @@ import { priorityLabel, type PersonalItem, type ItemKind } from "@/lib/personal/
 import { track } from "@/lib/companion/analytics";
 
 const searchSchema = z.object({
-  add: fallback(z.string().trim().max(280).optional(), undefined),
-  complete: fallback(z.string().trim().max(280).optional(), undefined),
+  add: z.string().trim().max(280).optional().catch(undefined),
+  complete: z.string().trim().max(280).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/inbox")({
   ssr: false,
   beforeLoad: requireSession,
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
       { title: "Inbox | RestPilot AI" },

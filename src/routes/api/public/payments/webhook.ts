@@ -40,8 +40,7 @@ function priceLookup(price: any): string {
 async function handleSubscriptionUpsert(sub: any, env: StripeEnv) {
   const userId = sub.metadata?.userId;
   if (!userId) {
-    console.error("subscription missing userId metadata", sub.id);
-    return;
+    throw new Error("Subscription is missing required userId metadata; reconcile ownership before retrying");
   }
   const item = sub.items?.data?.[0];
   const priceId = priceLookup(item?.price);
@@ -50,7 +49,7 @@ async function handleSubscriptionUpsert(sub: any, env: StripeEnv) {
   const periodStart = item?.current_period_start ?? sub.current_period_start;
   const periodEnd = item?.current_period_end ?? sub.current_period_end;
 
-  await getSupabase()
+  const { error } = await getSupabase()
     .from("subscriptions")
     .upsert(
       {
@@ -68,14 +67,19 @@ async function handleSubscriptionUpsert(sub: any, env: StripeEnv) {
       },
       { onConflict: "stripe_subscription_id" },
     );
+  if (error) throw new Error("Subscription persistence failed");
 }
 
 async function handleSubscriptionDeleted(sub: any, env: StripeEnv) {
-  await getSupabase()
+  const { data, error } = await getSupabase()
     .from("subscriptions")
     .update({ status: "canceled", updated_at: new Date().toISOString() })
     .eq("stripe_subscription_id", sub.id)
-    .eq("environment", env);
+    .eq("environment", env)
+    .select("id");
+  // A deletion may arrive before creation. Do not acknowledge an update that
+  // changed no row; let Stripe retry after the missing subscription is synced.
+  if (error || !data?.length) throw new Error("Subscription cancellation persistence failed");
 }
 
 async function handleCheckoutCompleted(session: any, env: StripeEnv) {
@@ -83,18 +87,20 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
   // through customer.subscription.created.
   if (session.mode !== "payment") return;
   const userId = session.metadata?.userId;
-  if (!userId) return;
+  if (!userId) throw new Error("Checkout is missing required userId metadata; reconcile ownership before retrying");
+  if (session.payment_status !== "paid") throw new Error("Lifetime checkout payment is not confirmed");
 
   // Fetch line items to find the price/product
   const stripe = createStripeClient(env);
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
   const li: any = lineItems.data[0];
-  if (!li) return;
+  if (!li) throw new Error("Paid checkout has no line item; retry after Stripe recovery");
   const priceId = priceLookup(li.price);
+  if (priceId !== "restpilot_lifetime") throw new Error("Paid checkout does not match the lifetime product");
   const productId =
     typeof li.price?.product === "string" ? li.price.product : li.price?.product?.id;
 
-  await getSupabase()
+  const { error } = await getSupabase()
     .from("subscriptions")
     .upsert(
       {
@@ -113,6 +119,7 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
       },
       { onConflict: "stripe_subscription_id" },
     );
+  if (error) throw new Error("Lifetime purchase persistence failed");
 }
 
 async function handleEvent(event: { type: string; data: { object: any } }, env: StripeEnv) {
@@ -165,10 +172,23 @@ async function handleEvent(event: { type: string; data: { object: any } }, env: 
       }
       break;
     }
-    case "checkout.session.completed": {
-      await handleCheckoutCompleted(event.data.object, env);
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object;
       const userId = session.metadata?.userId;
+      if (!userId) throw new Error("Checkout is missing required userId metadata; reconcile ownership before retrying");
+      // Checkout completion is not proof of payment for delayed methods. Stripe
+      // sends async_payment_succeeded when payment settles; only that confirmed
+      // state may grant lifetime access or generate a payment receipt.
+      if (session.payment_status !== "paid") {
+        if (event.type === "checkout.session.async_payment_succeeded"
+          || !["unpaid", "no_payment_required"].includes(session.payment_status)
+          || (session.mode === "payment" && session.payment_status === "no_payment_required")) {
+          throw new Error("Checkout payment status requires reconciliation before access can be granted");
+        }
+        break;
+      }
+      await handleCheckoutCompleted(session, env);
       if (userId) {
         const email = session.customer_details?.email || (await getUserEmail(userId));
         if (email) {
@@ -222,22 +242,28 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
       POST: async ({ request }) => {
         const rawEnv = new URL(request.url).searchParams.get("env");
         if (rawEnv !== "sandbox" && rawEnv !== "live") {
-          return Response.json({ received: true, ignored: "invalid env" });
+          return new Response("Missing ?env=live or ?env=sandbox on the webhook URL", { status: 400 });
         }
         const env: StripeEnv = rawEnv;
+        let verified = false;
         try {
           const event = await verifyWebhook(request, env);
+          verified = true;
           await handleEvent(event, env);
           return Response.json({ received: true });
         } catch (e) {
           console.error("Webhook error:", e);
-          await notifyOwner({
-            severity: "critical",
-            service: "stripe.webhook",
-            message: e instanceof Error ? e.message : String(e),
-            meta: { env },
-          });
-          return new Response("Webhook error", { status: 400 });
+          try {
+            await notifyOwner({
+              severity: "critical",
+              service: "stripe.webhook",
+              message: e instanceof Error ? e.message : String(e),
+              meta: { env },
+            });
+          } catch {
+            console.error("Webhook failure notification could not be delivered");
+          }
+          return new Response("Webhook error", { status: verified ? 500 : 400 });
         }
       },
     },

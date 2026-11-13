@@ -189,13 +189,13 @@ export function CalendarFeedsCard({
           </div>
           <div>
             <Label htmlFor="cal-url" className="text-xs">
-              ICS feed URL
+              Published calendar feed URL
             </Label>
             <Input
               id="cal-url"
               value={icsUrl}
               onChange={(e) => setIcsUrl(e.target.value)}
-              placeholder="https://… or webcal://…"
+              placeholder="Published Google, Outlook, or iCloud calendar URL"
               className="mt-1 min-h-11"
               inputMode="url"
               autoComplete="off"

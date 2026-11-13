@@ -12,7 +12,7 @@ import "@fontsource/work-sans/700.css";
 // Minimal router-wide fallbacks. Per-route boundaries in __root.tsx and
 // leaf routes take precedence; these only render if a route without its
 // own boundary throws or a matched-but-unhandled notFound() bubbles up.
-function DefaultRouterError({ reset }: { error: Error; reset: () => void }) {
+function DefaultRouterError({ reset }: { error: unknown; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">

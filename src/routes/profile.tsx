@@ -710,7 +710,7 @@ function Profile() {
           disabled={deleting}
           onClick={async () => {
             const ok = window.confirm(
-              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.",
+              "Delete your account?\n\nThis permanently removes your account and personal data. Active subscriptions will be canceled first. Records held separately by payment providers are not deleted. This cannot be undone.",
             );
             if (!ok) return;
             const sure = window.confirm("Are you absolutely sure? This is final.");
@@ -754,7 +754,7 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Permanently and immediately remove your account and data.
+                Cancel active subscriptions and permanently delete your account.
               </p>
             </div>
           </div>
