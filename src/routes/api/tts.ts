@@ -1,3 +1,5 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -88,6 +90,10 @@ export const Route = createFileRoute("/api/tts")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
+        const admission = await requireAIAdmission(auth.userId);
+        if (admission) return admission;
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
 
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -96,7 +102,7 @@ export const Route = createFileRoute("/api/tts")({
         }
 
         try {
-          const body = (await request.json()) as {
+          const body = (input.body) as {
             text?: string;
             // Optional overrides (used by the in-settings preview):
             voice?: string;

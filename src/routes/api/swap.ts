@@ -1,3 +1,5 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
 
 const SYSTEM = `You are RestPilot AI's recovery analyst. Evaluate whether a shift worker should accept a proposed extra shift, weighing it against their current week and recovery state.
@@ -29,6 +31,10 @@ export const Route = createFileRoute("/api/swap")({
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
           if ("response" in auth) return auth.response;
+        const admission = await requireAIAdmission(auth.userId);
+        if (admission) return admission;
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
 
           {
             const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -36,7 +42,7 @@ export const Route = createFileRoute("/api/swap")({
             if (limited) return limited;
           }
 
-          const { context } = (await request.json()) as { context?: string };
+          const { context } = (input.body) as { context?: string };
           if (!context) {
             return new Response(JSON.stringify({ error: "context required" }), {
               status: 400,
@@ -61,6 +67,7 @@ export const Route = createFileRoute("/api/swap")({
               },
               body: JSON.stringify({
                 model: "google/gemini-3-flash-preview",
+                max_tokens: 2048,
                 messages: [
                   { role: "system", content: SYSTEM },
                   { role: "user", content: context },

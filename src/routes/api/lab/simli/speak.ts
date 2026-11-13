@@ -1,3 +1,6 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireUser } from "@/lib/api/auth.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 // Lab-only: ElevenLabs Flash v2.5 TTS for the Simli POC. Returns MP3.
 // Mirrors /api/tts-elevenlabs but locks the model to eleven_flash_v2_5 for
 // minimum-latency conversational testing.
@@ -13,15 +16,21 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
       POST: async ({ request }) => {
         const denied = await requireLabAccess(request);
         if (denied) return denied;
+        const auth = await requireUser(request);
+        if ("response" in auth) return auth.response;
+        const admission = await requireAIAdmission(auth.userId);
+        if (admission) return admission;
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
           return Response.json({ error: "ELEVENLABS_API_KEY missing" }, { status: 500 });
         }
-        const body = (await request.json().catch(() => ({}))) as {
+        const body = (input.body) as {
           text?: string;
           voice?: string;
         };
-        const text = body.text?.trim();
+        const text = typeof body.text === "string" ? body.text.trim() : "";
         if (!text) return Response.json({ error: "text required" }, { status: 400 });
         const voiceId =
           body.voice && /^[a-zA-Z0-9]+$/.test(body.voice) ? body.voice : DEFAULT_VOICE;

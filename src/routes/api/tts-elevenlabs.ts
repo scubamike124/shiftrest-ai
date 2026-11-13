@@ -1,3 +1,5 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 // ElevenLabs TTS route — mirrors /api/tts contract (text + voice + mode → MP3)
 // so speak.ts can swap providers behind a flag without UI changes.
 
@@ -40,6 +42,10 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
+        const admission = await requireAIAdmission(auth.userId);
+        if (admission) return admission;
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
 
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -48,7 +54,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
         }
 
         try {
-          const reqBody = (await request.json()) as {
+          const reqBody = (input.body) as {
             text?: string;
             voice?: string;
             mode?: "normal" | "sleep" | "encouraging" | "thinking";

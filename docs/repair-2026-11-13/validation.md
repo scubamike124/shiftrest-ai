@@ -20,4 +20,4 @@ No independent second reviewer or live backend/device verification was performed
 - Production still reports `b-1786931160964` (August 17). This branch is not deployed. Hosting access, isolated authenticated/backend verification and existing White Glove conversion remain required for a usable private test.
 - Browser smoke remains unverified: the bundled Chromium download failed, and system Chromium could not launch because its socket operation was denied. No device pass is claimed.
 - Production build retry passed with exit 0 after stopping local preview servers (the first attempt exited 137). Existing deprecation/chunk warnings remain.
-- This follow-up is committed locally. The GitHub push was rejected by automatic approval review pending explicit owner authorization; it has not updated PR #3.
+- The owner subsequently approved publishing the sign-in follow-up; it was verified in PR #3 at `41a031e`. See [followup.md](followup.md) for the next repair batch and current validation.

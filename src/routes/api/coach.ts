@@ -1,3 +1,4 @@
+import { readAIJson } from "@/lib/ai/request.server";
 /**
  * Legacy /api/coach — kept for backward compatibility.
  * All logic now lives in /api/ai (intent: "coach"). This file just forwards.
@@ -8,10 +9,11 @@ export const Route = createFileRoute("/api/coach")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const body = await request.text();
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
         let parsed: { messages?: unknown; context?: string; localTime?: string; timezone?: string } = {};
         try {
-          parsed = JSON.parse(body);
+          parsed = input.body as typeof parsed;
         } catch {
           return new Response(JSON.stringify({ error: "Invalid JSON" }), {
             status: 400,

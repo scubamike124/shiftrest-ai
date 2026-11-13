@@ -28,13 +28,16 @@ const EmbeddedCheckoutView = lazy(async () => {
 });
 
 export const Route = createFileRoute("/paywall")({
+  validateSearch: (search: Record<string, unknown>): { plan?: "monthly" | "annual" | "lifetime" } => ({
+    plan: search.plan === "monthly" || search.plan === "annual" || search.plan === "lifetime" ? search.plan : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "RestPilot Premium — Unlock the AI Sleep Coach" },
       {
         name: "description",
         content:
-          "Unlock unlimited AI Sleep Coach conversations, voice briefings, advanced wind-down notifications, and personalized recovery plans.",
+          "Explore AI Sleep Coach conversations, voice briefings, wind-down notifications, and personalized recovery plans. Usage limits apply.",
       },
     ],
   }),
@@ -42,7 +45,7 @@ export const Route = createFileRoute("/paywall")({
 });
 
 const PERKS = [
-  { title: "Unlimited AI Sleep Coach", desc: "Conversational, expert guidance whenever a shift throws you off." },
+  { title: "Personal AI Sleep Coach", desc: "Guidance for changing shifts, with daily usage limits to keep the service reliable." },
   { title: "Voice briefings & shift-swap copilot", desc: "60-second audio plans and AI swap analysis on demand." },
   { title: "Smart wind-down alerts", desc: "Gentle nudges before your sleep window — across rotating schedules." },
   { title: "Recovery plans for any rotation", desc: "Auto-built schedules for 2-on-2-off, 4-on-3-off, Pitman, DuPont, and irregular swings." },
@@ -58,7 +61,9 @@ const PRICE_IDS: Record<SubscriptionTier, string> = {
 
 function Paywall() {
   const navigate = useNavigate();
-  const [selectedTier, setSelectedTier] = useState<Exclude<SubscriptionTier, "free">>("annual");
+  const { plan } = Route.useSearch();
+  const [selectedTier, setSelectedTier] = useState<Exclude<SubscriptionTier, "free">>(plan ?? "annual");
+  useEffect(() => { if (plan) setSelectedTier(plan); }, [plan]);
   const [loading, setLoading] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const autoResumedRef = useRef(false);
@@ -106,7 +111,7 @@ function Paywall() {
     const pending = sessionStorage.getItem("restpilot_pending_checkout") as
       | Exclude<SubscriptionTier, "free">
       | null;
-    if (!pending) return;
+    if (pending !== "monthly" && pending !== "annual" && pending !== "lifetime") return;
     autoResumedRef.current = true;
     sessionStorage.removeItem("restpilot_pending_checkout");
     supabase.auth.getSession().then(({ data }) => {
@@ -205,7 +210,7 @@ function Paywall() {
           sub="per month · 14-day free trial"
           selected={selectedTier === "monthly"}
           onSelect={() => setSelectedTier("monthly")}
-          perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
+          perks={["AI Coach · usage limits apply", "Wind-down alerts", "Smart Light Plan"]}
         />
         <PlanCard
           label="Annual"
@@ -215,7 +220,7 @@ function Paywall() {
           badge="Most popular"
           selected={selectedTier === "annual"}
           onSelect={() => setSelectedTier("annual")}
-          perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
+          perks={["Same Premium features", "Annual billing", "Save 48% versus monthly"]}
         />
         <PlanCard
           label="Lifetime"
@@ -227,9 +232,8 @@ function Paywall() {
           onSelect={() => setSelectedTier("lifetime")}
           perks={[
             "Everything in Annual, for the lifetime of the service",
-            "Smarter AI coach with deeper answers",
-            "Multi-week rotation forecasts",
-            "Partner co-planning & shared quiet hours",
+            "One payment, no subscription renewals",
+            "AI usage limits apply",
           ]}
         />
       </div>
@@ -341,6 +345,7 @@ function PlanCard({
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={!!selected}
       className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
     >
       {badge && (

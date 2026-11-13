@@ -30,3 +30,7 @@ See the accompanying validation file and evidence for final results. Handler tes
 5. Verify scientific/product claims, complete premium UI review and mobile performance/accessibility checks, then run the existing White Glove conversion and real iOS build/device verification.
 
 No production deployment, database mutation, real charge, customer email, new paid integration, or App Store submission was performed. The owner previously declined Lovable, Supabase and Stripe connections; this continuation uses existing GitHub access and local verification.
+
+## Subsequent continuation
+
+See [followup.md](followup.md) for the adapted AI/realtime repairs, atomic subscription synchronization, UI fixes, 216-test verification and required migration/deployment order. The remaining-work list above describes the state before that continuation; live/backend/device verification remains outstanding.

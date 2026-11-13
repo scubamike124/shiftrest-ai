@@ -1,3 +1,5 @@
+import { readAIRequestBody } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 /**
  * POST /api/stt — Forward audio to Lovable AI Gateway transcription.
  * Multipart in (file, optional language), JSON out ({ text }).
@@ -40,6 +42,8 @@ export const Route = createFileRoute("/api/stt")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const authed = await requireUser(request);
         if ("response" in authed) return authed.response;
+        const admission = await requireAIAdmission(authed.userId);
+        if (admission) return admission;
 
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -55,9 +59,11 @@ export const Route = createFileRoute("/api/stt")({
           );
         }
 
+        const input = await readAIRequestBody(request, 25 * 1024 * 1024);
+        if ("response" in input) return input.response;
         let inbound: FormData;
         try {
-          inbound = await request.formData();
+          inbound = await new Response(input.body, { headers: { "Content-Type": request.headers.get("Content-Type") ?? "" } }).formData();
         } catch {
           return Response.json({ error: "multipart required" }, { status: 400 });
         }

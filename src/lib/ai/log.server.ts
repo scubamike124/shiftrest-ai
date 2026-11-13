@@ -29,10 +29,11 @@ export async function checkAIBudget(
   admin: SupabaseClient,
   userId: string,
 ): Promise<boolean> {
-  const { data, error } = await admin.rpc("has_ai_budget", { _user_id: userId });
-  if (error) {
-    console.error("has_ai_budget rpc failed", error);
-    return true; // fail-open: don't lock users out on a logging failure
+  try {
+    const { data, error } = await admin.rpc("has_ai_budget", { _user_id: userId });
+    if (error) return false;
+    return data === true;
+  } catch {
+    return false;
   }
-  return data === true;
 }

@@ -37,49 +37,46 @@ function priceLookup(price: any): string {
   return price?.lookup_key || price?.metadata?.lovable_external_id || price?.id || "";
 }
 
-async function handleSubscriptionUpsert(sub: any, env: StripeEnv) {
-  const userId = sub.metadata?.userId;
-  if (!userId) {
-    throw new Error("Subscription is missing required userId metadata; reconcile ownership before retrying");
-  }
-  const item = sub.items?.data?.[0];
-  const priceId = priceLookup(item?.price);
-  const productId =
-    typeof item?.price?.product === "string" ? item.price.product : item?.price?.product?.id;
-  const periodStart = item?.current_period_start ?? sub.current_period_start;
-  const periodEnd = item?.current_period_end ?? sub.current_period_end;
-
-  const { error } = await getSupabase()
-    .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        stripe_subscription_id: sub.id,
-        stripe_customer_id: sub.customer,
-        product_id: productId ?? "",
-        price_id: priceId,
-        status: sub.status,
+async function handleSubscriptionUpsert(eventSub: any, env: StripeEnv, deleted = false) {
+  if (typeof eventSub.id !== "string" || !eventSub.id.startsWith("sub_")) throw new Error("Invalid subscription id");
+  const db = getSupabase();
+  const stripe = createStripeClient(env);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: cursor, error: readError } = await db.from("subscription_sync_state")
+      .select("revision").eq("stripe_subscription_id", eventSub.id).eq("environment", env).maybeSingle();
+    if (readError) throw new Error("Subscription sync state is unavailable");
+    const revision = cursor?.revision ?? 0;
+    if (!Number.isInteger(revision) || revision < 0) throw new Error("Invalid subscription sync revision");
+    // Event delivery order is not state order. Always fetch the current object.
+    const sub = await stripe.subscriptions.retrieve(eventSub.id);
+    if (sub.id !== eventSub.id || sub.livemode !== (env === "live")) throw new Error("Subscription environment mismatch");
+    if (deleted && sub.status !== "canceled") throw new Error("Subscription cancellation is not confirmed");
+    const userId = sub.metadata?.userId;
+    if (!userId) throw new Error("Subscription is missing required userId metadata; reconcile ownership before retrying");
+    const item = sub.items?.data?.[0];
+    const legacy = sub as unknown as { current_period_start?: number; current_period_end?: number };
+    const periodStart = item?.current_period_start ?? legacy.current_period_start;
+    const periodEnd = item?.current_period_end ?? legacy.current_period_end;
+    const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+    const productId = typeof item?.price?.product === "string" ? item.price.product : item?.price?.product?.id;
+    const { data: applied, error } = await db.rpc("apply_subscription_snapshot", {
+      _expected_revision: revision,
+      _snapshot: {
+        user_id: userId, stripe_subscription_id: sub.id, stripe_customer_id: customerId,
+        product_id: productId ?? "", price_id: priceLookup(item?.price), status: sub.status,
         current_period_start: periodStart ? new Date(periodStart * 1000).toISOString() : null,
         current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
-        cancel_at_period_end: sub.cancel_at_period_end ?? false,
-        environment: env,
-        updated_at: new Date().toISOString(),
+        cancel_at_period_end: sub.cancel_at_period_end ?? false, environment: env,
       },
-      { onConflict: "stripe_subscription_id" },
-    );
-  if (error) throw new Error("Subscription persistence failed");
+    });
+    if (error || typeof applied !== "boolean") throw new Error("Subscription persistence failed");
+    if (applied) return sub;
+  }
+  throw new Error("Concurrent subscription changes require retry");
 }
 
 async function handleSubscriptionDeleted(sub: any, env: StripeEnv) {
-  const { data, error } = await getSupabase()
-    .from("subscriptions")
-    .update({ status: "canceled", updated_at: new Date().toISOString() })
-    .eq("stripe_subscription_id", sub.id)
-    .eq("environment", env)
-    .select("id");
-  // A deletion may arrive before creation. Do not acknowledge an update that
-  // changed no row; let Stripe retry after the missing subscription is synced.
-  if (error || !data?.length) throw new Error("Subscription cancellation persistence failed");
+  return handleSubscriptionUpsert(sub, env, true);
 }
 
 async function handleCheckoutCompleted(session: any, env: StripeEnv) {
@@ -125,8 +122,8 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
 async function handleEvent(event: { type: string; data: { object: any } }, env: StripeEnv) {
   switch (event.type) {
     case "customer.subscription.created": {
-      await handleSubscriptionUpsert(event.data.object, env);
-      const sub = event.data.object;
+      const sub = await handleSubscriptionUpsert(event.data.object, env);
+      if (sub.status !== "active" && sub.status !== "trialing") break;
       const userId = sub.metadata?.userId;
       if (userId) {
         const email = await getUserEmail(userId);
@@ -152,8 +149,7 @@ async function handleEvent(event: { type: string; data: { object: any } }, env: 
       await handleSubscriptionUpsert(event.data.object, env);
       break;
     case "customer.subscription.deleted": {
-      await handleSubscriptionDeleted(event.data.object, env);
-      const sub = event.data.object;
+      const sub = await handleSubscriptionDeleted(event.data.object, env);
       const userId = sub.metadata?.userId;
       if (userId) {
         const email = await getUserEmail(userId);
@@ -163,8 +159,8 @@ async function handleEvent(event: { type: string; data: { object: any } }, env: 
             recipientEmail: email,
             idempotencyKey: `sub-cancel-${sub.id}`,
             templateData: {
-              endsOn: sub.current_period_end
-                ? new Date(sub.current_period_end * 1000).toLocaleDateString()
+              endsOn: sub.items?.data?.[0]?.current_period_end
+                ? new Date(sub.items.data[0].current_period_end * 1000).toLocaleDateString()
                 : undefined,
             },
           });
