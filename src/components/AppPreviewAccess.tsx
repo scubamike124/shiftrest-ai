@@ -3,7 +3,7 @@ import { CalendarDays, Moon, ShieldCheck } from "lucide-react";
 
 export function AppPreviewAccess() {
   return (
-    <main className="relative mx-auto w-full max-w-5xl px-5 py-16 sm:py-24">
+    <section aria-label="App preview access" className="relative mx-auto w-full max-w-5xl px-5 py-16 sm:py-24">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">RestPilot · App preview</p>
       <h1 className="mt-4 text-4xl leading-tight sm:text-6xl" style={{ fontFamily: "var(--font-display)" }}>
         Better rest starts with your routine.
@@ -32,6 +32,6 @@ export function AppPreviewAccess() {
         <Link to="/auth" className="inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground">Sign in to preview</Link>
         <Link to="/" className="inline-flex min-h-12 items-center justify-center rounded-full border border-border px-6 py-3 font-semibold">Back to RestPilot</Link>
       </div>
-    </main>
+    </section>
   );
 }

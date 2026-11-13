@@ -192,13 +192,13 @@ function Features() {
               See it in your own week.
             </h2>
             <p className="mt-5 text-lg text-muted-foreground">
-              14 days free. No card games. Cancel anytime from your account.
+              Explore the app preview. No payment details are required.
             </p>
             <Link
               to="/auth"
               className="group mt-8 inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-4 text-sm font-semibold text-background transition hover:opacity-90"
             >
-              Start free trial
+              Open app preview
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
