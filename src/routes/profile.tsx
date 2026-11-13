@@ -391,8 +391,8 @@ function Profile() {
               <Sparkles className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold">Upgrade to Premium</p>
-              <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
+              <p className="text-sm font-semibold">App preview access</p>
+              <p className="text-xs text-muted-foreground">View test access and feature availability</p>
             </div>
           </div>
           <ChevronRight className="relative h-5 w-5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />

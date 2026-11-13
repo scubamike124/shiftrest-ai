@@ -177,7 +177,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                 to={ctaHref}
                 className="group inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition hover:opacity-90"
               >
-                Start free — 14 days
+                Open app preview
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <Link
@@ -1003,87 +1003,13 @@ function Testimonials() {
 /* ============================================================ PRICING */
 
 function PricingPreview({ ctaHref }: { ctaHref: string }) {
-  const tiers = [
-    {
-      name: "Monthly",
-      price: "$7.99",
-      cadence: "/ month",
-      perks: ["14-day free trial", "All AI features", "Wearable sync"],
-      featured: false,
-    },
-    {
-      name: "Annual",
-      price: "$49.99",
-      cadence: "/ year",
-      perks: ["Save 48% vs monthly", "Priority AI capacity", "Everything in Monthly"],
-      featured: true,
-    },
-    {
-      name: "Lifetime",
-      price: "$99",
-      cadence: "one-time",
-      perks: ["Pay once, use forever", "All future updates", "Founders' badge"],
-      featured: false,
-    },
-  ];
   return (
-    <section className="py-24 lg:py-32" id="pricing">
-      <div className="mx-auto w-full max-w-7xl px-5 lg:px-10">
-        <div className="text-center">
-          <Eyebrow>Pricing</Eyebrow>
-          <h2 className="mx-auto mt-3 max-w-2xl text-4xl leading-tight tracking-tight lg:text-5xl">
-            Simple plans. No clinical pricing games.
-          </h2>
-        </div>
-        <div className="mt-14 grid gap-5 lg:grid-cols-3">
-          {tiers.map((t) => (
-            <div
-              key={t.name}
-              className={`relative overflow-hidden rounded-3xl border p-8 transition ${
-                t.featured
-                  ? "border-primary/50 bg-card shadow-[var(--shadow-glow)]"
-                  : "border-border/60 bg-card/50"
-              }`}
-            >
-              {t.featured && (
-                <span className="absolute right-6 top-6 rounded-full border border-primary/40 bg-primary/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
-                  Best value
-                </span>
-              )}
-              <p className="text-sm font-semibold text-muted-foreground">{t.name}</p>
-              <p className="mt-3 flex items-baseline gap-1">
-                <span className="text-5xl" style={{ fontFamily: "var(--font-display)" }}>
-                  {t.price}
-                </span>
-                <span className="text-sm text-muted-foreground">{t.cadence}</span>
-              </p>
-              <ul className="mt-6 space-y-2.5">
-                {t.perks.map((p) => (
-                  <li key={p} className="flex items-start gap-2 text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-glow" />
-                    <span>{p}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to={ctaHref}
-                className={`mt-8 flex h-12 items-center justify-center rounded-full text-sm font-semibold transition ${
-                  t.featured
-                    ? "bg-foreground text-background hover:opacity-90"
-                    : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
-                }`}
-              >
-                Get started
-              </Link>
-            </div>
-          ))}
-        </div>
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          Cancel anytime. Billed through Stripe.{" "}
-          <Link to="/pricing" className="text-indigo-glow underline-offset-2 hover:underline">
-            See full comparison
-          </Link>
-        </p>
+    <section className="px-5 py-20 lg:px-10" id="pricing">
+      <div className="mx-auto max-w-5xl rounded-3xl border border-primary/30 bg-card p-8 sm:p-12">
+        <Eyebrow>App preview</Eyebrow>
+        <h2 className="mt-4 text-3xl leading-tight sm:text-4xl">Explore RestPilot before launch.</h2>
+        <p className="mt-5 max-w-2xl text-muted-foreground">No purchases or payment details are required during the White Glove test. AI and voice access depend on your test account and connected services.</p>
+        <Link to="/pricing" className="mt-6 inline-flex min-h-12 items-center rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground">View app preview access</Link>
       </div>
     </section>
   );
@@ -1108,13 +1034,13 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
             Your next great week of sleep starts tonight.
           </h2>
           <p className="mt-5 text-lg text-muted-foreground">
-            Free for 14 days. No card games. Cancel from your account anytime.
+            Explore the app preview. No payment details are required.
           </p>
           <Link
             to={ctaHref}
             className="group mt-8 inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-4 text-sm font-semibold text-background transition hover:opacity-90"
           >
-            Start free trial
+            Open app preview
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>

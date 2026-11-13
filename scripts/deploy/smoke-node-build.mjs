@@ -14,11 +14,11 @@ try {
   await new Promise(r=>setTimeout(r,250));
  }
  assert.ok(healthy,'Production server did not become healthy');
- for(const path of ['/','/auth','/paywall','/manifest.webmanifest','/sw.js']) {
+ for(const path of ['/','/auth','/pricing','/paywall','/manifest.webmanifest','/sw.js']) {
   const r=await fetch(base+path);const body=await r.text();
   assert.equal(r.status,200,`${path}: expected HTTP 200`);
   assert.ok(body.length>0,`${path}: empty response`);
-  if(path==='/paywall'){assert.match(body,/White Glove test/);assert.doesNotMatch(body,/js\.stripe\.com|EmbeddedCheckout/);}
+  if(path==='/paywall'||path==='/pricing'){assert.match(body,/White Glove test/);assert.doesNotMatch(body,/js\.stripe\.com|EmbeddedCheckout|Choose Monthly|Choose Annual/);}
   if(path==='/sw.js'){assert.doesNotMatch(body,/__WB_MANIFEST|reference lib="webworker"/);assert.match(body,/assets\//);}
   if(path==='/manifest.webmanifest'){assert.ok(JSON.parse(body).name);}
   if(['/', '/auth','/paywall'].includes(path)){assert.ok(r.headers.get('content-security-policy'));assert.doesNotMatch(body,/Something went wrong|Missing Supabase/);}

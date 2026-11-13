@@ -4,7 +4,7 @@ import { Menu, X, Moon } from "lucide-react";
 
 const nav = [
   { to: "/features", label: "Features" },
-  { to: "/pricing", label: "Pricing" },
+  { to: "/pricing", label: "App preview" },
   { to: "/privacy", label: "Privacy" },
 ];
 
