@@ -61,7 +61,12 @@ database key, provider keys, or enrolled tester accounts.
    `email.bounced` and `email.complained` at `/lovable/email/suppression` with
    `RESEND_WEBHOOK_SECRET`. Configure the service-authenticated email queue
    runner; the old host's cron scheduling does not migrate automatically.
-7. Review provider disclosures against the chosen live providers. Register
+7. Set `CRON_SECRET` and point scheduled jobs (alarms, reminders, AI learning,
+   subscription lifecycle, wearable sync) at this host with an
+   `x-cron-secret` header. The existing `pg_cron` jobs were created outside
+   the repository's migrations, so verify and repoint them in the database.
+   Without this secret these endpoints always return 401.
+8. Review provider disclosures against the chosen live providers. Register
    wearable callback URLs and configure push credentials if those features
    are in the first test.
 
