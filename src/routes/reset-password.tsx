@@ -69,7 +69,7 @@ function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col px-5 pt-16 pb-10">
+    <main className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-5 pt-16 pb-10">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
         <Moon className="h-7 w-7" />
       </div>
@@ -98,10 +98,11 @@ function ResetPasswordPage() {
               required
               minLength={6}
               autoComplete="new-password"
+              aria-label="New password"
               placeholder="New password (min. 6 chars)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none"
             />
           </label>
           <label className="flex h-12 items-center gap-2 rounded-2xl border border-border bg-input px-3">
@@ -111,10 +112,11 @@ function ResetPasswordPage() {
               required
               minLength={6}
               autoComplete="new-password"
+              aria-label="Confirm new password"
               placeholder="Confirm new password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none"
+              className="min-w-0 flex-1 bg-transparent text-base outline-none"
             />
           </label>
           <button

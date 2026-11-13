@@ -114,6 +114,31 @@ function AuthPage() {
     }
   }
 
+  async function handlePasswordReset() {
+    if (loading) return;
+    const address = email.trim();
+    if (!address) {
+      toast.error("Enter your email first, then tap Forgot Password.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(address, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("If that email exists, a reset link is on the way.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "We couldn't send the reset email. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleOAuth(provider: "google" | "apple") {
     setLoading(true);
     try {
@@ -142,7 +167,7 @@ function AuthPage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col px-5 pt-16 pb-10">
+    <main className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-5 pt-16 pb-10">
       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
         <Moon className="h-7 w-7" />
       </div>
@@ -195,25 +220,27 @@ function AuthPage() {
           <Mail className="h-4 w-4 text-muted-foreground" />
           <input
             type="email"
+            aria-label="Email address"
             required
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="flex-1 bg-transparent text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base outline-none"
           />
         </label>
         <label className="flex h-12 items-center gap-2 rounded-2xl border border-border bg-input px-3">
           <Lock className="h-4 w-4 text-muted-foreground" />
           <input
             type="password"
+            aria-label="Password"
             required
             minLength={6}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             placeholder="Password (min. 6 chars)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="flex-1 bg-transparent text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base outline-none"
           />
         </label>
         {mode === "signup" && (
@@ -260,24 +287,8 @@ function AuthPage() {
       {mode === "signin" && (
         <button
           type="button"
-          onClick={async () => {
-            if (!email) {
-              toast.error("Enter your email first, then tap Forgot Password.");
-              return;
-            }
-            try {
-              await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`,
-              });
-              toast.success("If that email exists, a reset link is on the way.");
-            } catch (err) {
-              toast.error(
-                err instanceof Error
-                  ? err.message
-                  : "We couldn't send the reset email. Please try again.",
-              );
-            }
-          }}
+          onClick={handlePasswordReset}
+          disabled={loading}
           className="mt-3 text-center text-xs text-primary underline-offset-4 hover:underline"
         >
           Forgot Password?
@@ -285,6 +296,7 @@ function AuthPage() {
       )}
 
       <button
+        disabled={loading}
         onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
         className="mt-5 text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
       >
