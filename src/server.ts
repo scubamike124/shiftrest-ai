@@ -58,6 +58,18 @@ function withLaunchDebugCacheHeaders(request: Request, response: Response): Resp
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // Nitro's static manifest is generated before final precache injection.
+      // Serve the finalized worker explicitly, using a fixed server-only path.
+      if (new URL(request.url).pathname === "/sw.js") {
+        if (request.method !== "GET" && request.method !== "HEAD") {
+          return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+        }
+        const { readFile } = await import("node:fs/promises");
+        const worker = await readFile(`${process.cwd()}/.output/public/sw.js`, "utf8");
+        return new Response(request.method === "HEAD" ? null : worker, {
+          headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/" },
+        });
+      }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return withLaunchDebugCacheHeaders(

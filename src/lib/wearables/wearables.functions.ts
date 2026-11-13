@@ -11,7 +11,7 @@ const ProviderSchema = z.object({
 function getOrigin(): string {
   // Production stable URL is preferred for redirect URIs registered with providers.
   // Fall back to env-provided PUBLIC_APP_URL or the live domain.
-  return process.env.PUBLIC_APP_URL || "https://shift-rest-ai.lovable.app";
+  return process.env.PUBLIC_APP_URL || "https://restpilotai.com";
 }
 
 function redirectUriFor(provider: WearableProvider): string {

@@ -1,3 +1,4 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -55,8 +56,8 @@ export const Route = createFileRoute("/api/insights")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          const apiKey = process.env.LOVABLE_API_KEY;
-          if (!apiKey) {
+          const apiKey = aiApiKey();
+          if (!apiKey || !process.env.AI_CHAT_MODEL) {
             return new Response(JSON.stringify({ error: "AI not configured" }), {
               status: 500,
               headers: { "Content-Type": "application/json" },
@@ -64,7 +65,7 @@ export const Route = createFileRoute("/api/insights")({
           }
 
           const upstream = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
+            aiEndpoint("chat/completions"),
             {
               method: "POST",
               headers: {
@@ -72,7 +73,7 @@ export const Route = createFileRoute("/api/insights")({
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
+                model: process.env.AI_CHAT_MODEL || "not-configured",
                 max_tokens: 2048,
                 messages: [
                   { role: "system", content: SYSTEM },

@@ -13,7 +13,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimeSession } from "@/lib/realtime/openai.functions";
 import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
-import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
 
 export type TrialSnapshot = {
@@ -105,7 +104,6 @@ export function useOpenAIRealtime() {
   });
 
   const flushUsage = useCallback(async () => {
-    if (!isPaymentsConfigured()) return;
     const now = performance.now();
     const last = lastFlushAtRef.current ?? sessionStartAtRef.current;
     if (last == null) return;
@@ -113,8 +111,7 @@ export function useOpenAIRealtime() {
     if (seconds < 1) return;
     lastFlushAtRef.current = now;
     try {
-      const env = getStripeEnvironment();
-      const state = await recordUsage({ data: { seconds, environment: env } });
+      const state = await recordUsage({ data: { seconds } });
       if (state.isTrial) {
         setTrial({
           isTrial: true,
@@ -341,7 +338,6 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
-      const environment = isPaymentsConfigured() ? getStripeEnvironment() : undefined;
       const session = await mint({
         data: {
           localTime: new Date().toISOString(),
@@ -349,7 +345,6 @@ export function useOpenAIRealtime() {
             (typeof Intl !== "undefined" &&
               Intl.DateTimeFormat().resolvedOptions().timeZone) ||
             null,
-          ...(environment && { environment }),
         },
       });
 

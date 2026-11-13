@@ -1,3 +1,4 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 /**
@@ -117,12 +118,12 @@ export const Route = createFileRoute("/api/brief")({
           );
         }
 
-        if (!process.env.LOVABLE_API_KEY) {
-          console.error("[brief] LOVABLE_API_KEY missing");
+        if (!aiApiKey()) {
+          console.error("[brief] AI provider key missing");
           notifyOwnerAsync({
             severity: "critical",
             service: "brief",
-            message: "config_missing: LOVABLE_API_KEY not set",
+            message: "config_missing: AI provider key not set",
           });
           return fallback("config", messageFromReason("config"));
         }

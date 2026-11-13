@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BUILD_STAMP } from "@/lib/companion/debug-bus";
 
 const SIMLI_PATH = "/lab/avatar-poc/simli";
-const SIMLI_ABSOLUTE_URL = "https://shift-rest-ai.lovable.app/lab/avatar-poc/simli";
+const SIMLI_ABSOLUTE_URL = "/lab/avatar-poc/simli";
 
 type DebugState = {
   path: string;

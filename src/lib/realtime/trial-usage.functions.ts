@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { StripeEnv } from "@/lib/stripe.server";
-import { realtimeEnvironment, voiceEntitlement } from "./access.server";
+import { realtimeEnvironment, voiceEntitlement, privateBetaAccess } from "./access.server";
 import { TRIAL_VOICE_SECONDS_CAP } from "@/lib/trial-limits";
 
 export type TrialUsageState = {
@@ -25,6 +25,7 @@ export type TrialUsageState = {
 };
 
 async function isUserOnTrial(userId: string, env: StripeEnv): Promise<boolean> {
+  if (privateBetaAccess(userId)) return true;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.from("subscriptions")
     .select("status, current_period_end").eq("user_id", userId).eq("environment", env);
@@ -70,14 +71,14 @@ export async function loadTrialUsageState(
 
 export const getTrialUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { environment: StripeEnv }) => ({ environment: realtimeEnvironment(data?.environment) }))
+  .inputValidator((data: { environment?: StripeEnv }) => ({ environment: realtimeEnvironment(data?.environment) }))
   .handler(async ({ data, context }): Promise<TrialUsageState> => {
     return loadTrialUsageState(context.userId, data.environment);
   });
 
 export const recordTrialVoiceUsage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { seconds: number; environment: StripeEnv }) => {
+  .inputValidator((data: { seconds: number; environment?: StripeEnv }) => {
     if (!data || !Number.isInteger(data.seconds) || data.seconds < 0 || data.seconds > 3600) throw new Error("Invalid voice usage duration");
     return { seconds: data.seconds, environment: realtimeEnvironment(data.environment) };
   })
