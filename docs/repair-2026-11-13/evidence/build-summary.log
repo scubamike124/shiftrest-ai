@@ -1,0 +1,25 @@
+vite v7.3.8 building client environment for production...
+transforming...
+✓ 87 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/sw-src.mjs  27.54 kB │ gzip: 8.95 kB
+✓ built in 95ms
+
+PWA v1.3.0
+mode      injectManifest
+format:   es
+precache  1 entries (0.00 KiB)
+files generated
+  dist/sw-src.js
+warnings
+  An error occurred when globbing for files. '(0 , brace_expansion_1.expand) is not a function'
+
+[nitro] ℹ Using auto generated worker name: scubamike124-shiftrest-ai
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt

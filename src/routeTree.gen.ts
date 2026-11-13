@@ -9,250 +9,104 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VersionRouteImport } from './routes/version'
-import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SwapRouteImport } from './routes/swap'
-import { Route as SmartHomeRouteImport } from './routes/smart-home'
-import { Route as SleepRouteImport } from './routes/sleep'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as ShareRouteImport } from './routes/share'
-import { Route as ScienceRouteImport } from './routes/science'
-import { Route as SafetyRouteImport } from './routes/safety'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as PlaybooksRouteImport } from './routes/playbooks'
-import { Route as PlanRouteImport } from './routes/plan'
-import { Route as PilotRouteImport } from './routes/pilot'
-import { Route as PaywallRouteImport } from './routes/paywall'
-import { Route as MemoryRouteImport } from './routes/memory'
-import { Route as LegalRouteImport } from './routes/legal'
-import { Route as InboxRouteImport } from './routes/inbox'
-import { Route as HealthRouteImport } from './routes/health'
-import { Route as ForSaleRouteImport } from './routes/for-sale'
-import { Route as FeaturesRouteImport } from './routes/features'
-import { Route as EventsRouteImport } from './routes/events'
-import { Route as DecisionsRouteImport } from './routes/decisions'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ContactRouteImport } from './routes/contact'
-import { Route as CompanionRouteImport } from './routes/companion'
-import { Route as CoachRouteImport } from './routes/coach'
-import { Route as AutomationsRouteImport } from './routes/automations'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SettingsIndexRouteImport } from './routes/settings.index'
-import { Route as LegalIndexRouteImport } from './routes/legal.index'
-import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
-import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
-import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
-import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
-import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
-import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
-import { Route as LegalTermsRouteImport } from './routes/legal.terms'
-import { Route as LegalSubscriptionRouteImport } from './routes/legal.subscription'
-import { Route as LegalSecurityRouteImport } from './routes/legal.security'
-import { Route as LegalRegionalRouteImport } from './routes/legal.regional'
-import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
-import { Route as LegalOpenSourceRouteImport } from './routes/legal.open-source'
-import { Route as LegalLicenseRouteImport } from './routes/legal.license'
-import { Route as LegalElectronicConsentRouteImport } from './routes/legal.electronic-consent'
-import { Route as LegalDisclaimersRouteImport } from './routes/legal.disclaimers'
-import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
-import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
-import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
-import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
-import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
-import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
-import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
-import { Route as ApiTtsRouteImport } from './routes/api/tts'
-import { Route as ApiSwapRouteImport } from './routes/api/swap'
-import { Route as ApiSttRouteImport } from './routes/api/stt'
-import { Route as ApiInsightsRouteImport } from './routes/api/insights'
-import { Route as ApiCoachRouteImport } from './routes/api/coach'
-import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AutomationsRouteImport } from './routes/automations'
+import { Route as CoachRouteImport } from './routes/coach'
+import { Route as CompanionRouteImport } from './routes/companion'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DecisionsRouteImport } from './routes/decisions'
+import { Route as EventsRouteImport } from './routes/events'
+import { Route as FeaturesRouteImport } from './routes/features'
+import { Route as ForSaleRouteImport } from './routes/for-sale'
+import { Route as HealthRouteImport } from './routes/health'
+import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as LegalRouteImport } from './routes/legal'
+import { Route as MemoryRouteImport } from './routes/memory'
+import { Route as PaywallRouteImport } from './routes/paywall'
+import { Route as PilotRouteImport } from './routes/pilot'
+import { Route as PlanRouteImport } from './routes/plan'
+import { Route as PlaybooksRouteImport } from './routes/playbooks'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SafetyRouteImport } from './routes/safety'
+import { Route as ScienceRouteImport } from './routes/science'
+import { Route as ShareRouteImport } from './routes/share'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SleepRouteImport } from './routes/sleep'
+import { Route as SmartHomeRouteImport } from './routes/smart-home'
+import { Route as SwapRouteImport } from './routes/swap'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
+import { Route as VersionRouteImport } from './routes/version'
 import { Route as ApiAiRouteImport } from './routes/api/ai'
-import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
-import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
-import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
-import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
-import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
-import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
-import { Route as ApiPublicCspReportRouteImport } from './routes/api/public/csp-report'
-import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
+import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiCoachRouteImport } from './routes/api/coach'
+import { Route as ApiInsightsRouteImport } from './routes/api/insights'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
+import { Route as ApiSwapRouteImport } from './routes/api/swap'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
+import { Route as ApiTtsElevenlabsRouteImport } from './routes/api/tts-elevenlabs'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
+import { Route as LabAvatarPocRouteImport } from './routes/lab.avatar-poc'
+import { Route as LegalIndexRouteImport } from './routes/legal.index'
+import { Route as LegalAcceptableUseRouteImport } from './routes/legal.acceptable-use'
+import { Route as LegalAccessibilityRouteImport } from './routes/legal.accessibility'
+import { Route as LegalCookiesRouteImport } from './routes/legal.cookies'
+import { Route as LegalCopyrightRouteImport } from './routes/legal.copyright'
+import { Route as LegalDisclaimersRouteImport } from './routes/legal.disclaimers'
+import { Route as LegalElectronicConsentRouteImport } from './routes/legal.electronic-consent'
+import { Route as LegalLicenseRouteImport } from './routes/legal.license'
+import { Route as LegalOpenSourceRouteImport } from './routes/legal.open-source'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalRegionalRouteImport } from './routes/legal.regional'
+import { Route as LegalSecurityRouteImport } from './routes/legal.security'
+import { Route as LegalSubscriptionRouteImport } from './routes/legal.subscription'
+import { Route as LegalTermsRouteImport } from './routes/legal.terms'
+import { Route as LegalThirdPartiesRouteImport } from './routes/legal.third-parties'
+import { Route as LegalTrademarkRouteImport } from './routes/legal.trademark'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
+import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
+import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
+import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as AuthenticatedLabPilotRealtimeRouteImport } from './routes/_authenticated/lab.pilot-realtime'
-import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
-import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
-import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
-import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
-import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
-import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
-import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
-import { Route as ApiPublicHooksSubscriptionLifecycleRouteImport } from './routes/api/public/hooks/subscription-lifecycle'
-import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
-import { Route as ApiPublicHooksDispatchAlarmsRouteImport } from './routes/api/public/hooks/dispatch-alarms'
-import { Route as ApiPublicHooksAiLearnRouteImport } from './routes/api/public/hooks/ai-learn'
-import { Route as ApiLabSimliSpeakRouteImport } from './routes/api/lab/simli/speak'
+import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
+import { Route as ApiPublicCspReportRouteImport } from './routes/api/public/csp-report'
+import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
+import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
+import { Route as LabAvatarPocIndexRouteImport } from './routes/lab.avatar-poc.index'
+import { Route as LabAvatarPocDebugRouteImport } from './routes/lab.avatar-poc.debug'
+import { Route as LabAvatarPocSimliRouteImport } from './routes/lab.avatar-poc.simli'
+import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiLabSimliSessionRouteImport } from './routes/api/lab/simli/session'
-import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
+import { Route as ApiLabSimliSpeakRouteImport } from './routes/api/lab/simli/speak'
+import { Route as ApiPublicHooksAiLearnRouteImport } from './routes/api/public/hooks/ai-learn'
+import { Route as ApiPublicHooksDispatchAlarmsRouteImport } from './routes/api/public/hooks/dispatch-alarms'
+import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
+import { Route as ApiPublicHooksSubscriptionLifecycleRouteImport } from './routes/api/public/hooks/subscription-lifecycle'
+import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
+import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as ApiPublicWearablesFitbitCallbackRouteImport } from './routes/api/public/wearables/fitbit/callback'
+import { Route as ApiPublicWearablesOuraCallbackRouteImport } from './routes/api/public/wearables/oura/callback'
 
-const VersionRoute = VersionRouteImport.update({
-  id: '/version',
-  path: '/version',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UnsubscribeRoute = UnsubscribeRouteImport.update({
-  id: '/unsubscribe',
-  path: '/unsubscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SwapRoute = SwapRouteImport.update({
-  id: '/swap',
-  path: '/swap',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SmartHomeRoute = SmartHomeRouteImport.update({
-  id: '/smart-home',
-  path: '/smart-home',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SleepRoute = SleepRouteImport.update({
-  id: '/sleep',
-  path: '/sleep',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShareRoute = ShareRouteImport.update({
-  id: '/share',
-  path: '/share',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScienceRoute = ScienceRouteImport.update({
-  id: '/science',
-  path: '/science',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SafetyRoute = SafetyRouteImport.update({
-  id: '/safety',
-  path: '/safety',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlaybooksRoute = PlaybooksRouteImport.update({
-  id: '/playbooks',
-  path: '/playbooks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlanRoute = PlanRouteImport.update({
-  id: '/plan',
-  path: '/plan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PilotRoute = PilotRouteImport.update({
-  id: '/pilot',
-  path: '/pilot',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PaywallRoute = PaywallRouteImport.update({
-  id: '/paywall',
-  path: '/paywall',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MemoryRoute = MemoryRouteImport.update({
-  id: '/memory',
-  path: '/memory',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LegalRoute = LegalRouteImport.update({
-  id: '/legal',
-  path: '/legal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InboxRoute = InboxRouteImport.update({
-  id: '/inbox',
-  path: '/inbox',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HealthRoute = HealthRouteImport.update({
-  id: '/health',
-  path: '/health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForSaleRoute = ForSaleRouteImport.update({
-  id: '/for-sale',
-  path: '/for-sale',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FeaturesRoute = FeaturesRouteImport.update({
-  id: '/features',
-  path: '/features',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EventsRoute = EventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DecisionsRoute = DecisionsRouteImport.update({
-  id: '/decisions',
-  path: '/decisions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompanionRoute = CompanionRouteImport.update({
-  id: '/companion',
-  path: '/companion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CoachRoute = CoachRouteImport.update({
-  id: '/coach',
-  path: '/coach',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AutomationsRoute = AutomationsRouteImport.update({
-  id: '/automations',
-  path: '/automations',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -260,168 +114,159 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const CoachRoute = CoachRouteImport.update({
+  id: '/coach',
+  path: '/coach',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
+const CompanionRoute = CompanionRouteImport.update({
+  id: '/companion',
+  path: '/companion',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LegalIndexRoute = LegalIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => LegalRoute,
-} as any)
-const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
-  id: '/settings/skills',
-  path: '/settings/skills',
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsMorningRoute = SettingsMorningRouteImport.update({
-  id: '/settings/morning',
-  path: '/settings/morning',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsCompanionRoute = SettingsCompanionRouteImport.update({
-  id: '/settings/companion',
-  path: '/settings/companion',
+const DecisionsRoute = DecisionsRouteImport.update({
+  id: '/decisions',
+  path: '/decisions',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsAvatarRoute = SettingsAvatarRouteImport.update({
-  id: '/settings/avatar',
-  path: '/settings/avatar',
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
-  id: '/trademark',
-  path: '/trademark',
-  getParentRoute: () => LegalRoute,
+const FeaturesRoute = FeaturesRouteImport.update({
+  id: '/features',
+  path: '/features',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalThirdPartiesRoute = LegalThirdPartiesRouteImport.update({
-  id: '/third-parties',
-  path: '/third-parties',
-  getParentRoute: () => LegalRoute,
+const ForSaleRoute = ForSaleRouteImport.update({
+  id: '/for-sale',
+  path: '/for-sale',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalTermsRoute = LegalTermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => LegalRoute,
+const HealthRoute = HealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalSubscriptionRoute = LegalSubscriptionRouteImport.update({
-  id: '/subscription',
-  path: '/subscription',
-  getParentRoute: () => LegalRoute,
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalSecurityRoute = LegalSecurityRouteImport.update({
-  id: '/security',
-  path: '/security',
-  getParentRoute: () => LegalRoute,
+const LegalRoute = LegalRouteImport.update({
+  id: '/legal',
+  path: '/legal',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalRegionalRoute = LegalRegionalRouteImport.update({
-  id: '/regional',
-  path: '/regional',
-  getParentRoute: () => LegalRoute,
+const MemoryRoute = MemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+const PaywallRoute = PaywallRouteImport.update({
+  id: '/paywall',
+  path: '/paywall',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PilotRoute = PilotRouteImport.update({
+  id: '/pilot',
+  path: '/pilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanRoute = PlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlaybooksRoute = PlaybooksRouteImport.update({
+  id: '/playbooks',
+  path: '/playbooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalOpenSourceRoute = LegalOpenSourceRouteImport.update({
-  id: '/open-source',
-  path: '/open-source',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalLicenseRoute = LegalLicenseRouteImport.update({
-  id: '/license',
-  path: '/license',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalElectronicConsentRoute = LegalElectronicConsentRouteImport.update({
-  id: '/electronic-consent',
-  path: '/electronic-consent',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalDisclaimersRoute = LegalDisclaimersRouteImport.update({
-  id: '/disclaimers',
-  path: '/disclaimers',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
-  id: '/copyright',
-  path: '/copyright',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalCookiesRoute = LegalCookiesRouteImport.update({
-  id: '/cookies',
-  path: '/cookies',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalAccessibilityRoute = LegalAccessibilityRouteImport.update({
-  id: '/accessibility',
-  path: '/accessibility',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
-  id: '/acceptable-use',
-  path: '/acceptable-use',
-  getParentRoute: () => LegalRoute,
-} as any)
-const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
-  id: '/lab/avatar-poc',
-  path: '/lab/avatar-poc',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
-  id: '/email/unsubscribe',
-  path: '/email/unsubscribe',
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/callback',
-  path: '/callback',
-  getParentRoute: () => AuthRoute,
-} as any)
-const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
-  id: '/api/tts-elevenlabs',
-  path: '/api/tts-elevenlabs',
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTtsRoute = ApiTtsRouteImport.update({
-  id: '/api/tts',
-  path: '/api/tts',
+const SafetyRoute = SafetyRouteImport.update({
+  id: '/safety',
+  path: '/safety',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSwapRoute = ApiSwapRouteImport.update({
-  id: '/api/swap',
-  path: '/api/swap',
+const ScienceRoute = ScienceRouteImport.update({
+  id: '/science',
+  path: '/science',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSttRoute = ApiSttRouteImport.update({
-  id: '/api/stt',
-  path: '/api/stt',
+const ShareRoute = ShareRouteImport.update({
+  id: '/share',
+  path: '/share',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiInsightsRoute = ApiInsightsRouteImport.update({
-  id: '/api/insights',
-  path: '/api/insights',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCoachRoute = ApiCoachRouteImport.update({
-  id: '/api/coach',
-  path: '/api/coach',
+const SleepRoute = SleepRouteImport.update({
+  id: '/sleep',
+  path: '/sleep',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiBriefRoute = ApiBriefRouteImport.update({
-  id: '/api/brief',
-  path: '/api/brief',
+const SmartHomeRoute = SmartHomeRouteImport.update({
+  id: '/smart-home',
+  path: '/smart-home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SwapRoute = SwapRouteImport.update({
+  id: '/swap',
+  path: '/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeRoute = UnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VersionRoute = VersionRouteImport.update({
+  id: '/version',
+  path: '/version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAiRoute = ApiAiRouteImport.update({
@@ -429,44 +274,159 @@ const ApiAiRoute = ApiAiRouteImport.update({
   path: '/api/ai',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LabAvatarPocIndexRoute = LabAvatarPocIndexRouteImport.update({
+const ApiBriefRoute = ApiBriefRouteImport.update({
+  id: '/api/brief',
+  path: '/api/brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCoachRoute = ApiCoachRouteImport.update({
+  id: '/api/coach',
+  path: '/api/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInsightsRoute = ApiInsightsRouteImport.update({
+  id: '/api/insights',
+  path: '/api/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSwapRoute = ApiSwapRouteImport.update({
+  id: '/api/swap',
+  path: '/api/swap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsElevenlabsRoute = ApiTtsElevenlabsRouteImport.update({
+  id: '/api/tts-elevenlabs',
+  path: '/api/tts-elevenlabs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
+const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
+  id: '/email/unsubscribe',
+  path: '/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabAvatarPocRoute = LabAvatarPocRouteImport.update({
+  id: '/lab/avatar-poc',
+  path: '/lab/avatar-poc',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalIndexRoute = LegalIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => LabAvatarPocRoute,
+  getParentRoute: () => LegalRoute,
 } as any)
-const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
-  id: '/lovable/email/suppression',
-  path: '/lovable/email/suppression',
+const LegalAcceptableUseRoute = LegalAcceptableUseRouteImport.update({
+  id: '/acceptable-use',
+  path: '/acceptable-use',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalAccessibilityRoute = LegalAccessibilityRouteImport.update({
+  id: '/accessibility',
+  path: '/accessibility',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCookiesRoute = LegalCookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalCopyrightRoute = LegalCopyrightRouteImport.update({
+  id: '/copyright',
+  path: '/copyright',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalDisclaimersRoute = LegalDisclaimersRouteImport.update({
+  id: '/disclaimers',
+  path: '/disclaimers',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalElectronicConsentRoute = LegalElectronicConsentRouteImport.update({
+  id: '/electronic-consent',
+  path: '/electronic-consent',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalLicenseRoute = LegalLicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalOpenSourceRoute = LegalOpenSourceRouteImport.update({
+  id: '/open-source',
+  path: '/open-source',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalRegionalRoute = LegalRegionalRouteImport.update({
+  id: '/regional',
+  path: '/regional',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalSecurityRoute = LegalSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalSubscriptionRoute = LegalSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalThirdPartiesRoute = LegalThirdPartiesRouteImport.update({
+  id: '/third-parties',
+  path: '/third-parties',
+  getParentRoute: () => LegalRoute,
+} as any)
+const LegalTrademarkRoute = LegalTrademarkRouteImport.update({
+  id: '/trademark',
+  path: '/trademark',
+  getParentRoute: () => LegalRoute,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
-  id: '/simli',
-  path: '/simli',
-  getParentRoute: () => LabAvatarPocRoute,
-} as any)
-const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
-  id: '/debug',
-  path: '/debug',
-  getParentRoute: () => LabAvatarPocRoute,
-} as any)
-const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
-  id: '/api/public/version',
-  path: '/api/public/version',
+const SettingsAvatarRoute = SettingsAvatarRouteImport.update({
+  id: '/settings/avatar',
+  path: '/settings/avatar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
-  id: '/api/public/health',
-  path: '/api/public/health',
+const SettingsCompanionRoute = SettingsCompanionRouteImport.update({
+  id: '/settings/companion',
+  path: '/settings/companion',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicCspReportRoute = ApiPublicCspReportRouteImport.update({
-  id: '/api/public/csp-report',
-  path: '/api/public/csp-report',
+const SettingsMorningRoute = SettingsMorningRouteImport.update({
+  id: '/settings/morning',
+  path: '/settings/morning',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
-  id: '/api/public/contact',
-  path: '/api/public/contact',
+const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
+  id: '/settings/skills',
+  path: '/settings/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedLabPilotRealtimeRoute =
@@ -475,54 +435,59 @@ const AuthenticatedLabPilotRealtimeRoute =
     path: '/lab/pilot-realtime',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const LovableEmailTransactionalSendRoute =
-  LovableEmailTransactionalSendRouteImport.update({
-    id: '/lovable/email/transactional/send',
-    path: '/lovable/email/transactional/send',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LovableEmailTransactionalPreviewRoute =
-  LovableEmailTransactionalPreviewRouteImport.update({
-    id: '/lovable/email/transactional/preview',
-    path: '/lovable/email/transactional/preview',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
-  id: '/lovable/email/auth/webhook',
-  path: '/lovable/email/auth/webhook',
+const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
+  id: '/api/public/contact',
+  path: '/api/public/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
-  id: '/lovable/email/auth/preview',
-  path: '/lovable/email/auth/preview',
+const ApiPublicCspReportRoute = ApiPublicCspReportRouteImport.update({
+  id: '/api/public/csp-report',
+  path: '/api/public/csp-report',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
-  id: '/api/public/wearables/cron',
-  path: '/api/public/wearables/cron',
+const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
+  id: '/api/public/health',
+  path: '/api/public/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicPaymentsWebhookRoute =
-  ApiPublicPaymentsWebhookRouteImport.update({
-    id: '/api/public/payments/webhook',
-    path: '/api/public/payments/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksSubscriptionLifecycleRoute =
-  ApiPublicHooksSubscriptionLifecycleRouteImport.update({
-    id: '/api/public/hooks/subscription-lifecycle',
-    path: '/api/public/hooks/subscription-lifecycle',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicHooksNotifyRoute = ApiPublicHooksNotifyRouteImport.update({
-  id: '/api/public/hooks/notify',
-  path: '/api/public/hooks/notify',
+const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
+  id: '/api/public/version',
+  path: '/api/public/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LabAvatarPocIndexRoute = LabAvatarPocIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
+const LabAvatarPocDebugRoute = LabAvatarPocDebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
+const LabAvatarPocSimliRoute = LabAvatarPocSimliRouteImport.update({
+  id: '/simli',
+  path: '/simli',
+  getParentRoute: () => LabAvatarPocRoute,
+} as any)
+const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
+  id: '/lovable/email/suppression',
+  path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabSimliSessionRoute = ApiLabSimliSessionRouteImport.update({
+  id: '/api/lab/simli/session',
+  path: '/api/lab/simli/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLabSimliSpeakRoute = ApiLabSimliSpeakRouteImport.update({
+  id: '/api/lab/simli/speak',
+  path: '/api/lab/simli/speak',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicHooksAiLearnRoute = ApiPublicHooksAiLearnRouteImport.update({
+  id: '/api/public/hooks/ai-learn',
+  path: '/api/public/hooks/ai-learn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicHooksDispatchAlarmsRoute =
@@ -531,31 +496,66 @@ const ApiPublicHooksDispatchAlarmsRoute =
     path: '/api/public/hooks/dispatch-alarms',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicHooksAiLearnRoute = ApiPublicHooksAiLearnRouteImport.update({
-  id: '/api/public/hooks/ai-learn',
-  path: '/api/public/hooks/ai-learn',
+const ApiPublicHooksNotifyRoute = ApiPublicHooksNotifyRouteImport.update({
+  id: '/api/public/hooks/notify',
+  path: '/api/public/hooks/notify',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLabSimliSpeakRoute = ApiLabSimliSpeakRouteImport.update({
-  id: '/api/lab/simli/speak',
-  path: '/api/lab/simli/speak',
+const ApiPublicHooksSubscriptionLifecycleRoute =
+  ApiPublicHooksSubscriptionLifecycleRouteImport.update({
+    id: '/api/public/hooks/subscription-lifecycle',
+    path: '/api/public/hooks/subscription-lifecycle',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicPaymentsWebhookRoute =
+  ApiPublicPaymentsWebhookRouteImport.update({
+    id: '/api/public/payments/webhook',
+    path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesCronRoute = ApiPublicWearablesCronRouteImport.update({
+  id: '/api/public/wearables/cron',
+  path: '/api/public/wearables/cron',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiLabSimliSessionRoute = ApiLabSimliSessionRouteImport.update({
-  id: '/api/lab/simli/session',
-  path: '/api/lab/simli/session',
+const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
+  id: '/lovable/email/auth/preview',
+  path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicWearablesOuraCallbackRoute =
-  ApiPublicWearablesOuraCallbackRouteImport.update({
-    id: '/api/public/wearables/oura/callback',
-    path: '/api/public/wearables/oura/callback',
+const LovableEmailAuthWebhookRoute = LovableEmailAuthWebhookRouteImport.update({
+  id: '/lovable/email/auth/webhook',
+  path: '/lovable/email/auth/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LovableEmailTransactionalSendRoute =
+  LovableEmailTransactionalSendRouteImport.update({
+    id: '/lovable/email/transactional/send',
+    path: '/lovable/email/transactional/send',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicWearablesFitbitCallbackRoute =
   ApiPublicWearablesFitbitCallbackRouteImport.update({
     id: '/api/public/wearables/fitbit/callback',
     path: '/api/public/wearables/fitbit/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWearablesOuraCallbackRoute =
+  ApiPublicWearablesOuraCallbackRouteImport.update({
+    id: '/api/public/wearables/oura/callback',
+    path: '/api/public/wearables/oura/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -1181,228 +1181,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/version': {
-      id: '/version'
-      path: '/version'
-      fullPath: '/version'
-      preLoaderRoute: typeof VersionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/unsubscribe': {
-      id: '/unsubscribe'
-      path: '/unsubscribe'
-      fullPath: '/unsubscribe'
-      preLoaderRoute: typeof UnsubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/swap': {
-      id: '/swap'
-      path: '/swap'
-      fullPath: '/swap'
-      preLoaderRoute: typeof SwapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/smart-home': {
-      id: '/smart-home'
-      path: '/smart-home'
-      fullPath: '/smart-home'
-      preLoaderRoute: typeof SmartHomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sleep': {
-      id: '/sleep'
-      path: '/sleep'
-      fullPath: '/sleep'
-      preLoaderRoute: typeof SleepRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/share': {
-      id: '/share'
-      path: '/share'
-      fullPath: '/share'
-      preLoaderRoute: typeof ShareRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/science': {
-      id: '/science'
-      path: '/science'
-      fullPath: '/science'
-      preLoaderRoute: typeof ScienceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/safety': {
-      id: '/safety'
-      path: '/safety'
-      fullPath: '/safety'
-      preLoaderRoute: typeof SafetyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/playbooks': {
-      id: '/playbooks'
-      path: '/playbooks'
-      fullPath: '/playbooks'
-      preLoaderRoute: typeof PlaybooksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/plan': {
-      id: '/plan'
-      path: '/plan'
-      fullPath: '/plan'
-      preLoaderRoute: typeof PlanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pilot': {
-      id: '/pilot'
-      path: '/pilot'
-      fullPath: '/pilot'
-      preLoaderRoute: typeof PilotRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/paywall': {
-      id: '/paywall'
-      path: '/paywall'
-      fullPath: '/paywall'
-      preLoaderRoute: typeof PaywallRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/memory': {
-      id: '/memory'
-      path: '/memory'
-      fullPath: '/memory'
-      preLoaderRoute: typeof MemoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/legal': {
-      id: '/legal'
-      path: '/legal'
-      fullPath: '/legal'
-      preLoaderRoute: typeof LegalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inbox': {
-      id: '/inbox'
-      path: '/inbox'
-      fullPath: '/inbox'
-      preLoaderRoute: typeof InboxRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/health': {
-      id: '/health'
-      path: '/health'
-      fullPath: '/health'
-      preLoaderRoute: typeof HealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/for-sale': {
-      id: '/for-sale'
-      path: '/for-sale'
-      fullPath: '/for-sale'
-      preLoaderRoute: typeof ForSaleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/features': {
-      id: '/features'
-      path: '/features'
-      fullPath: '/features'
-      preLoaderRoute: typeof FeaturesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/events': {
-      id: '/events'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof EventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/decisions': {
-      id: '/decisions'
-      path: '/decisions'
-      fullPath: '/decisions'
-      preLoaderRoute: typeof DecisionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/companion': {
-      id: '/companion'
-      path: '/companion'
-      fullPath: '/companion'
-      preLoaderRoute: typeof CompanionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/coach': {
-      id: '/coach'
-      path: '/coach'
-      fullPath: '/coach'
-      preLoaderRoute: typeof CoachRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/automations': {
-      id: '/automations'
-      path: '/automations'
-      fullPath: '/automations'
-      preLoaderRoute: typeof AutomationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -1412,228 +1195,228 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/': {
-      id: '/settings/'
-      path: '/settings'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/legal/': {
-      id: '/legal/'
-      path: '/'
-      fullPath: '/legal/'
-      preLoaderRoute: typeof LegalIndexRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/settings/skills': {
-      id: '/settings/skills'
-      path: '/settings/skills'
-      fullPath: '/settings/skills'
-      preLoaderRoute: typeof SettingsSkillsRouteImport
+    '/coach': {
+      id: '/coach'
+      path: '/coach'
+      fullPath: '/coach'
+      preLoaderRoute: typeof CoachRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/morning': {
-      id: '/settings/morning'
-      path: '/settings/morning'
-      fullPath: '/settings/morning'
-      preLoaderRoute: typeof SettingsMorningRouteImport
+    '/companion': {
+      id: '/companion'
+      path: '/companion'
+      fullPath: '/companion'
+      preLoaderRoute: typeof CompanionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/companion': {
-      id: '/settings/companion'
-      path: '/settings/companion'
-      fullPath: '/settings/companion'
-      preLoaderRoute: typeof SettingsCompanionRouteImport
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/avatar': {
-      id: '/settings/avatar'
-      path: '/settings/avatar'
-      fullPath: '/settings/avatar'
-      preLoaderRoute: typeof SettingsAvatarRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/legal/trademark': {
-      id: '/legal/trademark'
-      path: '/trademark'
-      fullPath: '/legal/trademark'
-      preLoaderRoute: typeof LegalTrademarkRouteImport
-      parentRoute: typeof LegalRoute
+    '/decisions': {
+      id: '/decisions'
+      path: '/decisions'
+      fullPath: '/decisions'
+      preLoaderRoute: typeof DecisionsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/third-parties': {
-      id: '/legal/third-parties'
-      path: '/third-parties'
-      fullPath: '/legal/third-parties'
-      preLoaderRoute: typeof LegalThirdPartiesRouteImport
-      parentRoute: typeof LegalRoute
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/terms': {
-      id: '/legal/terms'
-      path: '/terms'
-      fullPath: '/legal/terms'
-      preLoaderRoute: typeof LegalTermsRouteImport
-      parentRoute: typeof LegalRoute
+    '/features': {
+      id: '/features'
+      path: '/features'
+      fullPath: '/features'
+      preLoaderRoute: typeof FeaturesRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/subscription': {
-      id: '/legal/subscription'
-      path: '/subscription'
-      fullPath: '/legal/subscription'
-      preLoaderRoute: typeof LegalSubscriptionRouteImport
-      parentRoute: typeof LegalRoute
+    '/for-sale': {
+      id: '/for-sale'
+      path: '/for-sale'
+      fullPath: '/for-sale'
+      preLoaderRoute: typeof ForSaleRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/security': {
-      id: '/legal/security'
-      path: '/security'
-      fullPath: '/legal/security'
-      preLoaderRoute: typeof LegalSecurityRouteImport
-      parentRoute: typeof LegalRoute
+    '/health': {
+      id: '/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof HealthRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/regional': {
-      id: '/legal/regional'
-      path: '/regional'
-      fullPath: '/legal/regional'
-      preLoaderRoute: typeof LegalRegionalRouteImport
-      parentRoute: typeof LegalRoute
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/legal/privacy': {
-      id: '/legal/privacy'
+    '/legal': {
+      id: '/legal'
+      path: '/legal'
+      fullPath: '/legal'
+      preLoaderRoute: typeof LegalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/memory': {
+      id: '/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/paywall': {
+      id: '/paywall'
+      path: '/paywall'
+      fullPath: '/paywall'
+      preLoaderRoute: typeof PaywallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pilot': {
+      id: '/pilot'
+      path: '/pilot'
+      fullPath: '/pilot'
+      preLoaderRoute: typeof PilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plan': {
+      id: '/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof PlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/playbooks': {
+      id: '/playbooks'
+      path: '/playbooks'
+      fullPath: '/playbooks'
+      preLoaderRoute: typeof PlaybooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
       path: '/privacy'
-      fullPath: '/legal/privacy'
-      preLoaderRoute: typeof LegalPrivacyRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/open-source': {
-      id: '/legal/open-source'
-      path: '/open-source'
-      fullPath: '/legal/open-source'
-      preLoaderRoute: typeof LegalOpenSourceRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/license': {
-      id: '/legal/license'
-      path: '/license'
-      fullPath: '/legal/license'
-      preLoaderRoute: typeof LegalLicenseRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/electronic-consent': {
-      id: '/legal/electronic-consent'
-      path: '/electronic-consent'
-      fullPath: '/legal/electronic-consent'
-      preLoaderRoute: typeof LegalElectronicConsentRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/disclaimers': {
-      id: '/legal/disclaimers'
-      path: '/disclaimers'
-      fullPath: '/legal/disclaimers'
-      preLoaderRoute: typeof LegalDisclaimersRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/copyright': {
-      id: '/legal/copyright'
-      path: '/copyright'
-      fullPath: '/legal/copyright'
-      preLoaderRoute: typeof LegalCopyrightRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/cookies': {
-      id: '/legal/cookies'
-      path: '/cookies'
-      fullPath: '/legal/cookies'
-      preLoaderRoute: typeof LegalCookiesRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/accessibility': {
-      id: '/legal/accessibility'
-      path: '/accessibility'
-      fullPath: '/legal/accessibility'
-      preLoaderRoute: typeof LegalAccessibilityRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/legal/acceptable-use': {
-      id: '/legal/acceptable-use'
-      path: '/acceptable-use'
-      fullPath: '/legal/acceptable-use'
-      preLoaderRoute: typeof LegalAcceptableUseRouteImport
-      parentRoute: typeof LegalRoute
-    }
-    '/lab/avatar-poc': {
-      id: '/lab/avatar-poc'
-      path: '/lab/avatar-poc'
-      fullPath: '/lab/avatar-poc'
-      preLoaderRoute: typeof LabAvatarPocRouteImport
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/email/unsubscribe': {
-      id: '/email/unsubscribe'
-      path: '/email/unsubscribe'
-      fullPath: '/email/unsubscribe'
-      preLoaderRoute: typeof EmailUnsubscribeRouteImport
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/api/tts-elevenlabs': {
-      id: '/api/tts-elevenlabs'
-      path: '/api/tts-elevenlabs'
-      fullPath: '/api/tts-elevenlabs'
-      preLoaderRoute: typeof ApiTtsElevenlabsRouteImport
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/tts': {
-      id: '/api/tts'
-      path: '/api/tts'
-      fullPath: '/api/tts'
-      preLoaderRoute: typeof ApiTtsRouteImport
+    '/safety': {
+      id: '/safety'
+      path: '/safety'
+      fullPath: '/safety'
+      preLoaderRoute: typeof SafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/swap': {
-      id: '/api/swap'
-      path: '/api/swap'
-      fullPath: '/api/swap'
-      preLoaderRoute: typeof ApiSwapRouteImport
+    '/science': {
+      id: '/science'
+      path: '/science'
+      fullPath: '/science'
+      preLoaderRoute: typeof ScienceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/stt': {
-      id: '/api/stt'
-      path: '/api/stt'
-      fullPath: '/api/stt'
-      preLoaderRoute: typeof ApiSttRouteImport
+    '/share': {
+      id: '/share'
+      path: '/share'
+      fullPath: '/share'
+      preLoaderRoute: typeof ShareRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/insights': {
-      id: '/api/insights'
-      path: '/api/insights'
-      fullPath: '/api/insights'
-      preLoaderRoute: typeof ApiInsightsRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/coach': {
-      id: '/api/coach'
-      path: '/api/coach'
-      fullPath: '/api/coach'
-      preLoaderRoute: typeof ApiCoachRouteImport
+    '/sleep': {
+      id: '/sleep'
+      path: '/sleep'
+      fullPath: '/sleep'
+      preLoaderRoute: typeof SleepRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/brief': {
-      id: '/api/brief'
-      path: '/api/brief'
-      fullPath: '/api/brief'
-      preLoaderRoute: typeof ApiBriefRouteImport
+    '/smart-home': {
+      id: '/smart-home'
+      path: '/smart-home'
+      fullPath: '/smart-home'
+      preLoaderRoute: typeof SmartHomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/swap': {
+      id: '/swap'
+      path: '/swap'
+      fullPath: '/swap'
+      preLoaderRoute: typeof SwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe': {
+      id: '/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof UnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/version': {
+      id: '/version'
+      path: '/version'
+      fullPath: '/version'
+      preLoaderRoute: typeof VersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/ai': {
@@ -1643,60 +1426,221 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAiRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lab/avatar-poc/': {
-      id: '/lab/avatar-poc/'
+    '/api/brief': {
+      id: '/api/brief'
+      path: '/api/brief'
+      fullPath: '/api/brief'
+      preLoaderRoute: typeof ApiBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/coach': {
+      id: '/api/coach'
+      path: '/api/coach'
+      fullPath: '/api/coach'
+      preLoaderRoute: typeof ApiCoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/insights': {
+      id: '/api/insights'
+      path: '/api/insights'
+      fullPath: '/api/insights'
+      preLoaderRoute: typeof ApiInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/swap': {
+      id: '/api/swap'
+      path: '/api/swap'
+      fullPath: '/api/swap'
+      preLoaderRoute: typeof ApiSwapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts-elevenlabs': {
+      id: '/api/tts-elevenlabs'
+      path: '/api/tts-elevenlabs'
+      fullPath: '/api/tts-elevenlabs'
+      preLoaderRoute: typeof ApiTtsElevenlabsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/email/unsubscribe': {
+      id: '/email/unsubscribe'
+      path: '/email/unsubscribe'
+      fullPath: '/email/unsubscribe'
+      preLoaderRoute: typeof EmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lab/avatar-poc': {
+      id: '/lab/avatar-poc'
+      path: '/lab/avatar-poc'
+      fullPath: '/lab/avatar-poc'
+      preLoaderRoute: typeof LabAvatarPocRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/': {
+      id: '/legal/'
       path: '/'
-      fullPath: '/lab/avatar-poc/'
-      preLoaderRoute: typeof LabAvatarPocIndexRouteImport
-      parentRoute: typeof LabAvatarPocRoute
+      fullPath: '/legal/'
+      preLoaderRoute: typeof LegalIndexRouteImport
+      parentRoute: typeof LegalRoute
     }
-    '/lovable/email/suppression': {
-      id: '/lovable/email/suppression'
-      path: '/lovable/email/suppression'
-      fullPath: '/lovable/email/suppression'
-      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+    '/legal/acceptable-use': {
+      id: '/legal/acceptable-use'
+      path: '/acceptable-use'
+      fullPath: '/legal/acceptable-use'
+      preLoaderRoute: typeof LegalAcceptableUseRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/accessibility': {
+      id: '/legal/accessibility'
+      path: '/accessibility'
+      fullPath: '/legal/accessibility'
+      preLoaderRoute: typeof LegalAccessibilityRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/cookies': {
+      id: '/legal/cookies'
+      path: '/cookies'
+      fullPath: '/legal/cookies'
+      preLoaderRoute: typeof LegalCookiesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/copyright': {
+      id: '/legal/copyright'
+      path: '/copyright'
+      fullPath: '/legal/copyright'
+      preLoaderRoute: typeof LegalCopyrightRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/disclaimers': {
+      id: '/legal/disclaimers'
+      path: '/disclaimers'
+      fullPath: '/legal/disclaimers'
+      preLoaderRoute: typeof LegalDisclaimersRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/electronic-consent': {
+      id: '/legal/electronic-consent'
+      path: '/electronic-consent'
+      fullPath: '/legal/electronic-consent'
+      preLoaderRoute: typeof LegalElectronicConsentRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/license': {
+      id: '/legal/license'
+      path: '/license'
+      fullPath: '/legal/license'
+      preLoaderRoute: typeof LegalLicenseRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/open-source': {
+      id: '/legal/open-source'
+      path: '/open-source'
+      fullPath: '/legal/open-source'
+      preLoaderRoute: typeof LegalOpenSourceRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/regional': {
+      id: '/legal/regional'
+      path: '/regional'
+      fullPath: '/legal/regional'
+      preLoaderRoute: typeof LegalRegionalRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/security': {
+      id: '/legal/security'
+      path: '/security'
+      fullPath: '/legal/security'
+      preLoaderRoute: typeof LegalSecurityRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/subscription': {
+      id: '/legal/subscription'
+      path: '/subscription'
+      fullPath: '/legal/subscription'
+      preLoaderRoute: typeof LegalSubscriptionRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/third-parties': {
+      id: '/legal/third-parties'
+      path: '/third-parties'
+      fullPath: '/legal/third-parties'
+      preLoaderRoute: typeof LegalThirdPartiesRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/legal/trademark': {
+      id: '/legal/trademark'
+      path: '/trademark'
+      fullPath: '/legal/trademark'
+      preLoaderRoute: typeof LegalTrademarkRouteImport
+      parentRoute: typeof LegalRoute
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lab/avatar-poc/simli': {
-      id: '/lab/avatar-poc/simli'
-      path: '/simli'
-      fullPath: '/lab/avatar-poc/simli'
-      preLoaderRoute: typeof LabAvatarPocSimliRouteImport
-      parentRoute: typeof LabAvatarPocRoute
-    }
-    '/lab/avatar-poc/debug': {
-      id: '/lab/avatar-poc/debug'
-      path: '/debug'
-      fullPath: '/lab/avatar-poc/debug'
-      preLoaderRoute: typeof LabAvatarPocDebugRouteImport
-      parentRoute: typeof LabAvatarPocRoute
-    }
-    '/api/public/version': {
-      id: '/api/public/version'
-      path: '/api/public/version'
-      fullPath: '/api/public/version'
-      preLoaderRoute: typeof ApiPublicVersionRouteImport
+    '/settings/avatar': {
+      id: '/settings/avatar'
+      path: '/settings/avatar'
+      fullPath: '/settings/avatar'
+      preLoaderRoute: typeof SettingsAvatarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/health': {
-      id: '/api/public/health'
-      path: '/api/public/health'
-      fullPath: '/api/public/health'
-      preLoaderRoute: typeof ApiPublicHealthRouteImport
+    '/settings/companion': {
+      id: '/settings/companion'
+      path: '/settings/companion'
+      fullPath: '/settings/companion'
+      preLoaderRoute: typeof SettingsCompanionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/csp-report': {
-      id: '/api/public/csp-report'
-      path: '/api/public/csp-report'
-      fullPath: '/api/public/csp-report'
-      preLoaderRoute: typeof ApiPublicCspReportRouteImport
+    '/settings/morning': {
+      id: '/settings/morning'
+      path: '/settings/morning'
+      fullPath: '/settings/morning'
+      preLoaderRoute: typeof SettingsMorningRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/contact': {
-      id: '/api/public/contact'
-      path: '/api/public/contact'
-      fullPath: '/api/public/contact'
-      preLoaderRoute: typeof ApiPublicContactRouteImport
+    '/settings/skills': {
+      id: '/settings/skills'
+      path: '/settings/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/lab/pilot-realtime': {
@@ -1706,88 +1650,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLabPilotRealtimeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/lovable/email/transactional/send': {
-      id: '/lovable/email/transactional/send'
-      path: '/lovable/email/transactional/send'
-      fullPath: '/lovable/email/transactional/send'
-      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
+    '/api/public/contact': {
+      id: '/api/public/contact'
+      path: '/api/public/contact'
+      fullPath: '/api/public/contact'
+      preLoaderRoute: typeof ApiPublicContactRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/transactional/preview': {
-      id: '/lovable/email/transactional/preview'
-      path: '/lovable/email/transactional/preview'
-      fullPath: '/lovable/email/transactional/preview'
-      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+    '/api/public/csp-report': {
+      id: '/api/public/csp-report'
+      path: '/api/public/csp-report'
+      fullPath: '/api/public/csp-report'
+      preLoaderRoute: typeof ApiPublicCspReportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+    '/api/public/health': {
+      id: '/api/public/health'
+      path: '/api/public/health'
+      fullPath: '/api/public/health'
+      preLoaderRoute: typeof ApiPublicHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/auth/webhook': {
-      id: '/lovable/email/auth/webhook'
-      path: '/lovable/email/auth/webhook'
-      fullPath: '/lovable/email/auth/webhook'
-      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+    '/api/public/version': {
+      id: '/api/public/version'
+      path: '/api/public/version'
+      fullPath: '/api/public/version'
+      preLoaderRoute: typeof ApiPublicVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/auth/preview': {
-      id: '/lovable/email/auth/preview'
-      path: '/lovable/email/auth/preview'
-      fullPath: '/lovable/email/auth/preview'
-      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
-      parentRoute: typeof rootRouteImport
+    '/lab/avatar-poc/': {
+      id: '/lab/avatar-poc/'
+      path: '/'
+      fullPath: '/lab/avatar-poc/'
+      preLoaderRoute: typeof LabAvatarPocIndexRouteImport
+      parentRoute: typeof LabAvatarPocRoute
     }
-    '/api/public/wearables/cron': {
-      id: '/api/public/wearables/cron'
-      path: '/api/public/wearables/cron'
-      fullPath: '/api/public/wearables/cron'
-      preLoaderRoute: typeof ApiPublicWearablesCronRouteImport
-      parentRoute: typeof rootRouteImport
+    '/lab/avatar-poc/debug': {
+      id: '/lab/avatar-poc/debug'
+      path: '/debug'
+      fullPath: '/lab/avatar-poc/debug'
+      preLoaderRoute: typeof LabAvatarPocDebugRouteImport
+      parentRoute: typeof LabAvatarPocRoute
     }
-    '/api/public/payments/webhook': {
-      id: '/api/public/payments/webhook'
-      path: '/api/public/payments/webhook'
-      fullPath: '/api/public/payments/webhook'
-      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
-      parentRoute: typeof rootRouteImport
+    '/lab/avatar-poc/simli': {
+      id: '/lab/avatar-poc/simli'
+      path: '/simli'
+      fullPath: '/lab/avatar-poc/simli'
+      preLoaderRoute: typeof LabAvatarPocSimliRouteImport
+      parentRoute: typeof LabAvatarPocRoute
     }
-    '/api/public/hooks/subscription-lifecycle': {
-      id: '/api/public/hooks/subscription-lifecycle'
-      path: '/api/public/hooks/subscription-lifecycle'
-      fullPath: '/api/public/hooks/subscription-lifecycle'
-      preLoaderRoute: typeof ApiPublicHooksSubscriptionLifecycleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/notify': {
-      id: '/api/public/hooks/notify'
-      path: '/api/public/hooks/notify'
-      fullPath: '/api/public/hooks/notify'
-      preLoaderRoute: typeof ApiPublicHooksNotifyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/dispatch-alarms': {
-      id: '/api/public/hooks/dispatch-alarms'
-      path: '/api/public/hooks/dispatch-alarms'
-      fullPath: '/api/public/hooks/dispatch-alarms'
-      preLoaderRoute: typeof ApiPublicHooksDispatchAlarmsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/hooks/ai-learn': {
-      id: '/api/public/hooks/ai-learn'
-      path: '/api/public/hooks/ai-learn'
-      fullPath: '/api/public/hooks/ai-learn'
-      preLoaderRoute: typeof ApiPublicHooksAiLearnRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/lab/simli/speak': {
-      id: '/api/lab/simli/speak'
-      path: '/api/lab/simli/speak'
-      fullPath: '/api/lab/simli/speak'
-      preLoaderRoute: typeof ApiLabSimliSpeakRouteImport
+    '/lovable/email/suppression': {
+      id: '/lovable/email/suppression'
+      path: '/lovable/email/suppression'
+      fullPath: '/lovable/email/suppression'
+      preLoaderRoute: typeof LovableEmailSuppressionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/lab/simli/session': {
@@ -1797,11 +1713,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLabSimliSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/wearables/oura/callback': {
-      id: '/api/public/wearables/oura/callback'
-      path: '/api/public/wearables/oura/callback'
-      fullPath: '/api/public/wearables/oura/callback'
-      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
+    '/api/lab/simli/speak': {
+      id: '/api/lab/simli/speak'
+      path: '/api/lab/simli/speak'
+      fullPath: '/api/lab/simli/speak'
+      preLoaderRoute: typeof ApiLabSimliSpeakRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/ai-learn': {
+      id: '/api/public/hooks/ai-learn'
+      path: '/api/public/hooks/ai-learn'
+      fullPath: '/api/public/hooks/ai-learn'
+      preLoaderRoute: typeof ApiPublicHooksAiLearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/dispatch-alarms': {
+      id: '/api/public/hooks/dispatch-alarms'
+      path: '/api/public/hooks/dispatch-alarms'
+      fullPath: '/api/public/hooks/dispatch-alarms'
+      preLoaderRoute: typeof ApiPublicHooksDispatchAlarmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/notify': {
+      id: '/api/public/hooks/notify'
+      path: '/api/public/hooks/notify'
+      fullPath: '/api/public/hooks/notify'
+      preLoaderRoute: typeof ApiPublicHooksNotifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/subscription-lifecycle': {
+      id: '/api/public/hooks/subscription-lifecycle'
+      path: '/api/public/hooks/subscription-lifecycle'
+      fullPath: '/api/public/hooks/subscription-lifecycle'
+      preLoaderRoute: typeof ApiPublicHooksSubscriptionLifecycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/payments/webhook': {
+      id: '/api/public/payments/webhook'
+      path: '/api/public/payments/webhook'
+      fullPath: '/api/public/payments/webhook'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/cron': {
+      id: '/api/public/wearables/cron'
+      path: '/api/public/wearables/cron'
+      fullPath: '/api/public/wearables/cron'
+      preLoaderRoute: typeof ApiPublicWearablesCronRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/preview': {
+      id: '/lovable/email/auth/preview'
+      path: '/lovable/email/auth/preview'
+      fullPath: '/lovable/email/auth/preview'
+      preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/auth/webhook': {
+      id: '/lovable/email/auth/webhook'
+      path: '/lovable/email/auth/webhook'
+      fullPath: '/lovable/email/auth/webhook'
+      preLoaderRoute: typeof LovableEmailAuthWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lovable/email/transactional/send': {
+      id: '/lovable/email/transactional/send'
+      path: '/lovable/email/transactional/send'
+      fullPath: '/lovable/email/transactional/send'
+      preLoaderRoute: typeof LovableEmailTransactionalSendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/wearables/fitbit/callback': {
@@ -1809,6 +1802,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/wearables/fitbit/callback'
       fullPath: '/api/public/wearables/fitbit/callback'
       preLoaderRoute: typeof ApiPublicWearablesFitbitCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/wearables/oura/callback': {
+      id: '/api/public/wearables/oura/callback'
+      path: '/api/public/wearables/oura/callback'
+      fullPath: '/api/public/wearables/oura/callback'
+      preLoaderRoute: typeof ApiPublicWearablesOuraCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

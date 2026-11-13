@@ -37,6 +37,15 @@ export function mapUpstreamError(status: number): string {
   return "AI request failed.";
 }
 
+/** A per-call ceiling complements admission; it is not a monetary budget. */
+function validateMessages(messages: ChatMsg[]) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 32 ||
+      messages.some(m => !m || !["system", "user", "assistant"].includes(m.role) || typeof m.content !== "string") ||
+      messages.reduce((sum, m) => sum + m.content.length, 0) > 64_000) {
+    throw new AIError(400, "AI context is too large or invalid. Please shorten the conversation.");
+  }
+}
+
 /** Non-streaming JSON completion. Returns the assistant text. */
 export async function chatJSON(opts: {
   model?: string;
@@ -44,7 +53,9 @@ export async function chatJSON(opts: {
   temperature?: number;
   jsonMode?: boolean;
 }): Promise<{ text: string; promptTokens: number; completionTokens: number }> {
+  validateMessages(opts.messages);
   const body: Record<string, unknown> = {
+    max_tokens: 2048,
     model: opts.model ?? DEFAULT_CHAT_MODEL,
     messages: opts.messages,
   };
@@ -80,6 +91,9 @@ export async function chatStream(opts: {
   temperature?: number;
   maxTokens?: number;
 }): Promise<Response> {
+  validateMessages(opts.messages);
+  const maxTokens = opts.maxTokens === undefined ? 2048 : opts.maxTokens;
+  if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 2048) throw new AIError(400, "Invalid output limit");
   const res = await fetch(GATEWAY_URL, {
     method: "POST",
     headers: {
@@ -90,11 +104,10 @@ export async function chatStream(opts: {
       model: opts.model ?? DEFAULT_CHAT_MODEL,
       messages: opts.messages,
       temperature: opts.temperature,
-      ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+      max_tokens: maxTokens,
       stream: true,
     }),
   });
   if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
   return res;
 }
-

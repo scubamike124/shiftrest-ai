@@ -2,13 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
- * Tables that store user-scoped data. Order matters for FK safety, but every
- * row is keyed by user_id so we can purge in any order.
- *
- * Retention exceptions (not deleted on user request):
- *   - subscriptions: kept in canceled state for tax/accounting records.
- *   - legal_acceptances: kept as legally-required audit log.
- *   - notification_log / ai_log: aggregate operational logs (retained briefly).
+ * Explicit deletion targets. Most use user_id; profiles uses its auth-user id.
+ * Other auth-linked rows (including subscriptions, legal_acceptances, ai_log,
+ * and notification_log) are removed by ON DELETE CASCADE in the migrations.
+ * This operation does not delete records held separately by payment providers.
  */
 const USER_TABLES = [
   "shifts",
@@ -30,35 +27,46 @@ const USER_TABLES = [
 ] as const;
 
 async function attemptStripeCancel(userId: string): Promise<{ canceled: boolean; reason?: string }> {
-  try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: subs } = await supabaseAdmin
-      .from("subscriptions")
-      .select("stripe_subscription_id, environment, status")
-      .eq("user_id", userId);
-    if (!subs || subs.length === 0) return { canceled: false, reason: "no_subscription" };
-    const { createStripeClient } = await import("@/lib/stripe.server");
-    let canceledAny = false;
-    for (const row of subs) {
-      if (!row.stripe_subscription_id) continue;
-      if (row.status === "canceled") continue;
-      try {
-        const stripe = createStripeClient((row.environment ?? "sandbox") as "sandbox" | "live");
-        await stripe.subscriptions.cancel(row.stripe_subscription_id);
-        await supabaseAdmin
-          .from("subscriptions")
-          .update({ status: "canceled", cancel_at_period_end: true })
-          .eq("stripe_subscription_id", row.stripe_subscription_id);
-        canceledAny = true;
-      } catch (err) {
-        console.error("stripe cancel failed", err);
-      }
-    }
-    return { canceled: canceledAny };
-  } catch (err) {
-    console.error("attemptStripeCancel failed", err);
-    return { canceled: false, reason: "error" };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: subs, error: lookupError } = await supabaseAdmin
+    .from("subscriptions")
+    .select("stripe_subscription_id, environment, status")
+    .eq("user_id", userId);
+  if (lookupError || !subs) {
+    throw new Error("We couldn't verify your subscriptions. Your account has not been deleted. Please retry.");
   }
+  if (subs.length === 0) return { canceled: false, reason: "no_subscription" };
+  const { createStripeClient } = await import("@/lib/stripe.server");
+  let canceledAny = false;
+  for (const row of subs) {
+    if (row.status === "canceled") continue;
+    // The payment-mode webhook stores one-time purchases with this exact
+    // status/key convention. They are not Stripe subscriptions to cancel.
+    if (row.status === "lifetime" && row.stripe_subscription_id?.startsWith("lifetime_cs_")) continue;
+    // Missing identifiers or environments must not silently bypass cancellation.
+    if (!row.stripe_subscription_id || (row.environment !== "sandbox" && row.environment !== "live")) {
+      throw new Error("We couldn't verify a subscription for cancellation. Your account has not been deleted. Please contact support.");
+    }
+    try {
+      const stripe = createStripeClient(row.environment);
+      // Retrieve first so retrying after a successful cancellation but failed
+      // database update can reconcile the already-canceled subscription.
+      const current = await stripe.subscriptions.retrieve(row.stripe_subscription_id);
+      if (current.status !== "canceled") {
+        const canceled = await stripe.subscriptions.cancel(row.stripe_subscription_id);
+        if (canceled.status !== "canceled") throw new Error("Cancellation was not confirmed");
+      }
+      const { error } = await supabaseAdmin
+        .from("subscriptions")
+        .update({ status: "canceled", cancel_at_period_end: false })
+        .eq("stripe_subscription_id", row.stripe_subscription_id);
+      if (error) throw new Error("Cancellation record could not be saved");
+      canceledAny = true;
+    } catch {
+      throw new Error("We couldn't confirm all subscription cancellations. Your account remains available; some subscriptions may already be canceled. Please retry before deleting your account.");
+    }
+  }
+  return { canceled: canceledAny };
 }
 
 /**
@@ -83,15 +91,19 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
       const client = supabaseAdmin as unknown as {
         from: (t: string) => { delete: () => { eq: (c: string, v: string) => Promise<{ error: { message: string } | null }> } };
       };
-      const { error } = await client.from(table).delete().eq("user_id", uid);
+      const { error } = await client.from(table).delete().eq(table === "profiles" ? "id" : "user_id", uid);
       if (error) failed.push(`${table}: ${error.message}`);
       else deleted.push(table);
+    }
+
+    if (failed.length > 0) {
+      throw new Error("Account deletion is incomplete. Some data may already be removed, but your sign-in remains available. Please retry to finish deleting your data and account.");
     }
 
     const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(uid);
     if (authErr) {
       console.error("deleteAccount auth failed", authErr);
-      throw new Error(authErr.message || "Account deletion failed");
+      throw new Error("Your data was removed, but we couldn't finish deleting your sign-in. Please retry to complete account deletion.");
     }
 
     // Post-deletion confirmation email + owner alert (fire-and-forget).
@@ -124,11 +136,8 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
       deleted,
       failed,
       stripe,
-      retained: [
-        "subscriptions (canceled, retained for tax/accounting)",
-        "legal_acceptances (retained as legal audit log)",
-        "ai_log / notification_log (operational logs, short retention)",
-      ],
+      cascaded: ["subscriptions", "legal_acceptances", "ai_log", "notification_log"],
+      retained: [] as string[],
     };
   });
 
@@ -140,11 +149,16 @@ export const purgeAiMemoryFn = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const uid = context.userId;
-    const tables = ["ai_memory", "ai_recommendations", "ai_patterns", "ai_feedback"] as const;
+    const tables = ["ai_memory_proposals", "ai_memory", "ai_recommendations", "ai_patterns", "ai_feedback"] as const;
     const cleared: string[] = [];
+    let failed = false;
     for (const t of tables) {
       const { error } = await supabaseAdmin.from(t).delete().eq("user_id", uid);
       if (!error) cleared.push(t);
+      else failed = true;
+    }
+    if (failed) {
+      throw new Error("Some AI memory could not be cleared. Please retry to finish erasing it.");
     }
     return { ok: true as const, cleared };
   });
@@ -160,21 +174,50 @@ export const exportAccountFn = createServerFn({ method: "POST" })
     const uid = context.userId;
     const tables = [
       ...USER_TABLES,
-      "subscriptions",
-      "legal_acceptances",
+      "subscriptions", "legal_acceptances", "ai_memory_proposals",
+      "personal_items", "calendar_feeds", "traffic_destinations", "sound_mixes",
+      "partner_shares", "companion_skills", "companion_routines", "smart_devices",
+      "automations", "automation_runs", "routine_suggestions", "user_roles",
+      "ai_log", "notification_log",
     ] as const;
     type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+    type ExportResult = { data: JsonValue[] | null; error: { message: string } | null };
     const data: Record<string, JsonValue[]> = {};
     const client = supabaseAdmin as unknown as {
       from: (t: string) => {
-        select: (c: string) => { eq: (col: string, v: string) => Promise<{ data: JsonValue[] | null; error: { message: string } | null }> };
+        select: (c: string) => {
+          eq: (col: string, v: string) => {
+            order: (column: string, options: { ascending: boolean }) => {
+              range: (from: number, to: number) => Promise<ExportResult>;
+            };
+          };
+        };
       };
     };
+    const pageSize = 500;
     for (const t of tables) {
-      const { data: rows, error } = await client.from(t).select("*").eq("user_id", uid);
-      if (!error) data[t] = rows ?? [];
+      const key = t === "profiles" ? "id" : "user_id";
+      const order = t === "user_prefs" || t === "notification_prefs" ? "user_id"
+        : t === "companion_skills" ? "skill" : "id";
+      const allRows: JsonValue[] = [];
+      for (let offset = 0; ; ) {
+        const { data: rows, error } = await client.from(t).select("*")
+          .eq(key, uid).order(order, { ascending: true }).range(offset, offset + pageSize - 1);
+        if (error || !rows) {
+          throw new Error("We couldn't export all your data. No complete export was created. Please retry.");
+        }
+        if (rows.length === 0) break;
+        allRows.push(...rows);
+        // Advance by the received count, even if the server applies a smaller
+        // row cap than requested. Continue until an empty page, not a short one.
+        offset += rows.length;
+      }
+      data[t] = allRows;
     }
-    const { data: userInfo } = await supabaseAdmin.auth.admin.getUserById(uid);
+    const { data: userInfo, error: userError } = await supabaseAdmin.auth.admin.getUserById(uid);
+    if (userError || !userInfo?.user) {
+      throw new Error("We couldn't complete your account export. Please retry.");
+    }
 
     // Fire-and-forget confirmation email that an export was generated.
     if (userInfo?.user?.email) {

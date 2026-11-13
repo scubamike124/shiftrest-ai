@@ -9,6 +9,8 @@
  * Uses the newer POST /v1/realtime/client_secrets endpoint (replaces the
  * deprecated /v1/realtime/sessions flow).
  */
+import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { realtimeEnvironment } from "./access.server";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
@@ -131,13 +133,16 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
 
     // Trial gate: hard-block minting once the trial voice cap is exhausted.
     // Paying subscribers pass through with isTrial=false / cap=0.
-    const env = input.environment === "live" ? "live" : "sandbox";
+    const env = realtimeEnvironment(input.environment);
     const trialState = await loadTrialUsageState(context.userId, env);
     if (trialState.isTrial && trialState.limitReached) {
       throw new Error(
         "trial_limit_reached: You've used your trial voice minutes. Upgrade to keep talking to Pilot.",
       );
     }
+
+    const admission = await requireAIAdmission(context.userId);
+    if (admission) throw new Error("Voice allowance checks prevented this request. Please try again later.");
 
     // Reuse the existing OPENAI_REALTIME_API_KEY (previously used by the
     // LiveKit worker); fall back to OPENAI_API_KEY if defined. Either works —
@@ -207,6 +212,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     ].join(" ");
 
     const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+      signal: AbortSignal.timeout(20_000),
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

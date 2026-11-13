@@ -51,8 +51,8 @@ const tiers = [
     trial: "Save 48% vs monthly",
     perks: [
       "Everything in Monthly",
-      "Priority AI capacity",
-      "Early access to new models",
+      "Annual billing",
+      "Save 48% versus monthly",
       "Best for committed planners",
     ],
     featured: true,
@@ -61,7 +61,7 @@ const tiers = [
     name: "Lifetime",
     price: "$99",
     cadence: "one-time",
-    trial: "Pay once, use forever",
+    trial: "One payment · lifetime of the service",
     perks: ["Everything in Annual", "All future updates", "Founders' badge", "No renewals, ever"],
     featured: false,
   },
@@ -74,8 +74,6 @@ const matrix = [
   { label: "Wearable sync", values: [true, true, true] },
   { label: "Multi-employer rotations", values: [true, true, true] },
   { label: "Recovery playbooks", values: [true, true, true] },
-  { label: "Priority AI capacity", values: [false, true, true] },
-  { label: "Early access to new models", values: [false, true, true] },
   { label: "All future updates included", values: ["—", "—", true] },
 ];
 
@@ -138,6 +136,7 @@ function Pricing() {
               </ul>
               <Link
                 to="/paywall"
+                search={{ plan: t.name.toLowerCase() as "monthly" | "annual" | "lifetime" }}
                 className={`mt-8 flex h-12 items-center justify-center rounded-full text-sm font-semibold transition ${
                   t.featured
                     ? "bg-foreground text-background hover:opacity-90"

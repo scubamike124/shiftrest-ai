@@ -47,6 +47,7 @@ import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
 
 export const Route = createFileRoute("/profile")({
@@ -71,6 +72,30 @@ function Profile() {
   const exportAccount = useServerFn(exportAccountFn);
   const purgeAiMemory = useServerFn(purgeAiMemoryFn);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmAccountDeletion(e: React.FormEvent) {
+    e.preventDefault();
+    if (deleting || deleteConfirmation !== "DELETE") return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAccount({ data: undefined });
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "We couldn't finish deleting your account. Please retry.");
+      setDeleting(false);
+      return;
+    }
+    // Only clear the session after the server confirms complete deletion.
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    try { await supabase.auth.signOut({ scope: "local" }); } catch { /* account is already deleted */ }
+    try { localStorage.clear(); clearPrefsMigrationFlag(); } catch { /* unavailable storage */ }
+    toast.success("Account deleted.");
+    navigate({ to: "/auth", replace: true });
+  }
   const [exporting, setExporting] = useState(false);
   const [purging, setPurging] = useState(false);
   const { data: prefs = DEFAULT_PREFS } = useQuery({
@@ -706,43 +731,14 @@ function Profile() {
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
         <Divider />
+        <AlertDialog open={deleteOpen} onOpenChange={(open) => {
+          if (deleting) return;
+          setDeleteOpen(open);
+          if (!open) { setDeleteConfirmation(""); setDeleteError(null); }
+        }}>
+        <AlertDialogTrigger asChild>
         <button
           disabled={deleting}
-          onClick={async () => {
-            const ok = window.confirm(
-              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.",
-            );
-            if (!ok) return;
-            const sure = window.confirm("Are you absolutely sure? This is final.");
-            if (!sure) return;
-            const code = window.prompt('Type "DELETE" to confirm:');
-            if (code !== "DELETE") {
-              toast.error("Account not deleted.");
-              return;
-            }
-            setDeleting(true);
-            try {
-              await deleteAccount({ data: undefined });
-              await queryClient.cancelQueries();
-              queryClient.clear();
-              await supabase.auth.signOut();
-              try {
-                localStorage.clear();
-                clearPrefsMigrationFlag();
-              } catch {
-                /* ignore storage clear failures during account delete */
-              }
-              toast.success("Account deleted.");
-              navigate({ to: "/auth", replace: true });
-            } catch (err) {
-              toast.error(
-                err instanceof Error
-                  ? err.message
-                  : "We couldn't delete your account. Please try again.",
-              );
-              setDeleting(false);
-            }
-          }}
           className="flex w-full items-center justify-between p-4 text-left disabled:opacity-60"
         >
           <div className="flex items-center gap-3">
@@ -754,12 +750,38 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Permanently and immediately remove your account and data.
+                Cancel active subscriptions and permanently delete your account.
               </p>
             </div>
           </div>
           <ChevronRight className="h-5 w-5 text-muted-foreground" />
         </button>
+        </AlertDialogTrigger>
+        <AlertDialogContent className="max-h-[85dvh] w-[calc(100%_-_2rem)] overflow-y-auto rounded-2xl">
+          <form onSubmit={confirmAccountDeletion} aria-busy={deleting} className="space-y-6">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-serif text-2xl">Delete your account?</AlertDialogTitle>
+              <AlertDialogDescription className="leading-relaxed">
+                This permanently removes your account, saved plans, and personal data. We cancel recurring Stripe subscriptions before deleting your account. Records held by payment providers may remain under their retention policies. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2">
+              <label htmlFor="delete-confirmation" className="block text-sm font-medium">Type DELETE to confirm</label>
+              <input id="delete-confirmation" value={deleteConfirmation} onChange={(e) => setDeleteConfirmation(e.target.value)} disabled={deleting}
+                autoComplete="off" spellCheck={false} aria-describedby={deleteError ? "delete-account-error" : undefined}
+                className="h-12 w-full rounded-xl border border-border bg-input px-3 text-base focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-60" />
+            </div>
+            {deleteError && <p id="delete-account-error" role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm leading-relaxed">{deleteError}</p>}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting} className="min-h-11">Keep account</AlertDialogCancel>
+              <button type="submit" disabled={deleting || deleteConfirmation !== "DELETE"}
+                className="min-h-11 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-destructive disabled:opacity-50">
+                {deleting ? "Deleting account…" : "Delete account"}
+              </button>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+        </AlertDialog>
       </section>
 
       <p className="text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>

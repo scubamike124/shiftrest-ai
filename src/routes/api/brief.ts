@@ -1,3 +1,5 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 /**
  * POST /api/brief — rewrite a structured plan into a conversational voice script.
  *
@@ -78,6 +80,10 @@ export const Route = createFileRoute("/api/brief")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
+        const admission = await requireAIAdmission(auth.userId);
+        if (admission) return admission;
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
 
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -90,7 +96,7 @@ export const Route = createFileRoute("/api/brief")({
         let localTime: string | undefined;
         let timezone: string | undefined;
         try {
-          const body = (await request.json()) as {
+          const body = (input.body) as {
             plan?: string;
             localTime?: string;
             timezone?: string;

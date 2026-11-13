@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/lab/pilot-realtime")({
     const router = useRouter();
     return (
       <div className="p-8 text-sm">
-        <p className="mb-2">Realtime beta error: {error.message}</p>
+        <p className="mb-2">Realtime beta is unavailable. Please try again.</p>
         <button
           className="underline"
           onClick={() => {

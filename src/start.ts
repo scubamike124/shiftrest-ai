@@ -113,7 +113,7 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "permissions-policy",
-    "camera=(), geolocation=(), payment=(self), microphone=(self), usb=()",
+    "camera=(), geolocation=(self), payment=(self), microphone=(self), usb=()",
   );
   headers.set("cross-origin-opener-policy", "same-origin-allow-popups");
   headers.set("x-content-type-options", "nosniff");

@@ -1,3 +1,5 @@
+import { readAIJson } from "@/lib/ai/request.server";
+import { requireAIAdmission } from "@/lib/ai/admission.server";
 /**
  * /api/ai — single orchestrator for every AI intent.
  *
@@ -26,7 +28,7 @@ import {
   loadAssistantProfile,
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
-import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
+import { logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
@@ -245,10 +247,12 @@ export const Route = createFileRoute("/api/ai")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const input = await readAIJson(request);
+        if ("response" in input) return input.response;
         const started = Date.now();
         let body: Body;
         try {
-          body = (await request.json()) as Body;
+          body = (input.body) as Body;
         } catch {
           return jsonError(400, "Invalid JSON body");
         }
@@ -288,14 +292,8 @@ export const Route = createFileRoute("/api/ai")({
           if (limited) return limited;
         }
 
-        // Budget gate
-        const ok = await checkAIBudget(admin, userId);
-        if (!ok) {
-          return jsonError(
-            429,
-            "Daily AI limit reached. It resets in 24 hours.",
-          );
-        }
+        const admission = await requireAIAdmission(userId);
+        if (admission) return admission;
 
         try {
           if (body.intent === "coach") {

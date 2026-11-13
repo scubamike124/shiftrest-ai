@@ -29,15 +29,15 @@ export function PilotOrb({
       <div
         className={cn(
           "absolute inset-0 rounded-full blur-2xl transition-opacity duration-500",
-          state === "idle" && "opacity-30 bg-[radial-gradient(circle,hsl(var(--primary)/0.55),transparent_65%)]",
-          state === "listening" && "opacity-80 bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse motion-reduce:animate-none",
+          state === "idle" && "opacity-30 bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_55%,transparent),transparent_65%)]",
+          state === "listening" && "opacity-80 bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_85%,transparent),transparent_70%)] animate-pulse motion-reduce:animate-none",
           state === "thinking" && "opacity-70 bg-[radial-gradient(circle,hsl(280_85%_65%/0.75),transparent_70%)]",
           state === "speaking" && "opacity-90 bg-[radial-gradient(circle,hsl(190_90%_60%/0.85),transparent_70%)]",
         )}
       />
       {/* conic gradient ring — the tappable affordance */}
       <div
-        className="absolute inset-[8%] rounded-full p-[3px] bg-[conic-gradient(from_180deg,hsl(var(--primary)),hsl(280_85%_65%),hsl(190_90%_60%),hsl(var(--primary)))] shadow-[0_0_60px_-10px_hsl(var(--primary))] transition-transform duration-300"
+        className="absolute inset-[8%] rounded-full p-[3px] bg-[conic-gradient(from_180deg,var(--primary),hsl(280_85%_65%),hsl(190_90%_60%),var(--primary))] shadow-[0_0_60px_-10px_var(--primary)] transition-transform duration-300"
         style={{ transform: `scale(${scale})` }}
       >
         {/* portrait avatar — same image used on Home + active session */}
@@ -95,15 +95,14 @@ export function OrbBadge({
       <div
         className={cn(
           "absolute inset-0 rounded-full blur-md",
-          state === "listening" && "bg-[radial-gradient(circle,hsl(var(--primary)/0.85),transparent_70%)] animate-pulse motion-reduce:animate-none",
+          state === "listening" && "bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_85%,transparent),transparent_70%)] animate-pulse motion-reduce:animate-none",
           state === "thinking" && "bg-[radial-gradient(circle,hsl(280_85%_65%/0.7),transparent_70%)]",
           state === "speaking" && "bg-[radial-gradient(circle,hsl(190_90%_60%/0.85),transparent_70%)]",
-          state === "idle" && "bg-[radial-gradient(circle,hsl(var(--primary)/0.45),transparent_70%)]",
+          state === "idle" && "bg-[radial-gradient(circle,color-mix(in_oklch,var(--primary)_45%,transparent),transparent_70%)]",
         )}
       />
-      <div className="absolute inset-[10%] rounded-full border border-white/15 bg-[conic-gradient(from_180deg,hsl(var(--primary)),hsl(280_85%_65%),hsl(190_90%_60%),hsl(var(--primary)))] shadow-[0_0_24px_-6px_hsl(var(--primary))]" />
+      <div className="absolute inset-[10%] rounded-full border border-white/15 bg-[conic-gradient(from_180deg,var(--primary),hsl(280_85%_65%),hsl(190_90%_60%),var(--primary))] shadow-[0_0_24px_-6px_var(--primary)]" />
       <div className="absolute inset-[28%] rounded-full bg-background/60 backdrop-blur-xl border border-white/20" />
     </div>
   );
 }
-

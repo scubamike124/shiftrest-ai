@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      subscription_sync_state: {
+        Row: { stripe_subscription_id: string; environment: string; revision: number }
+        Insert: { stripe_subscription_id: string; environment: string; revision?: number }
+        Update: { stripe_subscription_id?: string; environment?: string; revision?: number }
+        Relationships: []
+      }
       ai_feedback: {
         Row: {
           created_at: string
@@ -1796,6 +1802,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      increment_trial_voice_usage: {
+        Args: { _user_id: string; _environment: string; _seconds: number }
+        Returns: number
+      }
+      apply_subscription_snapshot: {
+        Args: { _snapshot: Json; _expected_revision: number }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
