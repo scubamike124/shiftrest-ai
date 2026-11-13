@@ -31,10 +31,11 @@ export function voiceEntitlement(rows: Entitlement[], now = Date.now()): 'paid' 
 export function privateBetaAccess(userId: string): boolean {
   const configured = process.env.PRIVATE_BETA_USER_IDS?.trim();
   if (!configured) return false;
-  const ids = configured.split(',').map(id => id.trim());
+  // Supabase user IDs are lowercase; accept owner-pasted uppercase UUIDs.
+  const ids = configured.split(',').map(id => id.trim().toLowerCase());
   if (!ids.every(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
     throw new Error('Private beta access is not configured correctly');
   }
-  if (!ids.includes(userId)) throw new Error('This account is not enrolled in the private app test');
+  if (!ids.includes(userId.toLowerCase())) throw new Error('This account is not enrolled in the private app test');
   return true;
 }
