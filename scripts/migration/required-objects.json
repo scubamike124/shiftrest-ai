@@ -1,0 +1,10 @@
+{
+  "comment": "Database objects the Railway app build requires (from supabase/migrations/20261113*). verify.mjs fails if any is missing, however import.mjs was invoked.",
+  "tables": ["public.ai_request_allowance", "public.subscription_sync_state", "public.trial_usage", "public.subscriptions", "public.profiles"],
+  "functions": [
+    "public.consume_ai_request(uuid)",
+    "public.increment_trial_voice_usage(uuid,text,integer)",
+    "public.apply_subscription_snapshot(jsonb,integer)",
+    "public.has_active_subscription(uuid,text)"
+  ]
+}

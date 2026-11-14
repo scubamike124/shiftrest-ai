@@ -66,8 +66,10 @@ order. Each one is free unless it says otherwise.
        agent "export link set" right away.
        - Alternative with no time limit: download the file. In the new
          Supabase project, open **Storage → New bucket** and create a
-         private bucket called `migration`. Upload the file there, then
-         tell the agent its name.
+         private bucket called `migration`. For the rehearsal, use the
+         `restpilot-rehearsal` project; for go-live, use `restpilot`.
+       - Upload the file. Tap it, choose **Get URL**, pick a 1-week expiry,
+         and paste that link as `EXPORT_URL`.
        - After go-live, delete that file and bucket. It holds every user's
          data and password hash.
 4. **Desktop: Google sign-in.** Existing Google users keep their accounts.
@@ -152,6 +154,10 @@ Nothing below changes production or the Lovable database.
      echo row data or secrets.
    - Steps: `preflight`, then `import` (which runs verify), then `verify`.
      The output is counts and checksums only.
+   - If `preflight` exits 6, the export's migration history has a gap.
+     Nothing has been restored. The agent checks the live schema, then sets
+     `PENDING_MIGRATIONS` to the older versions to add. Migrations newer
+     than the export are always applied.
    - The import restores into the target project:
      - accounts, with their bcrypt password hashes and user IDs;
      - Google identities;
@@ -177,6 +183,12 @@ Nothing below changes production or the Lovable database.
      service. It creates `CRON_SECRET` there only if the service has none.
    - Values are never printed. Without `--apply` it is a dry run and writes
      nothing.
+   - For `restpilot-rehearsal`, the Railway IDs and `SITE_URL` name the
+     staging service. For `restpilot`, they name the production service and
+     `https://restpilotai.com`.
+   - If the Auth update fails after the Railway write, the hook secrets
+     differ until the command is re-run. A re-run sets a new secret on both
+     sides.
 3. **Staging check**: staging points at `restpilot-rehearsal` with real
    data. Run the gates below.
 4. **Production service:** create Railway environment `production` with
@@ -187,9 +199,10 @@ Nothing below changes production or the Lovable database.
    - import into `restpilot`;
    - verify;
    - `rewire.mjs --apply` recreates the scheduled jobs that live has,
-     against restpilotai.com. Jobs live never had, such as the
-     subscription-expiry emailer, need `--include-default-jobs` and your
-     go-ahead;
+     against restpilotai.com.
+     - A job that is switched off on live stays off.
+     - Jobs live never had, such as the subscription-expiry emailer, need
+       `--include-default-jobs` and your go-ahead;
    - gates;
    - your DNS step;
    - delete `restpilot-rehearsal` afterwards.
@@ -203,7 +216,7 @@ All gates must pass on staging, then on production, before DNS moves.
 
 | Gate | How | Pass |
 | --- | --- | --- |
-| Data matches | `verify.mjs` | Every table matches its row count and sha256 checksum. Accounts, bcrypt hash counts and identities per provider are equal. RLS is on for every table that had it, and the policy count is at least the archive's. All planned repository migrations are applied. |
+| Data matches | `verify.mjs` | Every table matches its row count and sha256 checksum. Every database object the app needs exists (`required-objects.json`). Accounts, bcrypt hash counts and identities per provider are equal. RLS is on for every table that had it, and the policy count is at least the archive's. All planned repository migrations are applied. |
 | Existing user signs in | `TEST_EMAIL`/`TEST_PASSWORD` of an existing account (yours) with `verify-deployment.mjs` | Sign-in with the old password works. RLS returns only that user's profile. |
 | Google sign-in | `verify-deployment.mjs` | The authorize request redirects to Google, and the return URL is accepted by the allow-list. |
 | Right backend | `verify-deployment.mjs` | CSP and the browser bundle point at the new project and no longer at `czsgjqfcjiuqirvmdlps`. |
