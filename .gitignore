@@ -40,3 +40,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# QA system outputs (CI caches .cache; results are uploaded as artifacts)
+tests/ai/.cache/
+tests/ai/.results/
+tests/e2e/.results/
+tests/e2e/.auth/
+playwright-report/
+test-results/

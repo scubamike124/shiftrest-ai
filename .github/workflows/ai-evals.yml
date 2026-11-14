@@ -1,0 +1,95 @@
+# Promptfoo AI evals for the RestPilot companion.
+#
+# PR smoke run: ~10 scenarios, served from the response cache when prompts are
+# unchanged, hard-capped at 40k tokens by tests/ai/run-evals.mjs. Runs only when
+# AI code or the eval suite changes. The full suite, model comparison and
+# consistency runs are manual (workflow_dispatch) or part of qa-full.yml.
+#
+# Needs: secret AI_API_KEY; variables AI_BASE_URL, AI_CHAT_MODEL (optional
+# AI_CANDIDATE_MODEL, AI_GRADER_MODEL). Without the key the job reports BLOCKED
+# in its summary instead of pretending to pass.
+name: AI evals (Promptfoo)
+on:
+  pull_request:
+    paths:
+      - "src/lib/ai/**"
+      - "src/lib/time/**"
+      - "src/routes/api/ai.ts"
+      - "src/routes/api/coach.ts"
+      - "src/routes/api/brief.ts"
+      - "src/routes/api/insights.ts"
+      - "tests/ai/**"
+      - "tests/ai-eval-harness.test.mjs"
+      - ".github/workflows/ai-evals.yml"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "smoke | full | compare | consistency"
+        required: true
+        default: smoke
+        type: choice
+        options: [smoke, full, compare, consistency]
+      max_tokens:
+        description: "Hard token cap for this run"
+        required: false
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: ai-evals-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  promptfoo:
+    name: AI evals (Promptfoo smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+      AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+      AI_CHAT_MODEL: ${{ vars.AI_CHAT_MODEL }}
+      AI_CANDIDATE_MODEL: ${{ vars.AI_CANDIDATE_MODEL }}
+      AI_GRADER_MODEL: ${{ vars.AI_GRADER_MODEL }}
+      RESTPILOT_EVAL_PRICE_IN_PER_MTOK: ${{ vars.RESTPILOT_EVAL_PRICE_IN_PER_MTOK }}
+      RESTPILOT_EVAL_PRICE_OUT_PER_MTOK: ${{ vars.RESTPILOT_EVAL_PRICE_OUT_PER_MTOK }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Harness self-test (offline)
+        run: node --test tests/ai-eval-harness.test.mjs
+      - name: Restore response cache
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/ai/.cache
+          key: ai-evals-v1-${{ github.run_id }}
+          restore-keys: ai-evals-v1-
+      - name: Run evals (capped)
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode || 'smoke' }}
+          CAP: ${{ inputs.max_tokens }}
+        run: |
+          [[ -z "$CAP" || "$CAP" =~ ^[0-9]+$ ]] || { echo "max_tokens must be a number"; exit 1; }
+          case "$MODE" in
+            smoke)       ARGS="--smoke";              CAP="${CAP:-40000}" ;;
+            full)        ARGS="";                     CAP="${CAP:-1500000}" ;;
+            compare)     ARGS="--compare";            CAP="${CAP:-3000000}" ;;
+            consistency) ARGS="--repeat 3 --no-cache"; CAP="${CAP:-4500000}" ;;
+          esac
+          node tests/ai/run-evals.mjs $ARGS --max-tokens "$CAP"
+      - name: Save response cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tests/ai/.cache
+          key: ai-evals-v1-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-eval-results
+          path: tests/ai/.results
+          retention-days: 14
+          if-no-files-found: warn
