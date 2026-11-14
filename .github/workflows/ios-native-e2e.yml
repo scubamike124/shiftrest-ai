@@ -1,0 +1,149 @@
+# End-to-end check of the RestPilot app shell's NATIVE features in the iOS
+# simulator: the site's own native code (src/lib/native) against the real
+# Capacitor plugins, real iOS permission alerts and real notification banners.
+#
+#   Phase A  the shell loads a CI-only test page instead of restpilotai.com.
+#            The page bundles src/lib/native and: asks for notification
+#            permission (the UI test taps Allow), schedules the planned
+#            reminders, re-plans, clears, and saves an offline plan. The UI test
+#            then waits for a scheduled notification banner and taps it.
+#   Phase B  the same app, pointed at a host that cannot resolve, must show the
+#            offline screen (ios-app/www/offline.html) with the saved plan.
+#
+# Simulator only: ad-hoc signed ("-"), no Apple account, no secrets, nothing
+# uploaded except this run's evidence. GitHub's macOS runners are free for
+# public repositories; the job refuses to run if the repository is private.
+name: iOS native end-to-end (simulator)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "ios-app/**"
+      - "ios-e2e/**"
+      - "src/lib/native/**"
+      - "src/lib/native-app.ts"
+      - ".github/workflows/ios-native-e2e.yml"
+permissions:
+  contents: read
+concurrency:
+  group: ios-native-e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 50
+    env:
+      EV: ${{ github.workspace }}/e2e-evidence
+      DERIVED: ${{ github.workspace }}/build/derived
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies (site, for the test page bundle; shell)
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          (cd ios-app && npm ci --no-audit --no-fund)
+          mkdir -p "$EV"
+      - name: Swap in the CI test page (never shipped)
+        run: |
+          set -euo pipefail
+          npx esbuild ios-e2e/page/e2e.ts --bundle --format=iife --platform=browser --target=safari15 \
+            --alias:@=./src --outfile=ios-app/www/e2e.js
+          cp ios-e2e/page/index.html ios-app/www/index.html
+          python3 - <<'EOF'
+          import json
+          p = "ios-app/capacitor.config.json"
+          c = json.load(open(p))
+          c["server"].pop("url")  # load the local test page, keep errorPath
+          json.dump(c, open(p, "w"), indent=2)
+          EOF
+          cat ios-app/capacitor.config.json
+      - name: Sync and build the shell for the simulator (ad-hoc signed)
+        working-directory: ios-app
+        run: |
+          set -o pipefail
+          npx cap sync ios
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGNING_ALLOWED=YES build \
+            | tee "$EV/xcodebuild-shell.log" | grep -E "error:|warning: .*entitlement|BUILD (SUCCEEDED|FAILED)" || true
+          test -d "$DERIVED/Build/Products/Debug-iphonesimulator/App.app"
+      - name: Generate and build the UI test harness
+        working-directory: ios-e2e
+        run: |
+          set -o pipefail
+          brew install xcodegen >/dev/null
+          xcodegen generate
+      - name: Boot a simulator and install the shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r RUNTIME DEVICE_TYPE < <(xcrun simctl list runtimes -j | python3 -c 'import json,sys; rs=[r for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and r["name"].startswith("iOS")]; ds=[d["identifier"] for d in (rs[-1].get("supportedDeviceTypes") or []) if d.get("productFamily") == "iPhone"] if rs else []; print(rs[-1]["identifier"], ds[-1]) if ds else print()') || true
+          [ -n "${RUNTIME:-}" ] && [ -n "${DEVICE_TYPE:-}" ] || { echo "No iOS simulator runtime with an iPhone"; exit 1; }
+          DEVICE=$(xcrun simctl create RPNativeE2E "$DEVICE_TYPE" "$RUNTIME")
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          echo "Simulator: $DEVICE_TYPE on $RUNTIME" | tee "$EV/simulator.txt"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/App.app"
+      - name: "Phase A: site code drives the real plugins"
+        working-directory: ios-e2e
+        run: |
+          set -o pipefail
+          xcodebuild test -project E2E.xcodeproj -scheme E2E -destination "id=$DEVICE" \
+            -resultBundlePath "$EV/phase-a.xcresult" \
+            -only-testing:E2EUITests/ShellE2ETests/testA_siteCodeDrivesRealPlugins \
+            | tee "$EV/phase-a.log" | grep -E "Test Case|error:|XCTAssert|TEST (SUCCEEDED|FAILED)"
+      - name: "Phase B: point the same app at an unreachable host"
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/App.app"
+          rm -rf "$APP"; cp -R "$DERIVED/Build/Products/Debug-iphonesimulator/App.app" "$APP"
+          codesign -d --entitlements :- "$APP" > "$RUNNER_TEMP/ent.plist" 2>/dev/null || true
+          python3 - "$APP/capacitor.config.json" <<'EOF'
+          import json, sys
+          p = sys.argv[1]; c = json.load(open(p))
+          c["server"]["url"] = "https://offline.invalid/"
+          json.dump(c, open(p, "w"))
+          EOF
+          if [ -s "$RUNNER_TEMP/ent.plist" ]; then
+            codesign --force --sign - --entitlements "$RUNNER_TEMP/ent.plist" "$APP"
+          else
+            codesign --force --sign - "$APP"
+          fi
+          # Reinstalling keeps the app's data container: the plan saved in phase A stays.
+          xcrun simctl install "$DEVICE" "$APP"
+      - name: "Phase B: offline screen with the saved plan"
+        working-directory: ios-e2e
+        run: |
+          set -o pipefail
+          xcodebuild test -project E2E.xcodeproj -scheme E2E -destination "id=$DEVICE" \
+            -resultBundlePath "$EV/phase-b.xcresult" \
+            -only-testing:E2EUITests/ShellE2ETests/testB_offlineScreenShowsSavedPlan \
+            | tee "$EV/phase-b.log" | grep -E "Test Case|error:|XCTAssert|TEST (SUCCEEDED|FAILED)"
+      - name: Collect evidence
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          [ -n "${DEVICE:-}" ] || exit 0
+          xcrun simctl io "$DEVICE" screenshot "$EV/final-screen.png"
+          DATA=$(xcrun simctl get_app_container "$DEVICE" com.restpilotai.app data 2>/dev/null)
+          [ -n "$DATA" ] && plutil -p "$DATA/Library/Preferences/com.restpilotai.app.plist" > "$EV/shell-userdefaults.txt" 2>&1
+          for r in phase-a phase-b; do
+            [ -d "$EV/$r.xcresult" ] && xcrun xcresulttool export attachments --path "$EV/$r.xcresult" --output-path "$EV/$r-attachments" >/dev/null 2>&1
+          done
+          xcrun simctl spawn "$DEVICE" log show --last 15m --style compact --predicate 'process == "App"' > "$EV/shell-app.log" 2>/dev/null
+          ls -R "$EV" | head -80
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restpilot-ios-native-e2e-evidence
+          path: e2e-evidence
+          retention-days: 14
+          if-no-files-found: warn

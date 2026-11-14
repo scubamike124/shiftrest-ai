@@ -1,0 +1,81 @@
+import XCTest
+
+/// Drives the real RestPilot app shell (com.restpilotai.app) in the simulator.
+/// Run in two phases by .github/workflows/ios-native-e2e.yml:
+///   A. shell loads the CI test page (site code + real plugins);
+///   B. shell points at an unreachable host, so the offline screen must show.
+final class ShellE2ETests: XCTestCase {
+    private let shellId = "com.restpilotai.app"
+    private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    private func snapshot(_ name: String, _ app: XCUIApplication? = nil) {
+        let shot = (app?.screenshot()) ?? XCUIScreen.main.screenshot()
+        let a = XCTAttachment(screenshot: shot)
+        a.name = name
+        a.lifetime = .keepAlways
+        add(a)
+    }
+
+    /// Text whose label starts with `prefix`, anywhere in the app (web content included).
+    private func text(_ app: XCUIApplication, startingWith prefix: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+    }
+
+    private func tapIfShown(_ button: XCUIElement, timeout: TimeInterval) {
+        if button.waitForExistence(timeout: timeout) { button.tap() }
+    }
+
+    func testA_siteCodeDrivesRealPlugins() throws {
+        let app = XCUIApplication(bundleIdentifier: shellId)
+        app.launch()
+
+        // iOS asks for notification permission when the page requests it.
+        tapIfShown(springboard.buttons["Allow"], timeout: 30)
+
+        let result = text(app, startingWith: "E2E ")
+        let deadline = Date().addingTimeInterval(60)
+        while Date() < deadline, result.exists == false || result.label == "E2E RUNNING" {
+            _ = result.waitForExistence(timeout: 2)
+            if result.exists, result.label != "E2E RUNNING" { break }
+        }
+        snapshot("A1 test page result", app)
+        XCTAssertEqual(result.label, "E2E PASS", "test page said: \(result.label)")
+
+        // The scheduled reminder fires as a real iOS notification banner.
+        XCUIDevice.shared.press(.home)
+        snapshot("A2 home screen (app icon)")
+        let banner = springboard.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "RestPilot E2E reminder")
+        ).firstMatch
+        XCTAssertTrue(banner.waitForExistence(timeout: 60), "no notification banner appeared")
+        snapshot("A3 notification banner")
+        banner.tap()
+
+        // Tapping it opens the app and the site's tap handler sees the path.
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
+        let tapped = text(app, startingWith: "TAPPED ")
+        XCTAssertTrue(tapped.waitForExistence(timeout: 20), "the notification tap did not reach the page")
+        XCTAssertEqual(tapped.label, "TAPPED /plan")
+        snapshot("A4 after tapping the notification", app)
+    }
+
+    func testB_offlineScreenShowsSavedPlan() throws {
+        let app = XCUIApplication(bundleIdentifier: shellId)
+        app.launch()
+        let title = app.staticTexts["You're offline"]
+        XCTAssertTrue(title.waitForExistence(timeout: 45), "the offline screen did not appear")
+        let shift = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "E2E Ward")).firstMatch
+        XCTAssertTrue(shift.waitForExistence(timeout: 15), "the saved plan is not shown")
+        XCTAssertTrue(app.buttons["Try again"].exists, "no retry button")
+        snapshot("B1 offline screen", app)
+        app.buttons["Try again"].tap()
+        // Still offline: it must stay on the offline screen, not go blank.
+        sleep(8)
+        XCTAssertTrue(title.exists, "the offline screen disappeared while still offline")
+        snapshot("B2 offline screen after retry", app)
+    }
+}

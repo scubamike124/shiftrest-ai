@@ -1,0 +1,48 @@
+# XcodeGen spec for the simulator end-to-end harness (CI only, never shipped).
+#
+#   E2EHost     a tiny app the UI tests are attached to. The tests drive the
+#               real RestPilot shell (com.restpilotai.app) by bundle id.
+#   E2EUITests  XCUITest bundle: taps the iOS permission alerts and reads the
+#               results the shell's test page prints.
+#
+# Generated on the macOS runner with `xcodegen generate`; no Xcode project is
+# committed for it. Simulator only, ad-hoc signed, no Apple account.
+name: E2E
+options:
+  bundleIdPrefix: com.restpilotai.e2e
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: "5.0"
+targets:
+  E2EHost:
+    type: application
+    platform: iOS
+    sources: [Host]
+    info:
+      path: Host/Info.plist
+      properties:
+        CFBundleDisplayName: E2E Host
+        UILaunchScreen: {}
+  E2EUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: E2EHost
+    settings:
+      base:
+        TEST_TARGET_NAME: E2EHost
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  E2E:
+    build:
+      targets:
+        E2EHost: all
+        E2EUITests: [test]
+    test:
+      targets: [E2EUITests]
