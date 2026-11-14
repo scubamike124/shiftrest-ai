@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { createEvent, deleteEvent, fetchEvents } from "@/lib/events";
 import { addAlarm, syncAlarms, stopRinging, testAlarm, previewAlarmSound } from "@/lib/alarm/foreground";
 import { ensureAlarmPushEnrollment } from "@/lib/alarm/push-enroll";
+import { isNativeApp } from "@/lib/native-app";
 import { ALARM_SOUNDS, type AlarmSoundId } from "@/lib/alarm/sounds";
 import { loadAlarmPrefs, saveAlarmPrefs, vibrateSupported, type FadeInSec, type SnoozeMin } from "@/lib/alarm/prefs";
 import { Slider } from "@/components/ui/slider";
@@ -28,6 +29,9 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
   const tomorrow = useMemo(() => defaultTomorrowWake(), []);
   const [targetLocal, setTargetLocal] = useState(tomorrow);
   const [busy, setBusy] = useState(false);
+  // Read after mount so server and first client render match.
+  const [inNativeApp, setInNativeApp] = useState(false);
+  useEffect(() => setInNativeApp(isNativeApp()), []);
 
   const { data: events = [] } = useQuery({
     queryKey: ["events", "alarms"],
@@ -236,12 +240,19 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
       )}
     <div className="mt-3 flex justify-end"><SafetyNote /></div>
     </section>
-    <p className="px-1 text-[11px] leading-snug text-muted-foreground">
-      Foreground alarms ring while RestPilot is open. Background alarms on iPhone require
-      Home Screen installation and notification permission. Due to Apple platform limits,
-      web alarms may not be as reliable as the native Clock app — RestPilot uses the best
-      capabilities currently available on iPhone web apps.
-    </p>
+    {inNativeApp ? (
+      <p className="px-1 text-[11px] leading-snug text-muted-foreground">
+        Alarms ring while RestPilot is open. Alarms that ring when the app is closed are not
+        available in the app yet, so keep the Clock app for anything you can't miss.
+      </p>
+    ) : (
+      <p className="px-1 text-[11px] leading-snug text-muted-foreground">
+        Foreground alarms ring while RestPilot is open. Background alarms on iPhone require
+        Home Screen installation and notification permission. Due to Apple platform limits,
+        web alarms may not be as reliable as the native Clock app — RestPilot uses the best
+        capabilities currently available on iPhone web apps.
+      </p>
+    )}
     </div>
   );
 }

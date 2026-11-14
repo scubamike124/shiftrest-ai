@@ -19,6 +19,7 @@ import {
   sendTestNotification,
 } from "@/lib/push/subscribe.functions";
 import { REMINDER_DESC, REMINDER_LABEL, type ReminderKind } from "@/lib/notifications/copy";
+import { isNativeApp } from "@/lib/native-app";
 
 const KINDS: Array<{ key: keyof NotifPrefsRow; rk: ReminderKind }> = [
   { key: "wind_down", rk: "wind-down" },
@@ -328,6 +329,15 @@ function UnenabledState({
   onEnable: () => void;
 }) {
   const { iosSafariNoStandalone, browserName } = detectInstallContext();
+
+  if (!supported && isNativeApp()) {
+    return (
+      <div className="rounded-xl border border-border bg-secondary/40 p-3 text-xs leading-relaxed text-muted-foreground">
+        <p className="font-semibold text-foreground">Reminders aren't available in the app yet</p>
+        <p className="mt-1">Notifications inside the RestPilot app are not supported yet.</p>
+      </div>
+    );
+  }
 
   if (!supported && iosSafariNoStandalone) {
     return (
