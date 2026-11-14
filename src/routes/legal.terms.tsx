@@ -67,7 +67,7 @@ export const Route = createFileRoute("/legal/terms")({
 
       <h2>6. Subscriptions and payment</h2>
       <p>
-        Paid features are offered through monthly, annual, and lifetime plans
+        Paid features are offered through monthly and annual plans
         as described on our <Link to="/pricing">pricing page</Link> and in our{" "}
         <Link to="/legal/subscription">Subscription Terms</Link>, which are
         incorporated by reference. Recurring subscriptions automatically renew

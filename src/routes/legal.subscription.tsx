@@ -33,12 +33,12 @@ export const Route = createFileRoute("/legal/subscription")({
           <strong>Annual — USD 49.99/year</strong>, billed once per year and
           renewing each year until cancelled.
         </li>
-        <li>
-          <strong>Lifetime — USD 99 one-time</strong>, single charge granting
-          access to Lifetime features for as long as the Service is
-          commercially available (see "Lifetime access" below).
-        </li>
       </ul>
+      <p>
+        The one-time Lifetime plan has been permanently discontinued and is
+        no longer available for purchase. Customers who already bought
+        Lifetime keep their access as described in "Lifetime access" below.
+      </p>
       <p>
         Current pricing is shown on the{" "}
         <Link to="/pricing">pricing page</Link>. Taxes, where applicable, are
@@ -98,8 +98,9 @@ export const Route = createFileRoute("/legal/subscription")({
         advance and you may cancel before the change takes effect.
       </p>
 
-      <h2>9. Lifetime access</h2>
+      <h2>9. Lifetime access (existing purchasers)</h2>
       <p>
+        Lifetime is no longer sold. For customers who purchased it,
         "Lifetime" means a one-time purchase that grants access to the
         Lifetime features included with your purchase for as long as
         RestPilot AI is actively operated and commercially available.
