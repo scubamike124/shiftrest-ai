@@ -192,6 +192,23 @@ check "listing only the gap still applies the newer migrations too (4 applied)" 
   "$(P -d supabase_target3 -At -c "select count(*) from migration_kit.repo_migrations where applied_at is not null")" "4"
 grep -E "repository migrations applied|required app objects|VERIFY" "$WORK/gap2.out"
 
+say "after go-live: a newer migration deployed with supabase db push is not re-applied by a re-run"
+mkdir "$WORK/later-migrations"
+for m in "$REPO"/supabase/migrations/20261113*.sql; do cp "$m" "$WORK/later-migrations/"; done
+printf 'create table public.post_cutover_marker (id int);\n' > "$WORK/later-migrations/20261120000000_post_cutover.sql"
+T -c "insert into supabase_migrations.schema_migrations(version, name) values ('20261120000000', 'post_cutover')" >/dev/null
+TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target \
+  --repo-migrations "$WORK/later-migrations" > "$WORK/later.out" 2>&1
+grep -E "none pending|VERIFY" "$WORK/later.out"
+check "deployed migration not re-applied" "$(T -c "select to_regclass('public.post_cutover_marker') is null")" "t"
+T -c "delete from supabase_migrations.schema_migrations where version = '20261120000000'" >/dev/null
+set +e
+TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --preflight-only \
+  --repo-migrations "$REPO/supabase/migrations" --pending-migrations 20260601225645 > "$WORK/already.out" 2>&1
+code=$?
+set -e
+check "a version live already has is refused in preflight (exit 6)" "$code" "6"
+
 say "idempotency: re-running the import is a verified no-op"
 TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --repo-migrations "$REPO/supabase/migrations" | tail -3
 

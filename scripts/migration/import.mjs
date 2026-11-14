@@ -176,6 +176,13 @@ if (repoDir) {
     );
     process.exit(6);
   }
+  const alreadyLive = [...want].filter((v) => history.includes(v));
+  if (alreadyLive.length) {
+    console.error(
+      `refusing: --pending-migrations versions already in the export's history (live has them): ${alreadyLive.join(", ")}`,
+    );
+    process.exit(6);
+  }
   if (history.length) {
     // Everything newer than the export's history is always applied; an
     // explicit list only ADDS older versions the operator has checked.
@@ -264,15 +271,29 @@ function restore() {
 }
 
 // ---- repository migrations newer than the archive -------------------------
-// The set to apply is fixed once (stored in migration_kit.repo_migrations)
-// and each is applied in its own transaction together with its bookkeeping,
-// so a failed run resumes exactly where it stopped. verify.mjs fails while
-// any planned migration is unapplied.
+// The plan lives in migration_kit.repo_migrations and grows as a union across
+// runs. Each migration is applied in its own transaction together with its
+// bookkeeping, so a failed run resumes exactly where it stopped. verify.mjs
+// fails while any planned migration is unapplied.
 if (repoDir) {
   const versionOf = (f) => f.split("_")[0];
   // Add this run's set to the stored plan (union), so a re-run with a
   // corrected --pending-migrations can still complete an interrupted import.
-  const values = repoChosen.map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`).join(",");
+  // Never plan a version the target already records as applied (restored
+  // history, this kit's bookkeeping, or a later `supabase db push`), so a
+  // re-run after go-live cannot re-apply newer migrations.
+  const alreadyApplied = new Set(
+    queryJson(
+      url,
+      "select to_regclass('supabase_migrations.schema_migrations') is not null as h",
+    )[0].h
+      ? query(url, "select version from supabase_migrations.schema_migrations").map((r) => r[0])
+      : [],
+  );
+  const values = repoChosen
+    .filter((f) => !alreadyApplied.has(versionOf(f)))
+    .map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`)
+    .join(",");
   if (values)
     psql(url, [
       "-c",
