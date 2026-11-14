@@ -128,15 +128,48 @@ TARGET_DB_URL="$TARGET" APP_URL="$APP" node "$KIT/rewire.mjs" --plan "$WORK/plan
 check "dry run schedules nothing" "$(T -c "select count(*) from cron.job")" "0"
 TARGET_DB_URL="$TARGET" APP_URL="$APP" CRON_SECRET="rehearsal-cron-secret-0123456789" SUPABASE_SERVICE_ROLE_KEY="rehearsal-service-role-0123456789" \
   node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target supabase_target --apply > "$WORK/rewire.out"
-check "6 jobs scheduled, all against the new host" "$(T -c "select count(*) filter (where command like '%$APP/%') || '/' || count(*) from cron.job")" "6/6"
+check "only the 3 jobs live had are scheduled, all against the new host" "$(T -c "select count(*) filter (where command like '%$APP/%') || '/' || count(*) from cron.job")" "3/3"
 check "live schedule taken from the export" "$(T -c "select schedule from cron.job where jobname = 'restpilot-notify-tick'")" "*/5 * * * *"
 check "no secret value inside any job command" "$(T -c "select count(*) from cron.job where command like '%rehearsal-cron-secret%' or command like '%rehearsal-service-role%'")" "0"
 check "secrets stored in Vault" "$(T -c "select string_agg(name, ',' order by name) from vault.decrypted_secrets where decrypted_secret like 'rehearsal-%'")" "email_queue_service_role_key,restpilot_cron_secret"
 TARGET_DB_URL="$TARGET" APP_URL="$APP" CRON_SECRET="rehearsal-cron-secret-0123456789" SUPABASE_SERVICE_ROLE_KEY="rehearsal-service-role-0123456789" \
-  node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target supabase_target --apply > /dev/null
-check "rewire is idempotent" "$(T -c "select count(*) from cron.job")/$(T -c "select count(*) from vault.secrets")" "6/2"
+  node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target supabase_target --apply --include-default-jobs > /dev/null
+check "--include-default-jobs adds the 3 jobs live lacked; re-run is idempotent" "$(T -c "select count(*) from cron.job")/$(T -c "select count(*) from vault.secrets")" "6/2"
 if grep -q "rehearsal-cron-secret\|rehearsal-service-role" "$WORK/rewire.out"; then echo "FAIL rewire printed a secret"; fail=1; else echo "PASS rewire output contains no secret"; fi
 T -c "delete from cron.job" >/dev/null
+P -c "create database no_vault" >/dev/null
+P -d no_vault -f "$KIT/rehearsal/supabase-shim.sql" >/dev/null
+if TARGET_DB_URL="postgresql://postgres@localhost/no_vault?host=$WORK&port=$PORT" APP_URL="$APP" \
+   CRON_SECRET="rehearsal-cron-secret-0123456789" SUPABASE_SERVICE_ROLE_KEY="rehearsal-service-role-0123456789" \
+   node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target no_vault --apply > "$WORK/rewire-fail.out" 2>&1; then
+  echo "FAIL rewire succeeded without Vault"; fail=1
+elif grep -q "rehearsal-cron-secret\|rehearsal-service-role" "$WORK/rewire-fail.out"; then
+  echo "FAIL rewire error output leaked a secret"; fail=1
+else
+  echo "PASS rewire failure without Vault prints no secret: $(grep -o 'ERROR:.*' "$WORK/rewire-fail.out" | head -1)"
+fi
+
+say "resume: a failed repository migration is retried on re-run, and verify fails until it is"
+P -c "create database supabase_target2" >/dev/null
+P -d supabase_target2 -f "$KIT/rehearsal/supabase-shim.sql" >/dev/null
+TARGET2="postgresql://postgres@localhost/supabase_target2?host=$WORK&port=$PORT"
+mkdir "$WORK/repo-migrations"
+for m in "$REPO"/supabase/migrations/20261113*.sql; do cp "$m" "$WORK/repo-migrations/"; done
+second="$(ls "$WORK/repo-migrations" | sed -n 2p)"
+printf 'select 1/0; -- injected failure\n' | cat - "$WORK/repo-migrations/$second" > "$WORK/broken.sql" && mv "$WORK/broken.sql" "$WORK/repo-migrations/$second"
+set +e
+TARGET_DB_URL="$TARGET2" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target2 --repo-migrations "$WORK/repo-migrations" > "$WORK/resume1.out" 2>&1
+code=$?
+set -e
+check "first run stops at the broken migration (exit 7)" "$code" "7"
+if TARGET_DB_URL="$TARGET2" node "$KIT/verify.mjs" --plan "$WORK/plan" --confirm-target supabase_target2 > "$WORK/resume-verify.out" 2>&1; then
+  echo "FAIL verify passed with a pending migration"; fail=1
+else
+  echo "PASS verify refuses while pending -> $(grep 'repository migrations applied' "$WORK/resume-verify.out")"
+fi
+cp "$REPO/supabase/migrations/$second" "$WORK/repo-migrations/$second"
+TARGET_DB_URL="$TARGET2" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target2 --repo-migrations "$WORK/repo-migrations" > "$WORK/resume2.out" 2>&1
+grep -E "resuming|migration applied|repository migrations applied|VERIFY" "$WORK/resume2.out"
 
 say "idempotency: re-running the import is a verified no-op"
 TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --repo-migrations "$REPO/supabase/migrations" | tail -3

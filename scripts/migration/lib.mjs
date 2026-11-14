@@ -441,10 +441,32 @@ export function assertSafeTarget(url, confirmRef) {
   if (url.includes(LIVE_SOURCE_REF))
     throw new Error("refusing: TARGET_DB_URL points at the live Lovable Cloud backend");
   if (!confirmRef) throw new Error("pass --confirm-target <project-ref or host> naming the target");
-  if (!url.includes(confirmRef))
-    throw new Error("refusing: --confirm-target does not match TARGET_DB_URL");
   if (confirmRef.includes(LIVE_SOURCE_REF))
     throw new Error("refusing: confirm target is the live backend");
+  if (!targetIdentities(url).includes(confirmRef))
+    throw new Error("refusing: --confirm-target does not match TARGET_DB_URL");
+}
+
+// Names that identify a target exactly: the Supabase project ref (from the
+// pooler user "postgres.<ref>" or host "db.<ref>.supabase.co"), the host, and
+// for a local socket/localhost rehearsal the database name.
+export function targetIdentities(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return [];
+  }
+  const ids = [];
+  const user = decodeURIComponent(u.username || "");
+  if (/^postgres\.[a-z0-9]{20}$/.test(user)) ids.push(user.slice("postgres.".length));
+  const db = /^db\.([a-z0-9]{20})\.supabase\.co$/.exec(u.hostname);
+  if (db) ids.push(db[1]);
+  if (u.hostname) ids.push(u.hostname);
+  const socket = u.searchParams.get("host");
+  if ((socket && socket.startsWith("/")) || ["localhost", "127.0.0.1"].includes(u.hostname))
+    ids.push(decodeURIComponent(u.pathname.replace(/^\//, "")));
+  return ids.filter(Boolean);
 }
 
 // Hide credentials in anything printed.

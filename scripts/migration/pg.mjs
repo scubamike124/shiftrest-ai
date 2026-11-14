@@ -37,11 +37,14 @@ export function pgEnv(url) {
 }
 
 const PSQL = () => process.env.PSQL || "psql";
+// VERBOSITY=terse keeps DETAIL/CONTEXT/LINE excerpts (row values, interpolated
+// secrets) out of error messages, which end up in runner logs.
+const BASE_ARGS = ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=terse"];
 
 // Run psql with arguments; throws with stderr (which never contains the
 // password) on failure.
 export function psql(url, args, { input } = {}) {
-  const r = spawnSync(PSQL(), ["-X", "-q", "-v", "ON_ERROR_STOP=1", ...args], {
+  const r = spawnSync(PSQL(), [...BASE_ARGS, ...args], {
     env: pgEnv(url),
     encoding: "utf8",
     input,
@@ -79,7 +82,7 @@ export const COPY_SETTINGS = [
 // Stream `COPY (select cols from table) TO STDOUT` and return
 // { rows, sha256 } with the same order-independent hash as plan.mjs.
 export async function copyDigest(url, table, columns) {
-  const args = ["-X", "-q", "-v", "ON_ERROR_STOP=1"];
+  const args = [...BASE_ARGS];
   for (const s of COPY_SETTINGS) args.push("-c", s);
   args.push("-c", `COPY (SELECT ${columns} FROM ${table}) TO STDOUT`);
   const child = spawn(PSQL(), args, { env: pgEnv(url), stdio: ["ignore", "pipe", "pipe"] });

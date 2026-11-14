@@ -27,16 +27,23 @@ order. Each one is free unless it says otherwise.
    - Source: [Lovable: Export your database](https://docs.lovable.dev/features/database-backups#export-your-database).
    - Do **not** remove or pause Lovable Cloud. Removing it deletes the
      users, the backups and the export.
-2. **Create the new Supabase project.**
-   - Go to [supabase.com/dashboard/new](https://supabase.com/dashboard/new).
-   - Name it `restpilot`. Pick the region nearest the Railway service.
-   - Tap **Generate a password** and save it in your password manager.
+2. **Create two new Supabase projects.**
+   - Go to [supabase.com/dashboard/new](https://supabase.com/dashboard/new)
+     twice.
+   - Name the first `restpilot-rehearsal`. It is a full-data rehearsal for
+     staging, and you delete it after go-live.
+   - Name the second `restpilot`. It becomes production at go-live.
+   - The kit never overwrites a project, so the final export needs a
+     project that has not been used yet.
+   - For each, pick the region nearest the Railway service.
+   - Tap **Generate a password** each time and save both passwords in your
+     password manager.
    - The free plan costs $0.
    - The free plan has limits:
      - no automatic daily backups;
      - the project pauses after about a week with very little database
        activity;
-     - 2 free projects per account.
+     - 2 free projects per account, which is exactly these two.
    - The Pro plan removes the pause and adds daily backups, at a monthly
      cost. See [Supabase pricing](https://supabase.com/pricing). Upgrading
      is your call; the migration works on the free plan.
@@ -50,9 +57,10 @@ order. Each one is free unless it says otherwise.
        [supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens).
        The agent uses it to read the project's keys and set its sign-in
        settings. Revoke it after the cutover.
-     - `TARGET_DB_URL`: in the new Supabase project, tap **Connect →
-       Session pooler** and copy the URI. Replace `[YOUR-PASSWORD]` with
-       the password from step 2.
+     - `REHEARSAL_DB_URL` and `TARGET_DB_URL`: in each project
+       (`restpilot-rehearsal`, then `restpilot`), tap **Connect → Session
+       pooler** and copy the URI. Replace `[YOUR-PASSWORD]` with that
+       project's password from step 2.
      - `EXPORT_URL`: in Lovable, open **Storage**, open the export file and
        tap **Copy URL**. That signed link lasts about 1 hour, so tell the
        agent "export link set" right away.
@@ -60,12 +68,17 @@ order. Each one is free unless it says otherwise.
          Supabase project, open **Storage → New bucket** and create a
          private bucket called `migration`. Upload the file there, then
          tell the agent its name.
+       - After go-live, delete that file and bucket. It holds every user's
+         data and password hash.
 4. **Desktop: Google sign-in.** Existing Google users keep their accounts.
    Google's user ID does not change between OAuth clients, so the agent can
    match them.
    - Open [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
    - Choose **Create credentials → OAuth client ID → Web application**.
-   - Authorized redirect URI: `https://<new-project-ref>.supabase.co/auth/v1/callback`.
+   - Authorized redirect URIs: one per project,
+     `https://<rehearsal-ref>.supabase.co/auth/v1/callback` and
+     `https://<restpilot-ref>.supabase.co/auth/v1/callback`. A single
+     client can hold both.
    - Authorized JavaScript origins: `https://restpilotai.com`,
      `https://www.restpilotai.com` and
      `https://restpilot-web-staging.up.railway.app`.
@@ -129,43 +142,54 @@ Nothing below changes production or the Lovable database.
 1. **Import**, using the one-off runner: `scripts/migration/runner/`.
    - It runs on Railway because Postgres cannot be reached from the agent's
      sandbox.
-   - The runner's variables reference the shared ones, so secret values are
-     never read into chat or logs.
+   - The runner's variables are Railway references, for example
+     `TARGET_DB_URL=${{shared.REHEARSAL_DB_URL}}` and
+     `CRON_SECRET=${{restpilot-web.CRON_SECRET}}`. Secret values are never
+     read into chat or logs. psql runs with terse errors, so failures do not
+     echo row data or secrets.
    - Steps: `preflight`, then `import` (which runs verify), then `verify`.
      The output is counts and checksums only.
-   - The import restores into the new project:
+   - The import restores into the target project:
      - accounts, with their bcrypt password hashes and user IDs;
      - Google identities;
      - the public schema, with all RLS policies, functions, triggers and
        grants;
      - all app rows, including lifetime purchases and subscription history;
      - migration history.
-   - It then applies the three repository migrations that live never
-     received (`20261113*`).
+   - The restore is one transaction. It then applies the three repository
+     migrations that live never received (`20261113*`), each in its own
+     transaction. A re-run resumes any that failed, and verify fails until
+     all have been applied.
    - Sessions are not copied. Everyone signs in again once.
-   - It refuses the live Lovable database and any non-empty target. It
-     runs as one transaction and is safe to re-run.
-2. **Sign-in settings:** `configure-auth.mjs --apply --sync-railway`.
+   - It refuses the live Lovable database and any target that is not fresh
+     or not named exactly. Re-running it never restores twice.
+2. **Sign-in settings**, per project:
+   `configure-auth.mjs --apply --sync-railway --generate-hook-secret --generate-cron-secret`.
    - It sets Site URL and redirect allow-list entries for restpilotai.com,
      www and staging.
    - It enables Google.
-   - It registers the Send Email Hook at `/lovable/email/auth/webhook` with
-     a generated secret.
-   - It writes the new project's URL, keys and hook secret into the Railway
-     staging service. Values are not printed.
-   - It generates `CRON_SECRET` the same way.
-3. **Staging check**, as below. Staging is the full rehearsal on real data.
+   - It registers the Send Email Hook at `/lovable/email/auth/webhook`, with
+     a new secret on both sides.
+   - It writes the project's URL, keys and hook secret into the Railway
+     service. It creates `CRON_SECRET` there only if the service has none.
+   - Values are never printed. Without `--apply` it is a dry run and writes
+     nothing.
+3. **Staging check**: staging points at `restpilot-rehearsal` with real
+   data. Run the gates below.
 4. **Production service:** create Railway environment `production` with
    service `restpilot-web` from this branch, using the same variables plus
-   `PUBLIC_APP_URL=https://restpilotai.com`.
+   `PUBLIC_APP_URL=https://restpilotai.com`. Point it at `restpilot`.
 5. **At go-live:**
-   - final export (your step 1, repeated);
-   - import into a fresh project, or into the same project if it has not
-     been imported yet (the kit refuses to overwrite);
+   - final export (your step 1, repeated; the 24-hour limit applies);
+   - import into `restpilot`;
    - verify;
-   - `rewire.mjs --apply` recreates the scheduled jobs against restpilotai.com;
+   - `rewire.mjs --apply` recreates the scheduled jobs that live has,
+     against restpilotai.com. Jobs live never had, such as the
+     subscription-expiry emailer, need `--include-default-jobs` and your
+     go-ahead;
    - gates;
-   - your DNS step.
+   - your DNS step;
+   - delete `restpilot-rehearsal` afterwards.
 
 Do not merge this branch into `main` before the DNS move. Lovable builds
 production from `main`.
@@ -176,7 +200,7 @@ All gates must pass on staging, then on production, before DNS moves.
 
 | Gate | How | Pass |
 | --- | --- | --- |
-| Data matches | `verify.mjs` | Every table matches its row count and sha256 checksum. Accounts, bcrypt hash counts and identities per provider are equal. RLS is on for every table that had it, and the policy count is equal. |
+| Data matches | `verify.mjs` | Every table matches its row count and sha256 checksum. Accounts, bcrypt hash counts and identities per provider are equal. RLS is on for every table that had it, and the policy count is at least the archive's. All planned repository migrations are applied. |
 | Existing user signs in | `TEST_EMAIL`/`TEST_PASSWORD` of an existing account (yours) with `verify-deployment.mjs` | Sign-in with the old password works. RLS returns only that user's profile. |
 | Google sign-in | `verify-deployment.mjs` | The authorize request redirects to Google, and the return URL is accepted by the allow-list. |
 | Right backend | `verify-deployment.mjs` | CSP and the browser bundle point at the new project and no longer at `czsgjqfcjiuqirvmdlps`. |
@@ -225,14 +249,16 @@ All gates must pass on staging, then on production, before DNS moves.
     checksums, account, entitlement and RLS summaries.
   - It writes a report of what it skips and why: cron jobs as host and path
     only, Vault as names only.
-- `import.mjs`: guarded, single-transaction restore into a fresh target,
-  then pending repository migrations, then verify.
+- `import.mjs`: guarded, single-transaction restore into a fresh,
+  exactly-named target. Then the repository migrations newer than the
+  export's history are applied, resumable, and verify runs.
 - `verify.mjs`: read-only comparison against the manifest.
   `--allow-growth` is for after go-live.
 - `rewire.mjs`: Vault secrets through `\getenv`, never argv, and pg_cron
-  jobs to the new host. It is a dry run unless `--apply`. Run it at go-live
-  only, so users don't get duplicate notifications while Lovable is still
-  live.
+  jobs to the new host. It is a dry run unless `--apply`. Only jobs found
+  in the export are scheduled, unless you pass `--include-default-jobs`.
+  Run it at go-live only, so users don't get duplicate notifications while
+  Lovable is still live.
 - `configure-auth.mjs` and `auth-config.mjs`: Supabase Management API Auth
   settings, and the Railway variable sync.
 - `verify-deployment.mjs`: the gate script above. It needs no secrets.
@@ -242,7 +268,7 @@ All gates must pass on staging, then on production, before DNS moves.
   synthetic data. Evidence: `evidence/migration-rehearsal.txt`. It is not
   migrated data.
 
-Secrets referenced by name only: `SUPABASE_ACCESS_TOKEN`, `TARGET_DB_URL`,
+Secrets referenced by name only: `SUPABASE_ACCESS_TOKEN`, `REHEARSAL_DB_URL`, `TARGET_DB_URL`,
 `EXPORT_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SEND_EMAIL_HOOK_SECRET`,
 `CRON_SECRET`, `RESEND_API_KEY`, `RESEND_WEBHOOK_SECRET`, `AI_API_KEY`,
 `AI_AUDIO_API_KEY`, `OPENAI_API_KEY`, `OPENAI_REALTIME_API_KEY`,

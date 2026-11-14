@@ -1,5 +1,6 @@
 {
   "comment": "Scheduled jobs the app expects (paths from src/routes). Schedules here are fallbacks; rewire.mjs prefers the live schedule found in the export. Names and paths only - no secrets.",
+  "pgmqQueues": ["auth_emails", "auth_emails_dlq", "transactional_emails", "transactional_emails_dlq"],
   "vault": {
     "cronSecret": "restpilot_cron_secret",
     "serviceRole": "email_queue_service_role_key"

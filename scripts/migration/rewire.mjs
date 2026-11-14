@@ -49,7 +49,10 @@ const archived = new Map(
 );
 
 // Every app job, with the archive's live schedule when it had one.
-const jobs = defaults.jobs.map((d) => {
+// Jobs that live did not have are only scheduled with --include-default-jobs:
+// some (subscription-lifecycle-daily) email customers.
+const includeDefaults = Boolean(opt("include-default-jobs"));
+const allJobs = defaults.jobs.map((d) => {
   const live = archived.get(d.path);
   return {
     ...d,
@@ -58,6 +61,11 @@ const jobs = defaults.jobs.map((d) => {
     scheduleSource: live ? "archive" : "default",
   };
 });
+const jobs = allJobs.filter((j) => j.scheduleSource === "archive" || includeDefaults);
+for (const j of allJobs.filter((x) => !jobs.includes(x)))
+  console.log(
+    `- ${j.name} POST ${j.path}: NOT scheduled (not in the live export; pass --include-default-jobs to add it with schedule ${j.schedule})`,
+  );
 for (const [p, j] of archived) {
   if (!jobs.some((x) => x.path === p))
     console.warn(
@@ -97,6 +105,7 @@ const upsert = (name, envVar) =>
 const sql =
   [
     "\\set QUIET on",
+    "\\set VERBOSITY terse",
     "\\o /dev/null",
     "begin;",
     upsert(defaults.vault.cronSecret, "CRON_SECRET"),

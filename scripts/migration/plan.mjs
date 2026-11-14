@@ -249,7 +249,7 @@ const md = [
   `- ${report.restore.schemaEntries} schema entries (public schema, ${rls.policies} RLS policies on ${rls.tablesWithRls.length} tables, functions, triggers, grants).`,
   `- Extensions enabled first: ${report.extensions.join(", ") || "none"}.`,
   `- App triggers/policies on auth: ${report.appTriggersOrPoliciesOnAuth.join("; ") || "none"}.`,
-  `- pgmq queues recreated empty: ${report.pgmqQueues.join(", ") || "none"}.`,
+  `- pgmq queues listed in the export: ${report.pgmqQueues.join(", ") || "none (pgmq >= 1.4 keeps queue tables inside the extension)"}; import recreates them empty together with the app's known queues (cron-jobs.json).`,
   `- Storage objects in archive: ${report.storageObjectsInArchive ? `YES (${manifest["storage.objects"].rows}) - copy the files separately (Lovable: More -> Storage)` : "none"}.`,
   `- Vault secrets to recreate (names): ${report.vaultSecretNames.join(", ") || "none"}.`,
   `- Cron jobs to recreate: ${cronJobs.map((j) => `${j.jobname} [${j.schedule}] -> ${j.target ? j.target.host + j.target.path : "sql"}`).join("; ") || "none"}.`,

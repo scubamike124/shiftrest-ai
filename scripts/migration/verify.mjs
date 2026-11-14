@@ -159,6 +159,22 @@ const [pol] = queryJson(
   `${pol.n} app RLS policies on target (archive ${manifest.rls.policies})`,
 );
 
+// Repository migrations import.mjs planned on top of the archive must all be applied.
+const [mk] = queryJson(
+  url,
+  "select to_regclass('migration_kit.repo_migrations') is not null as present",
+);
+if (mk.present) {
+  const rows = queryJson(
+    url,
+    "select version, applied_at is not null as applied from migration_kit.repo_migrations order by version",
+  );
+  const missing = rows.filter((r) => !r.applied).map((r) => r.version);
+  (missing.length ? fail : pass)(
+    `repository migrations applied ${rows.length - missing.length}/${rows.length}${missing.length ? "; still pending: " + missing.join(", ") + " (re-run import.mjs)" : ""}`,
+  );
+}
+
 const report = {
   target: redactUrl(url),
   archive: manifest.archive,

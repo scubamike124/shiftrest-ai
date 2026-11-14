@@ -4,6 +4,11 @@ create function pgmq.create(queue_name text) returns void language plpgsql as $$
 begin
   execute format('create table if not exists pgmq.%I (msg_id bigserial primary key, read_ct int not null default 0,
     enqueued_at timestamptz not null default now(), vt timestamptz not null default now(), message jsonb)', 'q_' || queue_name);
+  -- like pgmq >= 1.4: queue tables are extension members, so pg_dump omits them
+  begin
+    execute format('alter extension pgmq add table pgmq.%I', 'q_' || queue_name);
+  exception when others then null;
+  end;
 end $$;
 create function pgmq.send(queue_name text, msg jsonb) returns bigint language plpgsql as $$
 declare id bigint;

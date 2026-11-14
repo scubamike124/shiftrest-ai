@@ -93,23 +93,24 @@ console.log(
   `preflight: server ${server.v}, role ${server.who}, auth.users ${state.auth_users}, archive tables already present ${state.app_tables_present}`,
 );
 
+let alreadyImported = false;
 if (state.has_marker) {
   const prior = query(
     url,
     `select manifest_sha from migration_kit.imports order by imported_at desc limit 1`,
   )[0]?.[0];
-  if (prior === manifestSha) {
-    console.log(
-      "This archive was already imported into this target. Re-verifying instead of importing again.",
+  if (prior !== manifestSha) {
+    console.error(
+      "refusing: the target already holds a different import. Use a fresh project for a new export.",
     );
-    process.exit(runVerify());
+    process.exit(3);
   }
-  console.error(
-    "refusing: the target already holds a different import. Use a fresh project for a new export.",
-  );
-  process.exit(3);
+  // Same archive: never restore twice, but finish any repository migration
+  // that did not complete last time, then verify.
+  console.log("This archive was already imported into this target; resuming after the restore.");
+  alreadyImported = true;
 }
-if (state.auth_users > 0 || state.app_tables_present > 0) {
+if (!alreadyImported && (state.auth_users > 0 || state.app_tables_present > 0)) {
   console.error(
     "refusing: target is not a fresh project (it has users or the archive's tables). The kit never deletes data; create a new project.",
   );
@@ -149,109 +150,146 @@ if (missingExt.length) {
 }
 console.log("preflight: target is fresh; managed-table columns compatible; extensions available.");
 if (opt("preflight-only")) process.exit(0);
+if (!alreadyImported) restore();
 
 // ---- restore (single transaction) -----------------------------------------
-// pg_restore 17 emits `SET transaction_timeout`, unknown to older servers.
-function sanitized(file) {
-  if (server.v >= 170000) return P(file);
-  const out = P(file.replace(/\.sql$/, ".pg-compat.sql"));
-  const src = fs.readFileSync(P(file), "utf8").replace(/^SET transaction_timeout = 0;$/m, "");
-  fs.writeFileSync(out, src, { mode: 0o600 });
-  return out;
-}
-const queues = report.pgmqQueues || [];
-const post =
-  [
-    "-- recreate (empty) pgmq queues used by the app's email outbox",
-    ...queues.map(
-      (q) =>
-        `select pgmq.create('${q.replace(/'/g, "''")}') where not exists (select 1 from pg_tables where schemaname = 'pgmq' and tablename = 'q_${q.replace(/'/g, "''")}');`,
-    ),
-    "create schema if not exists migration_kit;",
-    "revoke all on schema migration_kit from public;",
-    "create table if not exists migration_kit.imports (archive text not null, manifest_sha text not null, imported_at timestamptz not null default now());",
-    `insert into migration_kit.imports(archive, manifest_sha) values ('${manifest.archive.replace(/'/g, "''")}', '${manifestSha}');`,
-  ].join("\n") + "\n";
-fs.writeFileSync(P("post.sql"), post, { mode: 0o600 });
+function restore() {
+  // pg_restore 17 emits `SET transaction_timeout`, unknown to older servers.
+  function sanitized(file) {
+    if (server.v >= 170000) return P(file);
+    const out = P(file.replace(/\.sql$/, ".pg-compat.sql"));
+    const src = fs.readFileSync(P(file), "utf8").replace(/^SET transaction_timeout = 0;$/m, "");
+    fs.writeFileSync(out, src, { mode: 0o600 });
+    return out;
+  }
+  // pgmq >= 1.4 makes queue tables extension members, so a real export may
+  // list none; fall back to the queues the app's migrations create.
+  const kitDefaults = JSON.parse(fs.readFileSync(path.join(here, "cron-jobs.json"), "utf8"));
+  const queues = [...new Set([...(report.pgmqQueues || []), ...kitDefaults.pgmqQueues])].sort();
+  const post =
+    [
+      "-- recreate (empty) pgmq queues used by the app's email outbox",
+      "do $$ begin if exists (select 1 from pg_extension where extname = 'pgmq') then",
+      ...queues.map(
+        (q) =>
+          `  if to_regclass('pgmq.q_${q.replace(/'/g, "''")}') is null then perform pgmq.create('${q.replace(/'/g, "''")}'); end if;`,
+      ),
+      "end if; end $$;",
+      "create schema if not exists migration_kit;",
+      "revoke all on schema migration_kit from public;",
+      "create table if not exists migration_kit.imports (archive text not null, manifest_sha text not null, imported_at timestamptz not null default now());",
+      "create table if not exists migration_kit.repo_migrations (version text primary key, name text not null, applied_at timestamptz);",
+      `insert into migration_kit.imports(archive, manifest_sha) values ('${manifest.archive.replace(/'/g, "''")}', '${manifestSha}');`,
+    ].join("\n") + "\n";
+  fs.writeFileSync(P("post.sql"), post, { mode: 0o600 });
 
-const files = ["-f", P("prologue.sql")];
-if (!state.has_history && fs.existsSync(P("migrations-schema.sql")))
-  files.push("-f", sanitized("migrations-schema.sql"));
-files.push(
-  "-f",
-  sanitized("schema.sql"),
-  "-c",
-  "SET session_replication_role = replica",
-  "-f",
-  sanitized("data.sql"),
-  "-c",
-  "SET session_replication_role = origin",
-  "-f",
-  P("post.sql"),
-);
-const t0 = Date.now();
-try {
-  psql(url, ["--single-transaction", ...files]);
-} catch (e) {
-  console.error(`restore failed and was rolled back: ${e.message}`);
-  process.exit(5);
+  const files = ["-f", P("prologue.sql")];
+  if (!state.has_history && fs.existsSync(P("migrations-schema.sql")))
+    files.push("-f", sanitized("migrations-schema.sql"));
+  files.push(
+    "-f",
+    sanitized("schema.sql"),
+    "-c",
+    "SET session_replication_role = replica",
+    "-f",
+    sanitized("data.sql"),
+    "-c",
+    "SET session_replication_role = origin",
+    "-f",
+    P("post.sql"),
+  );
+  const t0 = Date.now();
+  try {
+    psql(url, ["--single-transaction", ...files]);
+  } catch (e) {
+    console.error(`restore failed and was rolled back: ${e.message}`);
+    process.exit(5);
+  }
+  console.log(`restore: committed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 }
-console.log(`restore: committed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
 // ---- repository migrations newer than the archive -------------------------
+// The set to apply is fixed once (stored in migration_kit.repo_migrations)
+// and each is applied in its own transaction together with its bookkeeping,
+// so a failed run resumes exactly where it stopped. verify.mjs fails while
+// any planned migration is unapplied.
 const repoDir = opt("repo-migrations");
 if (repoDir) {
   const files = fs
     .readdirSync(repoDir)
     .filter((f) => /^\d+_.*\.sql$/.test(f))
     .sort();
-  let pending;
-  const explicit = opt("pending-migrations");
-  if (typeof explicit === "string") {
-    const want = new Set(explicit.split(","));
-    pending = files.filter((f) => want.has(f.split("_")[0]));
-  } else if (
-    queryJson(
-      url,
-      "select to_regclass('supabase_migrations.schema_migrations') is not null as h",
-    )[0].h
-  ) {
-    const applied = new Set(
-      query(url, "select version from supabase_migrations.schema_migrations").map((r) => r[0]),
-    );
-    pending = files.filter((f) => !applied.has(f.split("_")[0]));
-  } else {
-    console.error(
-      "The archive has no supabase_migrations history; pass --pending-migrations <versions> explicitly.",
-    );
-    process.exit(6);
+  const versionOf = (f) => f.split("_")[0];
+  const planned = query(url, "select version from migration_kit.repo_migrations").map((r) => r[0]);
+  if (!planned.length) {
+    let chosen;
+    const explicit = opt("pending-migrations");
+    const history = manifest.migrationHistory || [];
+    if (typeof explicit === "string") {
+      const want = new Set(explicit.split(","));
+      chosen = files.filter((f) => want.has(versionOf(f)));
+      if (chosen.length !== want.size) {
+        console.error("some --pending-migrations versions have no file in " + repoDir);
+        process.exit(6);
+      }
+    } else if (history.length) {
+      const newest = [...history].sort().at(-1);
+      chosen = files.filter((f) => versionOf(f) > newest);
+      const gaps = files.filter((f) => versionOf(f) <= newest && !history.includes(versionOf(f)));
+      if (gaps.length)
+        console.warn(
+          `review: ${gaps.length} older repository migration(s) are not in the export's history and were NOT applied: ${gaps.map(versionOf).join(", ")}`,
+        );
+    } else {
+      console.error(
+        "The archive has no supabase_migrations history; pass --pending-migrations <versions> explicitly.",
+      );
+      process.exit(6);
+    }
+    const values = chosen.map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`).join(",");
+    if (values)
+      psql(url, [
+        "-c",
+        `insert into migration_kit.repo_migrations(version, name) values ${values} on conflict do nothing`,
+      ]);
   }
+  const todo = query(
+    url,
+    "select name from migration_kit.repo_migrations where applied_at is null order by version",
+  ).map((r) => r[0]);
+  const hasHistory = queryJson(
+    url,
+    "select to_regclass('supabase_migrations.schema_migrations') is not null as h",
+  )[0].h;
   const hasName =
+    hasHistory &&
     queryJson(
       url,
       "select count(*)::int as n from information_schema.columns where table_schema='supabase_migrations' and table_name='schema_migrations' and column_name='name'",
     )[0]?.n > 0;
-  for (const f of pending) {
-    const version = f.split("_")[0];
-    const name = f.replace(/^\d+_/, "").replace(/\.sql$/, "");
-    const record = hasName
-      ? `insert into supabase_migrations.schema_migrations(version, name) values ('${version}', '${name.replace(/'/g, "''")}') on conflict do nothing;`
-      : `insert into supabase_migrations.schema_migrations(version) values ('${version}') on conflict do nothing;`;
+  for (const f of todo) {
+    const version = versionOf(f);
+    const name = f
+      .replace(/^\d+_/, "")
+      .replace(/\.sql$/, "")
+      .replace(/'/g, "''");
+    const book = [
+      `update migration_kit.repo_migrations set applied_at = now() where version = '${version}';`,
+      hasHistory
+        ? hasName
+          ? `insert into supabase_migrations.schema_migrations(version, name) values ('${version}', '${name}') on conflict do nothing;`
+          : `insert into supabase_migrations.schema_migrations(version) values ('${version}') on conflict do nothing;`
+        : "",
+    ].join("\n");
     try {
-      psql(url, [
-        "--single-transaction",
-        "-f",
-        path.join(repoDir, f),
-        "-c",
-        `do $$ begin if to_regclass('supabase_migrations.schema_migrations') is not null then execute $q$${record}$q$; end if; end $$;`,
-      ]);
+      psql(url, ["--single-transaction", "-f", path.join(repoDir, f), "-c", book]);
       console.log(`migration applied: ${f}`);
     } catch (e) {
-      console.error(`migration ${f} failed and was rolled back: ${e.message}`);
+      console.error(`migration ${f} failed and was rolled back (re-run to resume): ${e.message}`);
       process.exit(7);
     }
   }
-  if (!pending.length) console.log("repository migrations: none pending");
+  if (!todo.length) console.log("repository migrations: none pending");
 }
 
 process.exit(runVerify());

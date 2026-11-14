@@ -12,6 +12,7 @@ import {
   parseTocLine,
   planFromToc,
   redactUrl,
+  targetIdentities,
   splitColumns,
   splitQualified,
   summariseCronCommand,
@@ -143,6 +144,25 @@ test("never targets the live Lovable backend; requires explicit confirmation", (
     ),
   );
   assert.equal(redactUrl("postgresql://u:secret@h:5432/db").includes("secret"), false);
+});
+
+test("confirm-target must name the target exactly", () => {
+  const pooler =
+    "postgresql://postgres.abcdefghijklmnopqrst:p@aws-0-us-east-1.pooler.supabase.com:5432/postgres";
+  assert.ok(targetIdentities(pooler).includes("abcdefghijklmnopqrst"));
+  assert.throws(() => assertSafeTarget(pooler, "postgres"), /does not match/);
+  assert.throws(() => assertSafeTarget(pooler, "abcdefghij"), /does not match/);
+  assert.ok(
+    targetIdentities(
+      "postgresql://postgres:p@db.abcdefghijklmnopqrst.supabase.co:5432/postgres",
+    ).includes("abcdefghijklmnopqrst"),
+  );
+  assert.ok(
+    targetIdentities("postgresql://postgres@localhost/rehearsal_db?host=/tmp/x").includes(
+      "rehearsal_db",
+    ),
+  );
+  assert.equal(targetIdentities(pooler).includes("postgres"), false);
 });
 
 test("cron command summary keeps host/path/header names, never values", () => {
