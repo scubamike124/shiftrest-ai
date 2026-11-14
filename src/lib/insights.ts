@@ -44,7 +44,8 @@ export type Insights = {
   signals: string[];
   rotation: string;
   todayShift?: Shift;
-  nextShift?: { shift: Shift; hoursAway: number };
+  /** dayOffset: calendar days from today to the shift's date (0 = today). */
+  nextShift?: { shift: Shift; hoursAway: number; dayOffset?: number };
   contextString: string;
   /**
    * Where the numbers above come from. Fatigue and recovery are ALWAYS
@@ -435,7 +436,7 @@ export function computeInsights(
     if (offset === 0 && now.getHours() * 60 + now.getMinutes() > s.start) continue;
     const hoursAway =
       offset * 24 + (s.start - (now.getHours() * 60 + now.getMinutes())) / 60;
-    nextShift = { shift: s, hoursAway: Math.max(0, Math.round(hoursAway)) };
+    nextShift = { shift: s, hoursAway: Math.max(0, Math.round(hoursAway)), dayOffset: offset };
     break;
   }
 

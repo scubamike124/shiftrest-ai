@@ -1,5 +1,6 @@
 // Every screen and the reminder engine must show the same times for the same
-// shift, including on DST nights. Run in a DST zone regardless of the host.
+// shift, including on DST nights, in both hemispheres. Each case sets the
+// runtime zone itself, so the host's TZ does not matter.
 process.env.TZ = 'America/New_York';
 
 import assert from 'node:assert/strict';
@@ -33,33 +34,40 @@ const notif = load('src/lib/notifications/schedule.ts', ['computeDueReminders'])
 
 const prefs = { sleepHours: 8, windDownMin: 120, cycleWeeks: 1, cycleAnchor: null, currentTz: null };
 const minuteOf = (d) => d.getHours() * 60 + d.getMinutes();
-const NOTIF = { enabled: true, wind_down: true, caffeine_cutoff: true, bright_light: true, shift_start: true, shift_end_recovery: true, smart_alarm: false, commute: false, calendar: false, quiet_start: '00:00:00', quiet_end: '00:00:00', daily_cap: 99, timezone: 'America/New_York' };
+const NOTIF = { enabled: true, wind_down: true, caffeine_cutoff: true, bright_light: true, shift_start: true, shift_end_recovery: true, smart_alarm: false, commute: false, calendar: false, quiet_start: '00:00:00', quiet_end: '00:00:00', daily_cap: 99 };
 
 /** Every reminder the server cron would send in the 48h after `from`. */
-function cronReminders(shifts, from) {
+function cronReminders(shifts, from, zone) {
   const out = [];
   for (let t = from.getTime(); t < from.getTime() + 48 * 3_600_000; t += 5 * 60_000) {
-    for (const r of notif.computeDueReminders({ shifts, prefs, notif: NOTIF, events: [], now: new Date(t) })) out.push(r);
+    for (const r of notif.computeDueReminders({ shifts, prefs, notif: { ...NOTIF, timezone: zone }, events: [], now: new Date(t) })) out.push(r);
   }
-  return Object.fromEntries(out.map((r) => [r.kind, r.scheduledFor]));
+  const byKind = {};
+  for (const r of out) (byKind[r.kind] ??= []).push(r.scheduledFor.getTime());
+  for (const k of Object.keys(byKind)) assert.equal(new Set(byKind[k]).size, 1, `cron sent exactly one ${k}`);
+  return Object.fromEntries(Object.entries(byKind).map(([k, v]) => [k, new Date(v[0])]));
 }
 
 const CASES = [
-  // [label, Y, M(1-12), D, shift]
-  ['ordinary day shift', 2026, 6, 15, { start: 7 * 60, end: 19 * 60 }],
-  ['ordinary night shift', 2026, 6, 15, { start: 23 * 60, end: 7 * 60 }],
-  ['00:30 start', 2026, 6, 15, { start: 30, end: 8 * 60 + 30 }],
-  ['evening shift into fall-back night', 2026, 10, 31, { start: 15 * 60, end: 23 * 60 }],
-  ['night shift across fall-back', 2026, 10, 31, { start: 19 * 60, end: 7 * 60 }],
-  ['night shift across spring-forward', 2026, 3, 7, { start: 19 * 60, end: 7 * 60 }],
+  // [zone, label, Y, M(1-12), D, shift]
+  ['America/New_York', 'ordinary day shift', 2026, 6, 15, { start: 7 * 60, end: 19 * 60 }],
+  ['America/New_York', 'ordinary night shift', 2026, 6, 15, { start: 23 * 60, end: 7 * 60 }],
+  ['America/New_York', '00:30 start', 2026, 6, 15, { start: 30, end: 8 * 60 + 30 }],
+  ['America/New_York', 'evening shift into fall-back night', 2026, 10, 31, { start: 15 * 60, end: 23 * 60 }],
+  ['America/New_York', 'night shift across fall-back', 2026, 10, 31, { start: 19 * 60, end: 7 * 60 }],
+  ['America/New_York', 'night shift across spring-forward', 2026, 3, 7, { start: 19 * 60, end: 7 * 60 }],
+  ['Australia/Sydney', 'night shift across fall-back (April)', 2026, 4, 4, { start: 19 * 60, end: 7 * 60 }],
+  ['Australia/Sydney', 'evening shift into spring-forward (October)', 2026, 10, 3, { start: 15 * 60, end: 23 * 60 + 30 }],
+  ['Australia/Sydney', 'ordinary 00:30 start', 2026, 6, 15, { start: 30, end: 8 * 60 + 30 }],
 ];
 
-for (const [label, y, m, d, times] of CASES) {
-  test(`all screens and reminders agree: ${label}`, () => {
+for (const [zone, label, y, m, d, times] of CASES) {
+  test(`all screens and reminders agree: ${zone} ${label}`, () => {
+    process.env.TZ = zone;
     const date = new Date(y, m - 1, d);
     const weekday = (date.getDay() + 6) % 7;
     const shift = { id: 's', day: weekday, weekIndex: 0, ...times };
-    const inst = core.anchorInstants(shift, prefs, { y, m, d }, 'America/New_York');
+    const inst = core.anchorInstants(shift, prefs, { y, m, d }, zone);
     const want = {
       wake: minuteOf(inst.wake), meal: minuteOf(inst.meal), caffeineOn: minuteOf(inst.caffeineOn),
       cutoff: minuteOf(inst.caffeineCutoff), windDown: minuteOf(inst.windDownStart),
@@ -85,7 +93,7 @@ for (const [label, y, m, d, times] of CASES) {
     assert.equal(lc.recovery.getTime(), inst.sleepEnd.getTime());
 
     // Dashboard Long Clock (behaviour, not source)
-    const { bands, markers } = clock.buildClockBands({ shift, prefs, now: date, tz: 'America/New_York', sunrise: null, sunset: null });
+    const { bands, markers } = clock.buildClockBands({ shift, prefs, now: date, tz: zone, sunrise: null, sunset: null });
     const band = Object.fromEntries(bands.map((b) => [b.id, b]));
     const mark = Object.fromEntries(markers.map((x) => [x.id, x]));
     assert.equal(band.light.start, want.wake, 'clock light');
@@ -110,14 +118,17 @@ for (const [label, y, m, d, times] of CASES) {
     assert.match(r['anchor-sleep'].detail, new RegExp(`→ ${fmt(want.sleepEnd)}`), 'rec sleep end');
 
     // Server reminders (the cron), run every 5 minutes across the period
-    const cron = cronReminders([shift], new Date(inst.wake.getTime() - 60 * 60_000));
+    const cron = cronReminders([shift], new Date(inst.wake.getTime() - 60 * 60_000), zone);
     assert.equal(cron['bright-light'].getTime(), inst.wake.getTime(), 'cron bright light');
+    assert.equal(cron['shift-start'].getTime(), inst.shiftStart.getTime() - 15 * 60_000, 'cron shift start');
+    assert.equal(cron['shift-end-recovery'].getTime(), inst.shiftEnd.getTime(), 'cron shift end');
     assert.equal(cron['wind-down'].getTime(), inst.windDownStart.getTime(), 'cron wind-down');
     assert.equal(cron['caffeine-cutoff'].getTime(), inst.caffeineCutoff.getTime() - 10 * 60_000, 'cron cutoff (10 min lead)');
   });
 }
 
 test('every screen explains its times', () => {
+  process.env.TZ = 'America/New_York';
   const plan = engine.buildLightPlan({ start: 23 * 60, end: 7 * 60 }, prefs, { sunrise: 6 * 60, sunset: 20 * 60 });
   for (const e of plan.filter((x) => x.kind !== 'shift-start')) assert.ok(e.why, e.kind);
   const lc = schedule.buildLongClock({ start: 23 * 60, end: 7 * 60 }, new Date(2026, 5, 15), prefs, { sunrise: 6 * 60, sunset: 20 * 60 });
@@ -151,4 +162,23 @@ test('rotation: the 7-day plan and the core use one week-index rule', () => {
     const day = core.civilDay(c.y, c.m, c.d);
     assert.equal(schedule.weekIndexFor(date, '2026-10-05', 3), core.rotationWeekIndex(day, '2026-10-05', 3));
   }
+});
+
+test('the in-app wind-down notification fires AT clock-out, like every screen', async () => {
+  process.env.TZ = 'America/New_York';
+  const shift = { id: 'tmpl', day: 0, weekIndex: 0, start: 7 * 60, end: 19 * 60 };
+  const { nextWindDownAt } = load('src/lib/notify.ts', ['nextWindDownAt'], {
+    fetchShifts: async () => [shift],
+    fetchPrefs: async () => prefs,
+  });
+  const next = await nextWindDownAt(new Date(2026, 5, 15, 12, 0)); // Monday noon
+  assert.equal(next.at.getTime(), new Date(2026, 5, 15, 19, 0).getTime());
+  assert.equal(next.shift.id, 'tmpl');
+  // Rotation-aware: a week-B-only shift does not fire in week A.
+  const rotating = load('src/lib/notify.ts', ['nextWindDownAt'], {
+    fetchShifts: async () => [{ ...shift, weekIndex: 1 }],
+    fetchPrefs: async () => ({ ...prefs, cycleWeeks: 2, cycleAnchor: '2026-06-15' }),
+  });
+  const r = await rotating.nextWindDownAt(new Date(2026, 5, 15, 12, 0));
+  assert.equal(r.at.getTime(), new Date(2026, 5, 22, 19, 0).getTime());
 });
