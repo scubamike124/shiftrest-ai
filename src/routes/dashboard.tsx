@@ -391,6 +391,10 @@ function Dashboard() {
           <p className="mt-3 text-[11px] text-muted-foreground/80">
             Circadian debt: <span className="font-semibold text-foreground">{mounted ? debt.score : 0}/100</span>
           </p>
+          <p className="mt-1 text-[10px] text-muted-foreground/80">
+            Estimate calculated from your shift pattern (night shifts, rotation direction, short
+            turnarounds, long shifts). Not a sleep measurement.
+          </p>
         </HomeCard>
       </div>
 
@@ -572,6 +576,7 @@ function Dashboard() {
               signedIn={signedIn === true}
               context={insights?.contextString ?? ""}
               enabled={prefs.dailyReviewEnabled}
+              hasWearableSleep={(insights?.dataSources.sleepNights ?? 0) > 0}
             />
           </HomeCard>
         </div>

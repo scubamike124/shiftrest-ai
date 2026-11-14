@@ -72,7 +72,7 @@ function MetricCard({ icon, m }: { icon: React.ReactNode; m: MetricSummary }) {
       </p>
       <p className="mt-1 text-xs text-muted-foreground">{m.context}</p>
       {m.n > 0 && (
-        <p className="mt-1 text-[10px] text-muted-foreground/70">based on {m.n} reading{m.n === 1 ? "" : "s"}</p>
+        <p className="mt-1 text-[10px] text-muted-foreground/70">Measured by your wearable · {m.n} reading{m.n === 1 ? "" : "s"}</p>
       )}
     </Card>
   );

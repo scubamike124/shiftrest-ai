@@ -149,7 +149,7 @@ export function AIBriefCard({
         </button>
       </header>
 
-      {/* Fatigue + Recovery strip */}
+      {/* Fatigue + Recovery strip — estimates, labelled with their sources */}
       <div className="relative z-10 mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-border/60 bg-card/60 p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -179,6 +179,10 @@ export function AIBriefCard({
           </p>
         </div>
       </div>
+      <p className="relative z-10 mt-2 text-[10px] leading-snug text-muted-foreground" data-testid="score-provenance">
+        <span className="font-semibold text-foreground/80">Estimates, not measurements.</span>{" "}
+        {estimateSourceLabel(insights)}
+      </p>
 
       {/* 3-day fatigue forecast */}
       <div className="relative z-10 mt-3 flex gap-1.5">
@@ -233,7 +237,10 @@ export function AIBriefCard({
           })}
         </div>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          14-day fatigue horizon · debt {insights.sleepDebtHours.toFixed(1)}h
+          14-day fatigue horizon (estimate) ·{" "}
+          {insights.dataSources.sleepNights > 0
+            ? `measured sleep debt ${insights.sleepDebtHours.toFixed(1)}h over ${insights.dataSources.sleepNights} night${insights.dataSources.sleepNights === 1 ? "" : "s"}`
+            : "sleep debt unknown (no recent wearable sleep data)"}
           {insights.hrvTrend != null
             ? ` · HRV ${insights.hrvTrend > 0 ? "+" : ""}${Math.round(insights.hrvTrend * 100)}%`
             : ""}
@@ -344,4 +351,17 @@ export function AIBriefCard({
     </section>
 
   );
+}
+
+const PROVIDER_NAME = { fitbit: "Fitbit", oura: "Oura" } as const;
+
+/** Plain-language source line for the fatigue/recovery estimates. */
+export function estimateSourceLabel(insights: Insights): string {
+  const d = insights.dataSources;
+  const base = d.schedule ? "Calculated from your shift schedule" : "No shifts entered yet, so these are defaults";
+  if (d.wearableProvider && d.sleepNights > 0) {
+    return `${base}, adjusted with ${d.sleepNights} night${d.sleepNights === 1 ? "" : "s"} of ${PROVIDER_NAME[d.wearableProvider]} sleep data.`;
+  }
+  if (d.wearableStale) return `${base}. Your wearable's last sync is more than 2 days old, so it isn't used.`;
+  return `${base}. No wearable sleep data is used.`;
 }

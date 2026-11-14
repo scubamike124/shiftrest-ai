@@ -46,7 +46,36 @@ export type Insights = {
   todayShift?: Shift;
   nextShift?: { shift: Shift; hoursAway: number };
   contextString: string;
+  /**
+   * Where the numbers above come from. Fatigue and recovery are ALWAYS
+   * estimates (rule-based, from the shift schedule); wearable readings only
+   * adjust them. Screens use this to label estimates and their sources.
+   */
+  dataSources: InsightDataSources;
 };
+
+export type InsightDataSources = {
+  /** Shifts entered by the user. */
+  schedule: boolean;
+  /** Wearable whose readings were used, or null when none were. */
+  wearableProvider: "fitbit" | "oura" | null;
+  /** Nights of measured sleep duration used for sleep debt (0 = sleep debt unknown). */
+  sleepNights: number;
+  /** True when the newest wearable night was too old to count as "last night". */
+  wearableStale: boolean;
+};
+
+/** Wearable nights older than this are not used (not "last night", not this week). */
+const LAST_NIGHT_MAX_AGE_DAYS = 2;
+const HISTORY_MAX_AGE_DAYS = 7;
+
+function ageInDays(isoDate: string, now: Date): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+  if (!m) return Infinity;
+  const day = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((today - day) / 86_400_000);
+}
 
 export type LastNightSummary = {
   provider: "fitbit" | "oura";
@@ -260,9 +289,23 @@ export function computeInsights(
 ): Insights {
   const weekdayToday = (now.getDay() + 6) % 7;
 
+  // Only recent wearable readings count. A reading from weeks ago must not be
+  // presented as "last night" or folded into this week's sleep debt.
+  const freshLastNight =
+    lastNight && ageInDays(lastNight.date, now) >= 0 && ageInDays(lastNight.date, now) <= LAST_NIGHT_MAX_AGE_DAYS
+      ? lastNight
+      : null;
+  const wearableStale = !!lastNight && !freshLastNight;
+  lastNight = freshLastNight;
+  wearableHistory = wearableHistory.filter((r) => {
+    const age = ageInDays(r.date, now);
+    return age >= 0 && age <= HISTORY_MAX_AGE_DAYS;
+  });
+
   // Aggregate personalization signals once
   const history: WearableHistory =
     wearableHistory.length || !lastNight ? wearableHistory : [lastNight];
+  const sleepNights = history.filter((r) => r.sleepDurationMin != null).slice(0, 7).length;
   const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
   const hrvTrend = computeHrvTrend(history);
   const lastNightDeficit =
@@ -318,7 +361,9 @@ export function computeInsights(
   if (debt.reasons.length) signals.push(...debt.reasons.slice(0, 3));
   if (!todayShift) signals.push("No shift today");
   if (sleepDebtHours >= 3)
-    signals.push(`Sleep debt ${sleepDebtHours.toFixed(1)}h over last 7 nights`);
+    signals.push(
+      `Sleep debt ${sleepDebtHours.toFixed(1)}h over the last ${sleepNights} night${sleepNights === 1 ? "" : "s"} of wearable data`,
+    );
   if (hrvTrend != null && Math.abs(hrvTrend) >= 0.07)
     signals.push(
       `HRV trend ${hrvTrend > 0 ? "+" : ""}${Math.round(hrvTrend * 100)}% vs baseline`,
@@ -424,7 +469,7 @@ export function computeInsights(
     `14-day fatigue curve (next 7): ${horizonDigest}.`,
     `Recovery score ${recoveryScore}/100 (${recoveryBand}).`,
     sleepDebtHours >= 1
-      ? `Rolling 7-day sleep debt: ${sleepDebtHours.toFixed(1)}h.`
+      ? `Measured sleep debt: ${sleepDebtHours.toFixed(1)}h over ${sleepNights} night${sleepNights === 1 ? "" : "s"} of wearable data.`
       : "",
     hrvTrend != null
       ? `HRV trend vs baseline: ${hrvTrend > 0 ? "+" : ""}${Math.round(hrvTrend * 100)}%.`
@@ -445,11 +490,24 @@ export function computeInsights(
           lastNight.restingHr != null ? `, resting HR ${lastNight.restingHr}bpm` : ""
         }.`
       : "",
+    // Provenance for the AI: it must not present estimates as measurements
+    // or invent wearable readings that are not listed here.
+    lastNight
+      ? `Data sources: shifts entered by the user; ${lastNight.provider} wearable readings for ${sleepNights} night${sleepNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
+      : `Data sources: shifts entered by the user only; no recent wearable data${wearableStale ? " (the last wearable sync is older than 2 days)" : ""}. Fatigue and recovery scores are schedule-based estimates. Do not state or guess any sleep duration, HRV, heart rate, readiness or other wearable measurement.`,
   ]
     .filter(Boolean)
     .join(" ");
 
+  const dataSources: InsightDataSources = {
+    schedule: shifts.length > 0,
+    wearableProvider: lastNight?.provider ?? (history[0]?.provider ?? null),
+    sleepNights,
+    wearableStale,
+  };
+
   return {
+    dataSources,
     fatigueToday,
     fatigueForecast,
     fatigueHorizon,

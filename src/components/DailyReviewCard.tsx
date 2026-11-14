@@ -36,10 +36,13 @@ export function DailyReviewCard({
   signedIn,
   context,
   enabled = true,
+  hasWearableSleep = false,
 }: {
   signedIn: boolean;
   context: string;
   enabled?: boolean;
+  /** True only when recent measured wearable sleep was in `context`. */
+  hasWearableSleep?: boolean;
 }) {
   const [data, setData] = useState<DailyReviewResponse | null>(() => readCache());
   const [loading, setLoading] = useState(false);
@@ -72,7 +75,7 @@ export function DailyReviewCard({
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/15 text-amber-300">
             <Sun className="h-3.5 w-3.5" />
           </span>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">Today's recap</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">Today's recap · AI-written</p>
         </div>
         <button onClick={() => load(true)} disabled={loading} aria-label="Refresh recap"
           className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground transition hover:text-foreground disabled:opacity-50">
@@ -118,19 +121,20 @@ export function DailyReviewCard({
                   <TrendIcon className="h-3.5 w-3.5" /> {data.metrics.recoveryTrend}
                 </p>
               </div>
-              {data.metrics.sleepRecoveredMin != null && (
+              {/* The model's numbers are only shown when they can rest on measured
+                  wearable sleep, and then as an AI estimate. Readiness is never
+                  sent to the model, so a "readiness" number would be invented. */}
+              {hasWearableSleep && data.metrics.sleepRecoveredMin != null && (
                 <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sleep recovered</p>
                   <p className="mt-1 text-sm font-semibold">{data.metrics.sleepRecoveredMin} min</p>
-                </div>
-              )}
-              {data.metrics.readinessDelta != null && (
-                <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Readiness Δ</p>
-                  <p className="mt-1 text-sm font-semibold">{data.metrics.readinessDelta > 0 ? "+" : ""}{data.metrics.readinessDelta}</p>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">AI estimate from your wearable sleep</p>
                 </div>
               )}
             </div>
+            <p className="text-[10px] text-muted-foreground">
+              Written by AI from your schedule{hasWearableSleep ? " and wearable sleep data" : ""}. Trends are estimates, not measurements.
+            </p>
 
             {data.wins.length > 0 && (
               <div>
