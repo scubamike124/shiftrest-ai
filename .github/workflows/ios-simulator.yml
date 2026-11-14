@@ -52,8 +52,11 @@ jobs:
           APP_PATH=$(find "$CM_BUILD_DIR/build/derived/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)
           [ -n "$APP_PATH" ] || { echo "No .app was produced"; exit 1; }
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")
-          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print([r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and r["name"].startswith("iOS")][-1])')
-          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; print([d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if d["name"].startswith("iPhone")][-1])')
+          # Newest iOS runtime, and an iPhone that runtime supports. Picking the newest
+          # device type on its own can name a phone the runtime cannot boot ("Incompatible device").
+          read -r RUNTIME DEVICE_TYPE < <(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[r for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and r["name"].startswith("iOS")][-1]; print(r["identifier"], [d["identifier"] for d in r["supportedDeviceTypes"] if d.get("productFamily") == "iPhone"][-1])')
+          [ -n "$RUNTIME" ] && [ -n "$DEVICE_TYPE" ] || { echo "No iOS simulator runtime with an iPhone was found"; exit 1; }
+          echo "Simulator: $DEVICE_TYPE on $RUNTIME"
           DEVICE=$(xcrun simctl create WGTCheck "$DEVICE_TYPE" "$RUNTIME")
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
