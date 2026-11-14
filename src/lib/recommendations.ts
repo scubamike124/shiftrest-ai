@@ -13,7 +13,7 @@ import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
 import type { Insights } from "./insights";
 import type { Prefs } from "./prefs";
 import { sunTimes } from "./sleep-engine";
-import { ANCHOR_WHY, minuteOfDay, shiftAnchors } from "./schedule-core";
+import { ANCHOR_WHY, localCivilDate, minuteOfDay, shiftAnchorsOn } from "./schedule-core";
 import { detectDeviceTz } from "./tz";
 
 export type Recommendation = {
@@ -63,6 +63,8 @@ export function buildRecommendations(
   prefs: Prefs,
   now: Date,
   location?: { lat: number | null; lon: number | null },
+  /** How many ranked recommendations to return (UI shows 5). */
+  limit = 5,
 ): Recommendation[] {
   const recs: Recommendation[] = [];
   const target = insights.todayShift ?? insights.nextShift?.shift;
@@ -73,8 +75,13 @@ export function buildRecommendations(
     : { sunrise: null, sunset: null };
 
   if (target) {
-    // Shared anchors — identical to the Plan screen, Long Clock and reminders.
-    const a = shiftAnchors(target, prefs);
+    // Shared anchors — identical to the Plan screen, Long Clock and reminders,
+    // resolved on the shift's real date so DST nights agree too.
+    const shiftDate = insights.todayShift
+      ? now
+      : new Date(now.getTime() + (insights.nextShift?.hoursAway ?? 0) * 3_600_000);
+    // Device zone: the same clock as now.getHours() used for the labels below.
+    const a = shiftAnchorsOn(target, prefs, localCivilDate(shiftDate), detectDeviceTz() ?? "UTC");
     const isNight = a.isNight;
     const sleepStart = minuteOfDay(a.sleepStart);
     const sleepEnd = minuteOfDay(a.sleepEnd);
@@ -235,7 +242,7 @@ export function buildRecommendations(
   // Rank: lower priority first, then sooner. Cap at 5.
   return recs
     .sort((a, b) => a.priority - b.priority || a.whenMinutes - b.whenMinutes)
-    .slice(0, 5);
+    .slice(0, limit);
 }
 
 export function summarizeRecommendations(recs: Recommendation[]): string {

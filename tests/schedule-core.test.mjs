@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  SCHEDULE_RULES, shiftAnchors, minuteOfDay, buildSchedule, buildSleepPlan, buildReminders,
-  applyShiftChange, rotationWeekIndex, ShiftChangeError,
+  SCHEDULE_RULES, shiftAnchors, shiftAnchorsOn, anchorInstants, minuteOfDay, buildSchedule, buildSleepPlan, buildReminders,
+  applyShiftChange, rotationWeekIndex, ShiftChangeError, ANCHOR_WHY,
 } from '../src/lib/schedule-core.ts';
 import { utcFromLocal } from '../src/lib/time/tz.ts';
 
@@ -93,6 +93,14 @@ test('spring-forward night: 19:00-07:00 wall clock is 11h; cutoff is 6h elapsed 
   assert.equal(iso(sleep.caffeineCutoff), '2026-03-08T07:00:00.000Z'); // 03:00 EDT (02:00 does not exist)
 });
 
+test('ambiguous fall-back wall times resolve to the EARLIER instant in both hemispheres', () => {
+  assert.equal(iso(at(2026, 11, 1, 90)), '2026-11-01T05:30:00.000Z'); // NY 01:30 EDT
+  assert.equal(iso(utcFromLocal(2026, 10, 25, 150, 'Europe/Berlin')), '2026-10-25T00:30:00.000Z'); // 02:30 CEST
+  assert.equal(iso(utcFromLocal(2026, 4, 5, 150, 'Australia/Sydney')), '2026-04-04T15:30:00.000Z'); // 02:30 AEDT
+  assert.equal(iso(utcFromLocal(2026, 4, 5, 90, 'Australia/Lord_Howe')), '2026-04-04T14:30:00.000Z'); // 01:30 +11 (30-min DST)
+  assert.equal(iso(utcFromLocal(2026, 4, 5, 120, 'Pacific/Auckland')), '2026-04-04T13:00:00.000Z'); // 02:00 NZDT
+});
+
 test('utcFromLocal resolves the hour after a DST change and normalizes negative minutes', () => {
   assert.equal(iso(at(2026, 3, 8, 3 * 60 + 30)), '2026-03-08T07:30:00.000Z'); // 03:30 EDT
   assert.equal(iso(at(2026, 3, 8, 2 * 60 + 30)), '2026-03-08T07:30:00.000Z'); // gap → 03:30 EDT
@@ -110,9 +118,11 @@ test('reminders use the same anchors as the sleep plan', () => {
   const [sleep] = buildSleepPlan(s, prefs, now);
   assert.equal(iso(r['bright-light'].at), iso(at(2026, 6, 15, 5 * 60 + 30)));
   assert.equal(iso(r['shift-start'].at), iso(at(2026, 6, 15, 6 * 60 + 45)));
-  assert.equal(iso(r['caffeine-cutoff'].at), iso(sleep.caffeineCutoff));
+  // The cutoff reminder fires 10 minutes before the cutoff itself.
+  assert.equal(r['caffeine-cutoff'].at.getTime(), sleep.caffeineCutoff.getTime() - 10 * 60_000);
   assert.equal(iso(r['wind-down'].at), iso(at(2026, 6, 15, 19 * 60)));
   assert.ok(r['caffeine-cutoff'].why.includes('6 hours'));
+  assert.equal(r['shift-end-recovery'].why, ANCHOR_WHY.shiftEnd);
 });
 
 test('short turnaround trims the sleep window and leaves the wake lead', () => {
@@ -206,4 +216,58 @@ test('past reminders are never returned', () => {
   const res = applyShiftChange(baseSchedule(), { kind: 'extend', shiftId: 'eve@2026-06-15', extraMinutes: 60 }, { prefs, now });
   assert.ok(res.reminders.every((r) => r.at.getTime() > now.getTime()));
   assert.ok(!res.reminders.some((r) => r.id === 'bright-light:eve@2026-06-15'));
+});
+
+// ── Review follow-ups ──────────────────────────────────────────────────
+test('a shift that just ended is still in the schedule and can be extended', () => {
+  const shifts = [{ id: 'd', day: 0, start: 7 * 60, end: 19 * 60 }];
+  const clockOut = at(2026, 6, 15, 19 * 60);
+  const s = buildSchedule({ shifts, tz: NY, from: clockOut, days: 1 });
+  assert.deepEqual(s.shifts.map((x) => x.id), ['d@2026-06-15']);
+  const late = new Date(clockOut.getTime() + 5 * 60_000);
+  const res = applyShiftChange(buildSchedule({ shifts, tz: NY, from: late, days: 1 }), { kind: 'extend', shiftId: 'd@2026-06-15', extraMinutes: 60 }, { prefs, now: late });
+  assert.equal(iso(res.schedule.shifts[0].endsAt), iso(at(2026, 6, 15, 20 * 60)));
+  assert.equal(iso(res.reminders.find((r) => r.kind === 'wind-down').at), iso(at(2026, 6, 15, 20 * 60)));
+  // Ended more than 24h ago: gone.
+  assert.equal(buildSchedule({ shifts, tz: NY, from: at(2026, 6, 16, 19 * 60 + 1), days: 0 }).shifts.length, 0);
+});
+
+test('a trimmed sleep window that has already ended is not returned', () => {
+  const shifts = [{ id: 'x', day: 0, start: 15 * 60, end: 23 * 60 }, { id: 'y', day: 1, start: 7 * 60, end: 15 * 60 }];
+  const sched = buildSchedule({ shifts, tz: NY, from: at(2026, 6, 15, 12 * 60), days: 2 });
+  // Trimmed end is 05:30; untrimmed would be 09:00. At 06:00 the window is over.
+  const plan = buildSleepPlan(sched, prefs, at(2026, 6, 16, 6 * 60));
+  assert.ok(plan.every((p) => p.afterShiftId !== 'x@2026-06-15'));
+});
+
+test('a pre-existing template overlap does not block unrelated changes or a cancel', () => {
+  const sched = { tz: NY, shifts: [
+    { id: 'a', startsAt: at(2026, 6, 15, 8 * 60), endsAt: at(2026, 6, 15, 16 * 60) },
+    { id: 'b', startsAt: at(2026, 6, 15, 15 * 60), endsAt: at(2026, 6, 15, 20 * 60) },
+    { id: 'c', startsAt: at(2026, 6, 17, 8 * 60), endsAt: at(2026, 6, 17, 16 * 60) },
+  ] };
+  const now = at(2026, 6, 15, 0);
+  assert.doesNotThrow(() => applyShiftChange(sched, { kind: 'cancel', shiftId: 'b' }, { prefs, now }));
+  assert.doesNotThrow(() => applyShiftChange(sched, { kind: 'extend', shiftId: 'c', extraMinutes: 30 }, { prefs, now }));
+  assert.throws(() => applyShiftChange(sched, { kind: 'extend', shiftId: 'a', extraMinutes: 600 }, { prefs, now }), /overlap/);
+});
+
+test('shiftAnchorsOn matches the instants on a DST night (minute screens = 7-day plan = reminders)', () => {
+  const shift = { start: 15 * 60, end: 23 * 60 };
+  const on = { y: 2026, m: 10, d: 31 };
+  const a = shiftAnchorsOn(shift, prefs, on, NY);
+  const inst = anchorInstants(shift, prefs, on, NY);
+  // Sleep 01:00 EDT → 8h elapsed → 08:00 EST (wall clock), not 09:00.
+  assert.equal(a.sleepStart, 1440 + 60);
+  assert.equal(a.sleepEnd, 1440 + 8 * 60);
+  assert.equal(inst.sleepEnd.getTime() - inst.sleepStart.getTime(), 8 * H);
+  const plain = shiftAnchors(shift, prefs);
+  assert.equal(plain.sleepEnd, 1440 + 9 * 60); // the date-free fallback is wall-clock
+  // Ordinary night: identical to the date-free anchors.
+  assert.deepEqual({ ...shiftAnchorsOn(shift, prefs, { y: 2026, m: 6, d: 15 }, NY) }, { ...plain });
+  // Same instants as the schedule/reminder layer.
+  const sched = buildSchedule({ shifts: [{ id: 's', day: 5, ...shift }], tz: NY, from: at(2026, 10, 31, 12 * 60), days: 1 });
+  const [sleep] = buildSleepPlan(sched, prefs, at(2026, 10, 31, 12 * 60));
+  assert.equal(iso(sleep.sleepEnd), iso(inst.sleepEnd));
+  assert.equal(iso(sleep.caffeineCutoff), iso(inst.caffeineCutoff));
 });
