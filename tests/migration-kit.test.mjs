@@ -149,6 +149,10 @@ test("never targets the live Lovable backend; requires explicit confirmation", (
 test("confirm-target must name the target exactly", () => {
   const pooler =
     "postgresql://postgres.abcdefghijklmnopqrst:p@aws-0-us-east-1.pooler.supabase.com:5432/postgres";
+  assert.throws(
+    () => assertSafeTarget(pooler, "aws-0-us-east-1.pooler.supabase.com"),
+    /does not match/,
+  );
   assert.ok(targetIdentities(pooler).includes("abcdefghijklmnopqrst"));
   assert.throws(() => assertSafeTarget(pooler, "postgres"), /does not match/);
   assert.throws(() => assertSafeTarget(pooler, "abcdefghij"), /does not match/);

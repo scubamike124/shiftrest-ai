@@ -462,7 +462,9 @@ export function targetIdentities(url) {
   if (/^postgres\.[a-z0-9]{20}$/.test(user)) ids.push(user.slice("postgres.".length));
   const db = /^db\.([a-z0-9]{20})\.supabase\.co$/.exec(u.hostname);
   if (db) ids.push(db[1]);
-  if (u.hostname) ids.push(u.hostname);
+  // Pooler hosts are shared by every project in a region, so they do not
+  // identify a target.
+  if (u.hostname && !u.hostname.endsWith(".pooler.supabase.com")) ids.push(u.hostname);
   const socket = u.searchParams.get("host");
   if ((socket && socket.startsWith("/")) || ["localhost", "127.0.0.1"].includes(u.hostname))
     ids.push(decodeURIComponent(u.pathname.replace(/^\//, "")));
