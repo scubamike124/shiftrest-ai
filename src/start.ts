@@ -5,13 +5,20 @@ import { renderErrorPage } from "./lib/error-page";
 // session hydration on iOS Safari (see auth-attacher.custom.ts).
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher.custom";
 
+const databaseOrigin = (() => {
+  try {
+    const u = new URL(process.env.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL || "");
+    return u.protocol === "https:" ? u.origin : "";
+  } catch { return ""; }
+})();
+
 // Content-Security-Policy in ENFORCING mode. The allowlist below is the same
 // one that ran in report-only mode; violations are still POSTed to
 // /api/public/csp-report so we keep visibility after enforcement.
 const CSP = [
   "default-src 'self'",
-  // Stripe.js + Lovable preview loader + inline hydration scripts.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net https://*.lovable.dev https://*.lovable.app",
+  // Inline hydration scripts.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
   // Tailwind emits inline <style> tags; keep 'unsafe-inline' for now.
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
@@ -22,39 +29,30 @@ const CSP = [
   [
     "connect-src 'self'",
     // Supabase Data API + Realtime (WSS)
-    "https://czsgjqfcjiuqirvmdlps.supabase.co",
-    "wss://czsgjqfcjiuqirvmdlps.supabase.co",
-    // Stripe
-    "https://api.stripe.com",
-    "https://m.stripe.com",
-    "https://m.stripe.network",
+    databaseOrigin,
+    databaseOrigin.replace("https:", "wss:"),
     // ElevenLabs TTS/STT
     "https://api.elevenlabs.io",
     "wss://api.elevenlabs.io",
     // Simli avatar streaming
     "https://api.simli.ai",
     "wss://api.simli.ai",
-    // Lovable AI + connector gateways
-    "https://ai.gateway.lovable.dev",
-    "https://connector-gateway.lovable.dev",
     // ReadyPlayerMe avatar model host
     "https://models.readyplayer.me",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
-    // Own domains + Lovable preview/publish domains
+    // Own domains
     "https://restpilotai.com",
     "https://www.restpilotai.com",
-    "https://*.lovable.app",
-    "https://*.lovable.dev",
   ].join(" "),
-  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "frame-src 'self'",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  // Allow iframing from the Lovable editor preview but nowhere else.
-  "frame-ancestors 'self' https://*.lovable.dev https://*.lovable.app",
+  // Restrict embedding to the same origin.
+  "frame-ancestors 'self' ",
   "report-uri /api/public/csp-report",
 ].join("; ");
 

@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Moon, Mail, Lock, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
@@ -148,15 +147,12 @@ function AuthPage() {
       const callback = `${window.location.origin}/auth${
         returnTo !== "/" ? `?return=${encodeURIComponent(returnTo)}` : ""
       }`;
-      const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: callback,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: callback },
       });
-      if (result.error) {
-        toast.error(result.error.message ?? "We couldn't sign you in. Please try again.");
-        return;
-      }
-      if (result.redirected) return;
-      navigate({ to: returnTo as never });
+      if (error) throw error;
+
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "We couldn't sign you in. Please try again.",
@@ -186,9 +182,8 @@ function AuthPage() {
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
             <span>
               <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
-              sign-in does not work inside the Lovable editor preview. Please use{" "}
-              <strong>email &amp; password</strong> below to test. Google works normally on the
-              published site.
+              sign-in is unavailable in this embedded preview. Please use{" "}
+              <strong>email &amp; password</strong> below to test. Open the site directly to use Google sign-in.
             </span>
           </div>
         )}

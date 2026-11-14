@@ -5,7 +5,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { exchangeCode, OURA_SCOPES } from "@/lib/wearables/oura.server";
 
 function appOrigin() {
-  return process.env.PUBLIC_APP_URL || "https://shift-rest-ai.lovable.app";
+  return process.env.PUBLIC_APP_URL || "https://restpilotai.com";
 }
 
 function getAdmin() {

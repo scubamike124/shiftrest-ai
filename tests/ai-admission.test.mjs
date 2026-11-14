@@ -4,12 +4,21 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
+function loadProvider(env) {
+  const output = ts.transpileModule(readFileSync(new URL('../src/lib/ai/provider.server.ts', import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const module={exports:{}};
+  vm.runInNewContext(output,{exports:module.exports,module,process:{env},URL});
+  return module.exports;
+}
+
 function load(path, mocks = {}, env = {}, fetchOverride) {
   const output = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const module = { exports: {} };
   mocks = {
+    '@/lib/ai/provider.server': loadProvider(env),
+    './provider.server': loadProvider(env),
     '@/lib/api/ratelimit.server': { enforceRateLimit: async () => null, RATE_LIMITS: {ai:{},tts:{},stt:{}} },
     '@/lib/api/lab-gate.server': { requireLabAccess: async () => null },
     ...mocks,
@@ -125,7 +134,7 @@ test('JSON parser preserves valid object', async () => {
 });
 test('gateway bounds output and preserves shorter voice limit', async () => {
   const bodies = [];
-  const gateway = load('src/lib/ai/gateway.server.ts', {}, { LOVABLE_API_KEY: 'test-only' }, async (_url, opts) => {
+  const gateway = load('src/lib/ai/gateway.server.ts', {}, { OPENAI_API_KEY: 'test-only', AI_CHAT_MODEL: 'test-model', AI_STT_MODEL: 'test-stt' }, async (_url, opts) => {
     bodies.push(JSON.parse(opts.body));
     return Response.json({ choices: [{ message: { content: 'ok' } }] });
   });
@@ -188,7 +197,7 @@ test('STT rejects oversized multipart before parsing or provider', async () => {
     '@/lib/ai/admission.server': { requireAIAdmission: async () => null },
     '@/lib/ai/request.server': requestModule,
     '@supabase/supabase-js': {}, '@/lib/ai/log.server': {},
-  }, { LOVABLE_API_KEY: 'test-only' });
+  }, { OPENAI_API_KEY: 'test-only', AI_CHAT_MODEL: 'test-model', AI_STT_MODEL: 'test-stt' });
   const result = await Route.server.handlers.POST({ request: new Request('https://example.test/api/stt', {
     method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=test' }, body: new Uint8Array(25 * 1024 * 1024 + 1),
   }) });

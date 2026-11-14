@@ -35,3 +35,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Never commit provider credentials
+.env
+.env.*
+!.env.example

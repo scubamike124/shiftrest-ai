@@ -1,3 +1,4 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIRequestBody } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 /**
@@ -51,7 +52,7 @@ export const Route = createFileRoute("/api/stt")({
           if (limited) return limited;
         }
 
-        const apiKey = process.env.LOVABLE_API_KEY;
+        const apiKey = aiApiKey(true);
         if (!apiKey) {
           return Response.json(
             { error: "STT not configured" },
@@ -77,14 +78,14 @@ export const Route = createFileRoute("/api/stt")({
         const language = inbound.get("language");
 
         const upstreamForm = new FormData();
-        upstreamForm.append("model", "openai/gpt-4o-mini-transcribe");
+        upstreamForm.append("model", aiAudioModel("stt"));
         upstreamForm.append("file", file, "recording.wav");
         if (typeof language === "string" && language) {
           upstreamForm.append("language", language);
         }
 
         const upstream = await fetch(
-          "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
+          aiEndpoint("audio/transcriptions"),
           {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}` },
@@ -132,7 +133,7 @@ export const Route = createFileRoute("/api/stt")({
           logAIRequest(admin, {
             user_id: userId,
             intent: "stt",
-            model: "openai/gpt-4o-mini-transcribe",
+            model: aiAudioModel("stt"),
             prompt_tokens: payload.usage?.input_tokens ?? 0,
             completion_tokens: payload.usage?.output_tokens ?? 0,
             latency_ms: Date.now() - started,

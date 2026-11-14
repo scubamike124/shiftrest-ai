@@ -22,7 +22,7 @@ function LabPicker() {
         Not linked from the app. Not indexed.
       </p>
       <a
-        href="https://shift-rest-ai.lovable.app/lab/avatar-poc/simli"
+        href="/lab/avatar-poc/simli"
         className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-400/20 px-4 py-2 text-sm font-semibold text-emerald-200 ring-1 ring-emerald-300/40 active:bg-emerald-400/30"
         style={{ touchAction: "manipulation", WebkitTapHighlightColor: "rgba(16,185,129,0.25)" }}
       >

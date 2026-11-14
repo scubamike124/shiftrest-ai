@@ -1,12 +1,12 @@
 /**
- * Server-only Lovable AI Gateway helpers.
+ * Server-only direct AI provider helpers.
  * Centralises every model call so logging, budget checks, and error mapping
  * happen in exactly one place (Bundle 1 — Smart AI Foundation).
  */
 
-const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-export const DEFAULT_CHAT_MODEL = "google/gemini-3-flash-preview";
-export const FAST_MODEL = "google/gemini-3.1-flash-lite";
+import { aiApiKey, aiEndpoint } from "./provider.server";
+export const DEFAULT_CHAT_MODEL = process.env.AI_CHAT_MODEL || "not-configured";
+export const FAST_MODEL = process.env.AI_FAST_MODEL || DEFAULT_CHAT_MODEL;
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -25,15 +25,15 @@ export class AIError extends Error {
 }
 
 function apiKey(): string {
-  const k = process.env.LOVABLE_API_KEY;
-  if (!k) throw new AIError(500, "AI not configured");
+  const k = aiApiKey();
+  if (!k || !process.env.AI_CHAT_MODEL) throw new AIError(500, "AI not configured");
   return k;
 }
 
 export function mapUpstreamError(status: number): string {
   if (status === 429) return "Rate limit reached. Try again in a moment.";
   if (status === 402)
-    return "AI credits exhausted. Add funds in Settings > Workspace > Usage.";
+    return "AI provider quota reached. Please try again later.";
   return "AI request failed.";
 }
 
@@ -62,7 +62,7 @@ export async function chatJSON(opts: {
   if (opts.temperature !== undefined) body.temperature = opts.temperature;
   if (opts.jsonMode) body.response_format = { type: "json_object" };
 
-  const res = await fetch(GATEWAY_URL, {
+  const res = await fetch(aiEndpoint("chat/completions"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey()}`,
@@ -94,7 +94,7 @@ export async function chatStream(opts: {
   validateMessages(opts.messages);
   const maxTokens = opts.maxTokens === undefined ? 2048 : opts.maxTokens;
   if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 2048) throw new AIError(400, "Invalid output limit");
-  const res = await fetch(GATEWAY_URL, {
+  const res = await fetch(aiEndpoint("chat/completions"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey()}`,

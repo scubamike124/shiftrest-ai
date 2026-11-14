@@ -1,3 +1,4 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -120,13 +121,13 @@ export const Route = createFileRoute("/api/tts")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          const apiKey = process.env.LOVABLE_API_KEY;
+          const apiKey = aiApiKey(true);
           if (!apiKey) {
-            console.error("[tts] LOVABLE_API_KEY missing");
+            console.error("[tts] AI provider key missing");
             notifyOwnerAsync({
               severity: "critical",
               service: "tts",
-              message: "config_missing: LOVABLE_API_KEY not set",
+              message: "config_missing: AI provider key not set",
             });
             return fallback("config", messageFromReason("config"));
           }
@@ -151,14 +152,14 @@ export const Route = createFileRoute("/api/tts")({
 
           const instructions = buildInstructions(merged, mode);
 
-          const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+          const upstream = await fetch(aiEndpoint("audio/speech"), {
             method: "POST",
             headers: {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "openai/gpt-4o-mini-tts",
+              model: aiAudioModel("tts"),
               input: text.slice(0, 4000),
               voice: merged.voiceId,
               response_format: "mp3",
