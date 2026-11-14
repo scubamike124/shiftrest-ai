@@ -117,15 +117,20 @@ export function utcFromLocal(
   minuteOfDay: number,
   tz: string,
 ): Date {
-  const naiveUtcMs = Date.UTC(
-    y,
-    m - 1,
-    d,
-    Math.floor(minuteOfDay / 60),
-    minuteOfDay % 60,
-  );
-  const offsetMin = tzOffsetMinutes(new Date(naiveUtcMs), tz);
-  return new Date(naiveUtcMs - offsetMin * 60_000);
+  // Date.UTC normalizes minute overflow in both directions, so -30 is 23:30
+  // on the previous day and 1500 is 01:00 on the next day. (Splitting into
+  // floor(h) + (m % 60) produced 22:30 for -30.)
+  const naiveUtcMs = Date.UTC(y, m - 1, d, 0, minuteOfDay);
+  // The offset must be the one in force at the RESULT instant, not at the
+  // naive instant; they differ for the hours next to a DST change. Resolve
+  // twice. In a spring-forward gap (a wall time that does not exist) the
+  // two passes disagree: take the later instant, so 02:30 becomes 03:30.
+  const first = naiveUtcMs - tzOffsetMinutes(new Date(naiveUtcMs), tz) * 60_000;
+  const secondOffset = tzOffsetMinutes(new Date(first), tz);
+  const second = naiveUtcMs - secondOffset * 60_000;
+  if (second === first) return new Date(first);
+  if (tzOffsetMinutes(new Date(second), tz) === secondOffset) return new Date(second);
+  return new Date(Math.max(first, second));
 }
 
 /** Y/M/D + minute-of-day in `tz` for a given UTC instant. */

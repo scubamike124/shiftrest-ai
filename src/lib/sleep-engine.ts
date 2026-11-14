@@ -1,4 +1,5 @@
 import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
+import { ANCHOR_WHY, minuteOfDay, shiftAnchors } from "./schedule-core";
 import { tzOffsetMinutes } from "./time/tz";
 import { detectDeviceTz } from "./tz";
 
@@ -183,88 +184,87 @@ export function circadianDebt(shifts: Shift[]): { score: number; reasons: string
 }
 
 // ───── Smart Light Plan per shift
+// Times come from the shared schedule module so this screen agrees with the
+// Long Clock, the 7-day plan, recommendations and reminders.
 export type PlanEvent = {
   time: number; // minutes from local midnight (next-day represented mod 1440)
   kind: "wake" | "bright" | "amber" | "blackout" | "caffeine-on" | "caffeine-cutoff" | "shift-start" | "shift-end" | "meal" | "nap";
   title: string;
   detail: string;
+  /** Plain-language reason for this time ("why this time"). */
+  why?: string;
 };
+
+/** First sunrise (minute offset from the shift day's midnight) after `afterMin`. */
+export function sunriseAfter(sunrise: number, afterMin: number): number {
+  let t = sunrise;
+  while (t <= afterMin) t += 1440;
+  return t;
+}
 
 export function buildLightPlan(
   shift: Shift,
   prefs: { sleepHours: number; windDownMin: number },
   sun?: { sunrise: number | null; sunset: number | null },
 ): PlanEvent[] {
-  const events: PlanEvent[] = [];
-  const isNight = shift.start >= 22 * 60 || shift.start < 4 * 60;
-  const endAbs = endAbsolute(shift);
-  const windStart = endAbs;
-  const sleepStart = windStart + prefs.windDownMin;
-  const sleepEnd = sleepStart + prefs.sleepHours * 60;
-  const wakeBefore = shift.start - 90;
+  const a = shiftAnchors(shift, prefs);
+  // Sort chronologically from waking, not by clock time, so a night shift's
+  // morning sleep is listed after the shift instead of before the wake-up.
+  const events: (PlanEvent & { order: number })[] = [];
+  const push = (order: number, e: Omit<PlanEvent, "time">) =>
+    events.push({ ...e, time: minuteOfDay(order), order });
 
-  events.push({
-    time: ((wakeBefore % 1440) + 1440) % 1440,
+  push(a.wake, {
     kind: "wake",
     title: "Wake & bright light",
     detail: "10–20 min of bright light (sunlight or 10,000 lux lamp) within 15 min of waking.",
+    why: `${ANCHOR_WHY.wake} ${ANCHOR_WHY.brightLight}`,
   });
-
-  events.push({
-    time: shift.start - 30,
+  push(a.meal, {
+    kind: "meal",
+    title: "Light pre-shift meal",
+    detail: "Protein + complex carbs. Avoid heavy/greasy — they sabotage alertness.",
+    why: ANCHOR_WHY.meal,
+  });
+  push(a.caffeineOn, {
     kind: "caffeine-on",
     title: "Caffeine on",
     detail: "100–200 mg ~30 min before clock-in. Add a small top-up midway if needed.",
+    why: ANCHOR_WHY.caffeineOn,
   });
-
-  events.push({
-    time: shift.start,
+  push(a.shiftStart, {
     kind: "shift-start",
     title: "Shift starts",
     detail: `Clocked in at ${fmt(shift.start)}.`,
   });
-
-  // Caffeine cutoff = 6h before sleepStart
-  events.push({
-    time: sleepStart - 6 * 60,
+  push(a.caffeineCutoff, {
     kind: "caffeine-cutoff",
     title: "Caffeine cutoff",
-    detail: `Last caffeine by ${fmt(sleepStart - 6 * 60)} so it clears before sleep.`,
+    detail: `Last caffeine by ${fmt(a.caffeineCutoff)} so it clears before sleep.`,
+    why: ANCHOR_WHY.caffeineCutoff,
   });
-
-  if (isNight && sun?.sunrise != null) {
-    events.push({
-      time: sun.sunrise,
+  if (a.isNight && sun?.sunrise != null) {
+    push(sunriseAfter(sun.sunrise, a.shiftStart), {
       kind: "amber",
       title: "Amber glasses on",
       detail: "Sunrise — switch to amber/blue-blocking glasses to protect melatonin on the commute.",
+      why: ANCHOR_WHY.amberGlasses,
     });
   }
-
-  events.push({
-    time: endAbs % 1440,
+  push(a.shiftEnd, {
     kind: "shift-end",
     title: "Shift ends — wind down",
     detail: `Dim lights, light snack, no screens for the next ${prefs.windDownMin} min.`,
+    why: ANCHOR_WHY.windDown,
   });
-
-  events.push({
-    time: sleepStart % 1440,
+  push(a.sleepStart, {
     kind: "blackout",
     title: "Blackout — sleep window",
-    detail: `Cave-dark room, 65–68°F (18–20°C). Sleep until ${fmt(sleepEnd)}.`,
+    detail: `Cave-dark room, 65–68°F (18–20°C). Sleep until ${fmt(a.sleepEnd)}.`,
+    why: ANCHOR_WHY.sleep,
   });
 
-  if (isNight && shift.start - 90 - 30 > 0) {
-    events.push({
-      time: Math.max(shift.start - 90 - 30, 0),
-      kind: "meal",
-      title: "Light pre-shift meal",
-      detail: "Protein + complex carbs. Avoid heavy/greasy — they sabotage alertness.",
-    });
-  }
-
-  return events.sort((a, b) => a.time - b.time);
+  return events.sort((x, y) => x.order - y.order).map(({ order: _order, ...e }) => e);
 }
 
 // ───── Default location (NYC) when user hasn't set one
