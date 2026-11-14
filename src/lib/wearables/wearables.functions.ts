@@ -59,12 +59,26 @@ export const disconnectWearable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { provider: WearableProvider }) => ProviderSchema.parse(data))
   .handler(async ({ data, context }) => {
-    await context.supabase
+    // The privacy policy promises wearable readings are "deleted on
+    // disconnect". Remove the stored tokens first (stops any further sync),
+    // then the readings, and report failure instead of a false success.
+    const { error: connectionError } = await context.supabase
       .from("wearable_connections")
       .delete()
       .eq("user_id", context.userId)
       .eq("provider", data.provider);
-    return { ok: true };
+    if (connectionError) {
+      throw new Error("We couldn't disconnect this wearable. Nothing was deleted. Please retry.");
+    }
+    const { error: readingsError } = await context.supabase
+      .from("wearable_readings")
+      .delete()
+      .eq("user_id", context.userId)
+      .eq("provider", data.provider);
+    if (readingsError) {
+      throw new Error("The wearable is disconnected, but some of its readings could not be deleted. Please retry.");
+    }
+    return { ok: true as const, deletedReadings: true as const };
   });
 
 export const syncWearableNow = createServerFn({ method: "POST" })

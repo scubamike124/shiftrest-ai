@@ -62,6 +62,16 @@ export async function extractAndStoreMemories(opts: {
   userTurn: string;
   assistantTurn: string;
 }): Promise<number> {
+  // "Pause learning" must stop ALL memory writes, not only pattern
+  // proposals. Re-read consent server-side; fail closed if it can't be read.
+  const { data: consent, error: consentError } = await opts.admin
+    .from("user_prefs")
+    .select("memory_enabled, memory_learning_paused")
+    .eq("user_id", opts.userId)
+    .maybeSingle();
+  const c = consent as { memory_enabled: boolean | null; memory_learning_paused: boolean | null } | null;
+  if (consentError || !c?.memory_enabled || c.memory_learning_paused) return 0;
+
   const start = Date.now();
   const snippet = `USER: ${opts.userTurn}\nASSISTANT: ${opts.assistantTurn}`.slice(0, 4000);
 
