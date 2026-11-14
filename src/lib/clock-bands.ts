@@ -36,7 +36,8 @@ export function buildClockBands(args: {
     // caffeine cutoff and "bright light at sunrise" even after a night
     // shift, which contradicted the Plan screen.
     const a = shiftAnchorsOn(shift, prefs, localCivilDate(now), tz);
-    const sStart = shift.start;
+    // The resolved start (a start inside a spring-forward gap moves forward).
+    const sStart = minuteOfDay(a.shiftStart);
     const sEnd = minuteOfDay(a.shiftEnd);
     const wake = minuteOfDay(a.wake);
 

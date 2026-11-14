@@ -77,9 +77,15 @@ export function buildRecommendations(
   if (target) {
     // Shared anchors — identical to the Plan screen, Long Clock and reminders,
     // resolved on the shift's real date so DST nights agree too.
-    const shiftDate = insights.todayShift
-      ? now
-      : new Date(now.getTime() + (insights.nextShift?.hoursAway ?? 0) * 3_600_000);
+    let shiftDate = now;
+    if (!insights.todayShift && insights.nextShift) {
+      shiftDate = new Date(now);
+      if (insights.nextShift.dayOffset !== undefined) {
+        shiftDate.setDate(now.getDate() + insights.nextShift.dayOffset); // calendar day, DST-safe
+      } else {
+        shiftDate = new Date(now.getTime() + insights.nextShift.hoursAway * 3_600_000);
+      }
+    }
     // Device zone: the same clock as now.getHours() used for the labels below.
     const a = shiftAnchorsOn(target, prefs, localCivilDate(shiftDate), detectDeviceTz() ?? "UTC");
     const isNight = a.isNight;
