@@ -67,11 +67,17 @@ export function NativeRemindersCard({ signedIn }: { signedIn: boolean }) {
     [shifts, prefs, settings],
   );
 
-  function update(patch: Partial<NativeReminderSettings>) {
+  type Patch =
+    | Partial<NativeReminderSettings>
+    | ((prev: NativeReminderSettings) => Partial<NativeReminderSettings>);
+  function update(patch: Patch) {
     if (!userId) return;
-    const merged = { ...settings, ...patch };
-    setSettings(merged);
-    saveReminderSettings(userId, merged);
+    // Functional update: two quick taps must not overwrite each other.
+    setSettings((prev) => {
+      const merged = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
+      saveReminderSettings(userId, merged);
+      return merged;
+    });
   }
 
   async function setEnabled(on: boolean) {
@@ -173,7 +179,7 @@ export function NativeRemindersCard({ signedIn }: { signedIn: boolean }) {
                 <SwitchControl
                   label={NATIVE_REMINDER_LABEL[k]}
                   checked={settings.kinds[k]}
-                  onChange={(v) => update({ kinds: { ...settings.kinds, [k]: v } })}
+                  onChange={(v) => update((p) => ({ kinds: { ...p.kinds, [k]: v } }))}
                 />
               </li>
             ))}
@@ -211,7 +217,7 @@ export function NativeRemindersCard({ signedIn }: { signedIn: boolean }) {
               <SwitchControl
                 label="Quiet hours"
                 checked={settings.quietHours.enabled}
-                onChange={(v) => update({ quietHours: { ...settings.quietHours, enabled: v } })}
+                onChange={(v) => update((p) => ({ quietHours: { ...p.quietHours, enabled: v } }))}
               />
             </div>
             {settings.quietHours.enabled && (
@@ -219,12 +225,12 @@ export function NativeRemindersCard({ signedIn }: { signedIn: boolean }) {
                 <TimeField
                   label="From"
                   value={settings.quietHours.start}
-                  onChange={(v) => update({ quietHours: { ...settings.quietHours, start: v } })}
+                  onChange={(v) => update((p) => ({ quietHours: { ...p.quietHours, start: v } }))}
                 />
                 <TimeField
                   label="Until"
                   value={settings.quietHours.end}
-                  onChange={(v) => update({ quietHours: { ...settings.quietHours, end: v } })}
+                  onChange={(v) => update((p) => ({ quietHours: { ...p.quietHours, end: v } }))}
                 />
               </div>
             )}

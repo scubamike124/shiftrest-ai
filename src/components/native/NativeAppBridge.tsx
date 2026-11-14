@@ -52,7 +52,12 @@ function Bridge({ signedIn }: { signedIn: boolean }) {
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data }) => {
-      if (active) setUserId(data.session?.user.id ?? null);
+      if (!active) return;
+      const id = data.session?.user.id ?? null;
+      setUserId(id);
+      // Opened with nobody signed in (the session expired, or the app was
+      // killed mid sign-out): nothing from a previous account may remain.
+      if (!id) void clearNativeUserData();
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUserId(session?.user.id ?? null);

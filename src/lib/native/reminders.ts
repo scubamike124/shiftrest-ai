@@ -262,6 +262,26 @@ export function avoidSleep(c: Candidate, sleeps: Array<{ start: Date; end: Date 
 }
 
 /**
+ * Quiet hours: an upcoming-shift or shift-change reminder that falls inside
+ * them moves to the end of quiet hours when that is still before its shift;
+ * everything else inside quiet hours is dropped later in the pipeline.
+ */
+export function avoidQuietHours(
+  c: Candidate,
+  q: NativeReminderSettings["quietHours"],
+): Candidate[] {
+  if (!inQuietHours(c.at, q)) return [c];
+  if ((c.kind === "upcoming-shift" || c.kind === "shift-change") && c.deadline) {
+    const end = new Date(c.at);
+    const [h, m] = q.end.split(":").map(Number);
+    end.setHours(h ?? 0, m ?? 0, 0, 0);
+    if (end <= c.at) end.setDate(end.getDate() + 1);
+    if (end < c.deadline) return [{ ...c, at: end }];
+  }
+  return [];
+}
+
+/**
  * The reminders that should be pending right now. Applies, in order:
  * the per-kind switches, the future-only window, quiet hours, dedupe
  * (same kind within 30 minutes), the daily cap (highest priority kept),
@@ -287,6 +307,7 @@ export function planNativeReminders(args: {
   const hi = args.now.getTime() + days * 86_400_000;
   const sleeps = plan.flatMap((d) => (d.sleep ? [d.sleep] : []));
   const inWindow = candidatesFor(plan, settings)
+    .flatMap((c) => avoidQuietHours(c, settings.quietHours))
     .flatMap((c) => avoidSleep(c, sleeps))
     .filter((c) => !Number.isNaN(c.at.getTime()) && c.at.getTime() >= lo && c.at.getTime() < hi)
     .filter((c) => !inQuietHours(c.at, settings.quietHours))
