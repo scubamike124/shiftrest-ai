@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Check, Sparkles, ShieldCheck } from "lucide-react";
 import { DISCLAIMER } from "@/lib/shifts";
-import { restorePurchases, type SubscriptionTier } from "@/lib/subscription";
+import { restorePurchases } from "@/lib/subscription";
 import { supabase } from "@/integrations/supabase/client";
 import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { createCheckoutSession } from "@/lib/billing.functions";
@@ -49,21 +49,22 @@ const PERKS = [
   { title: "Light & caffeine timing", desc: "Per-shift recommendations that adapt to sunrise and your wake time." },
 ];
 
-const PRICE_IDS: Record<SubscriptionTier, string> = {
-  free: "",
+// Lifetime was discontinued for new customers (Nov 14 2026); only recurring
+// plans can be selected. Existing lifetime members keep their access.
+type PurchasableTier = "monthly" | "annual";
+const PRICE_IDS: Record<PurchasableTier, string> = {
   monthly: "restpilot_monthly",
   annual: "restpilot_annual",
-  lifetime: "restpilot_lifetime",
 };
 
 function Paywall() {
   const navigate = useNavigate();
-  const [selectedTier, setSelectedTier] = useState<Exclude<SubscriptionTier, "free">>("annual");
+  const [selectedTier, setSelectedTier] = useState<PurchasableTier>("annual");
   const [loading, setLoading] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const autoResumedRef = useRef(false);
 
-  async function startCheckout(tier: Exclude<SubscriptionTier, "free">) {
+  async function startCheckout(tier: PurchasableTier) {
     if (!isPaymentsConfigured()) {
       toast.error("Payments aren't configured for this build yet.");
       return;
@@ -103,12 +104,13 @@ function Paywall() {
   // with a pending intent (e.g. after a sign-in detour).
   useEffect(() => {
     if (autoResumedRef.current) return;
-    const pending = sessionStorage.getItem("restpilot_pending_checkout") as
-      | Exclude<SubscriptionTier, "free">
-      | null;
-    if (!pending) return;
+    const stored = sessionStorage.getItem("restpilot_pending_checkout");
+    if (!stored) return;
     autoResumedRef.current = true;
     sessionStorage.removeItem("restpilot_pending_checkout");
+    // Ignore a stale "lifetime" (or any unknown) intent saved before Nov 14.
+    if (stored !== "monthly" && stored !== "annual") return;
+    const pending: PurchasableTier = stored;
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) return;
       setSelectedTier(pending);
@@ -150,12 +152,7 @@ function Paywall() {
     );
   }
 
-  const isLifetime = selectedTier === "lifetime";
-  const ctaLabel = loading
-    ? "Please wait…"
-    : isLifetime
-      ? "Become a Founding Member"
-      : "Start 14-day free trial";
+  const ctaLabel = loading ? "Please wait…" : "Start 14-day free trial";
 
   return (
     <main className="flex flex-col px-5 pt-12 pb-6">
@@ -217,21 +214,6 @@ function Paywall() {
           onSelect={() => setSelectedTier("annual")}
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
-        <PlanCard
-          label="Lifetime"
-          price="$99"
-          sub="One-time payment · Lifetime of the service"
-          elite
-          badge="Founding Member — Limited Time"
-          selected={selectedTier === "lifetime"}
-          onSelect={() => setSelectedTier("lifetime")}
-          perks={[
-            "Everything in Annual, for the lifetime of the service",
-            "Smarter AI coach with deeper answers",
-            "Multi-week rotation forecasts",
-            "Partner co-planning & shared quiet hours",
-          ]}
-        />
       </div>
 
       <div className="mt-4">
@@ -246,11 +228,9 @@ function Paywall() {
         {ctaLabel}
       </button>
 
-      {!isLifetime && (
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          No charge today · Cancel anytime before your trial ends
-        </p>
-      )}
+      <p className="mt-2 text-center text-[11px] text-muted-foreground">
+        No charge today · Cancel anytime before your trial ends
+      </p>
 
       <div className="mt-4 flex flex-col items-center gap-1.5 text-[10px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
@@ -263,9 +243,7 @@ function Paywall() {
         <p>
           Subscriptions renew automatically at the listed price unless
           canceled before the renewal date. You can manage or cancel your
-          plan anytime from your account settings. Lifetime is a one-time
-          purchase that grants access for the lifetime of the RestPilot AI
-          service (not the lifetime of the purchaser). See the{" "}
+          plan anytime from your account settings. See the{" "}
           <Link to="/legal/terms" className="text-primary underline">Terms</Link>{" "}
           for full details.
         </p>
