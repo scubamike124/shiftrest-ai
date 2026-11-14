@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BellRing, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { requestPermission, canRequestNotificationPermission } from "@/lib/notify";
+import { isNativeApp } from "@/lib/native-app";
 
 const KEY = "rp.smartAlarmCoach.dismissed.v1";
 
@@ -18,7 +19,8 @@ export function SmartAlarmCoach() {
     const dismissed = localStorage.getItem(KEY) === "1";
     const granted =
       "Notification" in window && Notification.permission === "granted";
-    setHidden(dismissed || granted);
+    // The app shell has no Home Screen install step and no Web Push.
+    setHidden(dismissed || granted || isNativeApp());
   }, []);
 
   if (hidden) return null;
