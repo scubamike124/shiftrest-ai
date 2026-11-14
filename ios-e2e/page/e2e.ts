@@ -22,6 +22,14 @@ import {
   syncNativeReminders,
   writeOfflinePlan,
 } from "@/lib/native/sync";
+import {
+  appleHealthAvailable,
+  clearAppleHealth,
+  connectAppleHealth,
+  loadAppleHealth,
+  refreshAppleHealth,
+} from "@/lib/health/apple-health-store";
+import { lastNightFrom } from "@/lib/health/apple-health";
 import type { Prefs } from "@/lib/prefs";
 import type { Shift } from "@/lib/shifts";
 
@@ -187,3 +195,58 @@ run().then(
     out.textContent = `E2E FAIL: ${err instanceof Error ? err.message : String(err)}`;
   },
 );
+
+// ---------------------------------------------------------------------------
+// Apple Health: the site's connector, through the real RestPilotHealth plugin,
+// against the night the E2E host app wrote into the simulator's Health store.
+// Started by the UI test tapping the button (the Health sheet needs a tap).
+const healthOut = document.getElementById("health")!;
+
+async function health() {
+  check(await appleHealthAvailable(), "Apple Health is not available in the shell");
+  const user = "e2e-user";
+  const state = await connectAppleHealth(user);
+  const last = lastNightFrom(state.nights, new Date());
+  note("appleHealthLastNight", last);
+  check(last, `no recent night read (nights: ${state.nights.length})`);
+  const want = {
+    sleepDurationMin: 390,
+    awakeMin: 30,
+    deepMin: 60,
+    remMin: 90,
+    lightMin: 240,
+    hrvMs: 45,
+    restingHr: 57,
+  };
+  for (const [k, v] of Object.entries(want)) {
+    check(
+      (last as Record<string, unknown>)[k] === v,
+      `${k} is ${(last as Record<string, unknown>)[k]}, expected ${v}`,
+    );
+  }
+  check(last.sleepEfficiency === 0.81, `efficiency ${last.sleepEfficiency}`);
+
+  const again = await refreshAppleHealth(user);
+  check(again?.nights.length === state.nights.length, "refresh changed the nights");
+
+  // Disconnect: stop reading and delete the stored copy.
+  clearAppleHealth();
+  check(loadAppleHealth(user) === null, "data left after Disconnect");
+  check((await refreshAppleHealth(user)) === null, "refresh after Disconnect brought data back");
+  check(
+    !JSON.stringify(Object.keys(window.localStorage)).includes("apple-health"),
+    "storage key left",
+  );
+}
+
+document.getElementById("health-run")!.addEventListener("click", () => {
+  healthOut.textContent = "HEALTH RUNNING";
+  health().then(
+    () => {
+      healthOut.textContent = "HEALTH PASS";
+    },
+    (err) => {
+      healthOut.textContent = `HEALTH FAIL: ${err instanceof Error ? err.message : String(err)}`;
+    },
+  );
+});

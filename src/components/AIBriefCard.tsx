@@ -333,6 +333,11 @@ export function AIBriefCard({
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                       {r.detail}
                     </p>
+                    {r.dataSource && (
+                      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-indigo-glow">
+                        {r.dataSource}
+                      </p>
+                    )}
                   </div>
                 </li>
               );

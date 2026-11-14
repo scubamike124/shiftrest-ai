@@ -45,6 +45,7 @@ import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
+import { AppleHealthCard } from "@/components/native/AppleHealthCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
@@ -605,6 +606,8 @@ function Profile() {
       <AssistantSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
+
+      <AppleHealthCard />
 
       <WearableCard />
 

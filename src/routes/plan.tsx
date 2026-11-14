@@ -27,8 +27,9 @@ import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
-import { computeInsights } from "@/lib/insights";
 import { buildRecommendations, type Recommendation } from "@/lib/recommendations";
+import { useAppleHealth } from "@/hooks/use-apple-health";
+import { computeDeviceInsights, labelRecommendations } from "@/lib/health/device-insights";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 
 export const Route = createFileRoute("/plan")({
@@ -168,20 +169,25 @@ function PlanPage() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
+  const appleHealth = useAppleHealth();
   const recommendations: Recommendation[] = useMemo(() => {
     if (!mounted) return [];
-    const insights = computeInsights(
-      safeShifts,
+    const { insights, source } = computeDeviceInsights({
+      shifts: safeShifts,
       prefs,
-      today,
+      now: today,
       employers,
-      wearableSummary?.latest ?? null,
-    );
-    return buildRecommendations(insights, prefs, today, {
-      lat: prefs.lat ?? null,
-      lon: prefs.lon ?? null,
+      serverLastNight: wearableSummary?.latest ?? null,
+      appleHealthNights: appleHealth.nights,
     });
-  }, [mounted, safeShifts, prefs, today, employers, wearableSummary]);
+    return labelRecommendations(
+      buildRecommendations(insights, prefs, today, {
+        lat: prefs.lat ?? null,
+        lon: prefs.lon ?? null,
+      }),
+      source,
+    );
+  }, [mounted, safeShifts, prefs, today, employers, wearableSummary, appleHealth.nights]);
 
   function buildPlanText(): string | null {
     if (shift && events.length > 0) {
@@ -332,6 +338,11 @@ function PlanPage() {
                         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                           {r.detail}
                         </p>
+                        {r.dataSource && (
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-indigo-glow">
+                            {r.dataSource}
+                          </p>
+                        )}
                       </div>
                     </li>
                   );

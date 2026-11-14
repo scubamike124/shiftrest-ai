@@ -78,4 +78,48 @@ final class ShellE2ETests: XCTestCase {
         XCTAssertTrue(title.exists, "the offline screen disappeared while still offline")
         snapshot("B2 offline screen after retry", app)
     }
+
+    /// Apple's Health permission sheet: "Turn On All", then "Allow".
+    private func approveHealthSheet(in app: XCUIApplication) {
+        let label = { (t: String) in NSPredicate(format: "label == %@", t) }
+        let turnOn = app.descendants(matching: .any).matching(label("Turn On All")).firstMatch
+        XCTAssertTrue(turnOn.waitForExistence(timeout: 30), "Health permission sheet did not appear")
+        turnOn.tap()
+        snapshot("Health sheet, all turned on", app)
+        var allow = app.navigationBars.buttons.matching(label("Allow")).firstMatch
+        if !allow.waitForExistence(timeout: 5) { allow = app.buttons.matching(label("Allow")).firstMatch }
+        XCTAssertTrue(allow.waitForExistence(timeout: 10), "no Allow button on the Health sheet")
+        allow.tap()
+    }
+
+    private func waitForResult(_ el: XCUIElement, notEqual running: String, timeout: TimeInterval) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if el.waitForExistence(timeout: 2), el.label != running { return }
+        }
+    }
+
+    func testC_appleHealthThroughTheShell() throws {
+        // 1. A separate test app writes a known night into the simulator's Health store.
+        let host = XCUIApplication()
+        host.launchArguments = ["-seedHealth"]
+        host.launch()
+        approveHealthSheet(in: host)
+        let seeded = text(host, startingWith: "SEED ")
+        waitForResult(seeded, notEqual: "SEED WAITING FOR PERMISSION", timeout: 60)
+        snapshot("C1 seeded", host)
+        XCTAssertTrue(seeded.label.hasPrefix("SEED OK"), "seeder said: \(seeded.label)")
+
+        // 2. The RestPilot shell connects through its read-only plugin and checks the mapped night.
+        let app = XCUIApplication(bundleIdentifier: shellId)
+        app.launch()
+        let run = app.buttons["Run Apple Health check"]
+        XCTAssertTrue(run.waitForExistence(timeout: 30))
+        run.tap()
+        approveHealthSheet(in: app)
+        let result = text(app, startingWith: "HEALTH ")
+        waitForResult(result, notEqual: "HEALTH RUNNING", timeout: 60)
+        snapshot("C2 shell read Apple Health", app)
+        XCTAssertEqual(result.label, "HEALTH PASS", "test page said: \(result.label)")
+    }
 }

@@ -36,6 +36,10 @@ export type Recommendation = {
   detail: string;
   /** 1 (top) – 5 (lowest). Used to rank when more than 5 candidates exist. */
   priority: number;
+  /** True when the recommendation comes from measured wearable data. */
+  basedOnWearable?: boolean;
+  /** Where that data came from, for the label (e.g. "Measured · from Apple Health"). */
+  dataSource?: string;
 };
 
 function minutesUntil(targetMinFromMidnight: number, now: Date): number {
@@ -205,6 +209,7 @@ export function buildRecommendations(
         1,
       )}h of sleep debt. Add 30–90 min to tonight's window — don't try to repay it all at once.`,
       priority: 1,
+      basedOnWearable: true,
     });
   }
 
@@ -218,6 +223,7 @@ export function buildRecommendations(
       detail:
         "HRV is below baseline — body's under load. Add 500ml water across the day and start wind-down 15 min earlier.",
       priority: 2,
+      basedOnWearable: true,
     });
   }
 

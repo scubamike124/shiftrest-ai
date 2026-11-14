@@ -16,6 +16,7 @@ import { fetchEmployers } from "@/lib/employers";
 import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchShifts } from "@/lib/shifts";
 import { isNativeApp } from "@/lib/native-app";
+import { clearAppleHealth } from "@/lib/health/apple-health-store";
 import {
   asHandle,
   nativePlugin,
@@ -55,7 +56,10 @@ function Bridge({ signedIn }: { signedIn: boolean }) {
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUserId(session?.user.id ?? null);
-      if (event === "SIGNED_OUT") void clearNativeUserData();
+      if (event === "SIGNED_OUT") {
+        void clearNativeUserData();
+        clearAppleHealth();
+      }
     });
     return () => {
       active = false;

@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Activity, Heart, Moon } from "lucide-react";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { PROVIDER_LABEL } from "@/lib/wearables/types";
+import type { AppleHealthNight } from "@/lib/health/apple-health";
 
 function fmtDur(min: number | null): string {
   if (!min) return "—";
@@ -12,7 +13,8 @@ function fmtDur(min: number | null): string {
   return `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
-export function LastNightStrip() {
+/** `appleHealth`: last night from Apple Health (iPhone app), shown instead of a server wearable. */
+export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHealthNight | null } = {}) {
   const fn = useServerFn(getWearableSummary);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
@@ -32,8 +34,9 @@ export function LastNightStrip() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
-  const r = data?.latest;
+  const r = appleHealth ?? data?.latest;
   if (!r) return null;
+  const fromAppleHealth = r.provider === "apple-health";
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4">
@@ -42,7 +45,7 @@ export function LastNightStrip() {
           Last night
         </p>
         <p className="text-[10px] text-muted-foreground">
-          via {PROVIDER_LABEL[r.provider]} · {r.date}
+          {fromAppleHealth ? "Measured · from Apple Health" : `via ${PROVIDER_LABEL[r.provider]}`} · {r.date}
         </p>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -59,7 +62,7 @@ export function LastNightStrip() {
             {r.hrvMs != null ? `${Math.round(r.hrvMs)}` : "—"}
             <span className="ml-1 text-xs font-normal text-muted-foreground">ms</span>
           </p>
-          <p className="text-[10px] text-muted-foreground">HRV</p>
+          <p className="text-[10px] text-muted-foreground">{fromAppleHealth ? "HRV (SDNN)" : "HRV"}</p>
         </div>
         <div className="rounded-xl bg-secondary/40 p-3">
           <Heart className="mb-1 h-4 w-4 text-amber" />
