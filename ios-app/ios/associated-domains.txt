@@ -1,0 +1,4 @@
+applinks:restpilotai.com
+
+Add this under Signing & Capabilities → Associated Domains in Xcode,
+and serve /.well-known/apple-app-site-association from https://restpilotai.com.
