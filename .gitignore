@@ -40,3 +40,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Migration kit working files: database exports and restore plans hold user
+# data and password hashes. Never commit them.
+.migration/
+*.backup
+*.dump
