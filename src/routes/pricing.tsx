@@ -7,6 +7,7 @@ export const Route = createFileRoute("/pricing")({
       { title: "App Preview — RestPilot AI" },
       { name: "description", content: "RestPilot app preview access. No purchases or payment details are required during the White Glove test." },
     ],
+    links: [{ rel: "canonical", href: "https://restpilotai.com/pricing" }],
   }),
   component: AppPreviewAccess,
 });

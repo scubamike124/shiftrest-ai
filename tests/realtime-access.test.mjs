@@ -50,3 +50,11 @@ test('private beta requires an owner-selected authenticated account and fixed sa
  assert.throws(()=>access({PRIVATE_BETA_USER_IDS:'*'}).privateBetaAccess(betaId),/not configured correctly/);
  assert.equal(access({}).privateBetaAccess(betaId),false);
 });
+
+test('private beta matches owner-pasted uppercase UUIDs without widening enrollment',()=>{
+ const hexId='a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+ const b=access({PRIVATE_BETA_USER_IDS:' '+hexId.toUpperCase()+' '});
+ assert.equal(b.privateBetaAccess(hexId),true);
+ assert.throws(()=>b.privateBetaAccess('00000000-0000-4000-8000-000000000002'),/not enrolled/);
+ assert.throws(()=>access({PRIVATE_BETA_USER_IDS:betaId+','}).privateBetaAccess(betaId),/not configured correctly/);
+});
