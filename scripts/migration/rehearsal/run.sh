@@ -183,8 +183,9 @@ TARGET_DB_URL="postgresql://postgres@localhost/supabase_target3?host=$WORK&port=
   --confirm-target supabase_target3 --repo-migrations "$WORK/gap-migrations" > "$WORK/gap.out" 2>&1
 code=$?
 set -e
-check "history gap refused (exit 6)" "$code" "6"
-grep -o "refusing: 1 repository migration.*20260101000000" "$WORK/gap.out" | cut -c1-120
+check "history gap refused before restoring (exit 6)" "$code" "6"
+grep -o "refusing: 1 repository migration.*" "$WORK/gap.out"
+check "nothing was restored before the refusal" "$(P -d supabase_target3 -At -c "select count(*) from auth.users")" "0"
 
 say "idempotency: re-running the import is a verified no-op"
 TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --repo-migrations "$REPO/supabase/migrations" | tail -3

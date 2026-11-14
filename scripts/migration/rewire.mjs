@@ -114,10 +114,10 @@ const sql =
     upsert(defaults.vault.serviceRole, "SUPABASE_SERVICE_ROLE_KEY"),
     ...jobs.map(
       (j) =>
-        `select cron.schedule(${lit(j.name)}, ${lit(j.schedule)}, ${lit(command(j))});` +
-        (j.active
-          ? ""
-          : `\nselect cron.alter_job(job_id := (select jobid from cron.job where jobname = ${lit(j.name)}), active := false);`),
+        // Always set the active flag explicitly: whether cron.schedule resets it
+        // on upsert depends on the pg_cron version.
+        `select cron.schedule(${lit(j.name)}, ${lit(j.schedule)}, ${lit(command(j))});\n` +
+        `select cron.alter_job(job_id := (select jobid from cron.job where jobname = ${lit(j.name)} and username = current_user), active := ${j.active});`,
     ),
     "commit;",
   ].join("\n") + "\n";

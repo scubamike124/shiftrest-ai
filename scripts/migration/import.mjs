@@ -149,6 +149,54 @@ if (missingExt.length) {
   process.exit(4);
 }
 console.log("preflight: target is fresh; managed-table columns compatible; extensions available.");
+// Which repository migrations go on top of the export. Decided from the
+// manifest and the repo directory alone, BEFORE anything is restored, so a
+// history gap is caught by --preflight-only and never leaves a half-done
+// target behind.
+const repoDir = opt("repo-migrations");
+let repoChosen = [];
+if (repoDir) {
+  const files = fs
+    .readdirSync(repoDir)
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort();
+  const versionOf = (f) => f.split("_")[0];
+  const explicit = opt("pending-migrations");
+  const history = manifest.migrationHistory || [];
+  if (typeof explicit === "string" && explicit.length) {
+    const want = new Set(
+      explicit
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean),
+    );
+    repoChosen = files.filter((f) => want.has(versionOf(f)));
+    if (repoChosen.length !== want.size) {
+      console.error("refusing: some --pending-migrations versions have no file in " + repoDir);
+      process.exit(6);
+    }
+  } else if (history.length) {
+    const newest = [...history].sort().at(-1);
+    repoChosen = files.filter((f) => versionOf(f) > newest);
+    const gaps = files.filter((f) => versionOf(f) <= newest && !history.includes(versionOf(f)));
+    if (gaps.length) {
+      // A newer live migration must not hide these: refuse instead of
+      // silently skipping repository migrations the export lacks.
+      console.error(
+        `refusing: ${gaps.length} repository migration(s) are missing from the export's history but older than its newest entry (${newest}): ${gaps.map(versionOf).join(", ")}. Check them against the live schema, then pass the versions to apply with --pending-migrations (runner: PENDING_MIGRATIONS).`,
+      );
+      process.exit(6);
+    }
+  } else {
+    console.error(
+      "refusing: the archive has no supabase_migrations history; pass --pending-migrations <versions> (runner: PENDING_MIGRATIONS).",
+    );
+    process.exit(6);
+  }
+  console.log(
+    `preflight: repository migrations to apply after the restore: ${repoChosen.map(versionOf).join(", ") || "none"}`,
+  );
+}
 if (opt("preflight-only")) process.exit(0);
 if (!alreadyImported) restore();
 
@@ -213,44 +261,13 @@ function restore() {
 // and each is applied in its own transaction together with its bookkeeping,
 // so a failed run resumes exactly where it stopped. verify.mjs fails while
 // any planned migration is unapplied.
-const repoDir = opt("repo-migrations");
 if (repoDir) {
-  const files = fs
-    .readdirSync(repoDir)
-    .filter((f) => /^\d+_.*\.sql$/.test(f))
-    .sort();
   const versionOf = (f) => f.split("_")[0];
   const planned = query(url, "select version from migration_kit.repo_migrations").map((r) => r[0]);
   if (!planned.length) {
-    let chosen;
-    const explicit = opt("pending-migrations");
-    const history = manifest.migrationHistory || [];
-    if (typeof explicit === "string") {
-      const want = new Set(explicit.split(","));
-      chosen = files.filter((f) => want.has(versionOf(f)));
-      if (chosen.length !== want.size) {
-        console.error("some --pending-migrations versions have no file in " + repoDir);
-        process.exit(6);
-      }
-    } else if (history.length) {
-      const newest = [...history].sort().at(-1);
-      chosen = files.filter((f) => versionOf(f) > newest);
-      const gaps = files.filter((f) => versionOf(f) <= newest && !history.includes(versionOf(f)));
-      if (gaps.length) {
-        // A newer live migration must not hide these: refuse instead of
-        // silently skipping repository migrations the export lacks.
-        console.error(
-          `refusing: ${gaps.length} repository migration(s) are missing from the export's history but older than its newest entry (${newest}): ${gaps.map(versionOf).join(", ")}. Check them against the live schema and pass --pending-migrations <versions> explicitly.`,
-        );
-        process.exit(6);
-      }
-    } else {
-      console.error(
-        "The archive has no supabase_migrations history; pass --pending-migrations <versions> explicitly.",
-      );
-      process.exit(6);
-    }
-    const values = chosen.map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`).join(",");
+    const values = repoChosen
+      .map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`)
+      .join(",");
     if (values)
       psql(url, [
         "-c",

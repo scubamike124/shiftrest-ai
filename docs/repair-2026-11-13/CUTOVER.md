@@ -151,6 +151,9 @@ Nothing below changes production or the Lovable database.
      echo row data or secrets.
    - Steps: `preflight`, then `import` (which runs verify), then `verify`.
      The output is counts and checksums only.
+   - If `preflight` exits 6, the export's migration history has a gap.
+     Nothing has been restored. The agent checks the live schema, then sets
+     `PENDING_MIGRATIONS` to the versions to apply.
    - The import restores into the target project:
      - accounts, with their bcrypt password hashes and user IDs;
      - Google identities;
@@ -192,9 +195,10 @@ Nothing below changes production or the Lovable database.
    - import into `restpilot`;
    - verify;
    - `rewire.mjs --apply` recreates the scheduled jobs that live has,
-     against restpilotai.com. A job that is switched off on live stays off. Jobs live never had, such as the
-     subscription-expiry emailer, need `--include-default-jobs` and your
-     go-ahead;
+     against restpilotai.com.
+     - A job that is switched off on live stays off.
+     - Jobs live never had, such as the subscription-expiry emailer, need
+       `--include-default-jobs` and your go-ahead;
    - gates;
    - your DNS step;
    - delete `restpilot-rehearsal` afterwards.
