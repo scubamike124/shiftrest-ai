@@ -11,6 +11,13 @@ function loadProvider(env) {
   return module.exports;
 }
 
+function loadModels(env) {
+  const output = ts.transpileModule(readFileSync(new URL('../src/lib/ai/models.server.ts', import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const module={exports:{}};
+  vm.runInNewContext(output,{exports:module.exports,module,process:{env},URL});
+  return module.exports;
+}
+
 function load(path, mocks = {}, env = {}, fetchOverride) {
   const output = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -19,6 +26,10 @@ function load(path, mocks = {}, env = {}, fetchOverride) {
   mocks = {
     '@/lib/ai/provider.server': loadProvider(env),
     './provider.server': loadProvider(env),
+    '@/lib/ai/models.server': loadModels(env),
+    './models.server': loadModels(env),
+    '@/lib/ai/guardrails': { DATA_HONESTY: '' },
+    '@/lib/ai/intent-guards': {},
     '@/lib/api/ratelimit.server': { enforceRateLimit: async () => null, RATE_LIMITS: {ai:{},tts:{},stt:{}} },
     '@/lib/api/lab-gate.server': { requireLabAccess: async () => null },
     ...mocks,

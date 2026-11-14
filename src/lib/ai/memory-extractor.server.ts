@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chatJSON, FAST_MODEL } from "./gateway.server";
+import { modelForTask } from "./models.server";
 import { logAIRequest } from "./log.server";
 
 const EXTRACT_SYSTEM = `You extract durable, factual long-term memories about a shift worker from chat snippets, for an AI sleep/recovery coach.
@@ -68,7 +69,7 @@ export async function extractAndStoreMemories(opts: {
   let result;
   try {
     result = await chatJSON({
-      model: FAST_MODEL,
+      task: "background",
       jsonMode: true,
       temperature: 0.1,
       messages: [
@@ -80,7 +81,7 @@ export async function extractAndStoreMemories(opts: {
     await logAIRequest(opts.admin, {
       user_id: opts.userId,
       intent: "memory_extract",
-      model: FAST_MODEL,
+      model: modelForTask("background") ?? FAST_MODEL,
       prompt_tokens: 0,
       completion_tokens: 0,
       latency_ms: Date.now() - start,
@@ -93,7 +94,7 @@ export async function extractAndStoreMemories(opts: {
   await logAIRequest(opts.admin, {
     user_id: opts.userId,
     intent: "memory_extract",
-    model: FAST_MODEL,
+    model: result.model,
     prompt_tokens: result.promptTokens,
     completion_tokens: result.completionTokens,
     latency_ms: Date.now() - start,
