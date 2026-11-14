@@ -122,11 +122,16 @@ test('commute times are exact arithmetic', () => {
 
 test('health-data signal lines carry provenance tags at the end', () => {
   const src = readFileSync(new URL('../src/lib/ai/personal-signals.server.ts', import.meta.url), 'utf8');
-  for (const prefix of ['Last sleep:', 'HRV last night:', 'Resting HR last night:', 'Sleep-goal streak:', 'Hit sleep goal ']) {
+  for (const prefix of ['Last sleep:', 'HRV last night:', 'Resting HR last night:']) {
     const line = src.split('\n').find((l) => l.includes('`' + prefix));
     assert.ok(line && line.includes('wearableTag('), prefix + ' must be tagged as a wearable measurement');
   }
   assert.match(src, /behind goal\.`[\s\S]{0,120}estimateTag\(/);
+  for (const prefix of ['Sleep-goal streak:', 'Hit sleep goal ']) {
+    const line = src.split('\n').find((l) => l.includes('`' + prefix));
+    assert.ok(line && line.includes('estimateTag(') && !line.includes('wearableTag('), prefix + ' is a goal comparison, not a device measurement');
+  }
+  assert.match(src, /below goal by \$\{fmtHm\(deficitMin\)\}\$\{estimateTag\(/, 'the goal deficit is tagged as a calculation');
   const guard = readFileSync(new URL('../src/lib/ai/guardrails.ts', import.meta.url), 'utf8');
   assert.match(guard, /\[wearable: …\]/); assert.match(guard, /Never invent/);
 });

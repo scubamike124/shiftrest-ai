@@ -174,14 +174,16 @@ export async function fetchPersonalSignals(
         ? Math.round(Number(latest.sleep_efficiency) * (latest.sleep_efficiency <= 1 ? 100 : 1))
         : null;
     const deficitMin = goalHours ? Math.round(goalHours * 60 - dur) : null;
+    // The measurement is tagged as wearable data; the goal comparison is a
+    // calculation from the user's own sleep-goal setting and is tagged as such.
     const deficitTail =
       deficitMin != null && deficitMin > 30
-        ? ` (below goal by ${fmtHm(deficitMin)})`
+        ? `; below goal by ${fmtHm(deficitMin)}${estimateTag("vs your sleep goal")}`
         : deficitMin != null && deficitMin < -30
-          ? ` (above goal by ${fmtHm(-deficitMin)})`
+          ? `; above goal by ${fmtHm(-deficitMin)}${estimateTag("vs your sleep goal")}`
           : "";
     lines.push(
-      `Last sleep: ${fmtHm(dur)}${effPct != null ? `, efficiency ${effPct}%` : ""}${deficitTail}.${wearableTag(latest.provider)}`,
+      `Last sleep: ${fmtHm(dur)}${effPct != null ? `, efficiency ${effPct}%` : ""}${wearableTag(latest.provider)}${deficitTail}.`,
     );
   } else if (wearables.length === 0) {
     // Don't shout about missing wearable data — just skip.
@@ -377,9 +379,9 @@ export async function fetchPersonalSignals(
       (w) => w.sleep_duration_min != null && w.sleep_duration_min >= targetMin - 15,
     ).length;
     if (hitStreak >= 3) {
-      lines.push(`Sleep-goal streak: ${hitStreak} nights in a row hitting goal.${wearableTag(latest?.provider)}`);
+      lines.push(`Sleep-goal streak: ${hitStreak} nights in a row hitting goal.${estimateTag("wearable sleep vs your sleep goal")}`);
     } else if (hit14 >= 8) {
-      lines.push(`Hit sleep goal ${hit14} of the last ${wearables.length} nights.${wearableTag(latest?.provider)}`);
+      lines.push(`Hit sleep goal ${hit14} of the last ${wearables.length} nights.${estimateTag("wearable sleep vs your sleep goal")}`);
     }
   }
 
