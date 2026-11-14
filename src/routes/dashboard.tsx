@@ -512,7 +512,7 @@ function Dashboard() {
                 <button
                   onClick={() => removeShift(todayShift.id)}
                   aria-label="Remove shift"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95 hit-area"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -780,7 +780,7 @@ function ShiftEditor({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary hit-area"
           >
             <X className="h-5 w-5" />
           </button>

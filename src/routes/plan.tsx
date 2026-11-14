@@ -235,7 +235,7 @@ function PlanPage() {
         </Link>
       )}
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2" role="group" aria-label="Choose a day">
         {DAYS.map((d, i) => {
           const dayDate = new Date(today);
           dayDate.setDate(today.getDate() + (i - weekday));
@@ -246,7 +246,9 @@ function PlanPage() {
             <button
               key={d}
               onClick={() => setActiveDay(i)}
-              className={`flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border text-xs font-semibold transition ${
+              aria-label={d}
+              aria-pressed={active}
+              className={`flex h-14 min-w-0 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition ${
                 active
                   ? "border-primary bg-primary/15 text-primary"
                   : "border-border bg-card text-muted-foreground"
