@@ -95,27 +95,27 @@ function PatternItem({
               <button
                 onClick={explain}
                 disabled={loading}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50 hit-area"
               >
                 <AlertTriangle className="h-3 w-3" />
                 {loading ? "Thinking…" : "Why this matters"}
               </button>
               <button
                 onClick={() => setShowWhy((v) => !v)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hit-area"
               >
                 <Eye className="h-3 w-3" /> {showWhy ? "Hide" : "Why am I seeing this?"}
               </button>
               <button
                 onClick={async () => { await mutePattern(pattern.id, 30); toast.success("Muted 30 days"); onChanged(); }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hit-area"
                 title="Mute 30 days"
               >
                 <BellOff className="h-3 w-3" />
               </button>
               <button
                 onClick={async () => { await deletePattern(pattern.id); toast.success("Pattern removed"); onChanged(); }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-destructive"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-destructive hit-area"
                 title="Delete"
               >
                 <Trash2 className="h-3 w-3" />
@@ -145,7 +145,7 @@ function PatternItem({
         <button
           onClick={async () => { await mutePattern(pattern.id, 1); onChanged(); }}
           aria-label="Dismiss today"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hit-area"
         >
           <X className="h-3.5 w-3.5" />
         </button>

@@ -245,6 +245,22 @@
     0 30px 70px -20px oklch(0.45 0.22 275 / 0.55);
 }
 
+/* Invisible touch target: at least 44 x 44 pt (Apple HIG) around a smaller
+   visual control, centred on it. Visuals are unchanged. Not for controls that
+   already use ::after. */
+@utility hit-area {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 @utility card-title {
   font-family: var(--font-sans);
   font-weight: 600;

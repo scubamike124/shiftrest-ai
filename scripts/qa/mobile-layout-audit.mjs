@@ -251,6 +251,8 @@ for (const vp of VIEWPORTS) {
         if (!r.width || !r.height) continue;
         // Inline text links inside running copy are exempt (WCAG 2.5.8 inline exception).
         if (el.tagName === "A" && cs.display === "inline" && el.closest("p, li")) continue;
+        // Controls with the `hit-area` utility get an invisible 44 x 44 pt touch box.
+        if (el.classList.contains("hit-area")) continue;
         if (r.width < 44 || r.height < 44) {
           smallTargets++;
           if (smallTargetSamples.length < 8)
@@ -265,15 +267,13 @@ for (const vp of VIEWPORTS) {
         scrollWidth: document.documentElement.scrollWidth,
         bodyScrollWidth: document.body.scrollWidth,
         visualScale: window.visualViewport ? window.visualViewport.scale : null,
-        offenders: offenders
-          .slice(0, 12)
-          .map((o) => ({
-            el: describe(o.el),
-            left: o.left,
-            right: o.right,
-            width: o.width,
-            position: o.position,
-          })),
+        offenders: offenders.slice(0, 12).map((o) => ({
+          el: describe(o.el),
+          left: o.left,
+          right: o.right,
+          width: o.width,
+          position: o.position,
+        })),
         smallText,
         smallTextSamples,
         smallTargets,

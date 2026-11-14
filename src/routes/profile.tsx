@@ -802,7 +802,7 @@ function EmployersSection() {
         <button
           onClick={() => setEditing("new")}
           aria-label="Add employer"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hit-area"
         >
           <PlusIcon className="h-4 w-4" />
         </button>
@@ -886,7 +886,7 @@ function EmployerEditor({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm hit-area"
           >
             ✕
           </button>
@@ -1069,7 +1069,7 @@ function RotationSection({
             <button
               key={n}
               onClick={() => update("cycleWeeks", n)}
-              className={`min-w-[44px] rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              className={`min-h-11 min-w-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold transition sm:min-h-0 sm:text-xs ${
                 cw === n
                   ? "border-transparent bg-primary text-primary-foreground"
                   : "border-border bg-secondary text-foreground"
@@ -1160,7 +1160,7 @@ function PasswordChangeCard() {
         <button
           type="submit"
           disabled={saving || !password || !confirm}
-          className="h-10 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          className="h-10 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50 hit-area"
         >
           {saving ? "Saving…" : "Update password"}
         </button>

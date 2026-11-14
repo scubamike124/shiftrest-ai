@@ -131,7 +131,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
                 aria-checked={prefs.memoryEnabled}
                 disabled={!signedIn}
                 onClick={() => onChange("memoryEnabled", !prefs.memoryEnabled)}
-                className={`relative h-6 w-11 rounded-full transition disabled:opacity-50 ${
+                className={`hit-area h-6 w-11 rounded-full transition disabled:opacity-50 ${
                   prefs.memoryEnabled ? "bg-primary" : "bg-muted"
                 }`}
               >
@@ -189,7 +189,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
                 aria-checked={value}
                 disabled={!signedIn}
                 onClick={() => onChange(key, !value)}
-                className={`relative h-6 w-11 rounded-full transition disabled:opacity-50 ${value ? "bg-primary" : "bg-muted"}`}
+                className={`hit-area h-6 w-11 rounded-full transition disabled:opacity-50 ${value ? "bg-primary" : "bg-muted"}`}
               >
                 <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition ${value ? "left-[22px]" : "left-0.5"}`} />
               </button>
