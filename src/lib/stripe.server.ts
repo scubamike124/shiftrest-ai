@@ -8,11 +8,74 @@ const getEnv = (key: string): string => {
 
 export type StripeEnv = "sandbox" | "live";
 
-export function getConnectionApiKey(env: StripeEnv): string {
-  throw new Error("Stripe is disabled for the native-app migration.");
+// Direct Stripe on Railway (replaces Lovable's connector gateway, which only
+// exists on Lovable hosting). Keyed only by environment variables and inert
+// without them:
+//   STRIPE_SECRET_KEY      RESTRICTED key of RestPilot's own Stripe account:
+//                          rk_test_… on staging, rk_live_… on production
+//   STRIPE_WEBHOOK_SECRET  signing secret (whsec_…) of that mode's endpoint
+//   PAYMENTS_ENVIRONMENT   sandbox | live: the mode this deployment serves
+//   VITE_STRIPE_CHECKOUT_ENABLED=true  owner-approved switch for NEW website
+//                          checkouts; without it checkout stays off
+// Mode lock: the key's mode, PAYMENTS_ENVIRONMENT, the publishable key
+// (VITE_PAYMENTS_CLIENT_TOKEN, if set) and the requested environment must
+// all agree, or nothing talks to Stripe.
+// "sync" (webhook subscription sync, account-deletion cancellation) and
+// "portal" (existing subscribers managing or cancelling) only need the key.
+export type StripePurpose = "checkout" | "portal" | "sync";
+
+function keyMode(key: string): StripeEnv {
+  if (key.startsWith("rk_test_")) return "sandbox";
+  if (key.startsWith("rk_live_")) return "live";
+  if (key.startsWith("sk_")) {
+    throw new Error("STRIPE_SECRET_KEY must be a restricted key (rk_…), not a full secret key.");
+  }
+  throw new Error("STRIPE_SECRET_KEY is not a Stripe restricted key.");
 }
 
-export function createStripeClient(env: StripeEnv): Stripe {
+// The single mode this deployment serves, after checking every input agrees.
+export function deploymentMode(): StripeEnv {
+  const configured = process.env.PAYMENTS_ENVIRONMENT;
+  if (configured !== "sandbox" && configured !== "live") {
+    throw new Error("Stripe is not configured on this host (PAYMENTS_ENVIRONMENT is not set).");
+  }
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (key && keyMode(key) !== configured) {
+    throw new Error("Stripe mode mismatch: STRIPE_SECRET_KEY does not match PAYMENTS_ENVIRONMENT.");
+  }
+  const token = process.env.VITE_PAYMENTS_CLIENT_TOKEN;
+  const tokenMode = token?.startsWith("pk_test_") ? "sandbox" : token?.startsWith("pk_live_") ? "live" : null;
+  if (token && tokenMode !== configured) {
+    throw new Error("Stripe mode mismatch: VITE_PAYMENTS_CLIENT_TOKEN does not match PAYMENTS_ENVIRONMENT.");
+  }
+  return configured;
+}
+
+export function isStripeConfigured(env: StripeEnv): boolean {
+  try {
+    return Boolean(process.env.STRIPE_SECRET_KEY) && deploymentMode() === env;
+  } catch {
+    return false;
+  }
+}
+
+export function isWebCheckoutEnabled(): boolean {
+  return process.env.VITE_STRIPE_CHECKOUT_ENABLED === "true";
+}
+
+export function getConnectionApiKey(env: StripeEnv): string {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("Stripe is not configured on this host (STRIPE_SECRET_KEY is not set).");
+  if (deploymentMode() !== env) {
+    throw new Error(`Stripe mode mismatch: this host serves ${deploymentMode()}, not ${env}.`);
+  }
+  return key;
+}
+
+export function createStripeClient(env: StripeEnv, purpose: StripePurpose = "checkout"): Stripe {
+  if (purpose === "checkout" && !isWebCheckoutEnabled()) {
+    throw new Error("Website checkout is not enabled on this host.");
+  }
   return new Stripe(getConnectionApiKey(env), {
     apiVersion: "2026-03-25.dahlia",
     httpClient: Stripe.createFetchHttpClient(),
@@ -47,10 +110,9 @@ export async function verifyWebhook(
 ): Promise<{ type: string; data: { object: any } }> {
   const signature = req.headers.get("stripe-signature");
   const body = await req.text();
-  const secret =
-    env === "sandbox"
-      ? getEnv("PAYMENTS_SANDBOX_WEBHOOK_SECRET")
-      : getEnv("PAYMENTS_LIVE_WEBHOOK_SECRET");
+  // A webhook for the other mode (e.g. a live event sent to staging) is refused.
+  if (deploymentMode() !== env) throw new Error("Webhook mode does not match this host");
+  const secret = getEnv("STRIPE_WEBHOOK_SECRET");
 
   if (!signature || !body) throw new Error("Missing signature or body");
 

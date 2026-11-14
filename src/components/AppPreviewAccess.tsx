@@ -1,7 +1,29 @@
 import { Link } from "@tanstack/react-router";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { CalendarDays, Moon, ShieldCheck } from "lucide-react";
+import { isWebCheckoutEnabled } from "@/lib/stripe";
+import { isNativeApp } from "@/lib/native-app";
 
+const WebStripeCheckout = lazy(() =>
+  import("@/components/subscription/WebStripeCheckout").then((m) => ({ default: m.WebStripeCheckout })),
+);
+
+// On the website, once the owner has switched website checkout on
+// (VITE_STRIPE_CHECKOUT_ENABLED + publishable key), /pricing and /paywall show
+// the Stripe checkout. Inside the native app, and whenever checkout is off,
+// this stays the App preview screen.
 export function AppPreviewAccess() {
+  const [webCheckout, setWebCheckout] = useState(false);
+  useEffect(() => {
+    setWebCheckout(isWebCheckoutEnabled() && !isNativeApp());
+  }, []);
+  if (webCheckout) {
+    return (
+      <Suspense fallback={<p className="px-5 py-16 text-center text-muted-foreground">Loading…</p>}>
+        <WebStripeCheckout />
+      </Suspense>
+    );
+  }
   return (
     <section aria-label="App preview access" className="relative mx-auto w-full max-w-5xl px-5 py-16 sm:py-24">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">RestPilot · App preview</p>

@@ -48,7 +48,7 @@ async function attemptStripeCancel(userId: string): Promise<{ canceled: boolean;
       throw new Error("We couldn't verify a subscription for cancellation. Your account has not been deleted. Please contact support.");
     }
     try {
-      const stripe = createStripeClient(row.environment);
+      const stripe = createStripeClient(row.environment, "sync");
       // Retrieve first so retrying after a successful cancellation but failed
       // database update can reconcile the already-canceled subscription.
       const current = await stripe.subscriptions.retrieve(row.stripe_subscription_id);

@@ -40,7 +40,7 @@ function priceLookup(price: any): string {
 async function handleSubscriptionUpsert(eventSub: any, env: StripeEnv, deleted = false) {
   if (typeof eventSub.id !== "string" || !eventSub.id.startsWith("sub_")) throw new Error("Invalid subscription id");
   const db = getSupabase();
-  const stripe = createStripeClient(env);
+  const stripe = createStripeClient(env, "sync");
   for (let attempt = 0; attempt < 4; attempt++) {
     const { data: cursor, error: readError } = await db.from("subscription_sync_state")
       .select("revision").eq("stripe_subscription_id", eventSub.id).eq("environment", env).maybeSingle();
@@ -88,7 +88,7 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
   if (session.payment_status !== "paid") throw new Error("Lifetime checkout payment is not confirmed");
 
   // Fetch line items to find the price/product
-  const stripe = createStripeClient(env);
+  const stripe = createStripeClient(env, "sync");
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
   const li: any = lineItems.data[0];
   if (!li) throw new Error("Paid checkout has no line item; retry after Stripe recovery");
