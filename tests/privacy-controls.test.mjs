@@ -130,3 +130,59 @@ test('paused or disabled memory learning stores nothing and sends nothing to the
   const allowed = await runExtractor({ memory_enabled: true, memory_learning_paused: false });
   assert.equal(allowed.modelCalls, 1);
 });
+
+// ── Nightly AI learning job must respect memory consent ────────────────
+async function runAiLearn(user) {
+  const src = stripTypeScriptTypes(read('src/routes/api/public/hooks/ai-learn.ts'))
+    .replace(/^import .*;\n/gm, '').replace(/^export /gm, '').replace(/import\(("[^"]+")\)/g, 'deps.load($1)');
+  const memoryWrites = [];
+  const tableData = {
+    user_prefs: [user],
+    ai_feedback: [
+      { reaction: 'helpful', ai_recommendations: { intent: 'caffeine' } },
+      { reaction: 'helpful', ai_recommendations: { intent: 'caffeine' } },
+    ],
+  };
+  const admin = { from(table) {
+    let cols = '';
+    const q = {
+      select(c) { cols = c ?? ''; return q; }, eq() { return q; }, gte() { return q; }, lte() { return q; }, is() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+      update(v) { if (table === 'ai_memory') memoryWrites.push(['update', v]); return q; },
+      insert(v) { if (table === 'ai_memory') memoryWrites.push(['insert', v]); return Promise.resolve({ error: null }); },
+      async maybeSingle() { return { data: null, error: null }; },
+      // Only the step (c) aggregation query (it joins ai_recommendations) gets feedback rows.
+      then(res, rej) { const data = table === 'ai_feedback' && !cols.includes('ai_recommendations') ? [] : (tableData[table] ?? []); return Promise.resolve({ data, error: null }).then(res, rej); },
+    };
+    return q;
+  } };
+  const deps = { async load(p) {
+    if (p.includes('cron-auth')) return { requireCronSecret: () => null };
+    if (p.includes('supabase-js')) return { createClient: () => admin };
+    if (p.includes('patterns.server')) return { runPatternDetection: async () => [] };
+    if (p.includes('memory-proposer')) return { runMemoryProposer: async () => 0 };
+    if (p.includes('cross-skill')) return { runCrossSkillSuggester: async () => 0 };
+    throw new Error(p);
+  } };
+  let config;
+  const ctx = vm.createContext({ createFileRoute: () => (c) => { config = c; return c; }, deps, process: { env: {} }, Response, Date, Map, Number, Array, Object, console });
+  vm.runInContext(src, ctx);
+  const res = await config.server.handlers.POST({ request: new Request('https://x/api') });
+  return { memoryWrites, body: await res.json() };
+}
+
+test('nightly AI learning writes no memory unless memory is on and not paused', async () => {
+  const base = { user_id: 'u1', sleep_hours: 8, predictive_enabled: true, feedback_learning_enabled: true };
+  for (const consent of [{ memory_enabled: false, memory_learning_paused: false }, { memory_enabled: true, memory_learning_paused: true }, { memory_enabled: null, memory_learning_paused: null }]) {
+    const r = await runAiLearn({ ...base, ...consent });
+    assert.deepEqual(r.memoryWrites, [], JSON.stringify(consent));
+  }
+  const allowed = await runAiLearn({ ...base, memory_enabled: true, memory_learning_paused: false });
+  assert.equal(allowed.memoryWrites.length, 1);
+  assert.equal(allowed.body.learned, 1);
+});
+
+test('stored data from any provider can be deleted, even with no connection', () => {
+  const card = read('src/components/WearableCard.tsx');
+  assert.match(card, /providersWithData/);
+  assert.match(read('src/lib/wearables/wearables.functions.ts'), /providersWithData\.push\(provider\)/);
+});

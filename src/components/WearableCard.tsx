@@ -27,13 +27,18 @@ export function WearableCard({ signedIn = false }: { signedIn?: boolean }) {
     staleTime: 60_000,
     enabled: signedIn,
   });
-  // Also offer deletion for readings left without a connection (for example
-  // an earlier disconnect that failed half-way), so there is always a retry.
+  // Also offer deletion for every provider whose readings are stored without
+  // a connection (for example an earlier disconnect that failed half-way), so
+  // there is always a retry.
+  const connected = data?.connections ?? [];
+  const orphanProviders = new Set<WearableProvider>([
+    ...(data?.providersWithData ?? []),
+    ...(data?.latest ? [data.latest.provider] : []),
+  ]);
+  for (const c of connected) orphanProviders.delete(c.provider);
   const connections = [
-    ...(data?.connections ?? []),
-    ...(data?.latest && !(data.connections ?? []).some((c) => c.provider === data.latest!.provider)
-      ? [{ provider: data.latest.provider, lastSyncAt: null as string | null, orphaned: true }]
-      : []),
+    ...connected,
+    ...[...orphanProviders].map((provider) => ({ provider, lastSyncAt: null as string | null, orphaned: true })),
   ];
 
   async function disconnect(provider: WearableProvider) {

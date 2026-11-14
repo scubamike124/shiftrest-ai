@@ -29,7 +29,7 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
         // 1) Pull all opted-in users.
         const { data: users } = await admin
           .from("user_prefs")
-          .select("user_id, sleep_hours, predictive_enabled, feedback_learning_enabled")
+          .select("user_id, sleep_hours, predictive_enabled, feedback_learning_enabled, memory_enabled, memory_learning_paused")
           .eq("predictive_enabled", true);
 
         let detected = 0;
@@ -42,6 +42,8 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
           sleep_hours: number | null;
           predictive_enabled: boolean | null;
           feedback_learning_enabled: boolean | null;
+          memory_enabled: boolean | null;
+          memory_learning_paused: boolean | null;
         }> | null) ?? []) {
           // a) Patterns
           try {
@@ -102,6 +104,10 @@ export const Route = createFileRoute("/api/public/hooks/ai-learn")({
           }
 
           // c) Aggregate last 30d feedback into a single learned memory.
+          //    This WRITES ai_memory, so it needs memory consent: memory on
+          //    and learning not paused (as the proposer and the chat
+          //    extractor require). Feedback learning alone is not enough.
+          if (!u.memory_enabled || u.memory_learning_paused) continue;
           const { data: agg } = await admin
             .from("ai_feedback")
             .select("reaction, recommendation_id, ai_recommendations!inner(intent)")

@@ -124,7 +124,18 @@ export const getWearableSummary = createServerFn({ method: "GET" })
     ]);
 
     const latest = latestRows?.[0];
+    const providersWithData: WearableProvider[] = [];
+    for (const provider of ["fitbit", "oura"] as const) {
+      const { data: any } = await context.supabase
+        .from("wearable_readings")
+        .select("id")
+        .eq("user_id", context.userId)
+        .eq("provider", provider)
+        .limit(1);
+      if (any?.length) providersWithData.push(provider);
+    }
     return {
+      providersWithData,
       connections: (connections ?? []).map((c) => ({
         provider: c.provider as WearableProvider,
         connected: true,
