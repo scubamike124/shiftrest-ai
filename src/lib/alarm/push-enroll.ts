@@ -9,6 +9,7 @@ import {
   subscriptionPayload,
 } from "@/lib/notifications/client";
 import { subscribePush } from "@/lib/push/subscribe.functions";
+import { isNativeApp } from "@/lib/native-app";
 
 const INSTALL_TOAST_KEY = "rp.alarmPush.installToast.shown.v1";
 const BLOCKED_TOAST_KEY = "rp.alarmPush.blockedToast.shown.v1";
@@ -65,7 +66,7 @@ export async function ensureAlarmPushEnrollment(opts: { signedIn: boolean }): Pr
     if (!opts.signedIn) return;
 
     if (!pushSupported()) {
-      if (isIOS() && !isStandalone()) showInstallHint();
+      if (isIOS() && !isStandalone() && !isNativeApp()) showInstallHint();
       return;
     }
 

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
+import { isNativeApp } from "@/lib/native-app";
 
 const SIGNUP_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
@@ -55,9 +56,13 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
+  // Inside the iPhone app shell Google sign-in cannot complete (Google blocks
+  // embedded WebViews), so the app offers email and password only.
+  const [inNativeApp, setInNativeApp] = useState(false);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+    setInNativeApp(isNativeApp());
   }, []);
 
   useEffect(() => {
@@ -176,39 +181,49 @@ function AuthPage() {
           : "Start your circadian plan in seconds."}
       </p>
 
-      <div className="mt-8 flex flex-col gap-3">
-        {isInIframe && (
-          <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-            <span>
-              <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
-              sign-in is unavailable in this embedded preview. Please use{" "}
-              <strong>email &amp; password</strong> below to test. Open the site directly to use Google sign-in.
-            </span>
+      {inNativeApp ? (
+        <p className="mt-8 mb-4 text-center text-xs leading-relaxed text-muted-foreground">
+          Signed up with Google? Enter your email and tap Forgot Password to set a password for the
+          app.
+        </p>
+      ) : (
+        <>
+          <div className="mt-8 flex flex-col gap-3">
+            {isInIframe && (
+              <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <span>
+                  <strong className="font-semibold text-amber-200">Preview limitation:</strong>{" "}
+                  Google sign-in is unavailable in this embedded preview. Please use{" "}
+                  <strong>email &amp; password</strong> below to test. Open the site directly to use
+                  Google sign-in.
+                </span>
+              </div>
+            )}
+            {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
+            <button
+              onClick={() => handleOAuth("google")}
+              disabled={loading || isInIframe}
+              title={
+                isInIframe
+                  ? "Google sign-in is disabled in the editor preview. Use email/password."
+                  : undefined
+              }
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
+            </button>
           </div>
-        )}
-        {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
-        <button
-          onClick={() => handleOAuth("google")}
-          disabled={loading || isInIframe}
-          title={
-            isInIframe
-              ? "Google sign-in is disabled in the editor preview. Use email/password."
-              : undefined
-          }
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
-        </button>
-      </div>
 
-      <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-          or email
-        </span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              or email
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      )}
 
       <form onSubmit={handleEmailSubmit} className="flex flex-col gap-3">
         <label className="flex h-12 items-center gap-2 rounded-2xl border border-border bg-input px-3">
