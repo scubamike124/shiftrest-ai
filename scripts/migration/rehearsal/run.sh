@@ -186,12 +186,17 @@ set -e
 check "history gap refused before restoring (exit 6)" "$code" "6"
 grep -o "refusing: 1 repository migration.*" "$WORK/gap.out"
 check "nothing was restored before the refusal" "$(P -d supabase_target3 -At -c "select count(*) from auth.users")" "0"
+TARGET_DB_URL="postgresql://postgres@localhost/supabase_target3?host=$WORK&port=$PORT" node "$KIT/import.mjs" --plan "$WORK/plan" \
+  --confirm-target supabase_target3 --repo-migrations "$WORK/gap-migrations" --pending-migrations 20260101000000 > "$WORK/gap2.out" 2>&1
+check "listing only the gap still applies the newer migrations too (4 applied)" \
+  "$(P -d supabase_target3 -At -c "select count(*) from migration_kit.repo_migrations where applied_at is not null")" "4"
+grep -E "repository migrations applied|required app objects|VERIFY" "$WORK/gap2.out"
 
 say "idempotency: re-running the import is a verified no-op"
 TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --repo-migrations "$REPO/supabase/migrations" | tail -3
 
 say "runner entry point (as Railway would run it): verify step from a downloaded export"
-KIT="$KIT" REPO_MIGRATIONS="$REPO/supabase/migrations" MIGRATION_STEP=verify TARGET_DB_URL="$TARGET" TARGET_REF=supabase_target \
+MIGRATION_ALLOW_FILE_URL=1 KIT="$KIT" REPO_MIGRATIONS="$REPO/supabase/migrations" MIGRATION_STEP=verify TARGET_DB_URL="$TARGET" TARGET_REF=supabase_target \
   EXPORT_URL="file://$WORK/lovable-export.backup" bash "$KIT/runner/run-job.sh" | grep -E "^(export sha256|VERIFY)"
 
 say "tamper detection: verify fails after one changed row"

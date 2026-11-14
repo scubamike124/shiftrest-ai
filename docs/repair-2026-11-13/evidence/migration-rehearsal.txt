@@ -2,13 +2,13 @@
 # Produced by: sudo bash scripts/migration/rehearsal/run.sh (2026-11-14)
 # Lines starting "FAIL" below are intended negative checks (a broken migration, an altered row) that the kit must catch.
 
-== REHEARSAL ONLY - synthetic data, throwaway cluster at /tmp/rp-rehearsal.Hy55tw
+== REHEARSAL ONLY - synthetic data, throwaway cluster at /tmp/rp-rehearsal.KacvVJ
 
 == source: Supabase shim + migrations that predate 2026-11-13 + synthetic data
 applied 49 migrations to source
 
 == export: pg_dump custom format, zstd (the format Lovable's Export data produces)
-208455 bytes
+208391 bytes
 
 == target: fresh Supabase shim (stands in for a new Supabase project)
 
@@ -46,7 +46,7 @@ refused live backend: refusing: TARGET_DB_URL points at the live Lovable Cloud b
 refused mismatched target: refusing: --confirm-target does not match TARGET_DB_URL
 
 == import + verify
-import: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.Hy55tw&port=54329; archive lovable-export.backup (45 tables, 4 accounts)
+import: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.KacvVJ&port=54329; archive lovable-export.backup (45 tables, 4 accounts)
 preflight: server 160015, role postgres, auth.users 0, archive tables already present 0
 preflight: target is fresh; managed-table columns compatible; extensions available.
 preflight: repository migrations to apply after the restore: 20261113090000, 20261113100000, 20261113110000
@@ -54,7 +54,7 @@ restore: committed in 0.8s
 migration applied: 20261113090000_ai_request_admission.sql
 migration applied: 20261113100000_trial_voice_atomic.sql
 migration applied: 20261113110000_subscription_sync.sql
-verify: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.Hy55tw&port=54329; archive lovable-export.backup
+verify: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.KacvVJ&port=54329; archive lovable-export.backup
 PASS 45/45 tables match row count and checksum
 PASS auth.users 4 (expected 4); bcrypt hashes 3 (expected 3); without password 1 (expected 1)
 PASS identities[email] 3 (expected 3)
@@ -67,7 +67,7 @@ PASS RLS enabled on 40/40 tables
 PASS 90 app RLS policies on target (archive 90)
 PASS repository migrations applied 3/3
 PASS required app objects present 9/9
-VERIFY PASSED. Report: /tmp/rp-rehearsal.Hy55tw/plan/verify-report.json
+VERIFY PASSED. Report: /tmp/rp-rehearsal.KacvVJ/plan/verify-report.json
 
 == extra checks
 PASS same user ids
@@ -114,24 +114,28 @@ This archive was already imported into this target; resuming after the restore.
 migration applied: 20261113100000_trial_voice_atomic.sql
 migration applied: 20261113110000_subscription_sync.sql
 PASS repository migrations applied 3/3
-VERIFY PASSED. Report: /tmp/rp-rehearsal.Hy55tw/plan/verify-report.json
+VERIFY PASSED. Report: /tmp/rp-rehearsal.KacvVJ/plan/verify-report.json
 
 == history gap: an older repository migration missing from the export is refused, not skipped
 PASS history gap refused before restoring (exit 6)
-refusing: 1 repository migration(s) are missing from the export's history but older than its newest entry (20260706024628): 20260101000000. Check them against the live schema, then pass the versions to apply with --pending-migrations (runner: PENDING_MIGRATIONS).
+refusing: 1 repository migration(s) are missing from the export's history but older than its newest entry (20260706024628): 20260101000000. Check them against the live schema; list the ones to apply with --pending-migrations (runner: PENDING_MIGRATIONS). Newer migrations are applied either way.
 PASS nothing was restored before the refusal
+PASS listing only the gap still applies the newer migrations too (4 applied)
+PASS repository migrations applied 4/4
+PASS required app objects present 9/9
+VERIFY PASSED. Report: /tmp/rp-rehearsal.KacvVJ/plan/verify-report.json
 
 == idempotency: re-running the import is a verified no-op
 PASS repository migrations applied 3/3
 PASS required app objects present 9/9
-VERIFY PASSED. Report: /tmp/rp-rehearsal.Hy55tw/plan/verify-report.json
+VERIFY PASSED. Report: /tmp/rp-rehearsal.KacvVJ/plan/verify-report.json
 
 == runner entry point (as Railway would run it): verify step from a downloaded export
-export sha256 325f8789395cffc6cbcacdffca9323fddd0649f34b588f7e589c4614bc4972d0 (208455 bytes)
-VERIFY PASSED. Report: /tmp/restpilot-migration.STd7L6/plan/verify-report.json
+export sha256 e0e11ed8ec327974337d207adf8f86486db849d792f4e84f3c6c658620395b80 (208391 bytes)
+VERIFY PASSED. Report: /tmp/restpilot-migration.RPFMoU/plan/verify-report.json
 
 == tamper detection: verify fails after one changed row
-FAIL public.coach_messages: expected 120 rows sha 9b9588dfa059, got 120 rows sha 867f6d8c8556
+FAIL public.coach_messages: expected 120 rows sha 480d32d0f370, got 120 rows sha 8cba61fa2871
 PASS verify detected the changed row
 
 == REHEARSAL PASSED (synthetic data; not a migration of real data)

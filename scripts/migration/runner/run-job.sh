@@ -6,7 +6,7 @@
 #   TARGET_REF         new project's ref, must appear in TARGET_DB_URL
 #   EXPORT_URL         HTTPS link to the Lovable .backup (secret: a signed link)
 #   EXPORT_SHA256      optional: expected sha256 of the export file
-#   PENDING_MIGRATIONS optional: comma-separated repo migration versions to apply,
+#   PENDING_MIGRATIONS optional: comma-separated OLDER repo migration versions to add,
 #                      only when import/preflight exits 6 (history gap) after a
 #                      manual check of the live schema
 #   APP_URL, CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY   for rewire-* only
@@ -22,8 +22,10 @@ WORK="$(mktemp -d /tmp/restpilot-migration.XXXXXX)"
 trap 'case "$WORK" in /tmp/restpilot-migration.*) rm -rf "$WORK" ;; esac' EXIT
 umask 077
 echo "downloading export (link not printed)"
-# -L: signed storage links redirect; redirects may only go to https.
-curl -fsSL --proto =https,file --proto-redir =https --retry 3 -o "$WORK/export.backup" "$EXPORT_URL"
+# -L: signed storage links redirect; every hop must be https. file:// only
+# for the local rehearsal (MIGRATION_ALLOW_FILE_URL=1).
+PROTO="=https"; [ "${MIGRATION_ALLOW_FILE_URL:-0}" = 1 ] && PROTO="=https,file"
+curl -fsSL --proto "$PROTO" --proto-redir =https --retry 3 -o "$WORK/export.backup" "$EXPORT_URL"
 SUM="$(sha256sum "$WORK/export.backup" | cut -d' ' -f1)"
 echo "export sha256 $SUM ($(stat -c %s "$WORK/export.backup") bytes)"
 if [ -n "${EXPORT_SHA256:-}" ] && [ "$EXPORT_SHA256" != "$SUM" ]; then echo "export checksum mismatch"; exit 1; fi

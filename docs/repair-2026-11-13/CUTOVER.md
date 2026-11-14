@@ -153,7 +153,8 @@ Nothing below changes production or the Lovable database.
      The output is counts and checksums only.
    - If `preflight` exits 6, the export's migration history has a gap.
      Nothing has been restored. The agent checks the live schema, then sets
-     `PENDING_MIGRATIONS` to the versions to apply.
+     `PENDING_MIGRATIONS` to the older versions to add. Migrations newer
+     than the export are always applied.
    - The import restores into the target project:
      - accounts, with their bcrypt password hashes and user IDs;
      - Google identities;
