@@ -33,6 +33,9 @@ test('the app shell hides Google sign-in and Safari install instructions', () =>
   const form = auth.indexOf('<form onSubmit={handleEmailSubmit}');
   assert.ok(gate > 0 && gate < google && google < form, 'Google button sits inside the not-in-app block, before the email form');
   assert.match(read('src/components/SmartAlarmCoach.tsx'), /setHidden\(dismissed \|\| granted \|\| isNativeApp\(\)\)/);
+  const card = read('src/components/SmartAlarmCard.tsx');
+  assert.ok(card.indexOf('{inNativeApp ? (') > 0 && card.indexOf('{inNativeApp ? (') < card.indexOf('Home Screen installation'), 'alarm footer has an app-shell variant before the Home Screen copy');
+  assert.match(auth, /Signed up with Google\? Enter your email and tap Forgot Password/);
   assert.match(read('src/lib/alarm/push-enroll.ts'), /!isStandalone\(\) && !isNativeApp\(\)\) showInstallHint\(\)/);
   const notif = read('src/components/NotificationsSection.tsx');
   assert.ok(notif.indexOf('!supported && isNativeApp()') < notif.indexOf('!supported && iosSafariNoStandalone'), 'app-shell message wins over Home Screen steps');

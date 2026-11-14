@@ -182,7 +182,10 @@ function AuthPage() {
       </p>
 
       {inNativeApp ? (
-        <div className="mt-8" />
+        <p className="mt-8 mb-4 text-center text-xs leading-relaxed text-muted-foreground">
+          Signed up with Google? Enter your email and tap Forgot Password to set a password for the
+          app.
+        </p>
       ) : (
         <>
           <div className="mt-8 flex flex-col gap-3">
