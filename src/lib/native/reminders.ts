@@ -57,8 +57,8 @@ export const DEFAULT_NATIVE_REMINDER_SETTINGS: NativeReminderSettings = {
     recovery: false,
   },
   upcomingShiftLeadMin: 60,
-  // Off by default: shift workers sleep at different hours every week, and the
-  // reminders already avoid the planned sleep window.
+  // Off by default: shift workers sleep at different hours every week, and
+  // reminders never fire inside a planned sleep window (see avoidSleep).
   quietHours: { enabled: false, start: "23:00", end: "06:00" },
   dailyCap: 4,
 };
@@ -170,8 +170,8 @@ const SHIFT_CHANGE_COPY: Record<ShiftType, string> = {
   day: "Aim for an earlier bedtime tonight and get bright light soon after you wake.",
 };
 
-function candidatesFor(days: DayPlan[], s: NativeReminderSettings): Omit<PlannedReminder, "id">[] {
-  const out: Omit<PlannedReminder, "id">[] = [];
+function candidatesFor(days: DayPlan[], s: NativeReminderSettings): Candidate[] {
+  const out: Candidate[] = [];
   let prevType: ShiftType | null = null;
   for (const day of days) {
     const shift = day.shift;
@@ -191,6 +191,7 @@ function candidatesFor(days: DayPlan[], s: NativeReminderSettings): Omit<Planned
             ? `Starts in ${s.upcomingShiftLeadMin / 60 === 1 ? "1 hour" : `${s.upcomingShiftLeadMin / 60} hours`}. Eat something light and get some bright light.`
             : `Starts in ${s.upcomingShiftLeadMin} minutes. Water, caffeine if you need it, and go.`,
         path: "/dashboard",
+        deadline: start,
       });
     }
     if (s.kinds["wind-down"] && day.windDownAt) {
@@ -230,11 +231,34 @@ function candidatesFor(days: DayPlan[], s: NativeReminderSettings): Omit<Planned
         title: `Tomorrow: ${type} shift at ${start ? hhmm(start) : ""}`.trim(),
         body: SHIFT_CHANGE_COPY[type],
         path: "/plan",
+        deadline: start ?? day.date,
       });
     }
     prevType = type;
   }
   return out;
+}
+
+type Candidate = Omit<PlannedReminder, "id"> & { deadline?: Date };
+
+/**
+ * Never wake someone inside a planned sleep window. A reminder that lands
+ * strictly inside one is moved to the moment the window ends when that is
+ * still before its deadline (the shift it is about), otherwise dropped.
+ * Bedtime sits at a window's start and recovery at its end, so they stay.
+ */
+export function avoidSleep(c: Candidate, sleeps: Array<{ start: Date; end: Date }>): Candidate[] {
+  const t = c.at.getTime();
+  const w = sleeps.find((x) => t > x.start.getTime() && t < x.end.getTime());
+  if (!w) return [c];
+  if (
+    (c.kind === "upcoming-shift" || c.kind === "shift-change") &&
+    c.deadline &&
+    w.end < c.deadline
+  ) {
+    return [{ ...c, at: new Date(w.end.getTime()) }];
+  }
+  return [];
 }
 
 /**
@@ -261,7 +285,9 @@ export function planNativeReminders(args: {
 
   const lo = args.now.getTime() + 60_000;
   const hi = args.now.getTime() + days * 86_400_000;
+  const sleeps = plan.flatMap((d) => (d.sleep ? [d.sleep] : []));
   const inWindow = candidatesFor(plan, settings)
+    .flatMap((c) => avoidSleep(c, sleeps))
     .filter((c) => !Number.isNaN(c.at.getTime()) && c.at.getTime() >= lo && c.at.getTime() < hi)
     .filter((c) => !inQuietHours(c.at, settings.quietHours))
     .sort((a, b) => a.at.getTime() - b.at.getTime() || PRIORITY[a.kind] - PRIORITY[b.kind]);
@@ -290,5 +316,5 @@ export function planNativeReminders(args: {
   return capped
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .slice(0, MAX_PENDING)
-    .map((c) => ({ ...c, id: reminderId(c.kind, c.at) }));
+    .map(({ deadline: _deadline, ...c }) => ({ ...c, id: reminderId(c.kind, c.at) }));
 }
