@@ -152,8 +152,8 @@ function PlanPage() {
     [hasVerifiedLocation, prefs.lat, prefs.lon, activeDate, planTz],
   );
   const events = useMemo(
-    () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
-    [mounted, shift, prefs, sun],
+    () => (mounted && shift ? buildLightPlan(shift, prefs, sun, { date: activeDate }) : []),
+    [mounted, shift, prefs, sun, activeDate],
   );
 
   const { data: employers = [] } = useQuery({

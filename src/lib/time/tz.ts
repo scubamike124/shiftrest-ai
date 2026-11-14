@@ -121,16 +121,22 @@ export function utcFromLocal(
   // on the previous day and 1500 is 01:00 on the next day. (Splitting into
   // floor(h) + (m % 60) produced 22:30 for -30.)
   const naiveUtcMs = Date.UTC(y, m - 1, d, 0, minuteOfDay);
-  // The offset must be the one in force at the RESULT instant, not at the
-  // naive instant; they differ for the hours next to a DST change. Resolve
-  // twice. In a spring-forward gap (a wall time that does not exist) the
-  // two passes disagree: take the later instant, so 02:30 becomes 03:30.
-  const first = naiveUtcMs - tzOffsetMinutes(new Date(naiveUtcMs), tz) * 60_000;
-  const secondOffset = tzOffsetMinutes(new Date(first), tz);
-  const second = naiveUtcMs - secondOffset * 60_000;
-  if (second === first) return new Date(first);
-  if (tzOffsetMinutes(new Date(second), tz) === secondOffset) return new Date(second);
-  return new Date(Math.max(first, second));
+  // Try the offsets in force a day either side (offsets reach +/-14h). An offset is valid when the
+  // instant it produces really has that offset. Every zone, either
+  // hemisphere, resolves the same way:
+  //   - ordinary time: both agree;
+  //   - fall-back (the wall time happens twice): the EARLIER instant;
+  //   - spring-forward gap (the wall time never happens): the pre-change
+  //     offset, which moves the time forward by the gap (02:30 -> 03:30).
+  const before = tzOffsetMinutes(new Date(naiveUtcMs - 24 * 3_600_000), tz);
+  const after = tzOffsetMinutes(new Date(naiveUtcMs + 24 * 3_600_000), tz);
+  const valid: number[] = [];
+  for (const offset of before === after ? [before] : [before, after]) {
+    const t = naiveUtcMs - offset * 60_000;
+    if (tzOffsetMinutes(new Date(t), tz) === offset) valid.push(t);
+  }
+  if (valid.length) return new Date(Math.min(...valid));
+  return new Date(naiveUtcMs - before * 60_000);
 }
 
 /** Y/M/D + minute-of-day in `tz` for a given UTC instant. */

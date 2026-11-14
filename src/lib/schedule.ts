@@ -8,10 +8,8 @@
 import { type Shift } from "./shifts";
 import type { Prefs } from "./prefs";
 import { sunTimes, sunriseAfter } from "./sleep-engine";
-import { ANCHOR_WHY, shiftAnchors } from "./schedule-core";
+import { ANCHOR_WHY, anchorInstants, localCivilDate, rotationWeekIndex, civilDay } from "./schedule-core";
 import { detectDeviceTz } from "./tz";
-
-const MS_PER_DAY = 86_400_000;
 
 /** Mon=0 … Sun=6 for a JS Date in the browser timezone. */
 export function weekdayOf(date: Date): number {
@@ -24,37 +22,16 @@ function startOfDay(d: Date): Date {
   return out;
 }
 
-/** Date for the Monday of the week that contains `date`. */
-function mondayOf(date: Date): Date {
-  const d = startOfDay(date);
-  d.setDate(d.getDate() - weekdayOf(d));
-  return d;
-}
-
-/** Parse a YYYY-MM-DD anchor into a local Date (Monday). Falls back to this week's Monday. */
-function resolveAnchorMonday(anchor: string | null | undefined, now: Date): Date {
-  if (anchor) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(anchor);
-    if (m) {
-      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-      if (!Number.isNaN(d.getTime())) return mondayOf(d);
-    }
-  }
-  return mondayOf(now);
-}
-
 /** Which week of the rotation does `date` belong to? 0..cycleWeeks-1. */
 export function weekIndexFor(
   date: Date,
   anchor: string | null | undefined,
   cycleWeeks: number,
 ): number {
-  const cw = Math.max(1, Math.min(6, Math.round(cycleWeeks || 1)));
-  if (cw === 1) return 0;
-  const anchorMon = resolveAnchorMonday(anchor, date);
-  const targetMon = mondayOf(date);
-  const weeks = Math.round((targetMon.getTime() - anchorMon.getTime()) / (7 * MS_PER_DAY));
-  return ((weeks % cw) + cw) % cw;
+  // One rotation rule for every caller: the shared module's, on the
+  // calendar date (DST cannot shift a week boundary).
+  const c = localCivilDate(date);
+  return rotationWeekIndex(civilDay(c.y, c.m, c.d), anchor, cycleWeeks);
 }
 
 /**
@@ -114,8 +91,6 @@ export type LongClockEvent = {
   why?: string;
 };
 
-const MINUTE_MS = 60_000;
-
 /** `date`'s local midnight plus `minutes`, by wall clock (DST-aware). */
 function atOn(date: Date, minutes: number): Date {
   const out = startOfDay(date);
@@ -144,10 +119,10 @@ export function buildLongClock(
   // Shared anchors: the same numbers the Plan screen, recommendations and
   // reminders use. Clock-in/out are wall-clock times; sleep length, caffeine
   // clearance and recovery are elapsed time, so a DST night stays correct.
-  const a = shiftAnchors(shift, prefs);
-  const sleepStartAt = atOn(date, a.sleepStart);
-  const sleepEndAt = new Date(sleepStartAt.getTime() + prefs.sleepHours * 60 * MINUTE_MS);
-  const cutoffAt = new Date(sleepStartAt.getTime() - (a.sleepStart - a.caffeineCutoff) * MINUTE_MS);
+  const a = anchorInstants(shift, prefs, localCivilDate(date), detectDeviceTz() ?? "UTC");
+  const sleepStartAt = a.sleepStart;
+  const sleepEndAt = a.sleepEnd;
+  const cutoffAt = a.caffeineCutoff;
 
   const events: LongClockEvent[] = [];
   const pushAt = (at: Date, kind: LongClockKind, title: string, detail: string, why?: string) => {
@@ -156,32 +131,32 @@ export function buildLongClock(
   const push = (minute: number, kind: LongClockKind, title: string, detail: string, why?: string) =>
     pushAt(atOn(date, minute), kind, title, detail, why);
 
-  push(
+  pushAt(
     a.wake,
     "wake",
     "Wake + bright light",
     "10–20 min outside or under a 10,000 lux lamp within 15 min of waking.",
     `${ANCHOR_WHY.wake} ${ANCHOR_WHY.brightLight}`,
   );
-  push(
+  pushAt(
     a.meal,
     "meal",
     "Light pre-shift meal",
     "Protein + complex carbs. Skip heavy/greasy food — it sabotages alertness.",
     ANCHOR_WHY.meal,
   );
-  push(
+  pushAt(
     a.caffeineOn,
     "caffeine-on",
     "Caffeine on",
     "100–200 mg about 30 min before clock-in. Top up midway if the shift is long.",
     ANCHOR_WHY.caffeineOn,
   );
-  push(
+  pushAt(
     a.shiftStart,
     "shift-start",
     "Shift starts",
-    `Clocked in at ${fmtTime(atOn(date, a.shiftStart))}.`,
+    `Clocked in at ${fmtTime(a.shiftStart)}.`,
   );
   pushAt(
     cutoffAt,
@@ -190,13 +165,13 @@ export function buildLongClock(
     `Last coffee by ${fmtTime(cutoffAt)} so it clears before sleep.`,
     ANCHOR_WHY.caffeineCutoff,
   );
-  push(
+  pushAt(
     a.shiftEnd,
     "shift-end",
     "Shift ends",
-    `Clock out at ${fmtTime(atOn(date, a.shiftEnd))}.`,
+    `Clock out at ${fmtTime(a.shiftEnd)}.`,
   );
-  push(
+  pushAt(
     a.windDownStart,
     "wind-down",
     `Wind-down begins (${prefs.windDownMin} min)`,
@@ -208,7 +183,7 @@ export function buildLongClock(
     // The first sunrise after clock-in: the next morning for a 22:00–23:59
     // start, the same morning for a 00:00–03:59 start.
     push(
-      sunriseAfter(sun.sunrise, a.shiftStart),
+      sunriseAfter(sun.sunrise, shift.start),
       "amber-light",
       "Amber glasses on",
       "Sunrise — switch to amber/blue-blocking glasses on the commute home.",

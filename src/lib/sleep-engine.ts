@@ -1,5 +1,5 @@
 import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
-import { ANCHOR_WHY, minuteOfDay, shiftAnchors } from "./schedule-core";
+import { ANCHOR_WHY, localCivilDate, minuteOfDay, shiftAnchors, shiftAnchorsOn } from "./schedule-core";
 import { tzOffsetMinutes } from "./time/tz";
 import { detectDeviceTz } from "./tz";
 
@@ -206,8 +206,12 @@ export function buildLightPlan(
   shift: Shift,
   prefs: { sleepHours: number; windDownMin: number },
   sun?: { sunrise: number | null; sunset: number | null },
+  /** The date the shift is worked and the zone, so DST nights match reminders. */
+  on?: { date: Date; tz?: string | null },
 ): PlanEvent[] {
-  const a = shiftAnchors(shift, prefs);
+  const a = on
+    ? shiftAnchorsOn(shift, prefs, localCivilDate(on.date), on.tz ?? detectDeviceTz() ?? "UTC")
+    : shiftAnchors(shift, prefs);
   // Sort chronologically from waking, not by clock time, so a night shift's
   // morning sleep is listed after the shift instead of before the wake-up.
   const events: (PlanEvent & { order: number })[] = [];

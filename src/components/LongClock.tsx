@@ -4,7 +4,7 @@ import { Sun, Moon, Coffee, Briefcase, Sparkles, AlarmClock, Wind, Info, Glasses
 import type { Shift } from "@/lib/shifts";
 import type { Prefs } from "@/lib/prefs";
 import { sunTimes } from "@/lib/sleep-engine";
-import { ANCHOR_WHY, minuteOfDay, shiftAnchors } from "@/lib/schedule-core";
+import { buildClockBands } from "@/lib/clock-bands";
 import { detectDeviceTz } from "@/lib/tz";
 import { useDecisionsByIntent } from "@/lib/ai/decisions";
 import {
@@ -23,6 +23,17 @@ const BAND_INTENT_MAP: Record<string, string[]> = {
 };
 
 const RIGHT_NOW_CACHE_KEY = "rp_rightnow_v1";
+
+const BAND_STYLE: Record<string, { color: string; icon: typeof Sun }> = {
+  light: { color: "var(--amber)", icon: Sun },
+  work: { color: "var(--shift, var(--indigo))", icon: Briefcase },
+  wind: { color: "var(--winddown, var(--amber))", icon: Wind },
+  sleep: { color: "var(--sleep, var(--indigo-glow))", icon: Moon },
+  caffeine: { color: "var(--destructive)", icon: Coffee },
+  amber: { color: "var(--amber)", icon: Glasses },
+  alarm: { color: "var(--primary)", icon: AlarmClock },
+  recovery: { color: "var(--accent, #6ee7b7)", icon: Sparkles },
+};
 
 type CoachHighlight = { startMin: number; endMin: number; label: string } | null;
 
@@ -97,143 +108,20 @@ export function LongClock({
   );
 
   const { bands, markers } = useMemo(() => {
-    const bands: Band[] = [];
-    const markers: Marker[] = [];
-
-    if (shift) {
-      // Shared anchors: the same times as the Plan screen, the 7-day plan,
-      // recommendations and reminders. Previously this clock used an 8h
-      // caffeine cutoff and "bright light at sunrise" even after a night
-      // shift, which contradicted the Plan screen.
-      const a = shiftAnchors(shift, prefs);
-      const sStart = shift.start;
-      const sEnd = minuteOfDay(a.shiftEnd);
-      const wake = minuteOfDay(a.wake);
-
-      bands.push({
-        id: "light",
-        label: "Bright light",
-        start: wake,
-        end: minuteOfDay(a.wake + 30),
-        color: "var(--amber)",
-        icon: Sun,
-        reason: `Bright light from ${fmtTime(wake)}, when you wake. ${ANCHOR_WHY.wake} ${ANCHOR_WHY.brightLight}`,
-      });
-
-      bands.push({
-        id: "work",
-        label: "Work",
-        start: sStart,
-        end: sEnd,
-        color: "var(--shift, var(--indigo))",
-        icon: Briefcase,
-        reason: `Shift ${fmtTime(sStart)} – ${fmtTime(sEnd)}.`,
-      });
-
-      const windStart = minuteOfDay(a.windDownStart);
-      const sleepStart = minuteOfDay(a.sleepStart);
-      bands.push({
-        id: "wind",
-        label: "Wind-down",
-        start: windStart,
-        end: sleepStart,
-        color: "var(--winddown, var(--amber))",
-        icon: Wind,
-        reason: `${prefs.windDownMin} min wind-down after shift — dim lights, no screens. ${ANCHOR_WHY.windDown}`,
-      });
-
-      const sleepEnd = minuteOfDay(a.sleepEnd);
-      bands.push({
-        id: "sleep",
-        label: "Sleep",
-        start: sleepStart,
-        end: sleepEnd,
-        color: "var(--sleep, var(--indigo-glow))",
-        icon: Moon,
-        reason: `Target ${prefs.sleepHours}h sleep starting around ${fmtTime(sleepStart)}. ${ANCHOR_WHY.sleep}`,
-      });
-
-      const caffCut = minuteOfDay(a.caffeineCutoff);
-      markers.push({
-        id: "caffeine",
-        at: caffCut,
-        label: "Caffeine cut",
-        color: "var(--destructive)",
-        icon: Coffee,
-        reason: `Stop caffeine by ${fmtTime(caffCut)}. ${ANCHOR_WHY.caffeineCutoff}`,
-      });
-
-      if (a.isNight && sunrise != null) {
-        markers.push({
-          id: "amber",
-          at: sunrise,
-          label: "Amber glasses",
-          color: "var(--amber)",
-          icon: Glasses,
-          reason: `Sunrise ${fmtTime(sunrise)}: amber/blue-blocking glasses on the way home. ${ANCHOR_WHY.amberGlasses}`,
-        });
-      }
-
-      // Alarm at end of sleep
-      markers.push({
-        id: "alarm",
-        at: sleepEnd,
-        label: "Alarm",
-        color: "var(--primary)",
-        icon: AlarmClock,
-        reason: `Wake target ${fmtTime(sleepEnd)}, the end of your ${prefs.sleepHours}h sleep window.`,
-      });
-
-      // Recovery window: 90 min after wake
-      bands.push({
-        id: "recovery",
-        label: "Recovery",
-        start: sleepEnd,
-        end: minuteOfDay(a.recoveryEnd),
-        color: "var(--accent, #6ee7b7)",
-        icon: Sparkles,
-        reason: `90-min recovery window after wake — light food, hydrate, daylight. ${ANCHOR_WHY.recovery}`,
-      });
-    } else {
-      // Day off: morning daylight from sunrise anchors the body clock.
-      if (sunrise != null) {
-        bands.push({
-          id: "light",
-          label: "Bright light",
-          start: sunrise,
-          end: (sunrise + 180) % 1440,
-          color: "var(--amber)",
-          icon: Sun,
-          reason: `Get daylight from ${fmtTime(sunrise)}. ${ANCHOR_WHY.offDayLight}`,
-        });
-      }
-    }
-    if (!shift && sunset != null) {
-      // No shift: wind-down before typical sleep at sunset + 4h
-      const targetSleep = (sunset + 4 * 60) % 1440;
-      const windStart = (targetSleep - prefs.windDownMin + 1440) % 1440;
-      bands.push({
-        id: "wind",
-        label: "Wind-down",
-        start: windStart,
-        end: targetSleep,
-        color: "var(--winddown, var(--amber))",
-        icon: Wind,
-        reason: `${prefs.windDownMin} min wind-down before an estimated ${fmtTime(targetSleep)} bedtime (4h after local sunset, because no shift is set for today).`,
-      });
-      bands.push({
-        id: "sleep",
-        label: "Sleep",
-        start: targetSleep,
-        end: (targetSleep + prefs.sleepHours * 60) % 1440,
-        color: "var(--sleep, var(--indigo-glow))",
-        icon: Moon,
-        reason: `Target ${prefs.sleepHours}h sleep.`,
-      });
-    }
-
-    return { bands, markers };
-  }, [shift, prefs.windDownMin, prefs.sleepHours, prefs.lat, prefs.lon, sunrise, sunset]);
+    const built = buildClockBands({
+      shift,
+      prefs,
+      now,
+      tz: detectDeviceTz() ?? "UTC",
+      sunrise,
+      sunset,
+    });
+    return {
+      bands: built.bands.map((b) => ({ ...b, ...BAND_STYLE[b.id] })) as Band[],
+      markers: built.markers.map((m) => ({ ...m, ...BAND_STYLE[m.id] })) as Marker[],
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shift, prefs.windDownMin, prefs.sleepHours, now, sunrise, sunset]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);

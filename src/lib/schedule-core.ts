@@ -42,6 +42,8 @@ export const SCHEDULE_RULES = {
   recoveryAfterWakeMin: 90,
   /** Shift-start reminder lead time. */
   shiftReminderLeadMin: 15,
+  /** The caffeine-cutoff reminder fires this long BEFORE the cutoff. */
+  caffeineCutoffReminderLeadMin: 10,
   /** A shift that starts in [22:00, 04:00) is a night shift. */
   nightStartFromMin: 22 * 60,
   nightStartBeforeMin: 4 * 60,
@@ -67,6 +69,8 @@ export const ANCHOR_WHY = {
     "After a night shift, morning sunlight on the way home tells your body it is daytime and makes daytime sleep harder. Amber or blue-blocking glasses limit that.",
   recovery:
     "After waking: water, light movement and protein help you recover before the next shift.",
+  shiftEnd:
+    "Your shift has ended: water, a light snack and dim light start the wind-down toward sleep.",
   shortTurnaround:
     "Less time than your sleep target is available before your next shift, so the sleep window is cut short to leave time to wake up before it.",
   offDayLight:
@@ -137,6 +141,80 @@ export function shiftAnchors(shift: ShiftTimes, prefs: SleepPrefs): ShiftAnchors
   };
 }
 
+/** Days since 1970-01-01 for a civil (calendar) date. No time zone involved. */
+export function civilDay(y: number, m: number, d: number): number {
+  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
+}
+
+export type CivilDate = { y: number; m: number; d: number };
+
+/** The calendar date of a JS Date in the runtime's local zone. */
+export function localCivilDate(date: Date): CivilDate {
+  return { y: date.getFullYear(), m: date.getMonth() + 1, d: date.getDate() };
+}
+
+export type AnchorInstants = { [K in Exclude<keyof ShiftAnchors, "isNight">]: Date } & { isNight: boolean };
+
+/**
+ * THE canonical instants for one shift occurrence. Clock-in and clock-out
+ * are wall-clock times; everything else is elapsed time from them, so a
+ * sleep window that crosses a DST change is still `sleepHours` long.
+ * Every screen and every reminder derives its times from this function.
+ */
+export function instantsForWindow(
+  startsAt: Date,
+  endsAt: Date,
+  prefs: SleepPrefs,
+  isNight = false,
+): AnchorInstants {
+  const R = SCHEDULE_RULES;
+  const at = (base: Date, minutes: number) => new Date(base.getTime() + minutes * MIN);
+  const sleepStart = at(endsAt, prefs.windDownMin);
+  const sleepEnd = at(sleepStart, prefs.sleepHours * 60);
+  return {
+    isNight,
+    wake: at(startsAt, -R.wakeBeforeShiftMin),
+    meal: at(startsAt, -R.mealBeforeShiftMin),
+    caffeineOn: at(startsAt, -R.caffeineOnBeforeShiftMin),
+    shiftStart: startsAt,
+    shiftEnd: endsAt,
+    windDownStart: endsAt,
+    sleepStart,
+    sleepEnd,
+    caffeineCutoff: at(sleepStart, -R.caffeineCutoffBeforeSleepMin),
+    recoveryEnd: at(sleepEnd, R.recoveryAfterWakeMin),
+    nap: at(startsAt, -R.napBeforeShiftMin),
+  };
+}
+
+/** Instants for a weekly-template shift worked on calendar date `on` in `tz`. */
+export function anchorInstants(shift: ShiftTimes, prefs: SleepPrefs, on: CivilDate, tz: string): AnchorInstants {
+  const startsAt = utcFromLocal(on.y, on.m, on.d, shift.start, tz);
+  const endsAt = utcFromLocal(on.y, on.m, on.d, shiftEndMinute(shift), tz);
+  return instantsForWindow(startsAt, endsAt, prefs, isNightShift(shift.start));
+}
+
+/**
+ * Same as `shiftAnchors`, but resolved on a real date in a real zone: each
+ * value is the WALL-CLOCK minute (relative to `on`'s midnight) of the
+ * canonical instant. Identical to `shiftAnchors` except across a DST
+ * change, where it matches the 7-day plan and the reminders exactly.
+ * Minute-of-day screens (Plan, dashboard Long Clock, recommendations) use it.
+ */
+export function shiftAnchorsOn(shift: ShiftTimes, prefs: SleepPrefs, on: CivilDate, tz: string): ShiftAnchors {
+  const inst = anchorInstants(shift, prefs, on, tz);
+  const base = civilDay(on.y, on.m, on.d);
+  const wall = (t: Date) => {
+    const p = localPartsInTz(t, tz);
+    return (civilDay(p.year, p.month, p.day) - base) * 1440 + p.minuteOfDay;
+  };
+  const out = { isNight: inst.isNight } as ShiftAnchors;
+  for (const k of Object.keys(inst) as (keyof AnchorInstants)[]) {
+    if (k !== "isNight") (out as Record<string, number | boolean>)[k] = wall(inst[k]);
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Concrete schedule in a time zone
 // ─────────────────────────────────────────────────────────────────────────
@@ -170,11 +248,6 @@ export type TemplateShift = ShiftTimes & {
 const ymdKey = (y: number, m: number, d: number) =>
   `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-/** Days since 1970-01-01 for a civil date (no time zone involved). */
-function civilDay(y: number, m: number, d: number): number {
-  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000);
-}
-
 function civilFromDay(day: number): { y: number; m: number; d: number } {
   const dt = new Date(day * 86_400_000);
   return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
@@ -199,9 +272,9 @@ export function rotationWeekIndex(
 
 /**
  * Expand the weekly (optionally multi-week rotating) template into concrete
- * shift occurrences in `tz`, covering every shift that ENDS after `from` and
- * STARTS within `days` days. Includes the shift that started yesterday and is
- * still running (overnight).
+ * shift occurrences in `tz`: every shift that ended no more than
+ * `lookbackMin` before `from` (so it includes the overnight shift that is
+ * still running and the one that just ended) through `days` days ahead.
  */
 export function buildSchedule(args: {
   shifts: TemplateShift[];
@@ -210,12 +283,19 @@ export function buildSchedule(args: {
   days?: number;
   cycleAnchor?: string | null;
   cycleWeeks?: number;
+  /**
+   * Keep shifts that ended up to this long before `from` (default 24h), so a
+   * shift that just ended can still be extended ("I'm still here") and its
+   * sleep window is still planned.
+   */
+  lookbackMin?: number;
 }): Schedule {
-  const { shifts, tz, from, days = 7, cycleAnchor = null, cycleWeeks = 1 } = args;
+  const { shifts, tz, from, days = 7, cycleAnchor = null, cycleWeeks = 1, lookbackMin = 24 * 60 } = args;
+  const keepAfter = from.getTime() - lookbackMin * MIN;
   const p = localPartsInTz(from, tz);
   const today = civilDay(p.year, p.month, p.day);
   const out: ScheduledShift[] = [];
-  for (let offset = -1; offset < days; offset++) {
+  for (let offset = -2; offset < days; offset++) {
     const day = today + offset;
     const { y, m, d } = civilFromDay(day);
     const weekday = (((day + 3) % 7) + 7) % 7; // 0 = Monday
@@ -224,7 +304,7 @@ export function buildSchedule(args: {
       if (s.day !== weekday || (s.weekIndex ?? 0) !== wi) continue;
       const startsAt = utcFromLocal(y, m, d, s.start, tz);
       const endsAt = utcFromLocal(y, m, d, shiftEndMinute(s), tz);
-      if (endsAt.getTime() <= from.getTime()) continue;
+      if (endsAt.getTime() <= keepAfter) continue;
       out.push({ id: `${s.id}@${ymdKey(y, m, d)}`, templateId: s.id, startsAt, endsAt, title: s.title ?? null });
     }
   }
@@ -281,10 +361,10 @@ export function buildSleepPlan(schedule: Schedule, prefs: SleepPrefs, now: Date)
   const shifts = sortShifts(schedule.shifts);
   const plan: SleepOpportunity[] = [];
   shifts.forEach((shift, i) => {
-    const windDownStart = shift.endsAt;
-    const sleepStart = new Date(windDownStart.getTime() + prefs.windDownMin * MIN);
-    let sleepEnd = new Date(sleepStart.getTime() + prefs.sleepHours * HOUR);
-    if (sleepEnd.getTime() <= now.getTime()) return;
+    const inst = instantsForWindow(shift.startsAt, shift.endsAt, prefs);
+    const windDownStart = inst.windDownStart;
+    const sleepStart = inst.sleepStart;
+    let sleepEnd = inst.sleepEnd;
     const next = shifts[i + 1];
     let shortTurnaround = false;
     const why: string[] = [ANCHOR_WHY.windDown, ANCHOR_WHY.sleep, ANCHOR_WHY.caffeineCutoff];
@@ -296,12 +376,14 @@ export function buildSleepPlan(schedule: Schedule, prefs: SleepPrefs, now: Date)
         why.push(ANCHOR_WHY.shortTurnaround);
       }
     }
+    // Filter AFTER trimming: a trimmed window that already ended is past.
+    if (sleepEnd.getTime() <= now.getTime()) return;
     plan.push({
       afterShiftId: shift.id,
       windDownStart,
       sleepStart,
       sleepEnd,
-      caffeineCutoff: new Date(sleepStart.getTime() - R.caffeineCutoffBeforeSleepMin * MIN),
+      caffeineCutoff: inst.caffeineCutoff,
       sleepMinutes: Math.round((sleepEnd.getTime() - sleepStart.getTime()) / MIN),
       shortTurnaround,
       why,
@@ -319,13 +401,23 @@ export function buildReminders(schedule: Schedule, prefs: SleepPrefs, now: Date)
     const add = (kind: PlannedReminderKind, at: Date, why: string) => {
       if (at.getTime() > now.getTime()) out.push({ id: `${kind}:${shift.id}`, kind, at, shiftId: shift.id, why });
     };
-    const start = shift.startsAt.getTime();
-    add("bright-light", new Date(start - R.wakeBeforeShiftMin * MIN), ANCHOR_WHY.brightLight);
-    add("shift-start", new Date(start - R.shiftReminderLeadMin * MIN), "Your shift starts in 15 minutes.");
+    const inst = instantsForWindow(shift.startsAt, shift.endsAt, prefs);
+    add("bright-light", inst.wake, ANCHOR_WHY.brightLight);
+    add(
+      "shift-start",
+      new Date(shift.startsAt.getTime() - R.shiftReminderLeadMin * MIN),
+      `Your shift starts in ${R.shiftReminderLeadMin} minutes.`,
+    );
     const sleep = sleepByShift.get(shift.id);
-    if (sleep) add("caffeine-cutoff", sleep.caffeineCutoff, ANCHOR_WHY.caffeineCutoff);
-    add("shift-end-recovery", shift.endsAt, ANCHOR_WHY.recovery);
-    add("wind-down", shift.endsAt, ANCHOR_WHY.windDown);
+    if (sleep) {
+      add(
+        "caffeine-cutoff",
+        new Date(sleep.caffeineCutoff.getTime() - R.caffeineCutoffReminderLeadMin * MIN),
+        `Last caffeine in ${R.caffeineCutoffReminderLeadMin} minutes. ${ANCHOR_WHY.caffeineCutoff}`,
+      );
+    }
+    add("shift-end-recovery", inst.shiftEnd, ANCHOR_WHY.shiftEnd);
+    add("wind-down", inst.windDownStart, ANCHOR_WHY.windDown);
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime() || a.id.localeCompare(b.id));
 }
@@ -388,6 +480,7 @@ export function applyShiftChange(
     return idx;
   };
   let summary: string;
+  let changedId: string | null = null;
   switch (change.kind) {
     case "extend": {
       const i = find(change.shiftId);
@@ -401,6 +494,7 @@ export function applyShiftChange(
       if (endsAt.getTime() <= cur.endsAt.getTime()) throw new ShiftChangeError("An extension must end later than the shift did.");
       validWindow(cur.startsAt, endsAt);
       shifts[i] = { ...cur, endsAt };
+      changedId = cur.id;
       summary = `Shift extended by ${Math.round((endsAt.getTime() - cur.endsAt.getTime()) / MIN)} min. Sleep and reminders moved to match.`;
       break;
     }
@@ -411,6 +505,7 @@ export function applyShiftChange(
       const endsAt = change.endsAt ?? cur.endsAt;
       validWindow(startsAt, endsAt);
       shifts[i] = { ...cur, startsAt, endsAt };
+      changedId = cur.id;
       summary = "Shift times updated. Sleep and reminders moved to match.";
       break;
     }
@@ -424,8 +519,10 @@ export function applyShiftChange(
       find(change.shiftId);
       validWindow(change.take.startsAt, change.take.endsAt);
       shifts = shifts.filter((s) => s.id !== change.shiftId);
+      changedId = change.take.id ?? `swap:${change.shiftId}`;
+      if (shifts.some((x) => x.id === changedId)) throw new ShiftChangeError("That shift is already in your schedule.");
       shifts.push({
-        id: change.take.id ?? `swap:${change.shiftId}`,
+        id: changedId,
         startsAt: change.take.startsAt,
         endsAt: change.take.endsAt,
         title: change.take.title ?? null,
@@ -437,14 +534,20 @@ export function applyShiftChange(
       validWindow(change.shift.startsAt, change.shift.endsAt);
       const id = change.shift.id ?? `extra:${change.shift.startsAt.toISOString()}`;
       if (shifts.some((s) => s.id === id)) throw new ShiftChangeError("That shift is already in your schedule.");
+      changedId = id;
       shifts.push({ id, startsAt: change.shift.startsAt, endsAt: change.shift.endsAt, title: change.shift.title ?? null });
       summary = "Extra shift added. Sleep and reminders updated.";
       break;
     }
   }
   const sorted = sortShifts(shifts);
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].startsAt.getTime() < sorted[i - 1].endsAt.getTime()) {
+  // Only the changed or added shift is checked: an overlap that already
+  // existed in the template must not block an unrelated change or a cancel.
+  if (changedId !== null) {
+    const changed = sorted.find((x) => x.id === changedId);
+    if (changed && sorted.some((x) => x.id !== changedId
+      && x.startsAt.getTime() < changed.endsAt.getTime()
+      && changed.startsAt.getTime() < x.endsAt.getTime())) {
       throw new ShiftChangeError("That change would overlap another shift.");
     }
   }
