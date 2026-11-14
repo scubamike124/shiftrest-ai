@@ -111,6 +111,25 @@
     -webkit-font-smoothing: antialiased;
     font-feature-settings: "ss01", "cv11";
   }
+  /* Phones: never let a stray wide element widen the page. iOS Safari zooms the
+     whole page out to fit any overflow, which makes everything look tiny.
+     Each wide element is also clipped by its own container; this is a backstop.
+     `clip` (unlike `hidden`) creates no scroll container, so sticky headers work. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  /* Height of the phone bottom navigation while it is on screen, so floating
+     banners and toasts can sit above it instead of covering it. */
+  :root {
+    --app-bottom-nav: 0px;
+  }
+  @media (max-width: 1023.98px) {
+    :root:has([data-bottom-nav]) {
+      --app-bottom-nav: 61px;
+    }
+  }
   h1, h2, h3, h4 {
     font-family: var(--font-display);
     letter-spacing: -0.01em;

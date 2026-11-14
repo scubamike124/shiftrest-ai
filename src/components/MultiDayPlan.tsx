@@ -61,7 +61,7 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-indigo-glow">
+        <h2 className="font-sans text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-glow">
           Next 7 Days — Long Clock
         </h2>
         {prefs.cycleWeeks > 1 && (
@@ -71,7 +71,7 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
         )}
       </div>
 
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {days.map((d, i) => {
           const open = openIdx === i;
           const dow = (d.date.getDay() + 6) % 7;
@@ -79,7 +79,9 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
             <button
               key={i}
               onClick={() => setOpenIdx(open ? null : i)}
-              className={`flex min-w-[64px] flex-col items-center rounded-2xl border px-2 py-2 text-center transition active:scale-95 ${
+              aria-pressed={open}
+              aria-label={d.date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+              className={`flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-2xl border px-0.5 py-2 text-center transition active:scale-95 ${
                 open
                   ? "border-primary/50 bg-primary/15"
                   : d.isOff
@@ -87,19 +89,19 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
                     : "border-border bg-card"
               }`}
             >
-              <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-glow">
+              <span className="text-[11px] font-bold uppercase text-indigo-glow">
                 {DOW[dow]}
               </span>
               <span className="text-lg leading-none" style={{ fontFamily: "var(--font-display)" }}>
                 {d.date.getDate()}
               </span>
               {prefs.cycleWeeks > 1 && (
-                <span className="mt-0.5 text-[9px] text-muted-foreground">
+                <span className="mt-0.5 text-[10px] text-muted-foreground">
                   Wk {weekLabel(d.weekIndex)}
                 </span>
               )}
               {d.shift ? (
-                <span className="mt-1 text-[9px] font-semibold text-foreground/80">
+                <span className="mt-1 text-[11px] font-semibold text-foreground/80">
                   {(() => {
                     const start = d.shift!.start;
                     const h24 = Math.floor(start / 60) % 24;
@@ -108,7 +110,7 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
                   })()}
                 </span>
               ) : (
-                <span className="mt-1 text-[9px] text-muted-foreground">Off</span>
+                <span className="mt-1 text-[11px] text-muted-foreground">Off</span>
               )}
             </button>
           );

@@ -381,7 +381,9 @@ function LogoTicker() {
       <p className="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
         Built for people who work when others sleep
       </p>
-      <div className="mt-5 overflow-hidden">
+      {/* contain: paint clips the 3,000 px marquee to this box in every engine,
+          so it can never widen the page (iOS Safari would zoom the page out). */}
+      <div className="mt-5 w-full max-w-full overflow-hidden [contain:paint]">
         <div className="ticker-track flex w-max gap-12 whitespace-nowrap text-sm text-muted-foreground/70">
           {items.map((r, i) => (
             <span key={i} className="inline-flex items-center gap-3">
@@ -1268,7 +1270,7 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
           </div>
 
           {/* Capability bento */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {skills.map((s) => (
               <div
                 key={s.title}
@@ -1279,7 +1281,7 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
                   <s.icon className="h-4 w-4 text-indigo-glow" />
                 </span>
                 <p className="mt-3 text-sm font-semibold text-foreground">{s.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{s.body}</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground sm:text-xs">{s.body}</p>
               </div>
             ))}
           </div>

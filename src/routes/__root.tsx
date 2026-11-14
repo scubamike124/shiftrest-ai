@@ -233,7 +233,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <PreviewWarningBanner />
       {surface === "marketing" && (
-        <div className="flex min-h-dvh flex-col">
+        <div className="flex min-h-dvh w-full flex-col overflow-x-clip">
           <SiteHeader signedIn={signedIn} />
           <main className="flex-1">
             <Outlet />
@@ -245,7 +245,7 @@ function RootComponent() {
       {surface === "app" && (
         <div className="flex min-h-dvh w-full overflow-x-clip">
           <AppSidebar />
-          <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
+          <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip pt-[env(safe-area-inset-top)] pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-0">
             <div className="mx-auto w-full max-w-[480px] px-4 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
               <Outlet />
             </div>

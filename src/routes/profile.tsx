@@ -402,8 +402,8 @@ function Profile() {
       <section className="rounded-2xl border border-border bg-card p-4">
         {userEmail ? (
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
                 <LogOut className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -412,8 +412,9 @@ function Profile() {
               </div>
             </div>
             <button
+              type="button"
               onClick={handleSignOut}
-              className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
+              className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-secondary px-4 text-sm font-semibold sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
             >
               Sign Out
             </button>
@@ -459,9 +460,10 @@ function Profile() {
             </div>
           </div>
           <button
+            type="button"
             onClick={detectLocation}
             disabled={!signedIn}
-            className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+            className="min-h-11 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold disabled:opacity-50 sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
           >
             Detect
           </button>
