@@ -149,6 +149,68 @@ if (missingExt.length) {
   process.exit(4);
 }
 console.log("preflight: target is fresh; managed-table columns compatible; extensions available.");
+// Which repository migrations go on top of the export. Decided from the
+// manifest and the repo directory alone, BEFORE anything is restored, so a
+// history gap is caught by --preflight-only and never leaves a half-done
+// target behind.
+const repoDir = opt("repo-migrations");
+let repoChosen = [];
+if (repoDir) {
+  const files = fs
+    .readdirSync(repoDir)
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort();
+  const versionOf = (f) => f.split("_")[0];
+  const explicit = opt("pending-migrations");
+  const history = manifest.migrationHistory || [];
+  const want = new Set(
+    (typeof explicit === "string" ? explicit : "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean),
+  );
+  const unknown = [...want].filter((v) => !files.some((f) => versionOf(f) === v));
+  if (unknown.length) {
+    console.error(
+      `refusing: --pending-migrations versions with no file in ${repoDir}: ${unknown.join(", ")}`,
+    );
+    process.exit(6);
+  }
+  const alreadyLive = [...want].filter((v) => history.includes(v));
+  if (alreadyLive.length) {
+    console.error(
+      `refusing: --pending-migrations versions already in the export's history (live has them): ${alreadyLive.join(", ")}`,
+    );
+    process.exit(6);
+  }
+  if (history.length) {
+    // Everything newer than the export's history is always applied; an
+    // explicit list only ADDS older versions the operator has checked.
+    const newest = [...history].sort().at(-1);
+    const gaps = files.filter(
+      (f) => versionOf(f) <= newest && !history.includes(versionOf(f)) && !want.has(versionOf(f)),
+    );
+    if (gaps.length) {
+      // A newer live migration must not hide these: refuse instead of
+      // silently skipping repository migrations the export lacks.
+      console.error(
+        `refusing: ${gaps.length} repository migration(s) are missing from the export's history but older than its newest entry (${newest}): ${gaps.map(versionOf).join(", ")}. Check them against the live schema; list the ones to apply with --pending-migrations (runner: PENDING_MIGRATIONS). Newer migrations are applied either way.`,
+      );
+      process.exit(6);
+    }
+    repoChosen = files.filter((f) => versionOf(f) > newest || want.has(versionOf(f)));
+  } else if (want.size) {
+    repoChosen = files.filter((f) => want.has(versionOf(f)));
+  } else {
+    console.error(
+      "refusing: the archive has no supabase_migrations history; pass --pending-migrations <versions> (runner: PENDING_MIGRATIONS).",
+    );
+    process.exit(6);
+  }
+  console.log(
+    `preflight: repository migrations to apply after the restore: ${repoChosen.map(versionOf).join(", ") || "none"}`,
+  );
+}
 if (opt("preflight-only")) process.exit(0);
 if (!alreadyImported) restore();
 
@@ -209,50 +271,34 @@ function restore() {
 }
 
 // ---- repository migrations newer than the archive -------------------------
-// The set to apply is fixed once (stored in migration_kit.repo_migrations)
-// and each is applied in its own transaction together with its bookkeeping,
-// so a failed run resumes exactly where it stopped. verify.mjs fails while
-// any planned migration is unapplied.
-const repoDir = opt("repo-migrations");
+// The plan lives in migration_kit.repo_migrations and grows as a union across
+// runs. Each migration is applied in its own transaction together with its
+// bookkeeping, so a failed run resumes exactly where it stopped. verify.mjs
+// fails while any planned migration is unapplied.
 if (repoDir) {
-  const files = fs
-    .readdirSync(repoDir)
-    .filter((f) => /^\d+_.*\.sql$/.test(f))
-    .sort();
   const versionOf = (f) => f.split("_")[0];
-  const planned = query(url, "select version from migration_kit.repo_migrations").map((r) => r[0]);
-  if (!planned.length) {
-    let chosen;
-    const explicit = opt("pending-migrations");
-    const history = manifest.migrationHistory || [];
-    if (typeof explicit === "string") {
-      const want = new Set(explicit.split(","));
-      chosen = files.filter((f) => want.has(versionOf(f)));
-      if (chosen.length !== want.size) {
-        console.error("some --pending-migrations versions have no file in " + repoDir);
-        process.exit(6);
-      }
-    } else if (history.length) {
-      const newest = [...history].sort().at(-1);
-      chosen = files.filter((f) => versionOf(f) > newest);
-      const gaps = files.filter((f) => versionOf(f) <= newest && !history.includes(versionOf(f)));
-      if (gaps.length)
-        console.warn(
-          `review: ${gaps.length} older repository migration(s) are not in the export's history and were NOT applied: ${gaps.map(versionOf).join(", ")}`,
-        );
-    } else {
-      console.error(
-        "The archive has no supabase_migrations history; pass --pending-migrations <versions> explicitly.",
-      );
-      process.exit(6);
-    }
-    const values = chosen.map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`).join(",");
-    if (values)
-      psql(url, [
-        "-c",
-        `insert into migration_kit.repo_migrations(version, name) values ${values} on conflict do nothing`,
-      ]);
-  }
+  // Add this run's set to the stored plan (union), so a re-run with a
+  // corrected --pending-migrations can still complete an interrupted import.
+  // Never plan a version the target already records as applied (restored
+  // history, this kit's bookkeeping, or a later `supabase db push`), so a
+  // re-run after go-live cannot re-apply newer migrations.
+  const alreadyApplied = new Set(
+    queryJson(
+      url,
+      "select to_regclass('supabase_migrations.schema_migrations') is not null as h",
+    )[0].h
+      ? query(url, "select version from supabase_migrations.schema_migrations").map((r) => r[0])
+      : [],
+  );
+  const values = repoChosen
+    .filter((f) => !alreadyApplied.has(versionOf(f)))
+    .map((f) => `('${versionOf(f)}', '${f.replace(/'/g, "''")}')`)
+    .join(",");
+  if (values)
+    psql(url, [
+      "-c",
+      `insert into migration_kit.repo_migrations(version, name) values ${values} on conflict do nothing`,
+    ]);
   const todo = query(
     url,
     "select name from migration_kit.repo_migrations where applied_at is null order by version",
