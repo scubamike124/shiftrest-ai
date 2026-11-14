@@ -54,10 +54,15 @@ test('webhook validates original bytes and timestamp before parsing',async()=>{
  for(const req of [signedRequest({tamper:true}),signedRequest({age:601})])await assert.rejects(verifyWebhookRequest({req,secret,parser:()=>{throw new Error('Parser must not run')}}),/Invalid webhook signature/);
 });
 test('webhook refuses oversized body before parsing',async()=>await assert.rejects(verifyWebhookRequest({req:signedRequest({body:'x'.repeat(262145)}),secret,parser:JSON.parse}),/Invalid webhook body/));
-test('native app build cannot create a Stripe client even with legacy keys present',()=>{
+test('no new checkout without the owner switch, and no full secret keys, even with keys present',()=>{
  let calls=0;
- const p=load('src/lib/stripe.server.ts',{env:{STRIPE_LIVE_SECRET_KEY:'sk_live_test'},mocks:{stripe:class {constructor(){calls++}}}});
- assert.throws(()=>p.createStripeClient('live'),/disabled/);assert.equal(calls,0);
+ const stripe=class {constructor(){calls++}};
+ const p=load('src/lib/stripe.server.ts',{env:{STRIPE_SECRET_KEY:'rk_live_test',PAYMENTS_ENVIRONMENT:'live'},mocks:{stripe}});
+ assert.throws(()=>p.createStripeClient('live'),/checkout is not enabled/);assert.equal(calls,0);
+ const q=load('src/lib/stripe.server.ts',{env:{STRIPE_SECRET_KEY:'sk_live_test',PAYMENTS_ENVIRONMENT:'live'},mocks:{stripe}});
+ assert.throws(()=>q.createStripeClient('live','sync'),/restricted key/);assert.equal(calls,0);
+ const r=load('src/lib/stripe.server.ts',{env:{STRIPE_LIVE_SECRET_KEY:'sk_live_legacy'},mocks:{stripe}});
+ assert.throws(()=>r.createStripeClient('live','sync'),/STRIPE_SECRET_KEY is not set/);assert.equal(calls,0);
 });
 
 test('transactional email retains working unsubscribe link and one-click headers',async()=>{

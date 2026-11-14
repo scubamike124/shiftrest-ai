@@ -12,13 +12,18 @@ const databaseOrigin = (() => {
   } catch { return ""; }
 })();
 
+// Stripe.js origins are allowed only when the owner has switched website
+// checkout on for this host (VITE_STRIPE_CHECKOUT_ENABLED=true); otherwise the
+// policy stays exactly as it is without Stripe.
+const stripeCheckout = process.env.VITE_STRIPE_CHECKOUT_ENABLED === "true";
+
 // Content-Security-Policy in ENFORCING mode. The allowlist below is the same
 // one that ran in report-only mode; violations are still POSTed to
 // /api/public/csp-report so we keep visibility after enforcement.
 const CSP = [
   "default-src 'self'",
   // Inline hydration scripts.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net${stripeCheckout ? " https://js.stripe.com" : ""}`,
   // Tailwind emits inline <style> tags; keep 'unsafe-inline' for now.
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
@@ -45,8 +50,12 @@ const CSP = [
     // Own domains
     "https://restpilotai.com",
     "https://www.restpilotai.com",
+    // Stripe (embedded checkout), only when enabled
+    ...(stripeCheckout
+      ? ["https://api.stripe.com", "https://m.stripe.com", "https://m.stripe.network"]
+      : []),
   ].join(" "),
-  "frame-src 'self'",
+  `frame-src 'self'${stripeCheckout ? " https://js.stripe.com https://hooks.stripe.com" : ""}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

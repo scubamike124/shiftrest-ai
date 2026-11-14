@@ -148,7 +148,7 @@ export const createPortalSession = createServerFn({ method: "POST" })
         return { error: "No subscription found for your account." };
       }
 
-      const stripe = createStripeClient(data.environment);
+      const stripe = createStripeClient(data.environment, "portal");
       const customer = await stripe.customers.retrieve(sub.stripe_customer_id);
       if (customer.deleted || customer.metadata?.userId !== userId) {
         return { error: "Unable to verify billing ownership. Please contact support." };

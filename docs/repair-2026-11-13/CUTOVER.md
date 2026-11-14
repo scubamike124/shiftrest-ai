@@ -104,19 +104,22 @@ order. Each one is free unless it says otherwise.
    `.env.example`, with values from your own provider accounts. Provider
    usage is billed by those providers. These were Lovable's AI gateway
    before; they do not migrate.
-7. **Decide on paid subscriptions before step 9.**
-   - On Railway, Stripe is disabled. Existing recurring subscriptions keep
-     renewing in Stripe, but renewals no longer update RestPilot.
-   - After a subscriber's current period ends, the app would treat them as
-     expired even though they paid.
-   - Lifetime purchases are unaffected: they never expire and they migrate
-     intact.
-   - The import report lists how many subscriptions are active.
-   - If that number is above zero, choose one before cutover. This is a
-     billing/legal decision; the agent makes no payment changes.
-     - (a) Approve a read-only Stripe status sync on Railway, using a
-       restricted key and webhook secret you create.
-     - (b) Manage those subscribers manually.
+7. **Keep website Stripe working. This is a hard gate.** Desktop
+   recommended.
+   - Follow [STRIPE-RAILWAY.md](STRIPE-RAILWAY.md): first Test mode for
+     staging, then live mode for production.
+   - Use only RestPilot's own Stripe account, with a **restricted** key.
+     The app refuses full `sk_` keys and any key whose test/live mode
+     differs from the deployment's.
+   - Railway variable names:
+     - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (secrets);
+     - `VITE_PAYMENTS_CLIENT_TOKEN` (the publishable key);
+     - `PAYMENTS_ENVIRONMENT` and `VITE_STRIPE_CHECKOUT_ENABLED` (switches
+       the agent sets).
+   - restpilotai.com does not move until the Test-mode end-to-end run
+     passes on staging and you approve. New live checkouts on Railway also
+     need your explicit approval.
+   - The Lovable checkout keeps working until the domain moves.
 8. **Approve the go-live window.** Anything written on Lovable after the
    final export, such as sign-ups or new data, is not carried over. Pick a
    quiet hour. The window between export and step 9 is usually under an
@@ -217,7 +220,8 @@ All gates must pass on staging, then on production, before DNS moves.
 | Existing user signs in | `TEST_EMAIL`/`TEST_PASSWORD` of an existing account (yours) with `verify-deployment.mjs` | Sign-in with the old password works. RLS returns only that user's profile. |
 | Google sign-in | `verify-deployment.mjs` | The authorize request redirects to Google, and the return URL is accepted by the allow-list. |
 | Right backend | `verify-deployment.mjs` | CSP and the browser bundle point at the new project and no longer at `czsgjqfcjiuqirvmdlps`. |
-| Subscriptions read-only and correct | `verify.mjs` entitlement lines and the app's Account screen | The counts by status and price match, including `lifetime`. Checkout stays disabled. The step 7 decision is recorded. |
+| Website Stripe works on Railway (hard gate) | On staging, Test mode: buy monthly, then annual, with a test card; open "Manage subscription"; cancel; delete a test account with a subscription. Then check the `subscriptions` rows. | Checkout shows $7.99 or $49.99 with a 14-day trial and no lifetime option. The webhook returns 200 and updates the row; cancellation and the portal work. The `tests/stripe-checkout-regression.test.mjs` payload is unchanged. The iPhone app still shows App preview. |
+| Subscriptions migrated correctly | `verify.mjs` entitlement lines and the app's Account screen | The counts by status and price match, including `lifetime`. |
 | AI works | Coach chat as your account on staging | The reply arrives, and the usage limit is enforced. |
 | Email | Password reset to your address from staging | The email arrives, and its link returns to staging. |
 | Health | `/api/public/health`, `/api/public/version` | HTTP 200, with the expected build ID. |
