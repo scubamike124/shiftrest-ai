@@ -36,8 +36,9 @@ async function isUserOnTrial(userId: string, env: StripeEnv): Promise<boolean> {
     const store = await supabaseAdmin.from("store_entitlements")
       .select("environment, plan, period_type, expires_at, grace_expires_at, will_renew").eq("user_id", userId);
     if (store.error || !Array.isArray(store.data)) throw new Error("Voice subscription checks are unavailable");
-    const { appleRowsAsSubscriptionRows } = await import("@/lib/entitlements/merge");
-    return voiceEntitlement([...data, ...appleRowsAsSubscriptionRows(store.data, ["live", "sandbox"])]) === "trial";
+    const { appleRowsAsSubscriptionRows, appleEnvironmentsFrom } = await import("@/lib/entitlements/merge");
+    const apple = appleRowsAsSubscriptionRows(store.data, appleEnvironmentsFrom(process.env));
+    return voiceEntitlement([...data, ...apple]) === "trial";
   }
   return voiceEntitlement(data) === "trial";
 }

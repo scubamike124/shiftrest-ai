@@ -255,3 +255,14 @@ export function statusStripeEnvironment(
   if (token?.startsWith("pk_test_")) return "sandbox";
   return "live";
 }
+
+/** App Store environments whose rows grant access on this server.
+ *  Nothing unless IAP_ENABLED=true. Sandbox (App Review, TestFlight, sandbox
+ *  testers) only with IAP_HONOR_SANDBOX=true as well: App Review needs it,
+ *  but left on in production it gives every TestFlight tester free Premium. */
+export function appleEnvironmentsFrom(
+  vars: Record<string, string | undefined>,
+): BillingEnvironment[] {
+  if (vars.IAP_ENABLED !== "true") return [];
+  return vars.IAP_HONOR_SANDBOX === "true" ? ["live", "sandbox"] : ["live"];
+}

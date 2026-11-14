@@ -264,8 +264,11 @@ Two writers:
 - Stripe rows count only for this deployment's Stripe environment. If none is configured, as on the
   Railway build, **live** rows count, so a paying website customer is never offered an App Store
   subscription.
-- Apple rows count only when `IAP_ENABLED=true`, for both production and sandbox. App Review buys
-  in the sandbox against the production server, and TestFlight purchases are sandbox too.
+- Apple rows count only when `IAP_ENABLED=true`, and only production purchases by default.
+  Sandbox purchases (App Review, TestFlight, sandbox testers) count only with
+  `IAP_HONOR_SANDBOX=true`. App Review buys in the sandbox against the production server, so turn
+  it on while a build is in review. Left on in production, it gives every TestFlight tester free
+  Premium.
 - `getEntitlementStatus` returns the merged entitlement and fails closed: an unreadable status
   becomes an error, never a buy button.
 
@@ -336,6 +339,7 @@ Two writers:
 | `VITE_REVENUECAT_IOS_API_KEY` | empty | Public Apple SDK key (`appl_…`). IAP stays unavailable without it. |
 | `VITE_IAP_US_EXTERNAL_LINK` | `false` | US-storefront link to website purchase and billing (section 2.2) |
 | `IAP_ENABLED` | `false` | Server: webhook, restore sync, Apple rows in status and in the voice gate |
+| `IAP_HONOR_SANDBOX` | `false` | Server: also honor Apple sandbox purchases (App Review, TestFlight). Turn on in staging and while a build is in review. |
 | `REVENUECAT_SECRET_API_KEY`, `REVENUECAT_WEBHOOK_SECRET`, `REVENUECAT_WEBHOOK_AUTHORIZATION` | empty | Secrets, set in Railway only |
 
 ### Files
@@ -437,7 +441,10 @@ Stripe identity.
    - **Do not connect Stripe to RevenueCat**: website revenue stays outside RevenueCat billing.
 8. **Webhook.** In RevenueCat, go to Integrations, then Webhooks:
    - URL `https://<railway host>/api/public/iap/revenuecat`, all events, both environments.
-   - Enable **HMAC signing**. Optionally set an Authorization header value.
+   - Enable **HMAC signing** and confirm deliveries carry
+     `X-RevenueCat-Webhook-Signature: t=…,v1=…`. The endpoint refuses unsigned deliveries with
+     401. If they are refused, Apple state would only update when a user restores, so check that
+     "Send test event" returns 200. Optionally also set an Authorization header value.
 9. **Secrets.** Put these in Railway's secure variable editor only, never in chat or git:
    - `REVENUECAT_SECRET_API_KEY` (`sk_…`, project secret key);
    - `REVENUECAT_WEBHOOK_SECRET` (HMAC signing secret);
@@ -452,7 +459,8 @@ Stripe identity.
 12. **Sandbox testers.** App Store Connect, then Users and Access, then Sandbox: create two sandbox
     Apple Accounts. On the test iPhone, sign in under Settings, then Developer (or App Store), then
     Sandbox Account. Sandbox renewals are accelerated (a 2-week trial lasts minutes).
-13. **Turn on in staging first.** Set `IAP_ENABLED=true` and `VITE_IAP_ENABLED=true` on staging only,
+13. **Turn on in staging first.** Set `IAP_ENABLED=true`, `IAP_HONOR_SANDBOX=true` and
+    `VITE_IAP_ENABLED=true` on staging only,
     rebuild, and install the shell with the plugin through TestFlight. Test:
     - purchase monthly and annual;
     - the trial;
@@ -462,7 +470,8 @@ Stripe identity.
     - an existing Stripe test subscriber sees "billed through the website" and no buy button.
 
     Only then repeat for production.
-14. **App Review notes.** In App Store Connect, say that subscriptions are sold with IAP, that
+14. **App Review.** Set `IAP_HONOR_SANDBOX=true` on production while the build is in review, and
+    turn it off after approval. Repeat for every later review. **App Review notes.** In App Store Connect, say that subscriptions are sold with IAP, that
     website subscribers can sign in (3.1.3(b)), and provide a demo account. Leave
     `VITE_IAP_US_EXTERNAL_LINK=false` unless the owner decides otherwise after re-checking the US
     rules.
@@ -479,7 +488,13 @@ Stripe identity.
   "free" for everyone because payments are not configured. That second point affects existing
   Stripe subscribers' display on staging even without IAP.
 - **F3, account.** Account export should include `store_entitlements`. Account deletion should tell
-  Apple subscribers to cancel in Settings (section 5).
+  Apple subscribers to cancel in Settings (section 5). It cancels Stripe only, and Apple keeps
+  billing after the row cascades away.
+- **F5, web checkout guard.** When website checkout is restored with IAP on,
+  `createCheckoutSession` should refuse users who have an active Apple channel. Left unchanged here
+  because the website flow must stay byte-for-byte, and web checkout is disabled on this branch.
 - **F4, ops.** Alert the owner when the RevenueCat webhook returns 5xx, as the Stripe webhook does.
   Add a periodic reconcile job that calls `syncStoreEntitlement` for rows expiring within 24 hours.
-  Both are optional: RevenueCat retries for about 80 minutes.
+  Both are optional: RevenueCat retries for about 80 minutes. A webhook refreshes at most 10
+  affected user IDs per event, so a longer alias list would leave the rest to their next event or
+  Restore. That is unlikely with one RestPilot account per Apple purchaser.

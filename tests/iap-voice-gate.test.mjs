@@ -55,3 +55,9 @@ test('flag on: Stripe subscribers are unaffected', async () => {
   const g = gate({ env: { IAP_ENABLED: 'true' }, stripeRows: [{ status: 'active', current_period_end: future }] });
   assert.equal((await g.load()).isTrial, false);
 });
+
+test('flag on: Apple sandbox (TestFlight) rows grant nothing unless IAP_HONOR_SANDBOX=true', async () => {
+  const sandboxRow = appleRow({ environment: 'sandbox' });
+  await assert.rejects(gate({ env: { IAP_ENABLED: 'true' }, storeRows: [sandboxRow] }).load(), /active subscription/);
+  assert.equal((await gate({ env: { IAP_ENABLED: 'true', IAP_HONOR_SANDBOX: 'true' }, storeRows: [sandboxRow] }).load()).isTrial, false);
+});

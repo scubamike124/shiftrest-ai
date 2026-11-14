@@ -25,7 +25,7 @@ test('flags are strict opt-in strings, defaulting off', () => {
   assert.match(bridge, /import\.meta\.env\.VITE_IAP_US_EXTERNAL_LINK === "true"/);
   assert.match(read('src/lib/entitlements/store-sync.server.ts'), /env\.IAP_ENABLED === "true"/);
   const example = read('.env.example');
-  for (const name of ['VITE_IAP_ENABLED=false', 'VITE_IAP_US_EXTERNAL_LINK=false', 'IAP_ENABLED=false']) assert.ok(example.includes(name), name);
+  for (const name of ['VITE_IAP_ENABLED=false', 'VITE_IAP_US_EXTERNAL_LINK=false', 'IAP_ENABLED=false', 'IAP_HONOR_SANDBOX=false']) assert.ok(example.includes(name), name);
   for (const secret of ['REVENUECAT_SECRET_API_KEY=', 'REVENUECAT_WEBHOOK_SECRET=']) assert.match(example, new RegExp(`^${secret}$`, 'm'), 'secret placeholder is empty');
 });
 

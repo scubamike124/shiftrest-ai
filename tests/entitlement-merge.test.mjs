@@ -129,3 +129,11 @@ test('status Stripe environment: explicit, token-derived, else live (never throw
   assert.equal(m.statusStripeEnvironment({}), 'live');
   assert.equal(m.statusStripeEnvironment({ PAYMENTS_ENVIRONMENT: 'bogus' }), 'live');
 });
+
+test('Apple environments: none unless IAP is on; sandbox only with its own opt-in', () => {
+  assert.deepEqual(m.appleEnvironmentsFrom({}), []);
+  assert.deepEqual(m.appleEnvironmentsFrom({ IAP_HONOR_SANDBOX: 'true' }), []);
+  assert.deepEqual(m.appleEnvironmentsFrom({ IAP_ENABLED: 'true' }), ['live']);
+  assert.deepEqual(m.appleEnvironmentsFrom({ IAP_ENABLED: 'true', IAP_HONOR_SANDBOX: '1' }), ['live']);
+  assert.deepEqual(m.appleEnvironmentsFrom({ IAP_ENABLED: 'true', IAP_HONOR_SANDBOX: 'true' }), ['live', 'sandbox']);
+});

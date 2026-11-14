@@ -3,9 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import {
+  appleEnvironmentsFrom,
   mergeEntitlements,
   statusStripeEnvironment,
-  type BillingEnvironment,
   type Entitlement,
   type StoreEntitlementRow,
   type StripeSubscriptionRow,
@@ -18,13 +18,6 @@ const APPLE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
 
 function serverEnv(): Record<string, string | undefined> {
   return process.env as Record<string, string | undefined>;
-}
-
-/** Apple sandbox purchases (App Review, TestFlight) are honored alongside
- *  production ones whenever IAP is on: App Review buys in the sandbox
- *  against the production server. */
-function appleEnvironments(env: Record<string, string | undefined>): BillingEnvironment[] {
-  return env.IAP_ENABLED === "true" ? ["live", "sandbox"] : [];
 }
 
 async function readStatus(
@@ -40,7 +33,7 @@ async function readStatus(
   if (stripe.error || !Array.isArray(stripe.data))
     return { error: "Subscription status is unavailable. Please try again." };
   let storeRows: (StoreEntitlementRow & { management_url: string | null })[] = [];
-  const apple = appleEnvironments(env);
+  const apple = appleEnvironmentsFrom(env);
   if (apple.length) {
     const store = await supabase
       .from("store_entitlements")
@@ -88,21 +81,22 @@ export const syncMyStoreEntitlement = createServerFn({ method: "POST" })
     if (env.IAP_ENABLED !== "true") return { error: "In-app purchases are not available yet." };
     const now = Date.now();
     const previous = lastSync.get(context.userId) ?? 0;
-    if (now - previous >= SYNC_INTERVAL_MS) {
-      lastSync.set(context.userId, now);
-      if (lastSync.size > 10_000) lastSync.clear();
-      try {
-        const [{ syncStoreEntitlement }, { storeSyncDeps }] = await Promise.all([
-          import("./store-sync.server"),
-          import("./store-db.server"),
-        ]);
-        await syncStoreEntitlement(context.userId, await storeSyncDeps());
-      } catch {
-        return {
-          error:
-            "Couldn't confirm your App Store purchase yet. Please try Restore again in a minute.",
-        };
-      }
+    if (now - previous < SYNC_INTERVAL_MS) {
+      return { error: "Still checking with the App Store. Please try again in a few seconds." };
+    }
+    lastSync.set(context.userId, now);
+    if (lastSync.size > 10_000) lastSync.clear();
+    try {
+      const [{ syncStoreEntitlement }, { storeSyncDeps }] = await Promise.all([
+        import("./store-sync.server"),
+        import("./store-db.server"),
+      ]);
+      await syncStoreEntitlement(context.userId, await storeSyncDeps());
+    } catch {
+      return {
+        error:
+          "Couldn't confirm your App Store purchase yet. Please try Restore again in a minute.",
+      };
     }
     try {
       return await readStatus(context.supabase, context.userId);
