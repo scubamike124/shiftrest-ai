@@ -16,7 +16,7 @@ export function RenewalDisclosure() {
           <Link to="/legal/subscription" className="text-primary underline">
             Subscription Terms
           </Link>
-          . Lifetime access applies to current core features and is subject to reasonable use limits.
+          . Existing Lifetime purchases (no longer sold) apply to current core features and are subject to reasonable use limits.
         </li>
         <li>
           RestPilot AI is not medical advice, an emergency service, or a guarantee of any health, safety, or work outcome. See{" "}
