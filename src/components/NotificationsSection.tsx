@@ -20,6 +20,8 @@ import {
 } from "@/lib/push/subscribe.functions";
 import { REMINDER_DESC, REMINDER_LABEL, type ReminderKind } from "@/lib/notifications/copy";
 import { isNativeApp } from "@/lib/native-app";
+import { localNotifications } from "@/lib/native/sync";
+import { NativeRemindersCard } from "@/components/native/NativeRemindersCard";
 
 const KINDS: Array<{ key: keyof NotifPrefsRow; rk: ReminderKind }> = [
   { key: "wind_down", rk: "wind-down" },
@@ -32,7 +34,20 @@ const KINDS: Array<{ key: keyof NotifPrefsRow; rk: ReminderKind }> = [
   { key: "commute", rk: "commute-leave" },
 ];
 
+// Inside the iPhone app shell Web Push does not exist; the app schedules
+// reminders on the phone instead (local notifications). Older app builds
+// without that plugin keep the "not available" message below.
 export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
+  const [nativeReminders, setNativeReminders] = useState(false);
+  useEffect(() => setNativeReminders(isNativeApp() && localNotifications() !== null), []);
+  return nativeReminders ? (
+    <NativeRemindersCard signedIn={signedIn} />
+  ) : (
+    <WebPushNotificationsSection signedIn={signedIn} />
+  );
+}
+
+function WebPushNotificationsSection({ signedIn }: { signedIn: boolean }) {
   const qc = useQueryClient();
   // Always render "unsupported" on the first paint so SSR markup and the
   // initial client render match. Real permission is resolved post-mount.
