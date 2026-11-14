@@ -68,7 +68,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/subscription",
     title: "Subscription Terms",
     summary:
-      "Billing, auto-renewal, cancellation, refunds, free trials, and lifetime access.",
+      "Billing, auto-renewal, cancellation, refunds, free trials, and existing lifetime access.",
     effective: LEGAL_EFFECTIVE,
     category: "billing",
   },
