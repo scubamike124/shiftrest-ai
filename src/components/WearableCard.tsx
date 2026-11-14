@@ -27,7 +27,14 @@ export function WearableCard({ signedIn = false }: { signedIn?: boolean }) {
     staleTime: 60_000,
     enabled: signedIn,
   });
-  const connections = data?.connections ?? [];
+  // Also offer deletion for readings left without a connection (for example
+  // an earlier disconnect that failed half-way), so there is always a retry.
+  const connections = [
+    ...(data?.connections ?? []),
+    ...(data?.latest && !(data.connections ?? []).some((c) => c.provider === data.latest!.provider)
+      ? [{ provider: data.latest.provider, lastSyncAt: null as string | null, orphaned: true }]
+      : []),
+  ];
 
   async function disconnect(provider: WearableProvider) {
     setBusy(provider);
@@ -58,7 +65,7 @@ export function WearableCard({ signedIn = false }: { signedIn?: boolean }) {
               {connections.map((c) => (
                 <li key={c.provider} className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs">
-                    {PROVIDER_NAME[c.provider]} connected
+                    {PROVIDER_NAME[c.provider]} {"orphaned" in c ? "data stored" : "connected"}
                     {c.lastSyncAt ? ` · last sync ${new Date(c.lastSyncAt).toLocaleDateString()}` : ""}
                   </span>
                   <button

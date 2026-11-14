@@ -29,20 +29,22 @@ function wearableHarness(fail = {}) {
 test('disconnecting a wearable deletes its tokens AND its synced readings', async () => {
   const h = wearableHarness();
   assert.deepEqual(JSON.parse(JSON.stringify(await h.run())), { ok: true, deletedReadings: true });
-  assert.deepEqual(h.calls, ['wearable_connections:user_id=u1&provider=oura', 'wearable_readings:user_id=u1&provider=oura']);
+  assert.deepEqual(h.calls, ['wearable_readings:user_id=u1&provider=oura', 'wearable_connections:user_id=u1&provider=oura', 'wearable_readings:user_id=u1&provider=oura']);
 });
 
 test('wearable disconnect reports failure instead of a false success', async () => {
   const a = wearableHarness({ wearable_connections: true });
   await assert.rejects(a.run(), /couldn't disconnect/);
-  assert.equal(a.calls.length, 1, 'readings are not touched when the connection delete failed');
-  await assert.rejects(wearableHarness({ wearable_readings: true }).run(), /could not be deleted/);
+  const b = wearableHarness({ wearable_readings: true });
+  await assert.rejects(b.run(), /couldn't delete this wearable's data/);
+  assert.deepEqual(b.calls, ['wearable_readings:user_id=u1&provider=oura'], 'the connection (and the retry button) stays when readings fail');
 });
 
 test('existing wearable connections can be revoked from Profile', () => {
   const card = read('src/components/WearableCard.tsx');
   assert.match(card, /disconnectWearable/);
   assert.match(card, /Disconnect and delete data/);
+  assert.match(card, /orphaned: true/, 'readings without a connection still get a delete control');
 });
 
 // ── Account deletion ───────────────────────────────────────────────────

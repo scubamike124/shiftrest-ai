@@ -60,24 +60,29 @@ export const disconnectWearable = createServerFn({ method: "POST" })
   .inputValidator((data: { provider: WearableProvider }) => ProviderSchema.parse(data))
   .handler(async ({ data, context }) => {
     // The privacy policy promises wearable readings are "deleted on
-    // disconnect". Remove the stored tokens first (stops any further sync),
-    // then the readings, and report failure instead of a false success.
+    // disconnect". Order matters so a failure always leaves a way to retry:
+    //   1. delete readings (on failure the connection, and the Disconnect
+    //      button, still exist);
+    //   2. delete the connection (stops further syncs);
+    //   3. delete readings again, in case a sync landed between 1 and 2.
+    const deleteReadings = async () => {
+      const { error } = await context.supabase
+        .from("wearable_readings")
+        .delete()
+        .eq("user_id", context.userId)
+        .eq("provider", data.provider);
+      if (error) throw new Error("We couldn't delete this wearable's data. Please retry.");
+    };
+    await deleteReadings();
     const { error: connectionError } = await context.supabase
       .from("wearable_connections")
       .delete()
       .eq("user_id", context.userId)
       .eq("provider", data.provider);
     if (connectionError) {
-      throw new Error("We couldn't disconnect this wearable. Nothing was deleted. Please retry.");
+      throw new Error("Your wearable data was deleted, but we couldn't disconnect the wearable. Please retry.");
     }
-    const { error: readingsError } = await context.supabase
-      .from("wearable_readings")
-      .delete()
-      .eq("user_id", context.userId)
-      .eq("provider", data.provider);
-    if (readingsError) {
-      throw new Error("The wearable is disconnected, but some of its readings could not be deleted. Please retry.");
-    }
+    await deleteReadings();
     return { ok: true as const, deletedReadings: true as const };
   });
 
