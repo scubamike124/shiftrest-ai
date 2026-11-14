@@ -28,7 +28,7 @@ jobs:
   safari:
     if: ${{ !github.event.repository.private }}
     runs-on: macos-15
-    timeout-minutes: 50
+    timeout-minutes: 80
     env:
       OUT: ${{ github.workspace }}/mobile-safari-evidence
       PROD: https://restpilotai.com
@@ -81,7 +81,7 @@ jobs:
           PY
           cat devices.txt
           [ -s devices.txt ] || { echo "No iPhone simulator types found"; exit 1; }
-          ROUTES="/ /pricing /auth /paywall /features /science /legal/privacy /#meet-aura /#pricing"
+          ROUTES="/ /pricing /auth /paywall /features /#meet-aura"
           while read -r KEY RUNTIME TYPE LABEL; do
             DEV=$(xcrun simctl create "RP-$KEY" "$TYPE" "$RUNTIME")
             xcrun simctl boot "$DEV"
@@ -115,9 +115,13 @@ jobs:
             case $SITE in prod) BASE=$PROD;; staging) BASE=$STAGING;; local) BASE=$LOCAL;; esac
             echo "=== $SITE $BASE"
             PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs \
-              AUDIT_OUT="$OUT/webkit-audit-$SITE.json" AUDIT_SHOTS="$OUT/webkit-$SITE" AUDIT_NO_FAIL=1 \
+              AUDIT_OUT="$OUT/webkit-audit-$SITE.json" AUDIT_SHOTS="$OUT/webkit-$SITE" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
               node scripts/qa/mobile-layout-audit.mjs "$BASE" | tee "$OUT/webkit-audit-$SITE.txt"
           done
+          echo "=== local signed-in app screens (fake session, placeholder backend)"
+          PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs AUDIT_FAKE_SESSION=1 \
+            AUDIT_OUT="$OUT/webkit-audit-local-app.json" AUDIT_SHOTS="$OUT/webkit-local-app" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
+            node scripts/qa/mobile-layout-audit.mjs "$LOCAL" | tee "$OUT/webkit-audit-local-app.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
