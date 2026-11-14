@@ -229,8 +229,14 @@ export function NativeSubscription() {
   async function afterStoreChange(note: string) {
     try {
       const next = await syncMyStoreEntitlement();
+      if ("error" in next) {
+        // Keep showing the plan (e.g. a throttled sync); re-read status without syncing.
+        setMessage(next.error);
+        setStatus(await getEntitlementStatus());
+        return;
+      }
       setStatus(next);
-      setMessage("error" in next ? next.error : note);
+      setMessage(note);
     } catch {
       setMessage("Couldn't confirm with the App Store yet. Tap Restore purchases in a minute.");
     }

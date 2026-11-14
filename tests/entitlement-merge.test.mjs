@@ -137,3 +137,10 @@ test('Apple environments: none unless IAP is on; sandbox only with its own opt-i
   assert.deepEqual(m.appleEnvironmentsFrom({ IAP_ENABLED: 'true', IAP_HONOR_SANDBOX: '1' }), ['live']);
   assert.deepEqual(m.appleEnvironmentsFrom({ IAP_ENABLED: 'true', IAP_HONOR_SANDBOX: 'true' }), ['live', 'sandbox']);
 });
+
+test('voice adapter: billing grace right after an Apple free trial stays metered as a trial', () => {
+  const rows = m.appleRowsAsSubscriptionRows([
+    apple({ period_type: 'trial', expires_at: iso(NOW - DAY), grace_expires_at: iso(NOW + 5 * DAY) }),
+  ], ['live'], NOW);
+  assert.deepEqual(rows.map((r) => r.status), ['trialing']);
+});

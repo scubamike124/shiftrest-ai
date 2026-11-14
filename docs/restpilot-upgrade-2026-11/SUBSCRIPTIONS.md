@@ -289,10 +289,15 @@ Two writers:
 - The app re-checks status on the server **immediately before** opening the App Store sheet.
 - The App Store subscription group contains only Monthly and Annual, so Apple itself prevents two
   concurrent App Store subscriptions. Monthly to annual is an in-group upgrade.
-- The website should hide Stripe checkout from App Store subscribers. The merge and policy already
-  return "status, manage in App Store" for that case. The website paywall still shows the app
-  preview screen (Stripe is disabled there), so this applies when web checkout is restored
+- On the website, App Store subscribers see their status and "Manage in App Store", not Stripe
+  checkout. The policy returns this already; the website UI uses it once web checkout is restored
   (follow-up F2).
+- **Server-side guard.** `createCheckoutSession` refuses to create a Stripe checkout session for a
+  user with an active App Store subscription, and makes no Stripe call. If the App Store status
+  cannot be read, it also refuses. The guard lives in `src/lib/entitlements/checkout-guard.ts` and
+  runs only when `IAP_ENABLED=true`, so with IAP off the requests sent to Stripe are unchanged.
+  When the migration agent restores web checkout on Railway, keep these four lines in
+  `billing.functions.ts`.
 - A user who still ends up with two renewing subscriptions sees: "You have more than one renewing
   RestPilot subscription. Cancel one of them below so you are not charged twice." Both manage paths
   are shown.
@@ -351,6 +356,7 @@ Two writers:
 | `src/lib/entitlements/revenuecat.ts` | Pure: product catalog, subscriber-to-snapshot conversion, affected users, packages |
 | `src/lib/entitlements/store-sync.server.ts` | Signature check, webhook handler and sync |
 | `src/lib/entitlements/store-db.server.ts` | Service-role database wiring |
+| `src/lib/entitlements/checkout-guard.ts` | Website checkout refuses App Store subscribers (only with `IAP_ENABLED=true`); called from `billing.functions.ts` |
 | `src/routes/api/public/iap/revenuecat.ts` | Webhook route |
 | `src/lib/entitlements/entitlement.functions.ts` | `getEntitlementStatus` and `syncMyStoreEntitlement` |
 | `src/lib/entitlements/iap-bridge.ts` | Calls the native plugin through Capacitor's injected `nativePromise`; adds no web dependency |
@@ -369,6 +375,7 @@ Two writers:
 | `tests/revenuecat-sync.test.mjs` | Snapshot parsing; webhook signature, idempotency, retry, transfer and size limits |
 | `tests/iap-voice-gate.test.mjs` | Voice gate, flag off and on |
 | `tests/app-aware-paywall.test.mjs` | The website screen is unchanged, flags are off, and the app screen cannot reach Stripe |
+| `tests/subscription-lifecycle.test.mjs` | Restore, cancellation and duplicate prevention end to end (section 6a) |
 | `tests/stripe-checkout-regression.test.mjs` | Pins the exact Stripe requests (below) |
 
 **Website Stripe regression lock.** For `restpilot_monthly` and `restpilot_annual`, the test pins
@@ -402,6 +409,67 @@ After upgrading the shell to Capacitor 8, move to `@revenuecat/purchases-capacit
 That adds `getStorefront`, which the US-link rule needs.
 
 ---
+
+## 6a. Verification
+
+All checks below run in `node --test tests/*.test.mjs` with provider and database IO mocked; there
+are no network calls. RevenueCat webhooks use
+[RevenueCat's documented body](https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields):
+
+```
+{api_version, event: {id, type, event_timestamp_ms, app_id, app_user_id, original_app_user_id,
+aliases, product_id, period_type, expiration_at_ms, environment, store, cancel_reason or
+expiration_reason}}
+```
+
+A `TRANSFER` event carries `transferred_from` and `transferred_to` instead. Every fixture is signed
+the way RevenueCat signs deliveries: `X-RevenueCat-Webhook-Signature: t=<unix>,v1=<hex
+HMAC-SHA256("<t>.<raw body>")>`. Canonical state comes from a mocked `GET /v1/subscribers/{id}` in
+RevenueCat's documented response shape.
+
+### (a) Restore (`tests/subscription-lifecycle.test.mjs`, tests prefixed "(a) restore")
+
+| Requirement | Test |
+|---|---|
+| A restore syncs the signed-in user's Apple entitlement, and the merged status shows it | `(a) restore: the signed-in user restores and their Apple entitlement is synced and returned` |
+| Never acts for another user ID, even one supplied by the client | `(a) restore: never acts for another user ID, even if the client sends one` |
+| Throttled per user, with an explicit message | `(a) restore: throttled to one RevenueCat lookup per user per 10 seconds, with an explicit message` |
+| Inert when IAP is off | `(a) restore: refused when IAP is off; no RevenueCat request` |
+| A transfer between accounts updates both | `(a) restore: TRANSFER to another account revokes the old account and grants the new one` |
+
+### (b) Cancellation (tests prefixed "(b) cancellation")
+
+| Requirement | Test |
+|---|---|
+| Apple cancel keeps access to the end of the period, then revokes | `(b) cancellation: Apple CANCELLATION keeps access to the end of the paid period, then revokes` |
+| Apple expiration revokes | `(b) cancellation: Apple EXPIRATION revokes access` |
+| Apple refund revokes immediately | `(b) cancellation: Apple refund (CUSTOMER_SUPPORT) revokes immediately` |
+| Apple billing grace keeps access, then revokes | `(b) cancellation: Apple billing issue keeps access through Apple grace, then revokes` |
+| A late, older snapshot cannot undo a cancel | `(b) cancellation: a late, older webhook snapshot cannot undo a cancellation`, plus the SQL ordering check in `scripts/qa/verify-store-entitlements.mjs` |
+| Stripe cancel at period end | `(b) cancellation: Stripe cancel-at-period-end keeps access until the period ends, then revokes` |
+| Stripe subscription deleted | `(b) cancellation: Stripe subscription deleted (status canceled) honors the paid-through date, then revokes` |
+
+### (c) Duplicate prevention (tests prefixed "(c) duplicates")
+
+| Requirement | Test |
+|---|---|
+| A Stripe subscriber in the app sees no buy button | `(c) duplicates: a Stripe-active user in the app sees status, no buy button`; also recognized with no Stripe environment configured |
+| An Apple subscriber on the web sees no Stripe checkout | `(c) duplicates: an Apple-active user on the website sees no Stripe checkout` |
+| The server refuses Stripe checkout for an Apple subscriber | `(c) duplicates: server guard REFUSES website Stripe checkout for an Apple-active user (no Stripe call)`; it fails closed, proceeds after the Apple subscription expires, and is never reached with IAP off |
+| Both channels active are flagged for support | `(c) duplicates: both channels renewing is flagged for support with both manage paths` |
+| Status re-checked before the App Store sheet | `(c) duplicates: the app re-checks status on the server right before the App Store sheet` |
+
+Mutation checks were run by hand while writing these tests: disabling the guard fails two "(c)"
+tests, and ignoring Apple grace fails a "(b)" test.
+
+**Unchanged website checkout.** `tests/stripe-checkout-regression.test.mjs` pins the exact Stripe
+requests for monthly, annual and the 14-day trial.
+
+**Not verified: live Apple and RevenueCat.** Nothing here has made a real StoreKit purchase, a real
+sandbox restore or cancel, or received a real RevenueCat delivery. That is blocked until the owner
+completes section 7 steps 1 to 9 and 11 to 13: App Store Connect agreements and products,
+RevenueCat project and webhook, secrets, migration, sandbox testers. The native agent also has to
+install the plugin (section 6). The staging checklist in step 13 is the live verification plan.
 
 ## 7. Owner-only setup, in order
 
@@ -490,9 +558,6 @@ Stripe identity.
 - **F3, account.** Account export should include `store_entitlements`. Account deletion should tell
   Apple subscribers to cancel in Settings (section 5). It cancels Stripe only, and Apple keeps
   billing after the row cascades away.
-- **F5, web checkout guard.** When website checkout is restored with IAP on,
-  `createCheckoutSession` should refuse users who have an active Apple channel. Left unchanged here
-  because the website flow must stay byte-for-byte, and web checkout is disabled on this branch.
 - **F4, ops.** Alert the owner when the RevenueCat webhook returns 5xx, as the Stripe webhook does.
   Add a periodic reconcile job that calls `syncStoreEntitlement` for rows expiring within 24 hours.
   Both are optional: RevenueCat retries for about 80 minutes. A webhook refreshes at most 10

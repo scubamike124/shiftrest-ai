@@ -233,8 +233,14 @@ export function appleRowsAsSubscriptionRows(
   for (const row of storeRows) {
     const c = appleChannel(row, now);
     if (!c || !appleEnvironments.includes(c.environment) || c.expiresAt === null) continue;
+    // Anything that started as a free trial and has not been paid for yet
+    // (trial, or billing grace right after a trial) stays metered as a trial.
     const status =
-      c.state === "trialing" ? "trialing" : c.state === "grace" ? "canceled" : "active";
+      c.state === "trialing" || row.period_type === "trial"
+        ? "trialing"
+        : c.state === "grace"
+          ? "canceled"
+          : "active";
     out.push({ status, current_period_end: new Date(c.expiresAt).toISOString() });
   }
   return out;

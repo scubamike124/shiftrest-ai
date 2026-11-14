@@ -94,7 +94,10 @@ for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
   });
 }
 
-test('subscription flags do not reach the website checkout code path', () => {
+test('the only subscription addition to website checkout is the IAP-gated duplicate-billing guard', () => {
   const billing = readFileSync(new URL('../src/lib/billing.functions.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(billing, /IAP_|revenuecat|entitlements\//i);
+  // Exactly one IAP flag read, gating the guard; with IAP off (as in the tests above) it is skipped.
+  assert.equal(billing.match(/process\.env\.IAP_/g)?.length, 1);
+  assert.match(billing, /if \(process\.env\.IAP_ENABLED === "true"\) \{\n\s+const refusal = await appleSubscriptionBlocksCheckout\(supabase, userId, process\.env\);\n\s+if \(refusal\) return \{ error: refusal \};\n\s+\}/);
+  assert.doesNotMatch(billing, /revenuecat/i);
 });
