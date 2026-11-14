@@ -31,7 +31,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
 
   return (
     <header
-      className={`sticky top-0 z-50 w-full transition-colors ${
+      className={`sticky top-0 z-50 w-full pt-[env(safe-area-inset-top)] transition-colors ${
         scrolled
           ? "border-b border-border/60 bg-background/90 backdrop-blur-xl"
           : "border-b border-border/20 bg-background/60 backdrop-blur-md"
