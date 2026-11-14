@@ -128,13 +128,14 @@ TARGET_DB_URL="$TARGET" APP_URL="$APP" node "$KIT/rewire.mjs" --plan "$WORK/plan
 check "dry run schedules nothing" "$(T -c "select count(*) from cron.job")" "0"
 TARGET_DB_URL="$TARGET" APP_URL="$APP" CRON_SECRET="rehearsal-cron-secret-0123456789" SUPABASE_SERVICE_ROLE_KEY="rehearsal-service-role-0123456789" \
   node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target supabase_target --apply > "$WORK/rewire.out"
-check "only the 3 jobs live had are scheduled, all against the new host" "$(T -c "select count(*) filter (where command like '%$APP/%') || '/' || count(*) from cron.job")" "3/3"
+check "only the 4 jobs live had are scheduled, all against the new host" "$(T -c "select count(*) filter (where command like '%$APP/%') || '/' || count(*) from cron.job")" "4/4"
+check "a job inactive on live stays inactive" "$(T -c "select active from cron.job where jobname = 'restpilot-ai-learn'")" "f"
 check "live schedule taken from the export" "$(T -c "select schedule from cron.job where jobname = 'restpilot-notify-tick'")" "*/5 * * * *"
 check "no secret value inside any job command" "$(T -c "select count(*) from cron.job where command like '%rehearsal-cron-secret%' or command like '%rehearsal-service-role%'")" "0"
 check "secrets stored in Vault" "$(T -c "select string_agg(name, ',' order by name) from vault.decrypted_secrets where decrypted_secret like 'rehearsal-%'")" "email_queue_service_role_key,restpilot_cron_secret"
 TARGET_DB_URL="$TARGET" APP_URL="$APP" CRON_SECRET="rehearsal-cron-secret-0123456789" SUPABASE_SERVICE_ROLE_KEY="rehearsal-service-role-0123456789" \
   node "$KIT/rewire.mjs" --plan "$WORK/plan" --confirm-target supabase_target --apply --include-default-jobs > /dev/null
-check "--include-default-jobs adds the 3 jobs live lacked; re-run is idempotent" "$(T -c "select count(*) from cron.job")/$(T -c "select count(*) from vault.secrets")" "6/2"
+check "--include-default-jobs adds the 2 jobs live lacked; re-run is idempotent" "$(T -c "select count(*) from cron.job")/$(T -c "select count(*) from vault.secrets")" "6/2"
 if grep -q "rehearsal-cron-secret\|rehearsal-service-role" "$WORK/rewire.out"; then echo "FAIL rewire printed a secret"; fail=1; else echo "PASS rewire output contains no secret"; fi
 T -c "delete from cron.job" >/dev/null
 P -c "create database no_vault" >/dev/null
@@ -170,6 +171,20 @@ fi
 cp "$REPO/supabase/migrations/$second" "$WORK/repo-migrations/$second"
 TARGET_DB_URL="$TARGET2" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target2 --repo-migrations "$WORK/repo-migrations" > "$WORK/resume2.out" 2>&1
 grep -E "resuming|migration applied|repository migrations applied|VERIFY" "$WORK/resume2.out"
+
+say "history gap: an older repository migration missing from the export is refused, not skipped"
+P -c "create database supabase_target3" >/dev/null
+P -d supabase_target3 -f "$KIT/rehearsal/supabase-shim.sql" >/dev/null
+mkdir "$WORK/gap-migrations"
+for m in "$REPO"/supabase/migrations/20261113*.sql; do cp "$m" "$WORK/gap-migrations/"; done
+printf 'select 1;\n' > "$WORK/gap-migrations/20260101000000_not_in_live_history.sql"
+set +e
+TARGET_DB_URL="postgresql://postgres@localhost/supabase_target3?host=$WORK&port=$PORT" node "$KIT/import.mjs" --plan "$WORK/plan" \
+  --confirm-target supabase_target3 --repo-migrations "$WORK/gap-migrations" > "$WORK/gap.out" 2>&1
+code=$?
+set -e
+check "history gap refused (exit 6)" "$code" "6"
+grep -o "refusing: 1 repository migration.*20260101000000" "$WORK/gap.out" | cut -c1-120
 
 say "idempotency: re-running the import is a verified no-op"
 TARGET_DB_URL="$TARGET" node "$KIT/import.mjs" --plan "$WORK/plan" --confirm-target supabase_target --repo-migrations "$REPO/supabase/migrations" | tail -3

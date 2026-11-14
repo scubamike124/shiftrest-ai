@@ -19,7 +19,8 @@ WORK="$(mktemp -d /tmp/restpilot-migration.XXXXXX)"
 trap 'case "$WORK" in /tmp/restpilot-migration.*) rm -rf "$WORK" ;; esac' EXIT
 umask 077
 echo "downloading export (link not printed)"
-curl -fsS --retry 3 -o "$WORK/export.backup" "$EXPORT_URL"
+# -L: signed storage links redirect; redirects may only go to https.
+curl -fsSL --proto-redir =https --retry 3 -o "$WORK/export.backup" "$EXPORT_URL"
 SUM="$(sha256sum "$WORK/export.backup" | cut -d' ' -f1)"
 echo "export sha256 $SUM ($(stat -c %s "$WORK/export.backup") bytes)"
 if [ -n "${EXPORT_SHA256:-}" ] && [ "$EXPORT_SHA256" != "$SUM" ]; then echo "export checksum mismatch"; exit 1; fi

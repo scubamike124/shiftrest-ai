@@ -2,13 +2,13 @@
 # Produced by: sudo bash scripts/migration/rehearsal/run.sh (2026-11-14)
 # Lines starting "FAIL" below are intended negative checks (a broken migration, an altered row) that the kit must catch.
 
-== REHEARSAL ONLY - synthetic data, throwaway cluster at /tmp/rp-rehearsal.XaIMix
+== REHEARSAL ONLY - synthetic data, throwaway cluster at /tmp/rp-rehearsal.QWmpS7
 
 == source: Supabase shim + migrations that predate 2026-11-13 + synthetic data
 applied 49 migrations to source
 
 == export: pg_dump custom format, zstd (the format Lovable's Export data produces)
-208407 bytes
+208447 bytes
 
 == target: fresh Supabase shim (stands in for a new Supabase project)
 
@@ -24,7 +24,7 @@ applied 49 migrations to source
 - pgmq queues listed in the export: none (pgmq >= 1.4 keeps queue tables inside the extension); import recreates them empty together with the app's known queues (cron-jobs.json).
 - Storage objects in archive: none.
 - Vault secrets to recreate (names): email_queue_service_role_key, restpilot_cron_secret.
-- Cron jobs to recreate: restpilot-notify-tick [*/5 * * * *] -> restpilotai.com/api/public/hooks/notify; restpilot-dispatch-alarms [* * * * *] -> restpilotai.com/api/public/hooks/dispatch-alarms; process-email-queue [5 seconds] -> restpilotai.com/lovable/email/queue/process.
+- Cron jobs to recreate: restpilot-notify-tick [*/5 * * * *] -> restpilotai.com/api/public/hooks/notify; restpilot-dispatch-alarms [* * * * *] -> restpilotai.com/api/public/hooks/dispatch-alarms; process-email-queue [5 seconds] -> restpilotai.com/lovable/email/queue/process; restpilot-ai-learn [17 9 * * *] -> restpilotai.com/api/public/hooks/ai-learn.
 
 ## Skipped entries
 - Supabase-managed schema: 3
@@ -46,14 +46,14 @@ refused live backend: refusing: TARGET_DB_URL points at the live Lovable Cloud b
 refused mismatched target: refusing: --confirm-target does not match TARGET_DB_URL
 
 == import + verify
-import: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.XaIMix&port=54329; archive lovable-export.backup (45 tables, 4 accounts)
+import: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.QWmpS7&port=54329; archive lovable-export.backup (45 tables, 4 accounts)
 preflight: server 160015, role postgres, auth.users 0, archive tables already present 0
 preflight: target is fresh; managed-table columns compatible; extensions available.
-restore: committed in 0.3s
+restore: committed in 1.0s
 migration applied: 20261113090000_ai_request_admission.sql
 migration applied: 20261113100000_trial_voice_atomic.sql
 migration applied: 20261113110000_subscription_sync.sql
-verify: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.XaIMix&port=54329; archive lovable-export.backup
+verify: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.QWmpS7&port=54329; archive lovable-export.backup
 PASS 45/45 tables match row count and checksum
 PASS auth.users 4 (expected 4); bcrypt hashes 3 (expected 3); without password 1 (expected 1)
 PASS identities[email] 3 (expected 3)
@@ -65,7 +65,8 @@ PASS subscriptions price=restpilot_lifetime: 1 (expected 1)
 PASS RLS enabled on 40/40 tables
 PASS 90 app RLS policies on target (archive 90)
 PASS repository migrations applied 3/3
-VERIFY PASSED. Report: /tmp/rp-rehearsal.XaIMix/plan/verify-report.json
+PASS required app objects present 9/9
+VERIFY PASSED. Report: /tmp/rp-rehearsal.QWmpS7/plan/verify-report.json
 
 == extra checks
 PASS same user ids
@@ -88,19 +89,20 @@ PASS RLS: anon cannot read profiles (ERROR:  permission denied for table profile
 PASS a new signup on the target still creates its profile (trigger restored)
 
 == rewire: Vault secrets + pg_cron jobs against the new app host (synthetic secrets)
-- restpilot-ai-learn POST /api/public/hooks/ai-learn: NOT scheduled (not in the live export; pass --include-default-jobs to add it with schedule 17 9 * * *)
 - restpilot-wearables-sync POST /api/public/wearables/cron: NOT scheduled (not in the live export; pass --include-default-jobs to add it with schedule 41 10 * * *)
 - subscription-lifecycle-daily POST /api/public/hooks/subscription-lifecycle: NOT scheduled (not in the live export; pass --include-default-jobs to add it with schedule 23 15 * * *)
-DRY RUN: 3 jobs -> https://restpilot-web-staging.up.railway.app
+DRY RUN: 4 jobs -> https://restpilot-web-staging.up.railway.app
 - restpilot-dispatch-alarms [* * * * *, archive] POST /api/public/hooks/dispatch-alarms (x-cron-secret from Vault)
 - restpilot-notify-tick [*/5 * * * *, archive] POST /api/public/hooks/notify (x-cron-secret from Vault)
+- restpilot-ai-learn [17 9 * * *, archive, INACTIVE as on live] POST /api/public/hooks/ai-learn (x-cron-secret from Vault)
 - process-email-queue [5 seconds, archive] POST /lovable/email/queue/process (service-role bearer from Vault)
 PASS dry run schedules nothing
-PASS only the 3 jobs live had are scheduled, all against the new host
+PASS only the 4 jobs live had are scheduled, all against the new host
+PASS a job inactive on live stays inactive
 PASS live schedule taken from the export
 PASS no secret value inside any job command
 PASS secrets stored in Vault
-PASS --include-default-jobs adds the 3 jobs live lacked; re-run is idempotent
+PASS --include-default-jobs adds the 2 jobs live lacked; re-run is idempotent
 PASS rewire output contains no secret
 PASS rewire failure without Vault prints no secret: ERROR:  relation "vault.secrets" does not exist at character 73
 
@@ -111,19 +113,23 @@ This archive was already imported into this target; resuming after the restore.
 migration applied: 20261113100000_trial_voice_atomic.sql
 migration applied: 20261113110000_subscription_sync.sql
 PASS repository migrations applied 3/3
-VERIFY PASSED. Report: /tmp/rp-rehearsal.XaIMix/plan/verify-report.json
+VERIFY PASSED. Report: /tmp/rp-rehearsal.QWmpS7/plan/verify-report.json
+
+== history gap: an older repository migration missing from the export is refused, not skipped
+PASS history gap refused (exit 6)
+refusing: 1 repository migration(s) are missing from the export's history but older than its newest entry (2026070602462
 
 == idempotency: re-running the import is a verified no-op
-PASS 90 app RLS policies on target (archive 90)
 PASS repository migrations applied 3/3
-VERIFY PASSED. Report: /tmp/rp-rehearsal.XaIMix/plan/verify-report.json
+PASS required app objects present 9/9
+VERIFY PASSED. Report: /tmp/rp-rehearsal.QWmpS7/plan/verify-report.json
 
 == runner entry point (as Railway would run it): verify step from a downloaded export
-export sha256 4efd9149635cc0699cc4ffc7889f137baf6979207ee803ba08b062ab3fa0c5cb (208407 bytes)
-VERIFY PASSED. Report: /tmp/restpilot-migration.gM2hek/plan/verify-report.json
+export sha256 81f74f84a878d47504e164289b8659b6eb95115345a95be7f7784cb60fe9c3b7 (208447 bytes)
+VERIFY PASSED. Report: /tmp/restpilot-migration.My12Vj/plan/verify-report.json
 
 == tamper detection: verify fails after one changed row
-FAIL public.coach_messages: expected 120 rows sha 84509459f5b8, got 120 rows sha 9b10825684ff
+FAIL public.coach_messages: expected 120 rows sha 59a3dfa668f6, got 120 rows sha 7d4517b68140
 PASS verify detected the changed row
 
 == REHEARSAL PASSED (synthetic data; not a migration of real data)

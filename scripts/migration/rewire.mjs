@@ -59,6 +59,8 @@ const allJobs = defaults.jobs.map((d) => {
     name: live?.jobname || d.name,
     schedule: live?.schedule || d.schedule,
     scheduleSource: live ? "archive" : "default",
+    // Keep a job that was switched off on Lovable switched off.
+    active: live ? !["f", "false", false].includes(live.active) : true,
   };
 });
 const jobs = allJobs.filter((j) => j.scheduleSource === "archive" || includeDefaults);
@@ -85,7 +87,7 @@ function command(job) {
 console.log(`${apply ? "APPLY" : "DRY RUN"}: ${jobs.length} jobs -> ${appUrl}`);
 for (const j of jobs)
   console.log(
-    `- ${j.name} [${j.schedule}, ${j.scheduleSource}] POST ${j.path} (${j.auth === "service-role" ? "service-role bearer" : "x-cron-secret"} from Vault)${j.note ? " - " + j.note : ""}`,
+    `- ${j.name} [${j.schedule}, ${j.scheduleSource}${j.active ? "" : ", INACTIVE as on live"}] POST ${j.path} (${j.auth === "service-role" ? "service-role bearer" : "x-cron-secret"} from Vault)${j.note ? " - " + j.note : ""}`,
   );
 if (!apply) process.exit(0);
 
@@ -111,7 +113,11 @@ const sql =
     upsert(defaults.vault.cronSecret, "CRON_SECRET"),
     upsert(defaults.vault.serviceRole, "SUPABASE_SERVICE_ROLE_KEY"),
     ...jobs.map(
-      (j) => `select cron.schedule(${lit(j.name)}, ${lit(j.schedule)}, ${lit(command(j))});`,
+      (j) =>
+        `select cron.schedule(${lit(j.name)}, ${lit(j.schedule)}, ${lit(command(j))});` +
+        (j.active
+          ? ""
+          : `\nselect cron.alter_job(job_id := (select jobid from cron.job where jobname = ${lit(j.name)}), active := false);`),
     ),
     "commit;",
   ].join("\n") + "\n";

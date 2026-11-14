@@ -236,10 +236,14 @@ if (repoDir) {
       const newest = [...history].sort().at(-1);
       chosen = files.filter((f) => versionOf(f) > newest);
       const gaps = files.filter((f) => versionOf(f) <= newest && !history.includes(versionOf(f)));
-      if (gaps.length)
-        console.warn(
-          `review: ${gaps.length} older repository migration(s) are not in the export's history and were NOT applied: ${gaps.map(versionOf).join(", ")}`,
+      if (gaps.length) {
+        // A newer live migration must not hide these: refuse instead of
+        // silently skipping repository migrations the export lacks.
+        console.error(
+          `refusing: ${gaps.length} repository migration(s) are missing from the export's history but older than its newest entry (${newest}): ${gaps.map(versionOf).join(", ")}. Check them against the live schema and pass --pending-migrations <versions> explicitly.`,
         );
+        process.exit(6);
+      }
     } else {
       console.error(
         "The archive has no supabase_migrations history; pass --pending-migrations <versions> explicitly.",
