@@ -23,9 +23,11 @@ export function buildClockBands(args: {
   /** Device IANA zone (the clock the ribbon is drawn in). */
   tz: string;
   sunrise: number | null;
+  /** Tomorrow's sunrise (minute of day), for a night shift that starts after today's. */
+  nextSunrise?: number | null;
   sunset: number | null;
 }): { bands: ClockBand[]; markers: ClockMarker[] } {
-  const { shift, prefs, now, tz, sunrise, sunset } = args;
+  const { shift, prefs, now, tz, sunrise, nextSunrise, sunset } = args;
 
   const bands: ClockBand[] = [];
   const markers: ClockMarker[] = [];
@@ -84,12 +86,16 @@ export function buildClockBands(args: {
       reason: `Stop caffeine by ${fmtTime(caffCut)}. ${ANCHOR_WHY.caffeineCutoff}`,
     });
 
-    if (a.isNight && sunrise != null) {
+    // The first sunrise AFTER clock-in (as Plan and the 7-day plan do): for a
+    // 22:00-23:59 start that is tomorrow's, never the morning before.
+    const tomorrow = sunrise != null && a.shiftStart >= sunrise;
+    const amberAt = tomorrow ? (nextSunrise ?? sunrise) : sunrise;
+    if (a.isNight && amberAt != null) {
       markers.push({
         id: "amber",
-        at: sunrise,
+        at: amberAt,
         label: "Amber glasses",
-        reason: `Sunrise ${fmtTime(sunrise)}: amber/blue-blocking glasses on the way home. ${ANCHOR_WHY.amberGlasses}`,
+        reason: `${tomorrow ? "Tomorrow's sunrise" : "Sunrise"} ${fmtTime(amberAt)}, on the way home after this shift: amber/blue-blocking glasses. ${ANCHOR_WHY.amberGlasses}`,
       });
     }
 

@@ -69,7 +69,8 @@ export function buildRecommendations(
   const recs: Recommendation[] = [];
   const target = insights.todayShift ?? insights.nextShift?.shift;
 
-  const recsTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+  // Device zone: the same clock as the anchors and now.getHours() below.
+  const recsTz = detectDeviceTz() ?? undefined;
   const sun = location
     ? sunTimes(now, location.lat ?? null, location.lon ?? null, recsTz)
     : { sunrise: null, sunset: null };
