@@ -109,7 +109,9 @@ check "lifetime purchase carried over" "$(T -c "select count(*) from public.subs
 check "sessions not copied" "$(T -c "select count(*) from auth.sessions")" "0"
 check "refresh tokens not copied" "$(T -c "select count(*) from auth.refresh_tokens")" "0"
 check "profile not duplicated by signup trigger" "$(T -c "select count(*) from public.profiles")" "$(S -c "select count(*) from public.profiles")"
-check "pending repo migrations applied" "$(T -c "select string_agg(version, ',' order by version) from supabase_migrations.schema_migrations where version >= '20261113'")" "20261113090000,20261113100000,20261113110000"
+# Every repo migration from 2026-11-13 on is pending on the source, so all of them must be applied.
+expected_pending="$(for m in "$REPO"/supabase/migrations/*.sql; do v="$(basename "$m" | cut -d_ -f1)"; [ "$v" -ge 20261113000000 ] && echo "$v"; done | sort | paste -sd, -)"
+check "pending repo migrations applied" "$(T -c "select string_agg(version, ',' order by version) from supabase_migrations.schema_migrations where version >= '20261113'")" "$expected_pending"
 check "new migration objects exist" "$(T -c "select to_regprocedure('public.consume_ai_request(uuid)') is not null and to_regclass('public.subscription_sync_state') is not null")" "t"
 check "email queues recreated empty" "$(T -c "select count(*) from pg_tables where schemaname = 'pgmq'")/$(T -c "select count(*) from pgmq.q_auth_emails")" "4/0"
 check "cron jobs not copied (rewired separately)" "$(T -c "select count(*) from cron.job")" "0"
