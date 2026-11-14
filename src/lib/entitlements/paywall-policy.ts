@@ -55,7 +55,8 @@ export function isUsStorefront(storefront: string | null | undefined): boolean {
 
 function managePath(source: EntitlementSource, input: PaywallInput): ManagePath {
   if (source === "apple") return "app_store";
-  if (input.surface === "web") return input.webCheckoutEnabled ? "stripe_portal" : "stripe_text_only";
+  if (input.surface === "web")
+    return input.webCheckoutEnabled ? "stripe_portal" : "stripe_text_only";
   // Native: a link to the website billing page is only allowed where links to
   // other purchase mechanisms are allowed (US storefront), behind its flag.
   if (input.surface === "ios" && input.usExternalLinkEnabled && isUsStorefront(input.storefront)) {
@@ -91,7 +92,9 @@ export function decidePaywall(input: PaywallInput): PaywallDecision {
   }
 
   if (!native) {
-    return input.webCheckoutEnabled ? { ...base, view: "purchase", purchase: "web_checkout" } : base;
+    return input.webCheckoutEnabled
+      ? { ...base, view: "purchase", purchase: "web_checkout" }
+      : base;
   }
   if (input.surface !== "ios" || !input.iapAvailable) return base;
   return {

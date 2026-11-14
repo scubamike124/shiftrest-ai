@@ -25,8 +25,10 @@ export function planForProduct(productId: unknown): AppStorePlan | null {
 /** Supabase auth user IDs are UUIDs. RevenueCat anonymous IDs
  *  ("$RCAnonymousID:...") and anything else are never ours. */
 export function isAppUserId(value: unknown): value is string {
-  return typeof value === "string"
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
 }
 
 export interface StoreSnapshot {
@@ -45,7 +47,8 @@ export interface StoreSnapshot {
 }
 
 type Json = Record<string, unknown>;
-const isObject = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
+const isObject = (v: unknown): v is Json =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
 
 function isoOrNull(v: unknown): string | null {
   if (typeof v !== "string" || v === "") return null;
@@ -57,7 +60,9 @@ function safeManagementUrl(v: unknown): string | null {
   if (typeof v !== "string") return null;
   try {
     const u = new URL(v);
-    return u.protocol === "https:" && u.hostname === "apps.apple.com" && !u.username && !u.password ? u.toString() : null;
+    return u.protocol === "https:" && u.hostname === "apps.apple.com" && !u.username && !u.password
+      ? u.toString()
+      : null;
   } catch {
     return null;
   }
@@ -73,7 +78,8 @@ function safeManagementUrl(v: unknown): string | null {
  */
 export function snapshotsFromSubscriber(userId: string, body: unknown): StoreSnapshot[] {
   if (!isAppUserId(userId)) throw new Error("Invalid app user id");
-  if (!isObject(body) || !isObject(body.subscriber)) throw new Error("Malformed RevenueCat subscriber response");
+  if (!isObject(body) || !isObject(body.subscriber))
+    throw new Error("Malformed RevenueCat subscriber response");
   const requestMs = body.request_date_ms;
   if (typeof requestMs !== "number" || !Number.isFinite(requestMs) || requestMs <= 0) {
     throw new Error("RevenueCat response has no request time");
@@ -99,9 +105,18 @@ export function snapshotsFromSubscriber(userId: string, body: unknown): StoreSna
     }
     if (!best) {
       out.push({
-        user_id: userId, environment, store: null, product_id: null, plan: null, period_type: null,
-        expires_at: null, grace_expires_at: null, will_renew: false, billing_issue: false,
-        management_url: null, snapshot_at: snapshotAt,
+        user_id: userId,
+        environment,
+        store: null,
+        product_id: null,
+        plan: null,
+        period_type: null,
+        expires_at: null,
+        grace_expires_at: null,
+        will_renew: false,
+        billing_issue: false,
+        management_url: null,
+        snapshot_at: snapshotAt,
       });
       continue;
     }
@@ -112,7 +127,8 @@ export function snapshotsFromSubscriber(userId: string, body: unknown): StoreSna
       store: "app_store",
       product_id: best.productId,
       plan: planForProduct(best.productId),
-      period_type: pt === "trial" || pt === "intro" || pt === "normal" || pt === "prepaid" ? pt : null,
+      period_type:
+        pt === "trial" || pt === "intro" || pt === "normal" || pt === "prepaid" ? pt : null,
       expires_at: isoOrNull(best.sub.expires_date),
       grace_expires_at: isoOrNull(best.sub.grace_period_expires_date),
       will_renew: !best.sub.unsubscribe_detected_at,
@@ -151,7 +167,9 @@ export interface RevenueCatPackage {
   product: { identifier: string; priceString?: string; introPrice?: { price?: number } | null };
   [key: string]: unknown;
 }
-export function packagesByPlan(offerings: unknown): Partial<Record<AppStorePlan, RevenueCatPackage>> {
+export function packagesByPlan(
+  offerings: unknown,
+): Partial<Record<AppStorePlan, RevenueCatPackage>> {
   const out: Partial<Record<AppStorePlan, RevenueCatPackage>> = {};
   if (!isObject(offerings) || !isObject(offerings.current)) return out;
   const pkgs = offerings.current.availablePackages;

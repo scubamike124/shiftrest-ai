@@ -103,18 +103,46 @@ export function stripeChannel(row: StripeSubscriptionRow, now: number): ChannelE
   if (!environment) return null;
   const plan = (row.price_id && STRIPE_PLAN_BY_PRICE[row.price_id]) || null;
   if (row.status === "lifetime") {
-    return { source: "stripe", plan: "lifetime", state: "lifetime", expiresAt: null, willRenew: false, environment };
+    return {
+      source: "stripe",
+      plan: "lifetime",
+      state: "lifetime",
+      expiresAt: null,
+      willRenew: false,
+      environment,
+    };
   }
   const end = parseTime(row.current_period_end);
   if (end === null || end <= now) return null;
   const renewing = row.cancel_at_period_end !== true;
   switch (row.status) {
     case "active":
-      return { source: "stripe", plan, state: renewing ? "active" : "grace", expiresAt: end, willRenew: renewing, environment };
+      return {
+        source: "stripe",
+        plan,
+        state: renewing ? "active" : "grace",
+        expiresAt: end,
+        willRenew: renewing,
+        environment,
+      };
     case "trialing":
-      return { source: "stripe", plan, state: "trialing", expiresAt: end, willRenew: renewing, environment };
+      return {
+        source: "stripe",
+        plan,
+        state: "trialing",
+        expiresAt: end,
+        willRenew: renewing,
+        environment,
+      };
     case "canceled":
-      return { source: "stripe", plan, state: "grace", expiresAt: end, willRenew: false, environment };
+      return {
+        source: "stripe",
+        plan,
+        state: "grace",
+        expiresAt: end,
+        willRenew: false,
+        environment,
+      };
     default:
       return null;
   }
@@ -205,7 +233,8 @@ export function appleRowsAsSubscriptionRows(
   for (const row of storeRows) {
     const c = appleChannel(row, now);
     if (!c || !appleEnvironments.includes(c.environment) || c.expiresAt === null) continue;
-    const status = c.state === "trialing" ? "trialing" : c.state === "grace" ? "canceled" : "active";
+    const status =
+      c.state === "trialing" ? "trialing" : c.state === "grace" ? "canceled" : "active";
     out.push({ status, current_period_end: new Date(c.expiresAt).toISOString() });
   }
   return out;
@@ -217,7 +246,9 @@ export function appleRowsAsSubscriptionRows(
  *  throws: when neither is configured — as on the Railway build, where web
  *  checkout is disabled — existing LIVE Stripe subscribers still count, so a
  *  paying website customer is never offered a second, App Store subscription. */
-export function statusStripeEnvironment(vars: Record<string, string | undefined>): BillingEnvironment {
+export function statusStripeEnvironment(
+  vars: Record<string, string | undefined>,
+): BillingEnvironment {
   const configured = vars.PAYMENTS_ENVIRONMENT;
   if (configured === "live" || configured === "sandbox") return configured;
   const token = vars.VITE_PAYMENTS_CLIENT_TOKEN;

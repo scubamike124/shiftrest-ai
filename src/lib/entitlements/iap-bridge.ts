@@ -24,7 +24,7 @@ const PLUGIN = "Purchases";
 
 function nativeBridge(): NativeBridge | null {
   if (typeof window === "undefined") return null;
-  return ((window as unknown as { Capacitor?: NativeBridge }).Capacitor) ?? null;
+  return (window as unknown as { Capacitor?: NativeBridge }).Capacitor ?? null;
 }
 
 export function iapFlagEnabled(): boolean {
@@ -52,14 +52,21 @@ export function currentSurface(): Surface {
 
 export function purchasesPluginInstalled(): boolean {
   const cap = nativeBridge();
-  return typeof cap?.nativePromise === "function"
-    && Array.isArray(cap.PluginHeaders)
-    && cap.PluginHeaders.some((h) => h?.name === PLUGIN);
+  return (
+    typeof cap?.nativePromise === "function" &&
+    Array.isArray(cap.PluginHeaders) &&
+    cap.PluginHeaders.some((h) => h?.name === PLUGIN)
+  );
 }
 
 /** IAP can be offered: flag on, key present, iOS shell with plugin. */
 export function iapAvailable(): boolean {
-  return iapFlagEnabled() && sdkKey() !== null && currentSurface() === "ios" && purchasesPluginInstalled();
+  return (
+    iapFlagEnabled() &&
+    sdkKey() !== null &&
+    currentSurface() === "ios" &&
+    purchasesPluginInstalled()
+  );
 }
 
 function call<T>(method: string, options?: unknown): Promise<T> {
@@ -76,14 +83,22 @@ let configuredFor: string | null = null;
  *  App Store purchases attach to the account, never to an anonymous ID. */
 export async function identify(userId: string): Promise<void> {
   if (configuredFor === userId) return;
-  if (configuredFor === null) {
-    await call("configure", { apiKey: sdkKey(), appUserID: userId });
-  } else {
+  // The native SDK outlives page reloads; configure once, then switch users.
+  const state =
+    configuredFor === null
+      ? await call<{ isConfigured?: unknown }>("isConfigured")
+      : { isConfigured: true };
+  if (state?.isConfigured === true) {
     await call("logIn", { appUserID: userId });
+  } else {
+    await call("configure", { apiKey: sdkKey(), appUserID: userId });
   }
   configuredFor = userId;
 }
 
+/** Storefront country. getStorefront exists only in newer plugin releases
+ *  (Capacitor 8 line); on the current Capacitor 6 shell it rejects and the
+ *  storefront is unknown, which the policy treats as non-US (no links). */
 export async function getStorefront(): Promise<string | null> {
   try {
     const sf = await call<{ countryCode?: unknown }>("getStorefront");
@@ -98,7 +113,11 @@ export async function loadPackages(): Promise<Partial<Record<AppStorePlan, Reven
 }
 
 function isUserCancel(error: unknown): boolean {
-  const e = error as { userCancelled?: unknown; code?: unknown; data?: { userCancelled?: unknown } } | null;
+  const e = error as {
+    userCancelled?: unknown;
+    code?: unknown;
+    data?: { userCancelled?: unknown };
+  } | null;
   return e?.userCancelled === true || e?.data?.userCancelled === true || String(e?.code) === "1";
 }
 

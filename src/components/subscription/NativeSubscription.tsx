@@ -36,30 +36,48 @@ function formatDate(ms: number | null): string | null {
 }
 
 function StatusCard({ entitlement }: { entitlement: Entitlement }) {
-  const plan = entitlement.plan === "lifetime" ? "Lifetime" : entitlement.plan ? PLAN_LABEL[entitlement.plan] : "Premium";
+  const plan =
+    entitlement.plan === "lifetime"
+      ? "Lifetime"
+      : entitlement.plan
+        ? PLAN_LABEL[entitlement.plan]
+        : "Premium";
   const until = formatDate(entitlement.expiresAt);
-  const detail = entitlement.state === "lifetime"
-    ? "Lifetime access — thank you for being a Founding Member."
-    : entitlement.willRenew && until
-      ? `${entitlement.state === "trialing" ? "Free trial · first charge" : "Renews"} on ${until}`
-      : until
-        ? `Access continues until ${until}. It will not renew.`
-        : "Active";
+  const detail =
+    entitlement.state === "lifetime"
+      ? "Lifetime access — thank you for being a Founding Member."
+      : entitlement.willRenew && until
+        ? `${entitlement.state === "trialing" ? "Free trial · first charge" : "Renews"} on ${until}`
+        : until
+          ? `Access continues until ${until}. It will not renew.`
+          : "Active";
   return (
     <section className="rounded-2xl border border-primary/30 bg-primary/10 p-5" aria-live="polite">
-      <p className="text-sm font-semibold">RestPilot Premium · {plan}{entitlement.state === "trialing" ? " (free trial)" : ""}</p>
+      <p className="text-sm font-semibold">
+        RestPilot Premium · {plan}
+        {entitlement.state === "trialing" ? " (free trial)" : ""}
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
     </section>
   );
 }
 
-function ManageRow({ source, path, appleUrl }: { source: EntitlementSource; path: ManagePath; appleUrl: string | null }) {
+function ManageRow({
+  source,
+  path,
+  appleUrl,
+}: {
+  source: EntitlementSource;
+  path: ManagePath;
+  appleUrl: string | null;
+}) {
   if (source === "apple") {
     return (
       <div className="rounded-2xl border border-border bg-card p-4 text-sm">
         <p className="font-semibold">Billed by Apple</p>
         <p className="mt-1 text-muted-foreground">
-          Change or cancel in Settings → your name → Subscriptions, or below. Cancel at least 24 hours before renewal to avoid the next charge.
+          Change or cancel in Settings → your name → Subscriptions, or below. Cancel at least 24
+          hours before renewal to avoid the next charge.
         </p>
         <a
           href={appleUrl ?? "https://apps.apple.com/account/subscriptions"}
@@ -77,7 +95,10 @@ function ManageRow({ source, path, appleUrl }: { source: EntitlementSource; path
       <p className="font-semibold">Billed through the RestPilot website</p>
       {path === "stripe_portal" ? (
         <>
-          <p className="mt-1 text-muted-foreground">Your website subscription works here too. Change or cancel it in your account on the website.</p>
+          <p className="mt-1 text-muted-foreground">
+            Your website subscription works here too. Change or cancel it in your account on the
+            website.
+          </p>
           <a
             href={`${WEBSITE}/profile`}
             target="_blank"
@@ -89,7 +110,8 @@ function ManageRow({ source, path, appleUrl }: { source: EntitlementSource; path
         </>
       ) : (
         <p className="mt-1 text-muted-foreground">
-          Your website subscription works here too. To change or cancel it, sign in to your account on the RestPilot website.
+          Your website subscription works here too. To change or cancel it, sign in to your account
+          on the RestPilot website.
         </p>
       )}
     </div>
@@ -101,13 +123,32 @@ function PurchaseTerms() {
     <div className="rounded-xl border border-border bg-card/40 p-4 text-[11px] leading-relaxed text-muted-foreground">
       <p className="font-semibold text-foreground">Billing &amp; renewal</p>
       <ul className="mt-2 list-disc space-y-1 pl-4">
-        <li>Payment is charged to your Apple Account at confirmation of purchase, or when an eligible free trial ends.</li>
-        <li>The subscription renews automatically at the price shown unless it is canceled at least 24 hours before the end of the current period.</li>
-        <li>Manage or cancel any time in Settings → your name → Subscriptions. Access continues to the end of the paid period.</li>
         <li>
-          See the <Link to="/legal/terms" className="text-primary underline">Terms of Use</Link>,{" "}
-          <Link to="/legal/subscription" className="text-primary underline">Subscription Terms</Link> and{" "}
-          <Link to="/legal/privacy" className="text-primary underline">Privacy Policy</Link>.
+          Payment is charged to your Apple Account at confirmation of purchase, or when an eligible
+          free trial ends.
+        </li>
+        <li>
+          The subscription renews automatically at the price shown unless it is canceled at least 24
+          hours before the end of the current period.
+        </li>
+        <li>
+          Manage or cancel any time in Settings → your name → Subscriptions. Access continues to the
+          end of the paid period.
+        </li>
+        <li>
+          See the{" "}
+          <Link to="/legal/terms" className="text-primary underline">
+            Terms of Use
+          </Link>
+          ,{" "}
+          <Link to="/legal/subscription" className="text-primary underline">
+            Subscription Terms
+          </Link>{" "}
+          and{" "}
+          <Link to="/legal/privacy" className="text-primary underline">
+            Privacy Policy
+          </Link>
+          .
         </li>
       </ul>
     </div>
@@ -125,7 +166,9 @@ export function NativeSubscription() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user.id ?? null));
-    const { data } = supabase.auth.onAuthStateChange((_e, session) => setUserId(session?.user.id ?? null));
+    const { data } = supabase.auth.onAuthStateChange((_e, session) =>
+      setUserId(session?.user.id ?? null),
+    );
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -153,13 +196,20 @@ export function NativeSubscription() {
     })();
   }, [userId, canIap, refresh]);
 
-  if (userId === undefined) return <p className="px-5 py-16 text-center text-muted-foreground">Loading…</p>;
+  if (userId === undefined)
+    return <p className="px-5 py-16 text-center text-muted-foreground">Loading…</p>;
   if (userId === null) {
     return (
       <section className="mx-auto w-full max-w-xl px-5 py-16">
         <h1 className="text-3xl font-semibold">RestPilot Premium</h1>
-        <p className="mt-4 text-muted-foreground">Sign in first so your subscription is linked to your RestPilot account on every device.</p>
-        <Link to="/auth" search={{ return: "/paywall" }} className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 font-semibold text-primary-foreground">
+        <p className="mt-4 text-muted-foreground">
+          Sign in first so your subscription is linked to your RestPilot account on every device.
+        </p>
+        <Link
+          to="/auth"
+          search={{ return: "/paywall" }}
+          className="mt-8 inline-flex min-h-12 items-center justify-center rounded-full bg-primary px-6 font-semibold text-primary-foreground"
+        >
           Sign in
         </Link>
       </section>
@@ -203,7 +253,9 @@ export function NativeSubscription() {
       if (result === "cancelled") return;
       await afterStoreChange("Thank you — RestPilot Premium is active.");
     } catch {
-      setMessage("The purchase didn't complete. You have not been charged by RestPilot for this attempt.");
+      setMessage(
+        "The purchase didn't complete. You have not been charged by RestPilot for this attempt.",
+      );
     } finally {
       setBusy(null);
     }
@@ -227,38 +279,61 @@ export function NativeSubscription() {
   const plans = (["monthly", "annual"] as const).filter((p) => packages[p]);
 
   return (
-    <section aria-label="RestPilot Premium" className="mx-auto flex w-full max-w-xl flex-col gap-5 px-5 py-12">
+    <section
+      aria-label="RestPilot Premium"
+      className="mx-auto flex w-full max-w-xl flex-col gap-5 px-5 py-12"
+    >
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">RestPilot Premium</p>
-        <h1 className="mt-3 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>Your plan</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          RestPilot Premium
+        </p>
+        <h1 className="mt-3 text-3xl font-semibold" style={{ fontFamily: "var(--font-display)" }}>
+          Your plan
+        </h1>
       </header>
 
       {status && "error" in status && (
         <div className="rounded-2xl border border-border bg-card p-4 text-sm">
           <p>{status.error}</p>
-          <button type="button" onClick={() => void refresh()} className="mt-3 min-h-11 rounded-full border border-border px-5 font-semibold">Try again</button>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-3 min-h-11 rounded-full border border-border px-5 font-semibold"
+          >
+            Try again
+          </button>
         </div>
       )}
 
       {decision.view === "loading" && !(status && "error" in status) && (
-        <p className="text-muted-foreground" aria-live="polite">Checking your subscription…</p>
+        <p className="text-muted-foreground" aria-live="polite">
+          Checking your subscription…
+        </p>
       )}
 
       {decision.view === "status" && entitlement && (
         <>
           <StatusCard entitlement={entitlement} />
           {decision.duplicateBillingWarning && (
-            <p role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
-              You have more than one renewing RestPilot subscription. Cancel one of them below so you are not charged twice.
+            <p
+              role="alert"
+              className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm"
+            >
+              You have more than one renewing RestPilot subscription. Cancel one of them below so
+              you are not charged twice.
             </p>
           )}
-          {decision.manage.map((m) => <ManageRow key={m.source} source={m.source} path={m.path} appleUrl={appleUrl} />)}
+          {decision.manage.map((m) => (
+            <ManageRow key={m.source} source={m.source} path={m.path} appleUrl={appleUrl} />
+          ))}
         </>
       )}
 
-      {decision.view === "purchase" && (
-        plans.length === 0 ? (
-          <p className="text-muted-foreground">Subscriptions are not available right now. Please try again later.</p>
+      {decision.view === "purchase" &&
+        (plans.length === 0 ? (
+          <p className="text-muted-foreground">
+            Subscriptions are not available right now. Please try again later.
+          </p>
         ) : (
           <>
             <div className="grid gap-3">
@@ -273,33 +348,55 @@ export function NativeSubscription() {
                     onClick={() => void onBuy(plan)}
                     className="flex min-h-16 flex-col items-start rounded-2xl border border-border bg-card p-4 text-left disabled:opacity-60"
                   >
-                    <span className="font-semibold">{PLAN_LABEL[plan]} · {product.priceString ?? ""} / {CADENCE[plan]}</span>
-                    {freeTrial && <span className="text-xs text-primary">14-day free trial for eligible new subscribers, then {product.priceString} / {CADENCE[plan]}</span>}
+                    <span className="font-semibold">
+                      {PLAN_LABEL[plan]} · {product.priceString ?? ""} / {CADENCE[plan]}
+                    </span>
+                    {freeTrial && (
+                      <span className="text-xs text-primary">
+                        14-day free trial for eligible new subscribers, then {product.priceString} /{" "}
+                        {CADENCE[plan]}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
             <PurchaseTerms />
             {decision.externalPurchaseLink && (
-              <a href={`${WEBSITE}/pricing`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">
+              <a
+                href={`${WEBSITE}/pricing`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary underline"
+              >
                 Subscribe on restpilotai.com instead
               </a>
             )}
           </>
-        )
-      )}
+        ))}
 
       {decision.view === "unavailable" && (
-        <p className="text-muted-foreground">Purchases are not available in this version of the app.</p>
+        <p className="text-muted-foreground">
+          Purchases are not available in this version of the app.
+        </p>
       )}
 
       {decision.restore && decision.view !== "loading" && (
-        <button type="button" onClick={() => void onRestore()} disabled={busy !== null} className="min-h-11 self-start text-sm font-semibold text-primary underline disabled:opacity-60">
+        <button
+          type="button"
+          onClick={() => void onRestore()}
+          disabled={busy !== null}
+          className="min-h-11 self-start text-sm font-semibold text-primary underline disabled:opacity-60"
+        >
           {busy === "restore" ? "Restoring…" : "Restore purchases"}
         </button>
       )}
 
-      {message && <p role="status" className="text-sm">{message}</p>}
+      {message && (
+        <p role="status" className="text-sm">
+          {message}
+        </p>
+      )}
     </section>
   );
 }
