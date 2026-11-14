@@ -274,3 +274,45 @@ test('a reminder that cannot move before its shift is dropped', () => {
   assert.equal(R.avoidSleep({ ...c, deadline: new Date(2026, 10, 16, 16) }, [w])[0].at.getHours(), 15);
   assert.equal(R.avoidSleep({ ...c, at: new Date(2026, 10, 16, 8) }, [w]).length, 1, 'the window start (bedtime) is not inside');
 });
+
+test('quiet hours move a shift reminder to their end when that is still before clock-in', () => {
+  const q = { enabled: true, start: '22:00', end: '06:00' };
+  const plan = R.planNativeReminders({ shifts, prefs, now: sunday, settings: on({ dailyCap: 8, quietHours: q, upcomingShiftLeadMin: 90 }) });
+  const mon = plan.find((r) => r.kind === 'upcoming-shift' && r.at.getDate() === 16);
+  assert.equal(fmt(mon.at), '16 06:00', '05:30 is quiet: moved to 06:00, before the 07:00 shift');
+  assert.ok(plan.every((r) => !R.inQuietHours(r.at, q)));
+});
+
+test('a sync still running when the person signs out leaves nothing behind', async () => {
+  const S = await load('src/lib/native/sync.ts');
+  const pending = new Map();
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const ln = {
+    checkPermissions: async () => ({ display: 'granted' }),
+    getPending: async () => ({ notifications: [...pending.values()] }),
+    cancel: async ({ notifications }) => { for (const n of notifications) pending.delete(n.id); },
+    schedule: async ({ notifications }) => { await gate; for (const n of notifications) pending.set(n.id, n); },
+  };
+  const prefsStore = new Map();
+  const pref = {
+    set: async ({ key, value }) => { prefsStore.set(key, value); },
+    remove: async ({ key }) => { prefsStore.delete(key); },
+    get: async ({ key }) => ({ value: prefsStore.get(key) ?? null }),
+  };
+  globalThis.window = { Capacitor: { isNativePlatform: () => true, isPluginAvailable: () => true, Plugins: { LocalNotifications: ln, Preferences: pref } } };
+  try {
+    const planned = R.planNativeReminders({ shifts, prefs, settings: on(), now: sunday });
+    const sync = S.syncNativeReminders(planned); // blocks inside schedule()
+    await new Promise((r) => setTimeout(r, 10));
+    await S.clearNativeUserData(); // sign-out while scheduling
+    release();
+    assert.deepEqual(await sync, { status: 'cleared' });
+    assert.equal(pending.size, 0, 'reminders from before sign-out were taken back');
+    const result = await S.syncNativeReminders(planned);
+    assert.equal(result.status, 'scheduled', 'a later sync for the next account works normally');
+    assert.equal(pending.size, planned.length);
+  } finally {
+    delete globalThis.window;
+  }
+});

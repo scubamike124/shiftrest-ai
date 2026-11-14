@@ -19,6 +19,13 @@ import {
 export const REMINDER_SOURCE = "rp-native-reminders";
 const SETTINGS_PREFIX = "rp:native-reminders:v1:";
 
+/**
+ * Bumped by clearNativeUserData(). A sync or write that started before a
+ * sign-out sees the change after its awaits and undoes itself, so nothing
+ * comes back after the person signed out.
+ */
+let generation = 0;
+
 export function localNotifications(): LocalNotificationsPlugin | null {
   return nativePlugin<LocalNotificationsPlugin>("LocalNotifications");
 }
@@ -97,11 +104,13 @@ export type SyncResult =
 export async function syncNativeReminders(planned: PlannedReminder[]): Promise<SyncResult> {
   const ln = localNotifications();
   if (!ln) return { status: "skipped", reason: "unavailable" };
+  const gen = generation;
   const own = await pendingOwnIds(ln);
   if (own.length) await ln.cancel({ notifications: own.map((id) => ({ id })) });
   if (!planned.length) return { status: "cleared" };
   const perm = await reminderPermission();
   if (perm !== "granted") return { status: "skipped", reason: "permission" };
+  if (gen !== generation) return { status: "cleared" };
   await ln.schedule({
     notifications: planned.map((r) => ({
       id: r.id,
@@ -112,6 +121,11 @@ export async function syncNativeReminders(planned: PlannedReminder[]): Promise<S
       extra: { source: REMINDER_SOURCE, kind: r.kind, path: r.path },
     })),
   });
+  if (gen !== generation) {
+    // Signed out while scheduling: take these back.
+    await ln.cancel({ notifications: planned.map((r) => ({ id: r.id })) });
+    return { status: "cleared" };
+  }
   return { status: "scheduled", count: planned.length };
 }
 
@@ -132,7 +146,9 @@ export async function cancelAllNativeReminders(): Promise<void> {
 export async function writeOfflinePlan(plan: OfflinePlan): Promise<void> {
   const p = preferences();
   if (!p) return;
+  const gen = generation;
   await p.set({ key: OFFLINE_PLAN_KEY, value: JSON.stringify(plan) });
+  if (gen !== generation) await p.remove({ key: OFFLINE_PLAN_KEY });
 }
 
 /** Tells the shell's offline page which site to return to (production or a test host). */
@@ -144,6 +160,7 @@ export async function rememberAppUrl(origin: string): Promise<void> {
 
 /** Sign-out / account deletion: no schedule data or reminders left behind. */
 export async function clearNativeUserData(): Promise<void> {
+  generation++;
   await cancelAllNativeReminders();
   const p = preferences();
   if (p) {

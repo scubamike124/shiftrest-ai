@@ -22,6 +22,10 @@ on:
       - "ios-e2e/**"
       - "src/lib/native/**"
       - "src/lib/native-app.ts"
+      - "src/components/native/**"
+      - "src/components/NotificationsSection.tsx"
+      - "src/routes/__root.tsx"
+      - "tests/native-*.test.mjs"
       - ".github/workflows/ios-native-e2e.yml"
 permissions:
   contents: read
@@ -47,6 +51,8 @@ jobs:
           npm ci --no-audit --no-fund
           (cd ios-app && npm ci --no-audit --no-fund)
           mkdir -p "$EV"
+      - name: Unit tests for the native planner and helpers
+        run: node --test tests/native-*.test.mjs
       - name: Swap in the CI test page (never shipped)
         run: |
           set -euo pipefail
