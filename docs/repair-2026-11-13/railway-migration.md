@@ -30,6 +30,45 @@ has not been changed. The Railway `restpilot-ai` project contains an isolated
   The Node entry serves `/sw.js` explicitly because Nitro captures its static
   asset manifest before that final step.
 
+## Backend move and owner steps (2026-11-14)
+
+The owner checklist, cutover gates and rollback are in [CUTOVER.md](CUTOVER.md).
+The target is a new, owner-owned Supabase project, which keeps Supabase Auth,
+RLS and the client SDK unchanged. Lovable Cloud gives no service-role key or
+direct database connection. Its supported exit is **Export data**, a pg_restore
+archive that includes users and their password hashes. The kit in
+`scripts/migration/` restores and verifies that archive. A synthetic-data
+rehearsal passed (`evidence/migration-rehearsal.txt`). Step 1 below
+(service-role key of the existing project) is superseded: that key is
+not obtainable for a Lovable Cloud project.
+
+### Staging sign-in diagnosis
+
+Staging (`restpilot-web-staging.up.railway.app`) is built against the
+Lovable Cloud project with its public key only. Checked with
+`scripts/migration/verify-deployment.mjs`:
+
+- Email/password: works at the API level. The CSP and browser bundle are
+  correct, and a bogus login gets a clean `invalid_credentials` response
+  with CORS allowed for the staging origin. An existing user can sign in.
+  However, staging then reads and writes **live production data** through
+  RLS, and every server feature that needs `SUPABASE_SERVICE_ROLE_KEY`
+  fails.
+- Google and Apple: they fail with `Unsupported provider: missing OAuth
+  secret`. Lovable Cloud signs users in through Lovable's managed OAuth
+  broker, which only serves Lovable hosting. Code cannot fix this. It is
+  fixed by Google credentials on the new project (CUTOVER owner step 4).
+- Sign-up confirmation and password-reset emails are sent by the Lovable
+  backend's mailer, with the Lovable project's redirect allow-list. Links
+  for the staging origin cannot be assumed to work. The new project gets
+  its own allow-list and hook.
+- Deploys: the staging service has no GitHub deploy trigger. Creating one
+  failed because "no one in the project has access" to the repository
+  through Railway's GitHub app. Deploys are triggered via the Railway API
+  per merged commit. `c0d0eed` (PR #5) was deployed on 2026-11-14. Owner
+  fix, optional: in Railway, open **restpilot-web → Settings → Source**
+  and reconnect the repository so Railway's GitHub app can see it.
+
 ## Configuration still required before functional testing
 
 Use Railway service variables, not chat or committed files. `.env.example`
