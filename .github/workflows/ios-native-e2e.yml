@@ -114,6 +114,17 @@ jobs:
             -resultBundlePath "$EV/phase-a.xcresult" \
             -only-testing:E2EUITests/ShellE2ETests/testA_siteCodeDrivesRealPlugins \
             | tee "$EV/phase-a.log" | grep -E "Test Case|error:|XCTAssert|TEST (SUCCEEDED|FAILED)"
+      - name: "Phase H: install a copy whose page runs the Apple Health check"
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/AppHealth.app"
+          rm -rf "$APP"; cp -R "$DERIVED/Build/Products/Debug-iphonesimulator/App.app" "$APP"
+          sed -i '' 's/data-mode="native"/data-mode="health"/' "$APP/public/index.html"
+          grep -q 'data-mode="health"' "$APP/public/index.html"
+          # Simulator entitlements live in the binary's __entitlements section; re-signing keeps them.
+          codesign --force --sign - "$APP"
+          xcrun simctl install "$DEVICE" "$APP"
       - name: "Phase H: Apple Health written by a test app, read by the shell"
         working-directory: ios-e2e
         run: |

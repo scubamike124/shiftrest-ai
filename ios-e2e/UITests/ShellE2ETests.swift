@@ -111,11 +111,9 @@ final class ShellE2ETests: XCTestCase {
         XCTAssertTrue(seeded.label.hasPrefix("SEED OK"), "seeder said: \(seeded.label)")
 
         // 2. The RestPilot shell connects through its read-only plugin and checks the mapped night.
+        //    (CI installed a copy whose page starts the Health check on load.)
         let app = XCUIApplication(bundleIdentifier: shellId)
         app.launch()
-        let run = app.buttons["Run Apple Health check"]
-        XCTAssertTrue(run.waitForExistence(timeout: 30))
-        run.tap()
         approveHealthSheet(in: app)
         let result = text(app, startingWith: "HEALTH ")
         waitForResult(result, notEqual: "HEALTH RUNNING", timeout: 60)

@@ -171,6 +171,7 @@ async function run() {
   check(planAfterClear === null, "offline plan left after clear");
 
   // rememberAppUrl only accepts https origins (this page is capacitor://localhost).
+  await prefsPlugin.remove({ key: APP_URL_KEY }); // a previous run may have left one
   await rememberAppUrl(window.location.origin);
   note("appUrlFromLocalPage", (await prefsPlugin.get({ key: APP_URL_KEY })).value);
   check(
@@ -186,15 +187,6 @@ async function run() {
   note("savedPlanDays", saved?.days?.length);
   check(saved?.days?.length === 14, "offline plan was not saved");
 }
-
-run().then(
-  () => {
-    out.textContent = "E2E PASS";
-  },
-  (err) => {
-    out.textContent = `E2E FAIL: ${err instanceof Error ? err.message : String(err)}`;
-  },
-);
 
 // ---------------------------------------------------------------------------
 // Apple Health: the site's connector, through the real RestPilotHealth plugin,
@@ -239,7 +231,9 @@ async function health() {
   );
 }
 
-document.getElementById("health-run")!.addEventListener("click", () => {
+// Which check this launch runs: CI installs a copy of the app whose page has
+// <body data-mode="health"> for the Apple Health phase.
+if (document.body.dataset.mode === "health") {
   healthOut.textContent = "HEALTH RUNNING";
   health().then(
     () => {
@@ -249,4 +243,13 @@ document.getElementById("health-run")!.addEventListener("click", () => {
       healthOut.textContent = `HEALTH FAIL: ${err instanceof Error ? err.message : String(err)}`;
     },
   );
-});
+} else {
+  run().then(
+    () => {
+      out.textContent = "E2E PASS";
+    },
+    (err) => {
+      out.textContent = `E2E FAIL: ${err instanceof Error ? err.message : String(err)}`;
+    },
+  );
+}
