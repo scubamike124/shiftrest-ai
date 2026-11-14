@@ -15,6 +15,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { loadTrialUsageState } from "@/lib/realtime/trial-usage.functions";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import {
   VOICE_OPTIONS,
   DEFAULT_VOICE_PROFILE,
@@ -72,7 +73,7 @@ function clampRealtimeSpeed(n: unknown): number {
 // Reply-shape system prompt — keeps answers conversational and short so
 // audio starts fast and there are no long paragraph gaps between sentences.
 const REPLY_SHAPE = [
-  "You are RestPilot, a warm and calm sleep and rest companion.",
+  "You are {{NAME}}, a warm and calm sleep and rest companion from RestPilot.",
   "Speak like a person on a phone call: one or two short sentences at a time.",
   "Use plain, natural conversational language. No lists, no headings, no long paragraphs.",
   "Give the shortest useful answer first. If there's more to share or you want the user to continue, end with a clear, inviting question like 'Want me to walk you through it step by step?' or 'Should I continue?' — never trail off or ask a soft, easy-to-miss question.",
@@ -88,6 +89,23 @@ function pacingHint(speed: number): string {
   if (speed < 0.95) return "Pace yourself calmly and unhurried, with soft breath between thoughts.";
   if (speed > 1.05) return "Keep a brisk, energetic pace without rushing the words.";
   return "Speak at a measured, natural pace.";
+}
+
+/** Same naming rule as the app: the customer's name, else the chosen look's name, else Aura. */
+async function loadCompanionNameServer(userId: string): Promise<string> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [prefs, profile] = await Promise.all([
+      supabaseAdmin.from("user_prefs").select("assistant_name").eq("user_id", userId).maybeSingle(),
+      supabaseAdmin.from("profiles").select("companion_avatar_id").eq("id", userId).maybeSingle(),
+    ]);
+    return companionName(
+      (prefs.data as { assistant_name?: string | null } | null)?.assistant_name,
+      (profile.data as { companion_avatar_id?: string | null } | null)?.companion_avatar_id,
+    );
+  } catch {
+    return DEFAULT_COMPANION_NAME;
+  }
 }
 
 async function loadUserVoiceProfileServer(userId: string): Promise<VoiceProfile> {
@@ -206,7 +224,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       "normal",
     );
     const instructions = [
-      REPLY_SHAPE,
+      REPLY_SHAPE.replace("{{NAME}}", await loadCompanionNameServer(context.userId)),
       personalityBlock,
       pacingHint(voiceProfile.speed),
     ].join(" ");

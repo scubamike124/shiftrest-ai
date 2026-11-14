@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRankedMemories } from "./memory-rank.server";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import { fetchActivePatterns, type PatternKey } from "./patterns.server";
 import {
   fetchFeedbackSummary,
@@ -322,11 +323,22 @@ export async function loadAssistantProfile(
   admin: SupabaseClient,
   userId: string,
 ): Promise<AssistantProfile> {
-  const { data } = await admin
-    .from("user_prefs")
-    .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const [{ data }, avatar] = await Promise.all([
+    admin
+      .from("user_prefs")
+      .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    // The chosen look supplies the default name (Aura, Nova, Atlas, Sage); best-effort.
+    (async () => {
+      try {
+        const r = await admin.from("profiles").select("companion_avatar_id").eq("id", userId).maybeSingle();
+        return ((r.data ?? null) as { companion_avatar_id?: string | null } | null)?.companion_avatar_id ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
   const row = (data ?? null) as
     | {
         assistant_name?: string | null;
@@ -337,7 +349,7 @@ export async function loadAssistantProfile(
       }
     | null;
   return {
-    name: row?.assistant_name || "RestPilot",
+    name: companionName(row?.assistant_name, avatar),
     mode: ((row?.assistant_mode as AssistantMode) || "coach"),
     memoryEnabled: Boolean(row?.memory_enabled),
     language: row?.voice_language || "en-US",
@@ -346,7 +358,7 @@ export async function loadAssistantProfile(
 }
 
 export const DEFAULT_ASSISTANT_PROFILE: AssistantProfile = {
-  name: "RestPilot",
+  name: DEFAULT_COMPANION_NAME,
   mode: "coach",
   memoryEnabled: false,
   language: "en-US",

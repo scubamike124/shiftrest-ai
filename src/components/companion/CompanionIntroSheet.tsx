@@ -16,6 +16,7 @@ import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
 import { hasSeenCompanionIntro, markCompanionIntroSeen } from "@/lib/companion/intro-flag";
 import { track } from "@/lib/companion/analytics";
 import { cn } from "@/lib/utils";
+import { DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 
 const STEPS = [
   {
@@ -38,7 +39,22 @@ const STEPS = [
   },
 ] as const;
 
-export function CompanionIntroSheet() {
+/**
+ * Step one names the companion: Aura is the default; a name the customer chose
+ * (for example "Lisa") is theirs and is used everywhere.
+ */
+function meetStep(name: string, defaultName: string) {
+  const custom = name !== defaultName;
+  return {
+    ...STEPS[0],
+    title: `Meet ${name}, your Companion`,
+    body: custom
+      ? `${name} is the name you chose for your companion (the default companion is ${DEFAULT_COMPANION_NAME}). ${name} is used everywhere: chat, voice and briefings. A calm assistant for sleep, sounds, alarms, and daily briefs.`
+      : `${name} is your default companion: a calm assistant for sleep, sounds, alarms, and daily briefs. You can give your companion your own name (for example, Lisa) or a different look anytime, and that name is used everywhere: chat, voice and briefings.`,
+  };
+}
+
+export function CompanionIntroSheet({ name = DEFAULT_COMPANION_NAME, defaultName = DEFAULT_COMPANION_NAME }: { name?: string; defaultName?: string } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -71,7 +87,8 @@ export function CompanionIntroSheet() {
   };
 
   const isLast = step === STEPS.length - 1;
-  const StepIcon = STEPS[step].icon;
+  const current = step === 0 ? meetStep(name, defaultName) : STEPS[step];
+  const StepIcon = current.icon;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -83,9 +100,9 @@ export function CompanionIntroSheet() {
           <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-primary/15">
             <StepIcon className="h-6 w-6 text-primary" aria-hidden />
           </div>
-          <SheetTitle className="text-xl">{STEPS[step].title}</SheetTitle>
+          <SheetTitle className="text-xl">{current.title}</SheetTitle>
           <SheetDescription className="text-sm leading-relaxed text-muted-foreground">
-            {STEPS[step].body}
+            {current.body}
           </SheetDescription>
         </SheetHeader>
 

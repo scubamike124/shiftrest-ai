@@ -18,7 +18,7 @@ const INTRO_SLIDES = [
   {
     icon: Sparkles,
     title: "Your AI sleep companion.",
-    body: "Ask about light, caffeine, blackout setups, or recovery. RestPilot offers tactics built for shift workers — it does not give medical advice.",
+    body: "Meet Aura, your companion. Ask about light, caffeine, blackout setups, or recovery: tactics built for shift workers, not medical advice. You can rename your companion (for example, Lisa) anytime, and that name is used everywhere.",
   },
 ];
 
