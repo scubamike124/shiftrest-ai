@@ -1,0 +1,120 @@
+# REHEARSAL OUTPUT - synthetic data on a throwaway local PostgreSQL 16 cluster; NOT migrated data.
+# Produced by: sudo bash scripts/migration/rehearsal/run.sh (2026-11-14)
+# The one "FAIL public.coach_messages" line is the intended tamper-detection check (a row is altered on purpose).
+
+== REHEARSAL ONLY - synthetic data, throwaway cluster at /tmp/rp-rehearsal.uMX3Bz
+
+== source: Supabase shim + migrations that predate 2026-11-13 + synthetic data
+applied 49 migrations to source
+
+== export: pg_dump custom format, zstd (the format Lovable's Export data produces)
+215279 bytes
+
+== target: fresh Supabase shim (stands in for a new Supabase project)
+
+== plan
+# Restore plan for lovable-export.backup
+
+- 45 tables, 250 rows (auth.users 4, auth.identities 4).
+- Accounts: 3 with bcrypt password hashes (kept), 1 without a password (OAuth-only or invited); identities {"email":3,"google":1}.
+- Subscriptions by status {"active":1,"lifetime":1}; by price {"restpilot_monthly":1,"restpilot_lifetime":1} (lifetime purchases included).
+- 412 schema entries (public schema, 90 RLS policies on 40 tables, functions, triggers, grants).
+- Extensions enabled first: pg_cron, pg_net, pgcrypto, pgmq, supabase_vault, uuid-ossp.
+- App triggers/policies on auth: TRIGGER auth.users on_auth_user_created.
+- pgmq queues recreated empty: auth_emails, auth_emails_dlq, transactional_emails, transactional_emails_dlq.
+- Storage objects in archive: none.
+- Vault secrets to recreate (names): email_queue_service_role_key, restpilot_cron_secret.
+- Cron jobs to recreate: restpilot-notify-tick [*/5 * * * *] -> restpilotai.com/api/public/hooks/notify; restpilot-dispatch-alarms [* * * * *] -> restpilotai.com/api/public/hooks/dispatch-alarms; process-email-queue [5 seconds] -> restpilotai.com/lovable/email/queue/process.
+
+## Skipped entries
+- Supabase-managed schema: 3
+- comment/grant on a managed or pre-existing object: 8
+- extension enabled by prologue: 6
+- GoTrue-managed definition: 21
+- queue recreated by post-import step: 4
+- pgmq-managed definition: 20
+- storage-managed definition: 6
+- refresh tokens are invalid under the new project's JWT secret: 1
+- GoTrue's own migration history must stay the target's: 1
+- sessions are invalid under the new project's JWT secret; users sign in again: 1
+- jobs are re-created against the new host by rewire step: 1
+- queued messages are transient (pending emails are not replayed): 4
+- encrypted with the old project's root key; recreate from env: 1
+- GoTrue sequence (refresh tokens are not migrated): 1
+
+
+== guard: the kit refuses the live Lovable backend and unconfirmed targets
+refused live backend: refusing: TARGET_DB_URL points at the live Lovable Cloud backend
+refused mismatched target: refusing: --confirm-target does not match TARGET_DB_URL
+
+== import + verify
+import: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.uMX3Bz&port=54329; archive lovable-export.backup (45 tables, 4 accounts)
+preflight: server 160015, role postgres, auth.users 0, archive tables already present 0
+preflight: target is fresh; managed-table columns compatible; extensions available.
+restore: committed in 0.3s
+migration applied: 20261113090000_ai_request_admission.sql
+migration applied: 20261113100000_trial_voice_atomic.sql
+migration applied: 20261113110000_subscription_sync.sql
+verify: target postgresql://postgres@localhost/supabase_target?host=/tmp/rp-rehearsal.uMX3Bz&port=54329; archive lovable-export.backup
+PASS 45/45 tables match row count and checksum
+PASS auth.users 4 (expected 4); bcrypt hashes 3 (expected 3); without password 1 (expected 1)
+PASS identities[email] 3 (expected 3)
+PASS identities[google] 1 (expected 1)
+PASS subscriptions status=active: 1 (expected 1)
+PASS subscriptions status=lifetime: 1 (expected 1)
+PASS subscriptions price=restpilot_monthly: 1 (expected 1)
+PASS subscriptions price=restpilot_lifetime: 1 (expected 1)
+PASS RLS enabled on 40/40 tables
+PASS 90 app RLS policies on target (archive 90)
+VERIFY PASSED. Report: /tmp/rp-rehearsal.uMX3Bz/plan/verify-report.json
+
+== extra checks
+PASS same user ids
+PASS password hashes byte-identical
+PASS existing password still verifies (bcrypt, as GoTrue checks it)
+PASS wrong password rejected
+PASS Google identity kept with its provider id
+PASS entitlements identical: has_active_subscription for every user (active, lifetime, none)
+PASS lifetime purchase carried over
+PASS sessions not copied
+PASS refresh tokens not copied
+PASS profile not duplicated by signup trigger
+PASS pending repo migrations applied
+PASS new migration objects exist
+PASS email queues recreated empty
+PASS cron jobs not copied (rewired separately)
+PASS vault secrets not copied
+PASS RLS: user 2 sees only their 60 coach messages
+PASS RLS: anon cannot read profiles (ERROR:  permission denied for table profiles)
+PASS a new signup on the target still creates its profile (trigger restored)
+
+== rewire: Vault secrets + pg_cron jobs against the new app host (synthetic secrets)
+DRY RUN: 6 jobs -> https://restpilot-web-staging.up.railway.app
+- restpilot-dispatch-alarms [* * * * *, archive] POST /api/public/hooks/dispatch-alarms (x-cron-secret from Vault)
+- restpilot-notify-tick [*/5 * * * *, archive] POST /api/public/hooks/notify (x-cron-secret from Vault)
+- restpilot-ai-learn [17 9 * * *, default] POST /api/public/hooks/ai-learn (x-cron-secret from Vault)
+- restpilot-wearables-sync [41 10 * * *, default] POST /api/public/wearables/cron (x-cron-secret from Vault)
+- subscription-lifecycle-daily [23 15 * * *, default] POST /api/public/hooks/subscription-lifecycle (x-cron-secret from Vault) - emails subscribers about trials/expiry; confirm with the owner while Stripe sync is disabled
+- process-email-queue [5 seconds, archive] POST /lovable/email/queue/process (service-role bearer from Vault)
+PASS dry run schedules nothing
+PASS 6 jobs scheduled, all against the new host
+PASS live schedule taken from the export
+PASS no secret value inside any job command
+PASS secrets stored in Vault
+PASS rewire is idempotent
+PASS rewire output contains no secret
+
+== idempotency: re-running the import is a verified no-op
+PASS RLS enabled on 40/40 tables
+PASS 90 app RLS policies on target (archive 90)
+VERIFY PASSED. Report: /tmp/rp-rehearsal.uMX3Bz/plan/verify-report.json
+
+== runner entry point (as Railway would run it): verify step from a downloaded export
+export sha256 c23f11e9f78a9931e3acc6c010f4ff17e9d679c17972e7758871f7441f465191 (215279 bytes)
+VERIFY PASSED. Report: /tmp/restpilot-migration.Mh68yk/plan/verify-report.json
+
+== tamper detection: verify fails after one changed row
+FAIL public.coach_messages: expected 120 rows sha 74d513b9ccea, got 120 rows sha 3bcaaf09b2cc
+PASS verify detected the changed row
+
+== REHEARSAL PASSED (synthetic data; not a migration of real data)
