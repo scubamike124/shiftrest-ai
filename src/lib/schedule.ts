@@ -247,7 +247,8 @@ export function buildMultiDayPlan(
     date.setDate(start.getDate() + i);
     const dayShifts = shiftsForDate(shifts, date, prefs.cycleAnchor, prefs.cycleWeeks);
     const primary = dayShifts[0];
-    const planTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+    // Device zone: the clock every anchor is computed in (see schedule-core).
+    const planTz = detectDeviceTz() ?? undefined;
     const sun = location
       ? sunTimes(date, location.lat ?? null, location.lon ?? null, planTz)
       : { sunrise: null, sunset: null };

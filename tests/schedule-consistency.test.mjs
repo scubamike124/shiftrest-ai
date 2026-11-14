@@ -148,7 +148,13 @@ test('dashboard Long Clock: no 8h cutoff, and no sunrise light band on a shift d
   const { bands, markers } = clock.buildClockBands({ shift: { start: 23 * 60, end: 7 * 60 }, prefs, now: new Date(2026, 5, 15), tz: 'America/New_York', sunrise: 5 * 60 + 30, sunset: 20 * 60 });
   const light = bands.find((b) => b.id === 'light');
   assert.equal(light.start, 21 * 60 + 30); // wake, not sunrise
-  assert.ok(markers.find((x) => x.id === 'amber'), 'amber glasses at sunrise after a night shift');
+  const amber = markers.find((x) => x.id === 'amber');
+  assert.ok(amber, 'amber glasses at sunrise after a night shift');
+  assert.match(amber.reason, /Tomorrow's sunrise/);
+  const withNext = clock.buildClockBands({ shift: { start: 23 * 60, end: 7 * 60 }, prefs, now: new Date(2026, 5, 15), tz: 'America/New_York', sunrise: 5 * 60 + 30, nextSunrise: 5 * 60 + 31, sunset: 20 * 60 });
+  assert.equal(withNext.markers.find((x) => x.id === 'amber').at, 5 * 60 + 31, 'uses the NEXT morning');
+  const early = clock.buildClockBands({ shift: { start: 60, end: 9 * 60 }, prefs, now: new Date(2026, 5, 15), tz: 'America/New_York', sunrise: 5 * 60 + 30, nextSunrise: 5 * 60 + 31, sunset: 20 * 60 });
+  assert.equal(early.markers.find((x) => x.id === 'amber').at, 5 * 60 + 30, 'a 01:00 start ends after THIS morning');
   const caff = markers.find((x) => x.id === 'caffeine');
   assert.equal(caff.at, (7 * 60 + 120 - 360 + 1440) % 1440);
   const off = clock.buildClockBands({ prefs, now: new Date(2026, 5, 15), tz: 'America/New_York', sunrise: 5 * 60 + 30, sunset: 20 * 60 });
@@ -181,4 +187,10 @@ test('the in-app wind-down notification fires AT clock-out, like every screen', 
   });
   const r = await rotating.nextWindDownAt(new Date(2026, 5, 15, 12, 0));
   assert.equal(r.at.getTime(), new Date(2026, 5, 22, 19, 0).getTime());
+});
+
+test('sun times are computed on the device clock, like every anchor', () => {
+  for (const f of ['src/components/LongClock.tsx', 'src/lib/schedule.ts', 'src/lib/recommendations.ts', 'src/routes/plan.tsx']) {
+    assert.doesNotMatch(read(f), /prefs\.currentTz \?\? prefs\.homeTz/, f);
+  }
 });

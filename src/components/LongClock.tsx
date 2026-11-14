@@ -101,9 +101,15 @@ export function LongClock({
   now: Date;
 }) {
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const tz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+  // Sun times on the SAME clock as every band (the device zone); a saved
+  // trip/home zone here put sunrise on a different clock than sleep.
+  const tz = detectDeviceTz() ?? undefined;
   const { sunrise, sunset } = useMemo(
     () => sunTimes(now, prefs.lat ?? null, prefs.lon ?? null, tz),
+    [now, prefs.lat, prefs.lon, tz],
+  );
+  const nextSunrise = useMemo(
+    () => sunTimes(new Date(now.getTime() + 86_400_000), prefs.lat ?? null, prefs.lon ?? null, tz).sunrise,
     [now, prefs.lat, prefs.lon, tz],
   );
 
@@ -114,6 +120,7 @@ export function LongClock({
       now,
       tz: detectDeviceTz() ?? "UTC",
       sunrise,
+      nextSunrise,
       sunset,
     });
     return {
@@ -121,7 +128,7 @@ export function LongClock({
       markers: built.markers.map((m) => ({ ...m, ...BAND_STYLE[m.id] })) as Marker[],
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shift, prefs.windDownMin, prefs.sleepHours, now, sunrise, sunset]);
+  }, [shift, prefs.windDownMin, prefs.sleepHours, now, sunrise, nextSunrise, sunset]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);

@@ -143,7 +143,9 @@ function PlanPage() {
   const isCoordsLabel = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawLabel);
   const hasVerifiedLocation = rawLabel.length > 0 && !isCoordsLabel;
   const displayLabel = hasVerifiedLocation ? rawLabel : "";
-  const planTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+  // Device zone: the clock the plan's anchors are computed in, so sunrise
+  // and sleep times are never on two different clocks.
+  const planTz = detectDeviceTz() ?? undefined;
   const sun = useMemo(
     () =>
       hasVerifiedLocation
