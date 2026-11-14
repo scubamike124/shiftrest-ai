@@ -11,6 +11,10 @@ type PortalResult = { url: string } | { error: string };
 
 // Prices that should NOT get a free trial (one-time purchase)
 const ONE_TIME_PRICES = new Set(["restpilot_lifetime"]);
+// The $99 lifetime membership was permanently discontinued for new customers
+// (owner decision, Nov 14 2026). Only the recurring plans can be bought.
+// Existing lifetime entitlements are still honored by the webhook.
+const CHECKOUT_PRICES = new Set(["restpilot_monthly", "restpilot_annual"]);
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -48,7 +52,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (data: { priceId: string; returnUrl: string; environment: StripeEnv }) => {
-      if (!/^[a-zA-Z0-9_-]+$/.test(data.priceId)) throw new Error("Invalid priceId");
+      if (data?.priceId === "restpilot_lifetime") {
+        throw new Error("Lifetime membership is no longer offered. Choose the monthly or annual plan.");
+      }
+      if (!data || !CHECKOUT_PRICES.has(data.priceId)) throw new Error("Invalid priceId");
       return data;
     },
   )
@@ -70,6 +77,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         throw new Error(
           `Price "${data.priceId}" must be a one-time Stripe price but is configured as recurring. Fix it in Stripe and retry.`,
         );
+      }
+      // New one-time purchases are not sold; refuse any non-recurring price.
+      if (stripePrice.type !== "recurring") {
+        throw new Error("Only monthly and annual subscriptions can be purchased.");
       }
       const isRecurring = !forcedOneTime && stripePrice.type === "recurring";
       const offerTrial = isRecurring;
