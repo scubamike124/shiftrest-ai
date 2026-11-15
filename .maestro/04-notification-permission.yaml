@@ -3,7 +3,11 @@ name: Turning on iPhone reminders shows the iOS notification permission prompt
 tags: [core]
 ---
 # Assumes 03 left the app signed in (Maestro keeps app state between flows).
-- launchApp
+# Maestro grants every permission at launch by default, which hides the system
+# prompt; leave notifications undecided so iOS asks.
+- launchApp:
+    permissions:
+      notifications: unset
 - extendedWaitUntil:
     visible: "Profile"
     timeout: 90000
@@ -23,7 +27,7 @@ tags: [core]
     rightOf: "Sent by the app on this phone.*"
 # The system alert ("“RestPilot” Would Like to Send You Notifications").
 - extendedWaitUntil:
-    visible: "Allow"
+    visible: ".*Would Like to Send You Notifications.*"
     timeout: 15000
 - takeScreenshot: maestro-04-permission-alert
 - tapOn: "Allow"
