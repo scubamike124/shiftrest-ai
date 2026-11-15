@@ -9,7 +9,7 @@ _Nov 15 2026. This closes two App Store submission blockers from [APP-STORE-COMP
 | #62 | `codex/restpilot-railway-migration` | Parity port of #56: direct AI providers, gate before admission, its own consent version | Parity |
 | #64 | `codex/restpilot-railway-migration` | Parity port of #58, plus the app-shell config that keeps Apple sign-in inside the app | Parity; needs an app rebuild |
 
-The fixes reach users only after the owner presses **Publish** in Lovable. The iPhone app loads restpilotai.com, so it picks up `main` with no rebuild. The one exception is Apple sign-in *inside* the app (#64), which does need a rebuild.
+The fixes reach users only after the owner presses **Publish** in Lovable. The iPhone app loads restpilotai.com, so it picks up `main` with no rebuild. The one exception is Apple sign-in *inside* the app (#64), which needs a rebuild of the app shell. The shell (`ios-app/`) lives only on the `codex/restpilot-railway-migration` branch.
 
 ---
 
@@ -36,7 +36,7 @@ The fixes reach users only after the owner presses **Publish** in Lovable. The i
   - the OpenAI Realtime `mintRealtimeSession`;
   - the memory extraction after a coach reply, which re-checks.
   - A refusal is **403** `{"code":"ai_consent_required","error":"…"}` with the header `x-restpilot-ai-consent: required`. If consent can't be read, the route **fails closed** with 503.
-- **Client.** `aiFetch` / `aiFetchBackground` replace `fetch` at every AI call site, and `ensureAIConsent` guards live voice. Without permission the request never leaves the device. Coach and Companion show "your message wasn't sent", and the ElevenLabs → OpenAI fallback is skipped on a refusal.
+- **Client.** `aiFetch` / `aiFetchBackground` replace `fetch` at every user-facing AI call site, and `ensureAIConsent` guards live voice. Without permission the request never leaves the device. The staff-only avatar lab page (`lab.avatar-poc.simli.tsx`) still uses plain `fetch`, but its server routes refuse without permission, so nothing reaches Simli or ElevenLabs. Coach and Companion show "your message wasn't sent", and the ElevenLabs → OpenAI fallback is skipped on a refusal.
 
 ### Tests
 `tests/ai-consent.test.mjs` runs the **real** route handlers, consent gate, gateway and logging code, with Supabase, auth and rate limits faked and `fetch` replaced by a spy.
@@ -110,12 +110,16 @@ So every app build offers either no third-party login, where 4.8 doesn't apply, 
    2. Tap **Not now**. The message is not sent.
    3. Send again and tap **Allow**. You get a normal reply.
    4. Go to Profile → **Privacy & AI data sharing** and switch it off. Send again: the dialog asks, and nothing is sent until you allow.
-3. **Apple check.** Sign out. On restpilotai.com/auth tap **Continue with Apple**, finish on Apple's page, and confirm you land signed in. Try once with **Hide My Email**. In Lovable → Cloud → Users, confirm the new user appears.
-   - If the button is missing, Apple is off in Lovable → Cloud → Users → Auth settings → **Apple**. Turn it on there.
+3. **Apple check.** Sign out. On restpilotai.com/auth tap **Continue with Apple**, finish on Apple's page, and confirm you land signed in.
+   - Try once with **Hide My Email**. Then, signed out, use **Forgot Password** with that `@privaterelay.appleid.com` address and confirm the reset email arrives. If it doesn't, see 3.B and risk 8.
+   - In Lovable, open **More → Users** (older layouts: Cloud → Users) and confirm the new user appears.
+   - If the button is missing, Apple is off. Turn it on under **More → Users → Settings → Apple** (older layouts: Cloud → Users → Auth settings → Apple).
 4. Open the iPhone app (TestFlight). The sign-in screen should show email and password only. The consent dialog should behave as in step 2.
 
 ### B. Optional before App Review: your own Apple credentials
-In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "RestPilot", and replies to Hide My Email addresses depend on Lovable's relay setup. Switching to your own credentials fixes both. **Do it before real users sign up with Apple:** Apple identifies users per developer team, so accounts made under one mode may not be recognized after a switch.
+In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "RestPilot".
+
+Email to Hide My Email addresses is a bigger problem. Apple's private relay forwards mail only from sending domains registered under the developer team that owns the Sign in with Apple client. In managed mode that team is Lovable's, so whether RestPilot's password-reset and other emails reach relay addresses is up to Lovable, and you can't fix it. With your own credentials you register your own sending domain (step 5). **Do it before real users sign up with Apple:** Apple identifies users per developer team, so accounts made under one mode may not be recognized after a switch.
 
 **Doable on an iPhone but fiddly; a computer is easier.** You need the paid Apple Developer Program, which you have for the app.
 1. **App ID.** At developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → App ID `com.restpilotai.app` → enable **Sign in with Apple**.
@@ -123,15 +127,17 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
    - Domain: `restpilotai.com`;
    - Return URLs: paste the Redirect URL(s) Lovable shows on its Apple settings screen.
 3. **Key.** Keys → **+** → enable Sign in with Apple → download the `.p8` file. It can be downloaded only once. Note the **Key ID** and your **Team ID**.
-4. **Lovable.** Cloud → Users → Auth settings → Apple → **Your own credentials**:
+4. **Lovable.** More → Users → Settings → Apple (older layouts: Cloud → Users → Auth settings → Apple) → **Your own credentials**:
    - Client ID = the Services ID;
-   - use **Generate secret** with the `.p8`, Key ID and Team ID;
+   - use **Generate secret** with the Services ID, Team ID, Key ID and the `.p8`. Enter the key only into Lovable's form. Never paste it into a chat, an email or the repository;
+   - decide on **Allow users without an email**. It appears only in own-credentials mode; leaving it off is simplest;
    - save.
-5. **Reminder.** Apple client secrets expire after **6 months**. Set a calendar reminder to generate a new one, or Apple sign-in stops working.
+5. **Email relay.** Certificates, Identifiers & Profiles → Services → **Sign in with Apple for Email Communication** → register the domain or address RestPilot's auth emails are sent from. That domain needs SPF. Repeat the A.3 password-reset test afterwards.
+6. **Reminder.** Apple client secrets expire after **6 months**. Set a calendar reminder to generate a new one, or Apple sign-in stops working.
 
 ### C. Apple inside the iPhone app (needs a Mac with Xcode)
-1. After #64 merges: `cd ios-app && npm ci && npx cap sync ios`, then build and upload to TestFlight as usual. This build lets Apple sign-in work in the app while restpilotai.com is served by Lovable (`main`).
-2. On a real iPhone: Sign in → **Continue with Apple** → finish → confirm you are signed in **inside the app**. If any step jumps to Safari, note the host in Safari's address bar and add it to `server.allowNavigation`.
+1. After #64 merges, on a Mac: check out the `codex/restpilot-railway-migration` branch (`ios-app/` does not exist on `main`), then `cd ios-app && npm ci && npx cap sync ios`, then build and upload to TestFlight as usual. This build lets Apple sign-in work in the app while restpilotai.com is served by Lovable (`main`).
+2. On a real iPhone: Sign in → **Continue with Apple** → finish → confirm you are signed in **inside the app**. If any step jumps to Safari, note the host in Safari's address bar and add that **exact host** to `server.allowNavigation`. Never add a wildcard: every page on an allowed host gets the app's native bridge.
 3. If it can't be made reliable, skip it. The shipped app is compliant without it: it shows no third-party login, so 4.8 doesn't apply.
 
 ### D. App Review notes (add to the submission)
@@ -140,7 +146,7 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
 - Demo account details, as listed in APP-STORE-COMPLIANCE.md.
 
 ### E. Railway cutover (later)
-- **Enable Apple in the Railway Supabase project** (computer): Auth → Providers → Apple, with the Services ID, Team ID, Key ID and `.p8` secret. Return URL: `https://<project>.supabase.co/auth/v1/callback`.
+- **Enable Apple in the Railway Supabase project** (needs a computer): Auth → Providers → Apple, with the Services ID, Team ID, Key ID and the `.p8` key. Return URL: `https://<project>.supabase.co/auth/v1/callback`. Enter the key only in Supabase's dashboard; never paste it into chat or commit it. Supabase's Apple secret also expires after **6 months**, so set a reminder.
 - **Shell for Apple in the app on Railway** (Mac): add that project's exact `<ref>.supabase.co` to `server.allowNavigation`, append `RestPilotWebOAuth/2` to `appendUserAgent`, then rebuild. Never use a wildcard.
 - **Keep the AI providers matching the copy.** On that hosting, text AI goes to `AI_BASE_URL`, or to OpenAI when `AI_BASE_URL` is unset. #62's copy therefore names "Google Gemini (Google's Gemini API), or OpenAI" for text, and "OpenAI" for voice. Its consent version, `2026-11-15-railway`, differs from main's, so users are asked again after the cutover, which is correct because the recipients change. If you set `AI_BASE_URL` to Gemini for good, you can narrow the copy to Google. Whenever the copy changes, also update `/legal/privacy` and `/legal/third-parties`, and bump the version.
 
@@ -161,7 +167,10 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
    - These hosts are run by Apple and Lovable, not shared tenants, and the app reaches them only through sign-in. A Supabase host must always be pinned exactly.
    - The more robust long-term option is a native `ASAuthorizationController` / `ASWebAuthenticationSession` plugin with a custom-scheme redirect, which needs no `allowNavigation`. Lovable's docs suggest adding `myapp://callback` to Redirect URLs for this.
 7. **Managed-mode branding and relay mail**: see 3.B.
-8. **Google users in the app** must use Forgot Password once to set a password. The in-app hint says so.
+8. **Google and Apple users in the app** must use Forgot Password once to set a password, and the in-app hint says so.
+   - For Hide My Email Apple users, the reset email goes to their `@privaterelay.appleid.com` address. It arrives only if Apple's relay accepts RestPilot's sending domain (see 3.B), and only while the user keeps forwarding on.
+   - In managed mode that depends on Lovable. If it fails, such a user can't sign in to the current app build, which offers email and password only, until the C build offers Apple.
+   - Test this in A.3 before submitting.
 9. **One-render flash.** On a cold load of `/auth` inside the app, the server-rendered Google button shows for one render before hydration hides it. This is the same pattern as the existing purchase gates.
 10. **Apple Health.** On the Railway branch, Health data is kept out of AI prompts (`device-insights.ts`, `tests/apple-health.test.mjs`), and the consent copy says "Never Apple Health data". If that ever changes, it needs its own explicit permission (5.1.2(vi), 5.1.3).
 11. **Small copy follow-ups for `main`, not blocking:**
