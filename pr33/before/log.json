@@ -1,0 +1,71 @@
+[
+ {
+  "theme": "none",
+  "w": 375,
+  "route": "/dashboard",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "none",
+  "w": 375,
+  "route": "/profile",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "none",
+  "w": 375,
+  "route": "/plan",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "none",
+  "w": 375,
+  "pageErrors": []
+ },
+ {
+  "theme": "none",
+  "w": 390,
+  "route": "/dashboard",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "none",
+  "w": 390,
+  "route": "/profile",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "none",
+  "w": 390,
+  "route": "/plan",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "none",
+  "w": 390,
+  "pageErrors": []
+ },
+ {
+  "theme": "none",
+  "w": 430,
+  "route": "/dashboard",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "none",
+  "w": 430,
+  "route": "/profile",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "none",
+  "w": 430,
+  "route": "/plan",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "none",
+  "w": 430,
+  "pageErrors": []
+ }
+]

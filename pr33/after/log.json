@@ -1,0 +1,144 @@
+[
+ {
+  "theme": "midnight",
+  "w": 375,
+  "route": "/dashboard",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "midnight",
+  "w": 375,
+  "route": "/profile",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "midnight",
+  "w": 375,
+  "route": "/plan",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "midnight",
+  "w": 375,
+  "pageErrors": []
+ },
+ {
+  "theme": "midnight",
+  "w": 390,
+  "route": "/dashboard",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "midnight",
+  "w": 390,
+  "route": "/profile",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "midnight",
+  "w": 390,
+  "route": "/plan",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "midnight",
+  "w": 390,
+  "pageErrors": []
+ },
+ {
+  "shotRetry": "/tmp/claude-0/-home-user-myreloapp/2ae6976b-817d-5e45-99d2-f95fe54aa7ec/scratchpad/iface-ev/pr33/after/midnight/430_dashboard-0.png",
+  "err": "TimeoutError: page.screenshot: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - takin"
+ },
+ {
+  "theme": "midnight",
+  "w": 430,
+  "route": "/dashboard",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "midnight",
+  "w": 430,
+  "route": "/profile",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "midnight",
+  "w": 430,
+  "route": "/plan",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "midnight",
+  "w": 430,
+  "pageErrors": []
+ },
+ {
+  "theme": "light",
+  "w": 375,
+  "route": "/dashboard",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "light",
+  "w": 375,
+  "route": "/profile",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "light",
+  "w": 375,
+  "route": "/plan",
+  "scrollWidth": 375
+ },
+ {
+  "theme": "light",
+  "w": 375,
+  "pageErrors": []
+ },
+ {
+  "theme": "light",
+  "w": 390,
+  "route": "/dashboard",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "light",
+  "w": 390,
+  "route": "/profile",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "light",
+  "w": 390,
+  "route": "/plan",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "light",
+  "w": 390,
+  "pageErrors": []
+ },
+ {
+  "theme": "light",
+  "w": 430,
+  "route": "/dashboard",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "light",
+  "w": 430,
+  "route": "/profile",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "light",
+  "w": 430,
+  "route": "/plan",
+  "scrollWidth": 430
+ },
+ {
+  "theme": "light",
+  "w": 430,
+  "pageErrors": []
+ }
+]

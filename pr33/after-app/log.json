@@ -1,0 +1,13 @@
+[
+ {
+  "theme": "light",
+  "w": 390,
+  "route": "/profile",
+  "scrollWidth": 390
+ },
+ {
+  "theme": "light",
+  "w": 390,
+  "pageErrors": []
+ }
+]
