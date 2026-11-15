@@ -1,0 +1,16 @@
+{
+  "name": "restpilot-health",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only Apple Health (HealthKit) access for the RestPilot app shell: sleep analysis, heart rate variability (SDNN), resting heart rate.",
+  "license": "UNLICENSED",
+  "author": "RestPilot",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^6.0.0"
+  }
+}

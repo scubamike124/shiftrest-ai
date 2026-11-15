@@ -30,7 +30,7 @@ function saveDismissed(set: Set<string>) {
   }
 }
 
-function pickObservation(insights: Insights | null): { id: string; text: string } | null {
+export function pickObservation(insights: Insights | null): { id: string; text: string } | null {
   if (!insights) return null;
   // Highest-leverage signal first.
   if (Math.abs(insights.sleepDebtHours) >= 2) {
