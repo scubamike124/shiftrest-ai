@@ -16,7 +16,10 @@ import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
 import { hasSeenCompanionIntro, markCompanionIntroSeen } from "@/lib/companion/intro-flag";
 import { track } from "@/lib/companion/analytics";
 import { cn } from "@/lib/utils";
-import { DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
+import { useQuery } from "@tanstack/react-query";
+import { companionName, customCompanionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { fetchPrefs } from "@/lib/prefs";
 
 const STEPS = [
   {
@@ -53,8 +56,14 @@ function meetStep(name: string, isCustom: boolean) {
   };
 }
 
-export function CompanionIntroSheet({ name = DEFAULT_COMPANION_NAME, isCustom = false }: { name?: string; isCustom?: boolean } = {}) {
+export function CompanionIntroSheet(props: { name?: string; isCustom?: boolean } = {}) {
   const [open, setOpen] = useState(false);
+  // Resolve the name here too, so every call site (dashboard, companion page)
+  // shows the customer's own name; shares the app-wide ["prefs"] cache.
+  const { id: avatarId } = useAvatar();
+  const { data: prefs } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, retry: false, staleTime: 60_000 });
+  const name = props.name ?? companionName(prefs?.assistantName, avatarId);
+  const isCustom = props.isCustom ?? customCompanionName(prefs?.assistantName) !== "";
   const [step, setStep] = useState(0);
 
   // Open once per device after mount (after onboarding has cleared the route).
