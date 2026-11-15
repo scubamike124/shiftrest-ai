@@ -152,7 +152,7 @@ async function signIn(context, page) {
     )
     .catch(() => {});
   if (/\/auth/.test(new URL(page.url()).pathname)) return false;
-  await context.storageState({ path: STATE });
+  fs.writeFileSync(STATE, JSON.stringify(await context.storageState()), { mode: 0o600 });
   fs.chmodSync(STATE, 0o600);
   return true;
 }
@@ -364,10 +364,16 @@ async function runTurn(page, text) {
     if (stop) break;
   }
   fs.writeFileSync(path.join(OUT, "account-prefs.json"), JSON.stringify(prefs, null, 2));
-  await context.storageState({ path: STATE });
+  fs.writeFileSync(STATE, JSON.stringify(await context.storageState()), { mode: 0o600 });
   fs.chmodSync(STATE, 0o600);
   await browser.close();
 })().catch((e) => {
-  console.error("collector error:", String(e).slice(0, 400));
+  // First line only: never echo page state or form values.
+  console.error(
+    "collector error:",
+    String(e && e.message ? e.message : e)
+      .split("\n")[0]
+      .slice(0, 200),
+  );
   process.exit(1);
 });

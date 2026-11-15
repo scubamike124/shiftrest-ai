@@ -23,3 +23,19 @@ test("spoken and text coach prompts carry the safety-and-care rules and never as
     );
   }
 });
+
+test("JSON dashboard intents do not get the conversational safety block", async () => {
+  const { buildMessages } = require("./ai/companion/lib/production-prompt.cjs");
+  for (const intent of ["daily_plan", "right_now", "tomorrow_preview", "daily_review"]) {
+    const [sys] = await buildMessages({
+      vars: {
+        kind: "intent",
+        intent,
+        payload: "{}",
+        user: JSON.stringify({ tz: "America/New_York", now: "2026-11-15T22:00", wearable: "none" }),
+      },
+    });
+    assert.doesNotMatch(sys.content, /SAFETY AND CARE/, intent);
+    assert.match(sys.content, /DATA HONESTY/, intent);
+  }
+});
