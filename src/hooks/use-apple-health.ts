@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   appleHealthAvailable,
+  autoRefreshDue,
   loadAppleHealth,
   refreshAppleHealth,
   type AppleHealthState,
 } from "@/lib/health/apple-health-store";
 
-const REFRESH_AFTER_MS = 60 * 60_000;
+// Shared by every view using this hook, so they do not each start a read.
+let lastAutoAttempt = 0;
 
 export function useAppleHealth() {
   const [available, setAvailable] = useState(false);
@@ -48,8 +50,9 @@ export function useAppleHealth() {
   // Quietly re-read when the data is over an hour old (no permission prompt).
   useEffect(() => {
     if (!available || !userId || !state) return;
-    const age = state.lastReadAt ? Date.now() - Date.parse(state.lastReadAt) : Infinity;
-    if (age < REFRESH_AFTER_MS) return;
+    const now = Date.now();
+    if (!autoRefreshDue(state, lastAutoAttempt, now)) return;
+    lastAutoAttempt = now;
     void refreshAppleHealth(userId).catch(() => {});
   }, [available, userId, state]);
 

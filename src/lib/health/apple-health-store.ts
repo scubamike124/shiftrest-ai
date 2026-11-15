@@ -125,6 +125,25 @@ export async function connectAppleHealth(userId: string): Promise<AppleHealthSta
   return state;
 }
 
+const REFRESH_AFTER_MS = 60 * 60_000;
+const AUTO_RETRY_MS = 15 * 60_000;
+
+/**
+ * Whether the quiet background re-read should run now. Data older than an
+ * hour is due, but never more than once per 15 minutes: a partly failed read
+ * saves (which re-renders every view) without counting as a read, so without
+ * this gap the views would re-read HealthKit in a loop.
+ */
+export function autoRefreshDue(
+  state: Pick<AppleHealthState, "lastReadAt">,
+  lastAttemptMs: number,
+  nowMs: number,
+): boolean {
+  if (nowMs - lastAttemptMs < AUTO_RETRY_MS) return false;
+  const read = state.lastReadAt ? Date.parse(state.lastReadAt) : NaN;
+  return !Number.isFinite(read) || nowMs - read >= REFRESH_AFTER_MS;
+}
+
 /** Re-reads for a connected account. Never prompts and never connects anyone. */
 export async function refreshAppleHealth(userId: string): Promise<AppleHealthState | null> {
   const current = loadAppleHealth(userId);

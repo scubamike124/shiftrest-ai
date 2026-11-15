@@ -459,3 +459,18 @@ test("a partly failed read keeps earlier HRV and resting HR, and retries", async
   const [m] = store.mergePartial(prev, next);
   assert.deepEqual([m.sleepDurationMin, m.hrvMs, m.restingHr], [333, 44, 58]);
 });
+
+test("background re-read: due after an hour, at most once per 15 minutes", async () => {
+  const store = await load("src/lib/health/apple-health-store.ts");
+  const now = Date.parse("2026-11-15T12:00:00Z");
+  const min = 60_000;
+  const stale = { lastReadAt: new Date(now - 61 * min).toISOString() };
+  const fresh = { lastReadAt: new Date(now - 10 * min).toISOString() };
+  assert.equal(store.autoRefreshDue(fresh, 0, now), false, "fresh data is not re-read");
+  assert.equal(store.autoRefreshDue(stale, 0, now), true, "stale data is re-read");
+  assert.equal(store.autoRefreshDue({ lastReadAt: null }, 0, now), true, "never read is due");
+  // A partly failed read saves without updating lastReadAt; the next render
+  // must not start another read straight away.
+  assert.equal(store.autoRefreshDue(stale, now - 1 * min, now), false, "no tight retry loop");
+  assert.equal(store.autoRefreshDue(stale, now - 16 * min, now), true, "retries after 15 minutes");
+});
