@@ -15,8 +15,9 @@ const tabs = [
  * over. Renders only on app routes via the parent shell.
  *
  * The AI companion is the centre tab, so it is one thumb-tap away on every
- * screen without a floating button covering page content. Voice (Pilot) stays
- * reachable from the Companion screen and the dashboard's quick actions.
+ * screen without a floating button covering page content. The Companion screen
+ * has its own tap-to-talk microphone; the separate voice Pilot screen is in the
+ * dashboard's Quick Actions (and the desktop sidebar).
  */
 export function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

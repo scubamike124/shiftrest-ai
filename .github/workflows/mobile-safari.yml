@@ -14,9 +14,14 @@ name: Mobile Safari layout check
 on:
   workflow_dispatch:
   pull_request:
+    # Layout-level files only, so ordinary feature PRs do not each queue a long
+    # macOS job. Run it by hand (workflow_dispatch) for anything else.
     paths:
-      - "src/**"
-      - "public/**"
+      - "src/styles.css"
+      - "src/routes/__root.tsx"
+      - "src/components/BottomNav.tsx"
+      - "src/components/site/**"
+      - "src/components/legal/CookieBanner.tsx"
       - "scripts/qa/mobile-layout-audit.mjs"
       - ".github/workflows/mobile-safari.yml"
 permissions:
@@ -35,8 +40,8 @@ jobs:
       STAGING: https://restpilot-web-staging.up.railway.app
       LOCAL: http://localhost:4173
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
@@ -122,7 +127,7 @@ jobs:
           PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs AUDIT_FAKE_SESSION=1 \
             AUDIT_OUT="$OUT/webkit-audit-local-app.json" AUDIT_SHOTS="$OUT/webkit-local-app" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
             node scripts/qa/mobile-layout-audit.mjs "$LOCAL" | tee "$OUT/webkit-audit-local-app.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: restpilot-mobile-safari-evidence

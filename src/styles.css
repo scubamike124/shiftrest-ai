@@ -457,8 +457,9 @@
 }
 
 /* Invisible touch target: at least 44 x 44 pt (Apple HIG) around a smaller
-   visual control, centred on it. Visuals are unchanged. Not for controls that
-   already use ::after. */
+   visual control, centred on it. Visuals are unchanged. It sets
+   position: relative, so never combine it with absolute/fixed/sticky, and not
+   with controls that already use ::after. */
 @utility hit-area {
   position: relative;
   &::after {
