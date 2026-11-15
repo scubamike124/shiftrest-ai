@@ -53,7 +53,6 @@ export const Route = createFileRoute("/api/stt")({
         const admission = await requireAIAdmission(authed.userId);
         if (admission) return admission;
 
-
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(authed.userId, RATE_LIMITS.stt);

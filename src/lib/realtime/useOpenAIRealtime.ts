@@ -525,7 +525,9 @@ export function useOpenAIRealtime() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (isAIConsentError(e)) {
-        setError("Voice needs your permission to use AI. Allow AI features to start a conversation.");
+        setError(
+          "Voice needs your permission to use AI. Allow AI features to start a conversation.",
+        );
       } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");

@@ -103,7 +103,6 @@ export const Route = createFileRoute("/api/tts")({
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
 
-
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.tts);

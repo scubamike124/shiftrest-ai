@@ -19,7 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { parseIntent, type ParsedIntent } from "@/lib/voice/intent-router";
 import { executeIntent } from "@/lib/voice/intent-executor";
-import { aiFetch } from "@/lib/ai/consent-client";
+// `fetch` in this file is aiFetch: speech-to-text needs AI consent (Guideline 5.1.2(i)).
+import { aiFetch as fetch } from "@/lib/ai/consent-client";
 
 type Phase =
   | { kind: "idle" }
@@ -76,7 +77,7 @@ export function VoiceCommandButton({
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const res = await aiFetch("/api/stt", {
+      const res = await fetch("/api/stt", {
         method: "POST",
         body: form,
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,

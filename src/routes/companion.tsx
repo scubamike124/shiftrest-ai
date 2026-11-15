@@ -60,9 +60,6 @@ import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
 
-
-
-
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
   if (typeof window === "undefined") return false;

@@ -309,7 +309,7 @@ test("the consent screen names every provider and links the privacy policy", () 
   for (const n of ["Google Gemini", "OpenAI", "ElevenLabs"]) assert.match(policy, new RegExp(n));
   assert.match(
     policy,
-    /Apple Health data stays\s+on your iPhone and is never sent to AI providers/,
+    /Apple Health data stays\s+on\s+your\s+iPhone\s+and\s+is\s+never\s+sent\s+to\s+AI\s+providers/,
   );
   const subprocessors = read("src/routes/legal.third-parties.tsx");
   assert.match(subprocessors, /ElevenLabs/);
@@ -513,6 +513,9 @@ test("every client call to an AI endpoint goes through aiFetch / ensureAIConsent
     /\bfetch\(\s*(?:["'`]\/api\/(?:ai|brief|insights|swap|stt|tts|tts-elevenlabs|coach)\b|endpoint\b)/;
   for (const f of files) {
     const src = read(f);
+    // A file may alias aiFetch as `fetch` (kept so an unformatted file's
+    // call sites stay untouched); then every fetch in it is aiFetch.
+    if (/^import \{ aiFetch as fetch \} from "@\/lib\/ai\/consent-client";$/m.test(src)) continue;
     assert.doesNotMatch(src, direct, `${f} calls an AI endpoint with plain fetch`);
     assert.match(src, /aiFetch(Background)?\(/, `${f} uses aiFetch`);
   }

@@ -94,12 +94,10 @@ export const Route = createFileRoute("/legal/privacy")({
 
       <h2>3. Legal bases (EEA/UK users)</h2>
       <p>
-        Where the GDPR applies, we process personal data under the following
-        bases: performance of a contract (operating the Service), legitimate
-        interests (security, product improvement, fraud prevention), consent
-        (location, push notifications, wearables, optional AI memory, and
-        sharing your data with AI providers), and
-        compliance with legal obligations.
+        Where the GDPR applies, we process personal data under the following bases: performance of a
+        contract (operating the Service), legitimate interests (security, product improvement, fraud
+        prevention), consent (location, push notifications, wearables, optional AI memory, and
+        sharing your data with AI providers), and compliance with legal obligations.
       </p>
 
       <h2 id="local-storage">4. Local &amp; offline storage</h2>
@@ -123,41 +121,36 @@ export const Route = createFileRoute("/legal/privacy")({
 
       <h2 id="ai-providers">6. AI providers and your permission</h2>
       <p>
-        RestPilot's AI features (the coach, voice conversations, spoken
-        briefings, insights, plans and shift-swap advice) are powered by
-        third-party AI providers. We send your personal data to them only
-        after you allow it in the app, and only when you use an AI feature:
+        RestPilot's AI features (the coach, voice conversations, spoken briefings, insights, plans
+        and shift-swap advice) are powered by third-party AI providers. We send your personal data
+        to them only after you allow it in the app, and only when you use an AI feature:
       </p>
       <ul>
         <li>
-          <strong>Google Gemini (Google's Gemini API):</strong> your coach
-          messages and the context RestPilot adds to them, such as your shifts
-          and schedule, sleep and fatigue estimates, preferences, preferred
-          name, AI memories (only if you turned AI memory on), and summaries
-          from a wearable you connect (Fitbit or Oura). Apple Health data stays
-          on your iPhone and is never sent to AI providers. Used to write coach
-          replies, briefings, plans, insights and shift-swap advice.
+          <strong>Google Gemini (Google's Gemini API):</strong> your coach messages and the context
+          RestPilot adds to them, such as your shifts and schedule, sleep and fatigue estimates,
+          preferences, preferred name, AI memories (only if you turned AI memory on), and summaries
+          from a wearable you connect (Fitbit or Oura). Apple Health data stays on your iPhone and
+          is never sent to AI providers. Used to write coach replies, briefings, plans, insights and
+          shift-swap advice.
         </li>
         <li>
-          <strong>OpenAI:</strong> your voice recordings, the text read aloud to you, and your
-          voice settings. Used for speech-to-text, spoken replies and briefings,
-          and live voice conversations.
+          <strong>OpenAI:</strong> your voice recordings, the text read aloud to you, and your voice
+          settings. Used for speech-to-text, spoken replies and briefings, and live voice
+          conversations.
         </li>
         <li>
-          <strong>ElevenLabs:</strong> the text of companion replies being read
-          aloud. Used to read them in a natural voice.
+          <strong>ElevenLabs:</strong> the text of companion replies being read aloud. Used to read
+          them in a natural voice.
         </li>
       </ul>
       <p>
-        We ask for this permission once, before your first use of an AI
-        feature. If you choose "Not now", nothing is sent and the rest of
-        RestPilot keeps working. You can withdraw your permission at any time
-        in Profile → Privacy &amp; AI data sharing; new
-        AI requests stop immediately. Withdrawing does not recall data already
-        sent for earlier requests. We do not sell this data or use it for
-        advertising. Each provider is listed, with a link to its privacy
-        policy, in{" "}
-        <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
+        We ask for this permission once, before your first use of an AI feature. If you choose "Not
+        now", nothing is sent and the rest of RestPilot keeps working. You can withdraw your
+        permission at any time in Profile → Privacy &amp; AI data sharing; new AI requests stop
+        immediately. Withdrawing does not recall data already sent for earlier requests. We do not
+        sell this data or use it for advertising. Each provider is listed, with a link to its
+        privacy policy, in <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
       </p>
 
       <h2>7. Retention</h2>

@@ -111,7 +111,7 @@ for (const route of routes) {
         '@/lib/ai/request.server': requestModule,
         '@/lib/ai/admission.server': { requireAIAdmission: async id => { admissions++; assert.equal(id, 'verified-user'); return new Response(null, { status: mode === 'limited' ? 429 : 503 }); } },
         // AI consent granted here; tests/ai-consent.test.mjs covers refusals.
-        '@/lib/ai/consent.server': { requireAIConsent: async () => null },
+        "@/lib/ai/consent.server": { requireAIConsent: async () => null },
         '@/lib/ai/gateway.server': { AIError: class extends Error {} },
         '@/lib/ai/context.server': {}, '@/lib/ai/log.server': {},
         '@/lib/ai/memory-extractor.server': {}, '@/lib/ops/alert.server': {},
@@ -169,7 +169,7 @@ test('Simli rejects unbounded or invalid session durations before provider', asy
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/api/auth.server': { requireUser: async () => ({ userId: 'verified-user' }) },
     '@/lib/ai/admission.server': { requireAIAdmission: async () => null },
-    '@/lib/ai/consent.server': { requireAIConsent: async () => null },
+      "@/lib/ai/consent.server": { requireAIConsent: async () => null },
     '@/lib/ai/request.server': requestModule,
   }, { SIMLI_API_KEY: 'test-only' }, async () => { providerCalls++; return Response.json({}); });
   for (const duration of [-1, 0, 601, '600', 1.5]) {
@@ -211,7 +211,7 @@ test('STT rejects oversized multipart before parsing or provider', async () => {
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/api/auth.server': { requireUser: async () => ({ userId: 'verified-user' }) },
     '@/lib/ai/admission.server': { requireAIAdmission: async () => null },
-    '@/lib/ai/consent.server': { requireAIConsent: async () => null },
+      "@/lib/ai/consent.server": { requireAIConsent: async () => null },
     '@/lib/ai/request.server': requestModule,
     '@supabase/supabase-js': {}, '@/lib/ai/log.server': {},
   }, { OPENAI_API_KEY: 'test-only', AI_CHAT_MODEL: 'test-model', AI_STT_MODEL: 'test-stt' });
