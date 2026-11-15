@@ -1,34 +1,19 @@
 // 3D Companion model resolver.
 //
-// RestPilot AI ships ONE premium branded 3D companion. The bundled GLB is
-// hosted on the Lovable asset CDN and used by default — no public input
-// for end users to paste arbitrary URLs (the product is a single curated
-// premium companion, not a user-configured avatar system).
-//
-// A `companion.modelUrl` value in localStorage still overrides the default
-// (used internally for QA / dev). If loading fails, the parent renderer
-// falls back to the 2D portrait (Avatar.tsx onFail path).
+// The Companion renders the 2D portrait on every device (Avatar.tsx). There is
+// no default 3D model any more: see model-url.ts for why. A `companion.modelUrl`
+// value in localStorage is still honoured for internal QA, unless it points at
+// the dead Ready Player Me host. If a model ever fails to load, the parent
+// renderer falls back to the 2D portrait (Avatar.tsx onFail path).
 
 import defaultModelAsset from "@/assets/companion/companion-default.glb.asset.json";
+import { resolveModelUrl } from "./model-url";
 
 const CUSTOM_KEY = "companion.modelUrl";
-const RPM_QUERY = "morphTargets=ARKit,Oculus%20Visemes&textureAtlas=1024&pose=A&lod=1";
 
-// Ready Player Me half-body avatar — uncompressed GLB (no KTX2/Basis, no
-// Meshopt). This loads reliably on iOS Safari where the bundled
-// gltfpack-compressed GLB fails to decode textures and Meshopt geometry.
-// The picker / dev override (`companion.modelUrl` in localStorage) can
-// still point at the bundled premium asset for desktop QA.
-const RPM_DEFAULT_HEAD =
-  "https://models.readyplayer.me/64bfa15f0e72c63d7c3934a6.glb";
-
-export const DEFAULT_MODEL_URL: string =
-  `${RPM_DEFAULT_HEAD}?${RPM_QUERY}`;
-
-// Kept for parity with any code that needs the bundled premium asset
-// (e.g. when the user opts into a higher-fidelity desktop render).
+// The bundled GLB on the Lovable asset CDN, kept for desktop QA overrides. It is
+// not used by default: its gltfpack compression does not decode on iOS Safari.
 export const BUNDLED_PREMIUM_MODEL_URL: string = defaultModelAsset.url;
-
 
 export function getCustomModelUrl(): string | null {
   if (typeof window === "undefined") return null;
@@ -49,17 +34,8 @@ export function setCustomModelUrl(url: string | null): void {
   } catch { /* ignore */ }
 }
 
-// Append RPM morph-target query if the URL looks like a bare RPM .glb.
-function withMorphTargets(raw: string): string {
-  if (!/readyplayer\.me/.test(raw)) return raw;
-  if (raw.includes("morphTargets=")) return raw;
-  return raw.includes("?") ? `${raw}&${RPM_QUERY}` : `${raw}?${RPM_QUERY}`;
-}
-
 export function modelUrlFor(_id: string | null | undefined): string | null {
-  const custom = getCustomModelUrl();
-  if (custom) return withMorphTargets(custom);
-  return DEFAULT_MODEL_URL;
+  return resolveModelUrl(getCustomModelUrl());
 }
 
 // Kept for backwards compat with the earlier import site.
