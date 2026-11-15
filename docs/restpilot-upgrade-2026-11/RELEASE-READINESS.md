@@ -42,7 +42,7 @@ Every result below is from `main` at **8ac52cc**, and was repeated on #50's head
 | Check | Result |
 |---|---|
 | `/pricing`, `/`, `/paywall` show **$7.99**, **$49.99** and the **14-day** trial | ✅ all three, both viewports |
-| No $99 and no "Founding" anywhere | ✅ |
+| No $99 and no "Founding" on the plan pages (`/pricing`, `/`, `/paywall`) | ✅. Only existing lifetime members still see "Founding Member": on Profile and in the app's plan notice |
 | "lifetime" wording on `/paywall` | Only in the renewal disclosure: "Existing Lifetime purchases (no longer sold)…". No offer. ✅ |
 | Monthly checkout payload sent to Stripe | `mode=subscription`, `price=restpilot_monthly`, `subscription_data[trial_period_days]=14`, `ui_mode=embedded_page`, metadata `userId` + `priceId`, no `payment_intent_data` ✅ |
 | Annual checkout payload | Same, with `restpilot_annual` ✅ |
@@ -109,6 +109,7 @@ Existing **monthly, annual and lifetime** customers keep Premium:
 
 - **Client** (`src/lib/subscription.ts`): `status='lifetime'` is premium, as are `active`/`trialing` within the period and `canceled` until the period ends. Verified in the browser for monthly, annual, trial and lifetime.
 - **Server/SQL** (`has_active_subscription`, which gates the AI budget): the same rules, including `status = 'lifetime'`. It checks whether any row qualifies, so a lifetime row wins over later rows.
+- **The client is different:** it reads only the user's newest row. A newer non-premium row (for example a later canceled-and-expired subscription) would hide a lifetime row in the UI, although the server would still grant Premium. That is an unlikely edge case, because premium users never see a purchase button; it is noted here for completeness.
 - Lifetime rows are never rewritten. The Stripe subscription webhooks only upsert by `stripe_subscription_id`, and lifetime rows use the key `lifetime_<checkout session id>`.
 
 Nothing can create a **new** lifetime:
@@ -129,7 +130,7 @@ Optional hardening for later (non-blocking):
 
 - **Website: reliable.** Profile → **Manage subscription** opens the Stripe Customer Portal for every active, trialing or cancel-at-period-end subscriber (tested above).
   - The Subscription Terms (`/legal/subscription` §4) say "You can cancel any time from your account settings", which matches what the site does.
-  - Deleting the account also cancels Stripe subscriptions.
+  - Deleting the account also tries to cancel Stripe subscriptions. A failure is logged and the deletion still goes ahead.
   - Support: support@restpilotai.com.
 - **In the app: neutral and compliant.**
   - Subscribers see their plan status and "Billing changes aren't available in the app.", with no link.
@@ -183,7 +184,7 @@ Non-blocking findings for later:
    - tap **Manage subscription**: the Stripe portal opens;
    - close it without changing anything.
 4. A **lifetime** account still shows "Premium · Lifetime".
-5. Optionally, start a checkout as a free test account: the plan selector and "Start 14-day free trial" open Stripe's embedded checkout. Don't pay.
+5. Optionally, as a free account, open `/paywall` and check that Monthly and Annual and "Start 14-day free trial" are shown. **Don't tap Start on the live site:** it creates a live Stripe Customer record, even if you never pay. The checkout request itself was verified locally (see above).
 6. On an installed iPhone home-screen app, open `/version` and pull to refresh once. The service worker picks up the new build.
 7. In Lovable, check the logs: no new 500s on `/api/public/wearables/*` or `/api/public/payments/webhook`.
 

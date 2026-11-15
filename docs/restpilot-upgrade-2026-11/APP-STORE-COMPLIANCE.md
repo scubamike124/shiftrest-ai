@@ -9,7 +9,7 @@ _Source: [App Review Guidelines](https://developer.apple.com/app-store/review/gu
 
 - RestPilot Premium is a digital subscription that unlocks features inside the app. Guideline 3.1.1 says that requires IAP.
 - The exception that lets web purchases work in the app is 3.1.3(b), "Multiplatform Services". It applies only "provided those items are also available as in-app purchases within the app."
-- RestPilot is not a "Reader" app (3.1.3(a) covers magazines, newspapers, books, audio, music and video). None of the other 3.1.3 exceptions fit either.
+- RestPilot is not a "Reader" app (3.1.3(a) covers magazines, newspapers, books, audio, music and video). None of the other 3.1.3 exceptions fit either. The closest is 3.1.3(f), "Free Stand-alone Apps", but it covers only companions to a paid web tool "for VoIP, Cloud Storage, Email Services, or Web Hosting".
 - The 2025 United States change does **not** remove the IAP requirement. It only lifts the ban on buttons, external links and other calls to action that point to other ways to pay.
 
 **Simplest compliant path: sell the same two plans through IAP in the app, next to the existing website Stripe plans.**
@@ -71,7 +71,10 @@ Emails to existing users about the website are fine. Inside the app outside the 
   - **Not allowed outside the US:** a tappable link to the Stripe portal or the pricing page.
 
 #### What #40 does
-- **Website subscribers in the app** see "Premium · Monthly / Annual / Lifetime", plus "Billing changes aren't available in the app." There is no portal button and no link. This is neutral and compliant.
+- **Website subscribers in the app:**
+  - Monthly and annual subscribers see their plan ("Premium · Monthly" / "Premium · Annual") and "Billing changes aren't available in the app."
+  - Lifetime members see their plan; on `/paywall` and `/pricing` that reads "Your plan: Lifetime access". They don't get the billing line, because there is nothing to bill.
+  - There is no portal button and no link. This is neutral and compliant.
 - **Free users in the app** see "Subscriptions aren't available in the app yet." with no prices and no link. Also compliant.
 - **No copy change is needed for this Publish.** When IAP ships, use the Railway branch's decision table:
   - Apple subscribers get Apple's Manage Subscriptions;
@@ -82,7 +85,7 @@ Emails to existing users about the website are fine. Inside the app outside the 
 
 - This is what lets existing Stripe monthly, annual and lifetime subscribers keep Premium in the app. **But only if** the same subscription is also offered as IAP in the app.
 - Lifetime is no longer sold anywhere, so it never needs an IAP equivalent. Existing lifetime members are "previously acquired" customers.
-- 3.1.2(a) also protects them: "If you are changing your existing app to a subscription-based business model, you should not take away the primary functionality existing users have already paid for."
+- By analogy, 3.1.2(a) points the same way: "If you are changing your existing app to a subscription-based business model, you should not take away the primary functionality existing users have already paid for." Strictly, that sentence is about an existing App Store app, which RestPilot doesn't have yet. The firmer basis is 3.1.3(b) itself: the Premium entitlement that lifetime members hold *is* offered as IAP.
 
 ### 4.2 Minimum Functionality: moderate risk, lowered by native features
 > "Your app should include features, content, and UI that elevate it beyond a repackaged website. If your app is not particularly useful, unique, or “app-like,” it doesn't belong on the App Store."
@@ -99,7 +102,7 @@ Emails to existing users about the website are fine. Inside the app outside the 
 ### 5.1.1(v) Account Sign-In: met; check on a device
 > "If your app supports account creation, you must also offer account deletion within the app."
 
-- **Met.** Profile → Delete Account (type DELETE) deletes the account and cancels any Stripe subscription (`src/lib/account.functions.ts`).
+- **Met.** Profile → Delete Account (type DELETE) deletes the account. It first tries to cancel any Stripe subscription (`src/lib/account.functions.ts`); a failed cancel is logged and the deletion still goes ahead.
 - **When IAP ships:** deletion cannot cancel an Apple subscription. The confirmation must tell Apple subscribers to cancel in Settings → Apple ID → Subscriptions.
 - **Check on a device:** Google sign-in inside the WKWebView shell. Google refuses OAuth in embedded web views. If it fails there, hide it in the app or open it in the system browser, so the reviewer doesn't hit a broken login (2.1).
 
