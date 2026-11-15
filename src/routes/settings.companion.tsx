@@ -31,70 +31,23 @@ import {
 import {
   ELEVEN_VOICES,
   useElevenVoice,
-  useRenderer,
   useTtsProvider,
-  webglSupported,
 } from "@/lib/companion/renderer-pref";
-import { getCustomModelUrl, setCustomModelUrl } from "@/lib/companion/avatar-models";
 
 function RealismCard() {
-  const { renderer, setRenderer } = useRenderer();
   const { provider, setProvider } = useTtsProvider();
   const { voiceId, setVoiceId } = useElevenVoice();
-  const webgl = useMemo(() => webglSupported(), []);
-  const [modelUrl, setModelUrl] = useState<string>(() => getCustomModelUrl() ?? "");
-
-  function saveModelUrl(next: string) {
-    setModelUrl(next);
-    setCustomModelUrl(next.trim() || null);
-  }
 
   return (
     <Card className="p-4">
-      <h2 className="text-sm font-semibold">Avatar realism & voice (beta)</h2>
+      <h2 className="text-sm font-semibold">Voice (beta)</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Try the new 3D Companion head and an experimental voice. You can switch back any time —
-        if anything fails on your device we'll fall back to the safe defaults automatically.
+        Try an experimental voice. You can switch back any time — if anything fails on your device
+        we'll fall back to the standard voice automatically.
       </p>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <div>
-          <Label htmlFor="renderer-3d" className="text-sm">3D Companion head</Label>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {webgl ? "Adds natural breathing, eye saccades, blinks, and speech-driven lips."
-                   : "Your device doesn't support WebGL — staying on the 2D portrait."}
-          </p>
-        </div>
-        <Switch
-          id="renderer-3d"
-          checked={renderer === "3d"}
-          disabled={!webgl || !modelUrl.trim()}
-          onCheckedChange={(v) => setRenderer(v ? "3d" : "2d")}
-        />
-      </div>
-
-      <div className="mt-3">
-        <Label htmlFor="rpm-url" className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Ready Player Me avatar URL (.glb)
-        </Label>
-        <Input
-          id="rpm-url"
-          type="url"
-          inputMode="url"
-          placeholder="https://models.readyplayer.me/<your-id>.glb"
-          value={modelUrl}
-          onChange={(e) => saveModelUrl(e.target.value)}
-          className="mt-1.5 text-xs"
-        />
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Create a free head at{" "}
-          <a href="https://readyplayer.me/hub/avatars" target="_blank" rel="noreferrer" className="underline">
-            readyplayer.me/hub
-          </a>
-          , then copy your avatar's .glb link here. We'll add the visemes query automatically. Leave empty to keep the 2D portrait.
-        </p>
-      </div>
-
+      {/* The experimental 3D head relied on Ready Player Me, whose model host no
+          longer resolves; the companion uses the 2D portrait on every device. */}
       <div className="mt-4 flex items-center justify-between gap-3">
         <div>
           <Label htmlFor="tts-eleven" className="text-sm">ElevenLabs voice (experimental)</Label>
