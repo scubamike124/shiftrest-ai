@@ -35,6 +35,8 @@ const only = opt("--only", "") ? new Set(opt("--only").split(",")) : null;
 const TZ = opt("--tz", "America/New_York");
 const SKIP_MEMORY = args.includes("--no-memory-clear");
 if (!OUT || !STATE) throw new Error("--out and --state-file are required");
+if (path.resolve(STATE).startsWith(path.resolve(OUT) + path.sep))
+  throw new Error("--state-file must be outside --out (it holds a session)");
 fs.mkdirSync(OUT, { recursive: true });
 
 const scenarios = require("./scenarios.cjs").filter((s) => !only || only.has(s.id));

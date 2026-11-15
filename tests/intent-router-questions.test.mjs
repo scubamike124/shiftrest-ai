@@ -182,3 +182,18 @@ test("alarms with a time of day after them still act", () => {
     assert.equal(p.intent.hour, hour, c);
   }
 });
+
+test("sound requests with common endings, timer leads and 'tonight' hours", () => {
+  for (const c of [
+    "play rain all night",
+    "play rain for an hour",
+    "can you play rain for me",
+    "could you play rain to help me sleep",
+  ])
+    assert.equal(parseIntent(c).intent.kind, "play_track", c);
+  for (const c of ["I need a timer for 30 minutes", "turn on a sleep timer for 30 minutes"])
+    assert.equal(parseIntent(c).intent.kind, "set_timer", c);
+  assert.equal(parseIntent("wake me up at 1 tonight").intent.hour, 1);
+  assert.equal(parseIntent("set an alarm for 12 tonight").intent.hour, 0);
+  assert.equal(parseIntent("set an alarm for 6 on Monday").intent.kind, "wake_at");
+});
