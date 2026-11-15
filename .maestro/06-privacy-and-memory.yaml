@@ -1,0 +1,18 @@
+appId: com.restpilotai.app
+name: Privacy controls (export, erase AI memory, memory page) are reachable in the app
+tags: [core]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 90000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    # Each row's accessible name includes its description.
+    element: "Export my data.*"
+    direction: DOWN
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
+- assertVisible: "Erase AI memory.*"
+- takeScreenshot: maestro-06-privacy

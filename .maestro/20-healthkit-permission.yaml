@@ -1,0 +1,50 @@
+appId: com.restpilotai.app
+name: Connect Apple Health shows the HealthKit permission sheet (read-only), declined here
+tags: [healthkit]
+---
+# Runs only when the build declares HealthKit (PR #17). The sheet is the system
+# "Health Access" screen; the flow declines so nothing is shared.
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 90000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element:
+      text: "Connect Apple Health"
+    direction: DOWN
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
+- tapOn: "Connect Apple Health"
+# On a fresh hosted simulator the system Health privacy service can take ~30 s
+# to start, and HealthKit fails the first request after ~10 s (CI run
+# 43691170744: "FAILED prompting authorization", then the service starts).
+# Tap once more if the sheet is not up yet; the service is warm by then.
+- extendedWaitUntil:
+    visible:
+      text: "(Health Access|Turn On All|Allow .* to read)"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: "(Health Access|Turn On All|Allow .* to read)"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Connect Apple Health"
+          direction: DOWN
+          timeout: 30000
+      - tapOn: "Connect Apple Health"
+- extendedWaitUntil:
+    visible:
+      text: "(Health Access|Turn On All|Allow .* to read)"
+    timeout: 60000
+- takeScreenshot: maestro-20-healthkit-sheet
+- tapOn:
+    text: "Don.t Allow"
+    optional: true
+- tapOn:
+    text: "Cancel"
+    optional: true

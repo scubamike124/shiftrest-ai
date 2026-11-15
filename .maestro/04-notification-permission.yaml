@@ -1,0 +1,38 @@
+appId: com.restpilotai.app
+name: Turning on iPhone reminders shows the iOS notification permission prompt
+tags: [core]
+---
+# Assumes 03 left the app signed in (Maestro keeps app state between flows).
+# Maestro grants every permission at launch by default, which hides the system
+# prompt; leave notifications undecided so iOS asks.
+- launchApp:
+    permissions:
+      notifications: unset
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 90000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element: "Reminders on this iPhone"
+    direction: DOWN
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
+- takeScreenshot: maestro-04-reminders-card
+# Several elements carry this name (the card region, the heading, its text and the
+# switch) and their count varies, so pick the switch by position: it is the only
+# one to the right of the card's description.
+- tapOn:
+    text: "Reminders on this iPhone"
+    rightOf: "Sent by the app on this phone.*"
+# The system alert ("“RestPilot” Would Like to Send You Notifications").
+- extendedWaitUntil:
+    visible: ".*Would Like to Send You Notifications.*"
+    timeout: 15000
+- takeScreenshot: maestro-04-permission-alert
+- tapOn: "Allow"
+- extendedWaitUntil:
+    visible:
+      text: "(Next: .*|Add your shifts to get reminders\\.|Nothing in the next 7 days.*)"
+    timeout: 15000
+- takeScreenshot: maestro-04-reminders-on

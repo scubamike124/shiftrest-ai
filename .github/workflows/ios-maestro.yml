@@ -1,0 +1,214 @@
+# Maestro flows for the RestPilot iPhone app (ios-app/) on the free macOS runner.
+#
+# The simulator build is pointed at the hermetic E2E stack running on the same
+# runner (tests/e2e/support/serve.mjs: fake Supabase + fake model + the real
+# production build), so sign-in, navigation, reminders, privacy and the
+# account-deletion entry point are exercised without touching staging (which
+# shares production's database) or restpilotai.com.
+#
+# Flows: .maestro/*.yaml. Tags: core (always), offline (after the stack stops),
+# healthkit (only if the build declares HealthKit, PR #17), blocked (excluded:
+# Apple sandbox purchase, universal links; see each flow for what unblocks it).
+#
+# No signing, no Apple account, no secrets. Free while the repository is public;
+# the job refuses to run if it becomes private.
+name: iOS Maestro flows (simulator)
+on:
+  pull_request:
+    paths:
+      - "ios-app/**"
+      - ".maestro/**"
+      - "src/lib/native/**"
+      - "src/components/native/**"
+      - "src/routes/auth.tsx"
+      - "src/routes/profile.tsx"
+      - "tests/e2e/support/**"
+      - ".github/workflows/ios-maestro.yml"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      caller:
+        description: Calling workflow (keeps its concurrency group apart from PR runs)
+        type: string
+        default: called
+permissions:
+  contents: read
+concurrency:
+  # A called run (qa-full) and a path-triggered PR run must not cancel each other.
+  group: ios-maestro-${{ github.ref }}-${{ inputs.caller || github.event_name }}
+  cancel-in-progress: true
+jobs:
+  maestro:
+    name: iOS Maestro flows
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      EV: ${{ github.workspace }}/maestro-evidence
+      DERIVED: ${{ github.workspace }}/build/derived
+      QA_EMAIL: maestro@e2e.restpilot.test
+      QA_PASSWORD: Maestro-QA-2026!
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: "true"
+      # The XCTest driver needs longer than the default to start on hosted runners.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip cleanly if the iOS project is absent
+        id: guard
+        run: |
+          if [ -f ios-app/capacitor.config.json ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "### iOS Maestro: BLOCKED - ios-app/ is not on this branch" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install and build the web app for the hermetic stack
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$EV"
+          npm ci --no-audit --no-fund
+          eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
+          # The default V8 heap aborts the Vite/Nitro build on the macOS runner.
+          NODE_OPTIONS=--max-old-space-size=6144 npm run build > "$EV/web-build.log" 2>&1 \
+            || { grep -m5 -iE "fatal|error" "$EV/web-build.log"; tail -80 "$EV/web-build.log"; exit 1; }
+      - name: Start the E2E stack and seed the QA account
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          nohup node tests/e2e/support/serve.mjs > "$EV/stack.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/stack.pid"
+          for i in $(seq 1 120); do curl -sf http://127.0.0.1:3000/api/public/health >/dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:3000/api/public/health
+          # The QA user has allowed AI sharing (#62), so the permission dialog does not cover Home.
+          AI_CONSENT_VERSION=$(sed -n 's/^export const AI_CONSENT_VERSION = "\(.*\)";$/\1/p' src/lib/ai/consent.ts)
+          test -n "$AI_CONSENT_VERSION"
+          curl -sf -X POST http://127.0.0.1:3000/__test/seed -H 'content-type: application/json' -d "{
+            \"users\":[{\"email\":\"$QA_EMAIL\",\"password\":\"$QA_PASSWORD\"}],
+            \"tables\":{\"user_prefs\":[{\"user_email\":\"$QA_EMAIL\",\"onboarded_at\":\"2026-11-01T12:00:00Z\",\"assistant_name\":\"Lisa\",\"memory_enabled\":true,\"sleep_hours\":7,
+                                       \"consent_json\":{\"ai_data_sharing\":\"$AI_CONSENT_VERSION\"}}],
+                        \"shifts\":[{\"user_email\":\"$QA_EMAIL\",\"day\":0,\"week_index\":0,\"start_min\":1140,\"end_min\":420,\"title\":\"Night shift\"}]}}"
+      - name: Point the app shell at the stack and build for the simulator
+        if: steps.guard.outputs.ok == 'true'
+        working-directory: ios-app
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          python3 - <<'EOF'
+          import json
+          p = "capacitor.config.json"
+          c = json.load(open(p))
+          c["server"]["url"] = "http://127.0.0.1:3000/"
+          c["server"]["cleartext"] = True
+          json.dump(c, open(p, "w"), indent=2)
+          EOF
+          # The offline page returns to restpilotai.com once it is reachable; in CI it must
+          # return to the stack instead (never open production from a test run).
+          sed -i '' 's#var DEFAULT_APP_URL = "https://restpilotai.com/";#var DEFAULT_APP_URL = "http://127.0.0.1:3000/";#' www/offline.html
+          grep -q 'DEFAULT_APP_URL = "http://127.0.0.1:3000/"' www/offline.html
+          npx cap sync ios
+          # CI-only: allow the simulator to load the local stack over http.
+          PL=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PL" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PL" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true" "$PL"
+          # grep, not PlistBuddy: on the runner PlistBuddy exits 0 for a missing key.
+          if grep -q "<key>NSHealthShareUsageDescription</key>" "$PL"; then
+            echo "HEALTHKIT=1" >> "$GITHUB_ENV"
+          fi
+          set -o pipefail
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$DERIVED" \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGNING_ALLOWED=YES build \
+            | tee "$EV/xcodebuild.log" | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          test -d "$DERIVED/Build/Products/Debug-iphonesimulator/App.app"
+      - name: Boot a simulator and install the app
+        if: steps.guard.outputs.ok == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r RUNTIME DEVICE_TYPE < <(xcrun simctl list runtimes -j | python3 -c 'import json,sys; rs=[r for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and r["name"].startswith("iOS")]; ds=[d["identifier"] for d in (rs[-1].get("supportedDeviceTypes") or []) if d.get("productFamily") == "iPhone"] if rs else []; print(rs[-1]["identifier"], ds[-1]) if ds else print()') || true
+          [ -n "${RUNTIME:-}" ] && [ -n "${DEVICE_TYPE:-}" ] || { echo "No iOS simulator runtime with an iPhone"; exit 1; }
+          DEVICE=$(xcrun simctl create RPMaestro "$DEVICE_TYPE" "$RUNTIME")
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          echo "Simulator: $DEVICE_TYPE on $RUNTIME" | tee "$EV/simulator.txt"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" "$DERIVED/Build/Products/Debug-iphonesimulator/App.app"
+      - name: Install Maestro
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          # Official installer, pinned so runs are reproducible; bump deliberately.
+          export MAESTRO_VERSION=2.12.1
+          curl -fsSL "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+          "$HOME/.maestro/bin/maestro" --version | tee "$EV/maestro-version.txt"
+      - name: Maestro core flows (signed-in, against the hermetic stack)
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          set -o pipefail
+          TAGS="core"
+          [ "${HEALTHKIT:-0}" = "1" ] && TAGS="core,healthkit"
+          run_core() {
+            maestro --device "$DEVICE" test .maestro --include-tags "$TAGS" --exclude-tags blocked \
+              -e QA_EMAIL="$QA_EMAIL" -e QA_PASSWORD="$QA_PASSWORD" \
+              --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
+          }
+          # The XCTest driver sometimes misses its start window on hosted runners
+          # (no flow has run yet). Retry up to twice in that case only; flow failures
+          # are not retried.
+          for attempt in 1 2 3; do
+            run_core && exit 0
+            grep -q "iOS driver not ready in time" "$EV/maestro-core.log" || exit 1
+            [ "$attempt" = 3 ] && exit 1
+            echo "::warning::Maestro's iOS driver did not start in time (attempt $attempt); retrying the core flows."
+            mv "$EV/maestro-core.log" "$EV/maestro-core-driver-timeout-$attempt.log"
+          done
+      - name: Stop the stack, then the offline flow
+        if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
+        run: |
+          set -o pipefail
+          kill "$(cat "$RUNNER_TEMP/stack.pid")" 2>/dev/null || true
+          pkill -f "tests/e2e/support/serve.mjs" || true
+          pkill -f ".output/server/index.mjs" || true
+          sleep 2
+          maestro --device "$DEVICE" test .maestro --include-tags offline \
+            --format junit --output "$EV/maestro-offline.xml" --test-output-dir "$EV/offline" 2>&1 | tee "$EV/maestro-offline.log"
+      - name: Job summary
+        if: steps.guard.outputs.ok == 'true' && always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, os, xml.etree.ElementTree as ET
+          ev = os.environ["EV"]
+          print("### iOS Maestro flows (simulator, hermetic stack)\n")
+          print("| Flow | Result |\n|---|---|")
+          p = f = 0
+          for path in sorted(glob.glob(f"{ev}/maestro-*.xml")):
+              for tc in ET.parse(path).getroot().iter("testcase"):
+                  bad = tc.find("failure") is not None or tc.find("error") is not None
+                  f += bad; p += not bad
+                  print(f"| {tc.get('name')} | {'FAIL' if bad else 'pass'} |")
+          print(f"\n**{p} passed, {f} failed.**")
+          hk = "run" if os.environ.get("HEALTHKIT") == "1" else "not run: build has no HealthKit usage description yet (PR #17)"
+          print(f"\n- HealthKit permission sheet: {hk}")
+          print("- BLOCKED: Apple sandbox purchase (needs App Store Connect products, a Sandbox Apple Account and the StoreKit UI from PR #16, or a .storekit file)")
+          print("- BLOCKED: universal links (need a signed build with Associated Domains; notification-tap links are covered by ios-native-e2e.yml)")
+          EOF
+      - name: Collect evidence
+        if: always() && env.DEVICE != ''
+        run: |
+          xcrun simctl io "$DEVICE" screenshot "$EV/final-screen.png" || true
+          xcrun simctl spawn "$DEVICE" log show --last 20m --style compact --predicate 'process == "App"' > "$EV/app.log" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restpilot-ios-maestro-evidence
+          path: maestro-evidence
+          retention-days: 14
+          if-no-files-found: warn

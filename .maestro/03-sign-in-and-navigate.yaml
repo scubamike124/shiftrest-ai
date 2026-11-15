@@ -1,0 +1,71 @@
+appId: com.restpilotai.app
+name: Sign in with the seeded QA account and use the bottom navigation
+tags: [core]
+# QA_EMAIL / QA_PASSWORD come from `maestro test -e` (a user seeded in the E2E stack).
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Open menu"
+    timeout: 90000
+# On iPhone widths "Sign in" sits in the header menu. A tap that lands before the
+# page hydrates does nothing, so retry until the menu reports it is open.
+- retry:
+    maxRetries: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "Open menu"
+          commands:
+            - tapOn: "Open menu"
+      - extendedWaitUntil:
+          visible: "Close menu"
+          timeout: 5000
+- tapOn:
+    text: "Sign in"
+    index: 0
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 20000
+- tapOn: "Email address"
+- inputText: ${QA_EMAIL}
+- tapOn: "Password"
+- inputText: ${QA_PASSWORD}
+- hideKeyboard
+- tapOn:
+    text: "Sign In"
+    index: 0
+# First sign-in on this device shows the three-step Companion intro sheet over Home.
+# Step through it ("Skip" sits under the floating Cookies chip on narrow phones).
+- extendedWaitUntil:
+    visible: "Meet .*your Companion"
+    timeout: 30000
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Memory is optional"
+    timeout: 10000
+- tapOn: "Next"
+- tapOn: "Got it"
+- extendedWaitUntil:
+    visible:
+      text: "Good (morning|afternoon|evening).*"
+    timeout: 30000
+- takeScreenshot: maestro-03-dashboard
+- tapOn: "Plan"
+- extendedWaitUntil:
+    visible: "Today's light plan."
+    timeout: 20000
+- takeScreenshot: maestro-03-plan
+- tapOn: "Events"
+- extendedWaitUntil:
+    visible: "Add event"
+    timeout: 20000
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible: "Your preferences"
+    timeout: 20000
+- takeScreenshot: maestro-03-profile
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible:
+      text: "Good (morning|afternoon|evening).*"
+    timeout: 20000

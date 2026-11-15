@@ -1,0 +1,68 @@
+# Playwright web regression for RestPilot, plus the COMPREHENSIVE QA run.
+#
+# Every PR (fast): "E2E smoke (Chromium desktop + iPhone 15)" - the @smoke
+#   subset against a production build behind the hermetic fake backend
+#   (tests/e2e/support/serve.mjs). No staging or production data is touched.
+#
+# Comprehensive (separate workflow, qa-full.yml): label `qa:full` or `release`
+#   on a PR, PRs into main (the release path), or manual dispatch:
+#   - full Playwright suite on Chromium AND WebKit, desktop + iPhone SE / 15 /
+#     15 Pro Max (no-horizontal-overflow on every route), API contract, offline;
+#   - Maestro iOS flows (ios-maestro.yml) and the full Promptfoo suite
+#     (ai-evals.yml, mode full);
+#   - read-only smoke of staging (and production, informational) with GET-only
+#     @readonly tests.
+name: QA E2E
+#
+# The smoke check lives alone here and never listens to `labeled`: a label
+# event must not cancel or re-emit it (a skipped run would replace a red one).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "docs/**"
+      - "ios-app/**"
+      - ".maestro/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-e2e-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PLAYWRIGHT_VERSION: "1.63.0"
+jobs:
+  smoke:
+    name: E2E smoke (Chromium desktop + iPhone 15)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Cache Playwright browsers
+        id: pw
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}-chromium
+      - run: npx playwright install --with-deps chromium
+        if: steps.pw.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps chromium
+        if: steps.pw.outputs.cache-hit == 'true'
+      - name: Build for the hermetic backend
+        run: |
+          eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
+          npm run build
+      - name: Playwright smoke
+        run: npx playwright test -c tests/e2e --grep @smoke --project=chromium-desktop --project=chromium-iphone-15
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-smoke-report
+          path: tests/e2e/.results
+          retention-days: 14
+          if-no-files-found: warn
