@@ -9,7 +9,18 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AI_CONSENT_PROVIDERS } from "@/lib/ai/consent";
-import { resolveAIConsentDialog, setAIConsent, useAIConsent } from "@/lib/ai/consent-client";
+import {
+  registerAIConsentApi,
+  resolveAIConsentDialog,
+  setAIConsent,
+  useAIConsent,
+} from "@/lib/ai/consent-client";
+import { getAIConsentFn, setAIConsentFn } from "@/lib/ai/consent.functions";
+
+registerAIConsentApi({
+  get: () => getAIConsentFn(),
+  set: (data) => setAIConsentFn({ data }),
+});
 
 export function AIConsentProviderList({ compact = false }: { compact?: boolean }) {
   return (

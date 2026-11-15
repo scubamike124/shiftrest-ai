@@ -144,6 +144,7 @@ function loadRoute(file, db, spy) {
     "@/lib/ai/memory-extractor.server": { extractAndStoreMemories: async () => {} },
     "@/lib/ai/recommendations.server": { persistRecommendation: async () => null },
     "@/lib/ai/intent-hint.server": { classifyIntent: () => null },
+    "@/lib/api/lab-gate.server": { requireLabAccess: async () => null },
     "@/lib/ai/context.server": {
       DEFAULT_ASSISTANT_PROFILE: { language: "en-US", accent: null, memoryEnabled: false },
       loadAssistantProfile: async () => ({ language: "en-US", accent: null, memoryEnabled: false }),
@@ -155,6 +156,7 @@ function loadRoute(file, db, spy) {
     SUPABASE_SERVICE_ROLE_KEY: "service-role-example",
     LOVABLE_API_KEY: "lovable-example",
     ELEVENLABS_API_KEY: "eleven-example",
+    SIMLI_API_KEY: "simli-example",
   };
   const globals = {
     process: { env },
@@ -214,6 +216,8 @@ const ROUTES = [
   ["stt (voice transcription)", "stt", sttRequest],
   ["tts (OpenAI voice)", "tts", () => json({ text: "Good morning." })],
   ["tts-elevenlabs", "tts-elevenlabs", () => json({ text: "Good morning." })],
+  ["lab: Simli speak (staff only)", "lab/simli/speak", () => json({ text: "Hello." })],
+  ["lab: Simli session (staff only)", "lab/simli/session", () => json({ faceId: "face-example" })],
 ];
 
 // ---- the stored permission --------------------------------------------------
@@ -300,7 +304,8 @@ for (const [label, file, makeReq] of ROUTES) {
       spy.calls.every(
         (u) =>
           u.startsWith("https://ai.gateway.lovable.dev/") ||
-          u.startsWith("https://api.elevenlabs.io/"),
+          u.startsWith("https://api.elevenlabs.io/") ||
+          u.startsWith("https://api.simli.ai/"),
       ),
       spy.calls.join(", "),
     );
@@ -329,7 +334,17 @@ for (const [label, file, makeReq] of ROUTES) {
 }
 
 test("the gate runs before any prompt is built or provider is called in every AI route", () => {
-  for (const file of ["ai", "brief", "insights", "swap", "stt", "tts", "tts-elevenlabs"]) {
+  for (const file of [
+    "ai",
+    "brief",
+    "insights",
+    "swap",
+    "stt",
+    "tts",
+    "tts-elevenlabs",
+    "lab/simli/speak",
+    "lab/simli/session",
+  ]) {
     const src = read(`src/routes/api/${file}.ts`);
     const gate = src.indexOf("requireAIConsent(");
     assert.ok(gate > 0, `${file} calls requireAIConsent`);
@@ -457,6 +472,20 @@ test("every client call to an AI endpoint goes through aiFetch / ensureAIConsent
     /ensureAIConsent\(\{ interactive: true \}\)/,
   );
   assert.match(read("src/routes/__root.tsx"), /<AIConsentDialog \/>/);
+  const rt = read("src/lib/realtime/useOpenAIRealtime.ts");
+  assert.match(rt, /subscribeAIConsent\(/, "a revoke ends a live voice session");
+  assert.match(rt, /status === "denied" && pcRef\.current\) void disconnect\(\)/);
+  const ai = read("src/routes/api/ai.ts");
+  assert.ok(
+    ai.indexOf('(await checkAIConsent(userId, admin)) === "granted"') <
+      ai.indexOf("await extractAndStoreMemories("),
+    "memory extraction re-checks permission",
+  );
+  // consent-client stays free of server-function imports (type-only import).
+  assert.match(
+    read("src/lib/ai/consent-client.ts"),
+    /^import type \{[^}]+\} from "\.\/consent\.functions";$/m,
+  );
 });
 
 function loadClient({ status, answer }) {
@@ -480,18 +509,6 @@ function loadClient({ status, answer }) {
         },
       },
     },
-    "./consent.functions": {
-      getAIConsentFn: async () => ({
-        granted: status.granted,
-        grantedAt: null,
-        version: "2026-11-15",
-      }),
-      setAIConsentFn: async ({ data }) => {
-        setCalls.push(data);
-        status.granted = data.allow;
-        return { granted: data.allow, grantedAt: null, version: "2026-11-15" };
-      },
-    },
   };
   const store = new Map();
   const globals = {
@@ -512,6 +529,15 @@ function loadClient({ status, answer }) {
     JSON,
   };
   mod = makeLoader(stubs, globals)("src/lib/ai/consent-client.ts");
+  // What <AIConsentDialog /> registers in the app.
+  mod.registerAIConsentApi({
+    get: async () => ({ granted: status.granted, grantedAt: null, version: "2026-11-15" }),
+    set: async (data) => {
+      setCalls.push(data);
+      status.granted = data.allow;
+      return { granted: data.allow, grantedAt: null, version: "2026-11-15" };
+    },
+  });
   // Simulate the user answering the dialog whenever it opens.
   let wasOpen = false;
   mod.subscribeAIConsent(() => {
