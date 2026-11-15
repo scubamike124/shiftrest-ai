@@ -88,6 +88,8 @@ test("questions that mention a sound or a wake time go to the AI", () => {
 test("commands still become actions", () => {
   assert.equal(parseIntent("rain").intent.kind, "play_track");
   assert.equal(parseIntent("play rain").intent.kind, "play_track");
+  assert.equal(parseIntent("can you play rain").intent.kind, "play_track");
+  assert.equal(parseIntent("could you please play ocean sounds").intent.kind, "play_track");
   assert.equal(
     JSON.stringify(parseIntent("wake me up at 6:30 am").intent),
     JSON.stringify({ kind: "wake_at", hour: 6, minute: 30 }),

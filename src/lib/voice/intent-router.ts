@@ -284,7 +284,8 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   // Play <track> — explicit play verb is high-confidence regardless of phrasing.
-  const mPlay = text.match(RE_PLAY);
+  // "can you play rain", "could you put on ocean" are polite commands.
+  const mPlay = text.replace(/^(?:can|could|would|will)\s+you\s+(?:please\s+)?/, "").match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
     const t = resolveTrack(phrase);
@@ -304,7 +305,10 @@ export function parseIntent(input: string): ParsedIntent {
   // AI, not a request to play a track.
   const bare = resolveTrack(text);
   if (bare) {
-    const stripped = text.replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim();
+    const stripped = text
+      .replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (stripped.split(" ").length <= 3) {
       return {
         intent: { kind: "play_track", slug: bare.slug, label: bare.label },
