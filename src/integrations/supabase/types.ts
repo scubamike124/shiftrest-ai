@@ -20,6 +20,28 @@ export type Database = {
         Update: { stripe_subscription_id?: string; environment?: string; revision?: number }
         Relationships: []
       }
+      store_entitlements: {
+        Row: {
+          user_id: string; environment: string; provider: string; store: string | null
+          product_id: string | null; plan: string | null; period_type: string | null
+          expires_at: string | null; grace_expires_at: string | null; will_renew: boolean
+          billing_issue: boolean; management_url: string | null; snapshot_at: string; updated_at: string
+        }
+        Insert: {
+          user_id: string; environment: string; provider?: string; store?: string | null
+          product_id?: string | null; plan?: string | null; period_type?: string | null
+          expires_at?: string | null; grace_expires_at?: string | null; will_renew?: boolean
+          billing_issue?: boolean; management_url?: string | null; snapshot_at: string; updated_at?: string
+        }
+        Update: Partial<Database["public"]["Tables"]["store_entitlements"]["Insert"]>
+        Relationships: []
+      }
+      store_webhook_events: {
+        Row: { event_id: string; provider: string; event_type: string | null; processed_at: string }
+        Insert: { event_id: string; provider?: string; event_type?: string | null; processed_at?: string }
+        Update: { event_id?: string; provider?: string; event_type?: string | null; processed_at?: string }
+        Relationships: []
+      }
       ai_feedback: {
         Row: {
           created_at: string
@@ -1808,6 +1830,10 @@ export type Database = {
       }
       apply_subscription_snapshot: {
         Args: { _snapshot: Json; _expected_revision: number }
+        Returns: boolean
+      }
+      apply_store_entitlement: {
+        Args: { _snapshot: Json }
         Returns: boolean
       }
       delete_email: {

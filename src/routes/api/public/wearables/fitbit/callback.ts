@@ -41,7 +41,11 @@ export const Route = createFileRoute("/api/public/wearables/fitbit/callback")({
           const back = new URL(`${appOrigin()}/profile`);
           back.searchParams.set(status, "fitbit");
           if (reason) back.searchParams.set("reason", reason);
-          return Response.redirect(back.toString(), 302);
+          // Not Response.redirect(): its headers are immutable, and the global
+          // security-headers middleware (src/start.ts) must add headers to every
+          // response. That threw "TypeError: immutable" and turned every OAuth
+          // return into a 500, so wearables could never finish connecting.
+          return new Response(null, { status: 302, headers: { Location: back.toString() } });
         };
         if (err) return redirectBack("error", err);
         if (!code || !state) return redirectBack("error", "missing_code");

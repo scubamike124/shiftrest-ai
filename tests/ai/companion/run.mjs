@@ -12,6 +12,7 @@
  * optional LOVABLE_API_KEY (the production gateway). Judge: BENCH_JUDGE or the
  * first available of OpenAI / Anthropic / Google. BENCH_NO_JUDGE=1 skips rubrics.
  * PROMPTFOO_BIN overrides the pinned `npx -y promptfoo@0.125.1`.
+ * --max-tokens N sets the hard token cap (default 3,000,000; see lib/guard.cjs).
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -51,11 +52,19 @@ if (!labels.length) {
 const hasCurrent = labels.some((l) => l.startsWith("current-"));
 if (!offline && !hasCurrent) console.log("WARNING: the current production model is not in this run, so results are not a comparison against it.");
 
-const env = { ...process.env, PROMPTFOO_DISABLE_TELEMETRY: "1", PROMPTFOO_DISABLE_UPDATE: "1" };
+// Hard token cap shared by every model and judge call (lib/guard.cjs). Default
+// 3M tokens; override with --max-tokens N. Calls past the cap are refused.
+const env = {
+  ...process.env,
+  PROMPTFOO_DISABLE_TELEMETRY: "1",
+  PROMPTFOO_DISABLE_UPDATE: "1",
+  RESTPILOT_EVAL_MAX_TOKENS: opt("--max-tokens", process.env.RESTPILOT_EVAL_MAX_TOKENS || "3000000"),
+};
 if (offline) env.BENCH_NO_JUDGE = "1";
 const outDir = path.join(here, "results");
 mkdirSync(outDir, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+env.RESTPILOT_EVAL_LEDGER ??= path.join(outDir, `${stamp}-ledger.json`);
 const bin = process.env.PROMPTFOO_BIN ? [process.env.PROMPTFOO_BIN] : ["npx", "-y", "promptfoo@0.125.1"];
 const filter = `^(${labels.map((l) => l.replace(/[.]/g, "\\.")).join("|")})$`;
 

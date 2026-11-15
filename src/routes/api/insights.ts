@@ -1,6 +1,7 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
 import { DATA_HONESTY } from "@/lib/ai/guardrails";
+import { normalizeInsights } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -130,7 +131,15 @@ export const Route = createFileRoute("/api/insights")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          return Response.json(parsed);
+          const normalized = normalizeInsights(parsed);
+          if (!normalized.ok) {
+            console.error("insights output rejected", normalized.reason);
+            return new Response(JSON.stringify({ error: "Bad AI response" }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return Response.json(normalized.value);
         } catch (e) {
           console.error("insights route error:", e);
           const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");

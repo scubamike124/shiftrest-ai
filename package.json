@@ -12,7 +12,9 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test:repair": "node --test tests/*.test.mjs",
-    "start": "node .output/server/index.mjs"
+    "start": "node .output/server/index.mjs",
+    "test:ai": "node tests/ai/run-evals.mjs",
+    "test:ai:smoke": "node tests/ai/run-evals.mjs --smoke"
   },
   "dependencies": {
     "@fontsource/instrument-serif": "^5.2.8",
