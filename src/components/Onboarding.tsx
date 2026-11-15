@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Moon, Sparkles, ShieldCheck, ChevronRight, ChevronLeft } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
 import { toast } from "sonner";
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { useSession } from "@/hooks/use-session";
+import { useAIConsent } from "@/lib/ai/consent-client";
 
 const INTRO_SLIDES = [
   {
@@ -37,17 +38,18 @@ const ONBOARDING_DOCS = ["terms", "privacy", "disclaimers", "safety", "electroni
 // The step survives a reload (per tab) so a half-finished walk resumes where it
 // was left instead of replaying the intro slides.
 const STEP_KEY = "restpilot.onboarding.step.v1";
-function readStep(): number {
+const stepKey = (uid: string | null | undefined) => `${STEP_KEY}:${uid ?? "anon"}`;
+function readStep(uid: string | null | undefined): number {
   try {
-    const n = Number(sessionStorage.getItem(STEP_KEY));
+    const n = Number(sessionStorage.getItem(stepKey(uid)));
     return Number.isInteger(n) && n >= 0 && n <= INTRO_SLIDES.length + 1 ? n : 0;
   } catch {
     return 0;
   }
 }
-function writeStep(n: number) {
+function writeStep(uid: string | null | undefined, n: number) {
   try {
-    sessionStorage.setItem(STEP_KEY, String(n));
+    sessionStorage.setItem(stepKey(uid), String(n));
   } catch {
     /* storage unavailable: resume is a convenience only */
   }
@@ -55,7 +57,8 @@ function writeStep(n: number) {
 
 export function Onboarding() {
   const queryClient = useQueryClient();
-  const { ready: sessionReady, hasSession, hasAccessToken } = useSession();
+  const { session, ready: sessionReady, hasSession, hasAccessToken } = useSession();
+  const uid = session?.user?.id ?? null;
   const { data: prefs, isSuccess, isFetched } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
@@ -65,7 +68,7 @@ export function Onboarding() {
   const [step, setStepState] = useState(0);
   const setStep = (n: number) => {
     setStepState(n);
-    writeStep(n);
+    writeStep(uid, n);
   };
   const [dismissed, setDismissed] = useState(false);
   const [acks, setAcks] = useState<Record<string, boolean>>({});
@@ -77,9 +80,28 @@ export function Onboarding() {
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    setStepState(readStep());
     setReady(true);
   }, []);
+  // Resume per user, once their id is known.
+  const resumedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!uid || resumedFor.current === uid) return;
+    resumedFor.current = uid;
+    setStepState(readStep(uid));
+  }, [uid]);
+
+  // The AI consent dialog is a second modal layer. When it closes, focus falls
+  // back to <body>; hand it back to the onboarding dialog.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const { dialogOpen: aiConsentOpen } = useAIConsent();
+  const wasAIConsentOpen = useRef(false);
+  useEffect(() => {
+    if (wasAIConsentOpen.current && !aiConsentOpen) {
+      const el = contentRef.current?.querySelector<HTMLElement>("input, button:not([disabled])");
+      el?.focus();
+    }
+    wasAIConsentOpen.current = aiConsentOpen;
+  }, [aiConsentOpen]);
 
   const authOk = sessionReady && hasSession && hasAccessToken;
   // `initialData` makes isSuccess true before any real fetch, which flashed the
@@ -115,7 +137,7 @@ export function Onboarding() {
       await markOnboarded();
       await queryClient.invalidateQueries({ queryKey: ["prefs"] });
       setDismissed(true);
-      writeStep(0);
+      writeStep(uid, 0);
     } catch (err) {
       console.error("onboarding finish failed", err);
       const msg = err instanceof Error && err.message ? err.message : "Couldn't save. Please try again.";
@@ -153,13 +175,30 @@ export function Onboarding() {
     <DialogPrimitive.Root open>
     <DialogPrimitive.Portal>
     <DialogPrimitive.Content
+      ref={contentRef}
       aria-describedby={undefined}
       onEscapeKeyDown={(e) => e.preventDefault()}
       onPointerDownOutside={(e) => e.preventDefault()}
       onInteractOutside={(e) => e.preventDefault()}
-      className="fixed inset-0 z-[60] flex flex-col bg-background/95 backdrop-blur-2xl"
+      className="fixed inset-0 z-[60] flex max-h-[100dvh] flex-col bg-background/95 backdrop-blur-2xl"
     >
-      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      {/* Back lives in a top bar, not above the CTA: stacked above it, it pushed
+          the consent button off short phones (375x667) with body scroll locked. */}
+      <div className="flex h-12 shrink-0 items-center px-3 pt-[env(safe-area-inset-top)]">
+        {step > 0 && (
+          <button
+            type="button"
+            onClick={() => !busy && setStep(step - 1)}
+            disabled={busy}
+            className="flex h-10 items-center gap-1 rounded-xl px-3 text-sm text-muted-foreground disabled:opacity-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-full flex-col items-center justify-center px-6 py-4 text-center">
         {!isNameStep && !isConsentStep ? (
           (() => {
             const slide = INTRO_SLIDES[step];
@@ -194,7 +233,7 @@ export function Onboarding() {
               autoComplete="given-name"
               enterKeyHint="next"
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   void advance();
                 }
@@ -237,8 +276,9 @@ export function Onboarding() {
           </div>
         )}
       </div>
+      </div>
 
-      <div className="flex flex-col gap-4 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex shrink-0 flex-col gap-4 px-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <div className="flex justify-center gap-2">
           {Array.from({ length: totalSteps }).map((_, i) => (
             <span
@@ -249,17 +289,6 @@ export function Onboarding() {
             />
           ))}
         </div>
-        {step > 0 && (
-          <button
-            type="button"
-            onClick={() => !busy && setStep(step - 1)}
-            disabled={busy}
-            className="flex h-10 items-center justify-center gap-1 self-center rounded-xl px-4 text-sm text-muted-foreground disabled:opacity-50"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </button>
-        )}
         <button
           onClick={advance}
           disabled={busy || (isConsentStep && !allAcked) || (isNameStep && !nameOk)}
