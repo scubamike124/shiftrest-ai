@@ -6,6 +6,12 @@ import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { recordAcceptanceFn } from "@/lib/legal/consent.functions";
+import { useIsNativeApp } from "@/lib/native-app";
+import {
+  hasNativeWebOAuth,
+  probeAppleProvider,
+  visibleOAuthProviders,
+} from "@/lib/auth/oauth-providers";
 
 const SIGNUP_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
@@ -71,10 +77,33 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
+  const inNativeApp = useIsNativeApp();
+  const [nativeWebOAuth, setNativeWebOAuth] = useState(false);
+  const [appleConfigured, setAppleConfigured] = useState<boolean | null>(null);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+    setNativeWebOAuth(typeof navigator !== "undefined" && hasNativeWebOAuth(navigator.userAgent));
+    let alive = true;
+    void probeAppleProvider(
+      import.meta.env.VITE_SUPABASE_URL,
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    ).then((ok) => {
+      if (alive) setAppleConfigured(ok);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
+
+  // Google never in the app shell (embedded web views are refused); Apple
+  // wherever it can complete. See src/lib/auth/oauth-providers.ts.
+  const providers = visibleOAuthProviders({
+    native: inNativeApp,
+    nativeWebOAuth,
+    appleConfigured,
+  });
+  const showOAuth = providers.apple || providers.google;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -170,40 +199,73 @@ function AuthPage() {
           : "Start your circadian plan in seconds."}
       </p>
 
-      <div className="mt-8 flex flex-col gap-3">
-        {isInIframe && (
-          <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-            <span>
-              <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
-              sign-in does not work inside the Lovable editor preview. Please use{" "}
-              <strong>email &amp; password</strong> below to test. Google works normally on the
-              published site.
-            </span>
-          </div>
-        )}
-        {/* Apple sign-in is hidden until Apple OAuth is configured in the backend. */}
-        <button
-          onClick={() => handleOAuth("google")}
-          disabled={loading || isInIframe}
-          title={
-            isInIframe
-              ? "Google sign-in is disabled in the editor preview. Use email/password."
-              : undefined
-          }
-          className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
-        </button>
-      </div>
+      {inNativeApp && mode === "signin" && (
+        <p className="mt-8 text-center text-xs leading-relaxed text-muted-foreground">
+          {providers.apple
+            ? "Signed up with Google? Enter your email and tap Forgot Password to set a password for the app."
+            : "Signed up with Google or Apple? Enter the email on your account and tap Forgot Password to set a password for the app. If you used Apple's Hide My Email, that's your @privaterelay.appleid.com address."}
+        </p>
+      )}
 
-      <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-          or email
-        </span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+      {showOAuth && (
+        <div className="mt-8 flex flex-col gap-3">
+          {isInIframe && (
+            <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+              <span>
+                <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
+                and Apple sign-in do not work inside the Lovable editor preview. Please use{" "}
+                <strong>email &amp; password</strong> below to test. Both work normally on the
+                published site.
+              </span>
+            </div>
+          )}
+          {providers.apple && (
+            // Apple's button guidelines: white style on a dark background,
+            // Apple logo + "Continue with Apple", same size and corner radius as
+            // the other buttons, listed first.
+            <button
+              type="button"
+              onClick={() => handleOAuth("apple")}
+              disabled={loading || isInIframe}
+              aria-label="Continue with Apple"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-white text-[15px] font-medium text-black active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                fontFamily:
+                  "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+              }}
+            >
+              <AppleGlyph /> Continue with Apple
+            </button>
+          )}
+          {providers.google && (
+            <button
+              onClick={() => handleOAuth("google")}
+              disabled={loading || isInIframe}
+              title={
+                isInIframe
+                  ? "Google sign-in is disabled in the editor preview. Use email/password."
+                  : undefined
+              }
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card text-sm font-semibold active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <GoogleGlyph /> Continue with Google{isInIframe ? " (published site only)" : ""}
+            </button>
+          )}
+        </div>
+      )}
+
+      {showOAuth ? (
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            or email
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      ) : (
+        <div className="mt-6" />
+      )}
 
       <form onSubmit={handleEmailSubmit} className="flex flex-col gap-3">
         <label className="flex h-12 items-center gap-2 rounded-2xl border border-border bg-input px-3">
@@ -322,6 +384,14 @@ function AuthPage() {
         .
       </p>
     </main>
+  );
+}
+
+function AppleGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true" fill="currentColor">
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+    </svg>
   );
 }
 

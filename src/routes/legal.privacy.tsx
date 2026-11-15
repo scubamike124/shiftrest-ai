@@ -30,7 +30,9 @@ export const Route = createFileRoute("/legal/privacy")({
       <ul>
         <li>
           <strong>Account:</strong> email address, display name, password hash
-          (or OAuth identifier if you sign in with Google).
+          (or OAuth identifier if you sign in with Google or Apple; with
+          Apple you can choose to share a private relay email address
+          instead of your own).
         </li>
         <li>
           <strong>Profile &amp; preferences:</strong> target sleep hours,
