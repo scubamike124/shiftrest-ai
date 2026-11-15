@@ -31,3 +31,15 @@ export function normalizeBrief(raw: unknown): AIBrief | null {
   if (!brief.headline && !brief.fatigue_note && brief.top_actions.length === 0) return null;
   return brief;
 }
+
+const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+/** Ensures list fields the Tomorrow Preview card maps over are arrays. */
+export function normalizeTomorrowPreview<T extends { blocks?: unknown }>(raw: T): T & { blocks: never[] } {
+  return { ...raw, blocks: arr(raw?.blocks) } as T & { blocks: never[] };
+}
+
+/** Ensures list fields the Daily Review card reads are arrays. */
+export function normalizeDailyReview<T extends { wins?: unknown; drains?: unknown }>(raw: T): T {
+  return { ...raw, wins: arr(raw?.wins), drains: arr(raw?.drains) };
+}

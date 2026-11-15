@@ -43,3 +43,13 @@ test("junk actions are dropped and empty replies are rejected", () => {
   assert.equal(normalizeBrief(null), null);
   assert.equal(normalizeBrief([]), null);
 });
+
+test("tomorrow preview and daily review lists are always arrays", () => {
+  const { normalizeTomorrowPreview, normalizeDailyReview } = load();
+  assert.equal(normalizeTomorrowPreview({ headline: "x" }).blocks.length, 0);
+  assert.equal(normalizeTomorrowPreview({ blocks: "bad" }).blocks.length, 0);
+  assert.equal(normalizeTomorrowPreview({ blocks: [{ kind: "sleep" }] }).blocks.length, 1);
+  const d = normalizeDailyReview({ headline: "x", wins: null });
+  assert.equal(d.wins.length, 0);
+  assert.equal(d.drains.length, 0);
+});

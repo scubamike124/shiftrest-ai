@@ -376,7 +376,7 @@ function Dashboard() {
       {insights && (
         <HomeCard accent className="!p-0">
           <CardBoundary label="AI brief">
-          <AIBriefCard insights={insights} recommendations={recommendations} />
+            <AIBriefCard insights={insights} recommendations={recommendations} />
           </CardBoundary>
         </HomeCard>
       )}
@@ -416,18 +416,18 @@ function Dashboard() {
 
       <HomeCard accent className="!p-0">
         <CardBoundary label="Right now">
-        <RightNowCard signedIn={signedIn === true} context={insights?.contextString ?? ""} />
+          <RightNowCard signedIn={signedIn === true} context={insights?.contextString ?? ""} />
         </CardBoundary>
       </HomeCard>
 
       {insights && (
         <HomeCard className="!p-0">
           <CardBoundary label="Companion whisper">
-          <CompanionWhisper
-            insights={insights}
-            signedIn={signedIn === true}
-            context={insights.contextString}
-          />
+            <CompanionWhisper
+              insights={insights}
+              signedIn={signedIn === true}
+              context={insights.contextString}
+            />
           </CardBoundary>
         </HomeCard>
       )}
@@ -575,11 +575,11 @@ function Dashboard() {
       {prefs.predictiveEnabled && (
         <HomeCard className="!p-0">
           <CardBoundary label="Pattern alerts">
-          <PatternAlerts
-            signedIn={signedIn === true}
-            context={insights?.contextString ?? ""}
-            enabled={prefs.predictiveEnabled}
-          />
+            <PatternAlerts
+              signedIn={signedIn === true}
+              context={insights?.contextString ?? ""}
+              enabled={prefs.predictiveEnabled}
+            />
           </CardBoundary>
         </HomeCard>
       )}
@@ -588,20 +588,20 @@ function Dashboard() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeCard className="!p-0">
             <CardBoundary label="Tomorrow preview">
-            <TomorrowPreviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.tomorrowPreviewEnabled}
-            />
+              <TomorrowPreviewCard
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.tomorrowPreviewEnabled}
+              />
             </CardBoundary>
           </HomeCard>
           <HomeCard className="!p-0">
             <CardBoundary label="Daily review">
-            <DailyReviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.dailyReviewEnabled}
-            />
+              <DailyReviewCard
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.dailyReviewEnabled}
+              />
             </CardBoundary>
           </HomeCard>
         </div>

@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Recommendation } from "@/lib/recommendations";
 import { lsGet, lsSet } from "@/lib/offline/cache";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { normalizeDailyReview, normalizeTomorrowPreview } from "@/lib/ai-brief";
 
 async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | null }> {
   const { data } = await supabase.auth.getSession();
@@ -196,7 +197,9 @@ export type TomorrowPreviewResponse = {
   recommendationId?: string | null;
 };
 export function aiTomorrowPreview(input: { context?: string } = {}) {
-  return postIntent<TomorrowPreviewResponse>({ intent: "tomorrow_preview", context: input.context });
+  return postIntent<TomorrowPreviewResponse>({ intent: "tomorrow_preview", context: input.context }).then(
+    (r) => normalizeTomorrowPreview(r) as TomorrowPreviewResponse,
+  );
 }
 
 export type DailyReviewResponse = {
@@ -212,7 +215,9 @@ export type DailyReviewResponse = {
   recommendationId?: string | null;
 };
 export function aiDailyReview(input: { context?: string } = {}) {
-  return postIntent<DailyReviewResponse>({ intent: "daily_review", context: input.context });
+  return postIntent<DailyReviewResponse>({ intent: "daily_review", context: input.context }).then(
+    normalizeDailyReview,
+  );
 }
 
 export type PatternAlertResponse = {
