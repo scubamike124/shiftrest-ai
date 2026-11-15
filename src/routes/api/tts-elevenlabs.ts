@@ -158,6 +158,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           console.log(
             `[tts-elevenlabs] provider_ok voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0}`,
           );
+          {
+            const { recordAIUsage, estimateTtsTokens } = await import("@/lib/ai/log.server");
+            await recordAIUsage(auth.userId, {
+              intent: "tts-elevenlabs",
+              model: "elevenlabs/tts",
+              promptTokens: estimateTtsTokens(textLen),
+            });
+          }
           return new Response(upstream.body, {
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });

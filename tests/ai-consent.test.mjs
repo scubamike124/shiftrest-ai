@@ -66,8 +66,10 @@ function makeLoader(stubs, globals) {
 // ---- fakes ----------------------------------------------------------------
 function fakeDb({ consent, readError = false } = {}) {
   const tables = [];
+  const inserts = [];
   const db = {
     tables,
+    inserts,
     auth: {
       async getUser() {
         return { data: { user: { id: USER } }, error: null };
@@ -94,7 +96,8 @@ function fakeDb({ consent, readError = false } = {}) {
         limit() {
           return q;
         },
-        async insert() {
+        async insert(row) {
+          inserts.push({ table, row });
           return { error: null };
         },
         async maybeSingle() {
@@ -729,23 +732,142 @@ function walk(dir, out = []) {
   }
   return out;
 }
-test("every route/server function that can call a paid provider uses requireAIBudget", () => {
-  const offenders = [];
+// Comments and string-only mentions must not satisfy the check.
+const stripComments = (src) =>
+  src.replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1").replace(/\/\*[\s\S]*?\*\//g, "");
+test("every route/server function that can call a paid provider awaits requireAIBudget and records usage", () => {
+  const noGate = [];
+  const noUsage = [];
   let seen = 0;
   for (const rel of [...walk("src/routes"), ...walk("src/lib")]) {
     if (BUDGET_ALLOW.has(rel)) continue;
-    const src = read(rel);
+    const src = stripComments(read(rel));
     if (!PROVIDER_RE.test(src)) continue;
     if (!/\bfetch\(|chatJSON\(|chatStream\(/.test(src)) continue;
     seen++;
-    if (!src.includes("requireAIBudget(")) offenders.push(rel);
+    if (!/\bawait\s+requireAIBudget\(/.test(src)) noGate.push(rel);
+    // The cap sums ai_log, so every paid route must write usage.
+    if (!/\b(await\s+)?(recordAIUsage|logAIRequest)\(/.test(src)) noUsage.push(rel);
   }
   assert.ok(seen >= 8, `expected to find the provider routes, saw ${seen}`);
-  assert.deepEqual(offenders, [], "provider-calling code without the budget gate");
+  assert.deepEqual(noGate, [], "provider-calling code without an awaited budget gate");
+  assert.deepEqual(noUsage, [], "provider-calling code that never records usage");
+});
+
+test("the scan ignores comments (a commented-out gate does not count)", () => {
+  assert.equal(/\bawait\s+requireAIBudget\(/.test(stripComments("// await requireAIBudget(x)\n/* await requireAIBudget(y) */")), false);
+  assert.equal(/\bawait\s+requireAIBudget\(/.test(stripComments("const o = await requireAIBudget(u);")), true);
 });
 
 test("live voice session minting is budget-gated after consent and before OpenAI", () => {
   const src = read("src/lib/realtime/openai.functions.ts");
   const at = (n) => src.indexOf(n);
   assert.ok(at("assertAIConsent(") < at("requireAIBudget(") && at("requireAIBudget(") < at("api.openai.com"));
+});
+
+// ---- checkAIBudget hardening: throw / hang / malformed => unavailable -------
+function budgetModule(fakeSetTimeout) {
+  const timers = [];
+  const load = makeLoader(
+    { "@supabase/supabase-js": { createClient: () => ({}) } },
+    {
+      setTimeout: fakeSetTimeout ? (fn, ms) => (timers.push({ fn, ms }), timers.length) : setTimeout,
+      clearTimeout: fakeSetTimeout ? () => {} : clearTimeout,
+      process: { env: {} },
+      Promise,
+      Date,
+      Math,
+    },
+  );
+  return { mod: load("src/lib/ai/log.server.ts"), timers };
+}
+
+test("checkAIBudget: ok / exhausted / error / thrown / malformed data", async () => {
+  const { mod } = budgetModule();
+  const c = (rpc) => mod.checkAIBudget({ rpc }, USER);
+  assert.equal(await c(async () => ({ data: true, error: null })), "ok");
+  assert.equal(await c(async () => ({ data: false, error: null })), "exhausted");
+  assert.equal(await c(async () => ({ data: null, error: { message: "x" } })), "unavailable");
+  assert.equal(await c(async () => { throw new Error("network"); }), "unavailable");
+  assert.equal(await c(() => { throw new Error("sync"); }), "unavailable");
+  for (const bad of [null, undefined, "true", 1, 0, {}, []]) {
+    assert.equal(await c(async () => ({ data: bad, error: null })), "unavailable", String(bad));
+  }
+  assert.equal(await c(async () => null), "unavailable");
+});
+
+test("checkAIBudget: a hung RPC times out (fake timers) => unavailable", async () => {
+  const { mod, timers } = budgetModule(true);
+  const pending = mod.checkAIBudget({ rpc: () => new Promise(() => {}) }, USER);
+  await Promise.resolve();
+  assert.equal(timers.length, 1);
+  assert.ok(timers[0].ms >= 1000 && timers[0].ms <= 5000, `timeout ${timers[0].ms}ms`);
+  timers[0].fn();
+  assert.equal(await pending, "unavailable");
+});
+
+test("route: budget RPC that throws or hangs-then-times-out => 503, zero provider calls", async () => {
+  const spy = upstreamSpy();
+  const db = budgetDb({ data: true, error: null });
+  db.rpc = async () => { throw new Error("connection reset"); };
+  const res = await loadRoute("tts", db, spy)({ request: json({ text: "Good morning." }) });
+  assert.equal(res.status, 503);
+  assert.deepEqual(spy.calls, []);
+});
+
+// ---- usage accrual: every paid route writes ai_log so the cap can trip -------
+const ACCRUAL = [
+  ["insights", "insights", () => json({ context: "Night shift tonight." })],
+  ["swap", "swap", () => json({ context: "Extra shift Saturday." })],
+  ["tts", "tts", () => json({ text: "Good morning, this is a longer line to speak aloud." })],
+  ["tts-elevenlabs", "tts-elevenlabs", () => json({ text: "Good morning, this is a longer line." })],
+  ["stt", "stt", sttRequest],
+  ["lab/simli/speak", "lab/simli/speak", () => json({ text: "Hello there." })],
+  ["lab/simli/session", "lab/simli/session", () => json({ faceId: "face-example" })],
+];
+for (const [label, file, makeReq] of ACCRUAL) {
+  test(`${label}: a successful provider call writes a positive ai_log usage row`, async () => {
+    const db = budgetDb({ data: true, error: null });
+    const spy = upstreamSpy();
+    const res = await loadRoute(file, db, spy)({ request: makeReq() });
+    assert.equal(res.status, 200, await res.clone().text());
+    if (res.body) await res.arrayBuffer();
+    await new Promise((r) => setTimeout(r, 0));
+    const rows = db.inserts.filter((i) => i.table === "ai_log").map((i) => i.row);
+    assert.equal(rows.length, 1, JSON.stringify(db.inserts));
+    assert.equal(rows[0].user_id, USER);
+    assert.ok(rows[0].prompt_tokens + rows[0].completion_tokens > 0);
+  });
+  test(`${label}: a refused request (over cap) writes no usage and calls no provider`, async () => {
+    const db = budgetDb({ data: false, error: null });
+    const spy = upstreamSpy();
+    const res = await loadRoute(file, db, spy)({ request: makeReq() });
+    assert.equal(res.status, 429);
+    assert.deepEqual(spy.calls, []);
+    assert.equal(db.inserts.filter((i) => i.table === "ai_log").length, 0);
+  });
+}
+
+test("usage estimates are conservative and documented in one helper", () => {
+  const { mod } = budgetModule();
+  assert.equal(mod.estimateTextTokens(400), 100);
+  assert.equal(mod.estimateTtsTokens(400), 200);
+  assert.ok(mod.estimateSttTokens(0) >= mod.USAGE_ESTIMATE.STT_MIN_TOKENS);
+  assert.ok(mod.estimateSttTokens(100 * 1024) >= 200);
+  assert.ok(mod.USAGE_ESTIMATE.SESSION_MINT_TOKENS > 0);
+});
+
+test("live voice mint records a fixed usage estimate and is rate limited", () => {
+  const src = stripComments(read("src/lib/realtime/openai.functions.ts"));
+  const at = (n) => src.indexOf(n);
+  assert.ok(at("enforceRateLimit(") > at("assertAIConsent(") && at("enforceRateLimit(") < at("await requireAIBudget("));
+  assert.ok(/await recordAIUsage\(/.test(src) && at("await recordAIUsage(") > at("api.openai.com"));
+  assert.match(read("src/lib/api/ratelimit.server.ts"), /realtime: \{ bucket: "realtime"/);
+});
+
+test("nothing but the backend can change ai_daily_token_cap (no client code writes it)", () => {
+  for (const rel of [...walk("src")]) {
+    if (rel.includes("integrations/supabase/types.ts")) continue;
+    assert.ok(!/ai_daily_token_cap/.test(read(rel)), `${rel} references the cap column`);
+  }
 });

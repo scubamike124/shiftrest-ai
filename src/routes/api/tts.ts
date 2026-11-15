@@ -212,6 +212,16 @@ export const Route = createFileRoute("/api/tts")({
             return fallback(reason, messageFromReason(reason));
           }
 
+          {
+            // Accrue against the daily cap (estimate: TTS reports no tokens).
+            const { recordAIUsage, estimateTtsTokens } = await import("@/lib/ai/log.server");
+            await recordAIUsage(auth.userId, {
+              intent: "tts",
+              model: "openai/gpt-4o-mini-tts",
+              promptTokens: estimateTtsTokens(Math.min(text.length, 4000)),
+            });
+          }
+
           return new Response(upstream.body, {
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });

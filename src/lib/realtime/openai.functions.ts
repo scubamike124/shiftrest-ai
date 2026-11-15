@@ -111,6 +111,13 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     const { assertAIConsent } = await import("@/lib/ai/consent.server");
     await assertAIConsent(context.userId);
 
+    // Per-user mint rate limit: each mint opens a paid realtime session.
+    {
+      const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+      const limited = await enforceRateLimit(context.userId, RATE_LIMITS.realtime);
+      if (limited) throw new Error("rate_limited: Too many voice sessions. Try again in a moment.");
+    }
+
     // Daily token cap, fail closed (retryable). Voice minting is a paid call.
     // The local crisis card / crisis guardrail never go through this function.
     {
@@ -232,6 +239,18 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       if (res.status === 429) throw new Error("OpenAI rate limit reached");
       if (res.status === 401) throw new Error("OpenAI key rejected");
       throw new Error("Failed to mint realtime client secret");
+    }
+
+    // Accrue a fixed estimate per mint against the daily cap (the live
+    // session itself is billed by OpenAI directly to the browser's token, so
+    // in-session usage is not metered here; see PR notes).
+    {
+      const { recordAIUsage, USAGE_ESTIMATE } = await import("@/lib/ai/log.server");
+      await recordAIUsage(context.userId, {
+        intent: "realtime-mint",
+        model: DEFAULT_MODEL,
+        promptTokens: USAGE_ESTIMATE.SESSION_MINT_TOKENS,
+      });
     }
 
     // POST /v1/realtime/client_secrets returns:

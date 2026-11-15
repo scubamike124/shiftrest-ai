@@ -95,7 +95,8 @@ async function mintAndCapture(prefsRow) {
       "@tanstack/react-start": { createServerFn: () => builder },
       "@/integrations/supabase/auth-middleware": { requireSupabaseAuth: {} },
       "@/lib/ai/consent.server": { assertAIConsent: async () => {} },
-      "@/lib/ai/log.server": { requireAIBudget: async () => null },
+      "@/lib/ai/log.server": { requireAIBudget: async () => null, recordAIUsage: async () => {}, USAGE_ESTIMATE: { SESSION_MINT_TOKENS: 3000 } },
+      "@/lib/api/ratelimit.server": { enforceRateLimit: async () => null, RATE_LIMITS: { realtime: {} } },
       "@/lib/realtime/trial-usage.functions": {
         loadTrialUsageState: async () => ({
           isTrial: false,

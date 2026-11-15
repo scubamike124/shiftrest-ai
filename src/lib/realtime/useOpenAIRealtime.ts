@@ -534,6 +534,8 @@ export function useOpenAIRealtime() {
       } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");
+      } else if (msg.includes("rate_limited")) {
+        setError("Too many voice sessions. Try again in a moment.");
       } else if (msg.includes("ai_budget_exhausted")) {
         setError("Daily AI limit reached. It resets in 24 hours.");
       } else if (msg.includes("ai_budget_unavailable")) {
