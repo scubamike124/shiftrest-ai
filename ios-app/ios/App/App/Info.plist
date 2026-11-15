@@ -28,7 +28,7 @@
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -43,12 +43,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>RestPilot uses the microphone only while you talk to your AI sleep coach, so it can hear your question. Your voice is sent to our speech provider to be transcribed and answered, and only after you allow AI data sharing in the app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>RestPilot uses your approximate location only when you tap Detect or Use current location, to show local weather and sunrise and sunset for your light plan, and travel time to the destinations you add. It does not track you in the background.</string>
+	<string>RestPilot uses your location only when you tap Detect or Use current location, to show local weather and sunrise and sunset for your light plan, and travel time to the destinations you add. It does not track you in the background.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>RestPilot reads your sleep analysis, heart rate variability and resting heart rate from Apple Health, only after you tap Connect Apple Health, to tailor your sleep plan and recovery estimates around your shifts. RestPilot never writes to Apple Health. This data stays on your iPhone: it is not sent to our servers or the AI coach and is never used for advertising.</string>
 </dict>
