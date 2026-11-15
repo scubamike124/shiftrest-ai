@@ -156,7 +156,8 @@ const RE_WAKE =
 const RE_QUESTION_START =
   /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
 const RE_POLITE = /^(?:please\s+|(?:can|could|would|will)\s+you\s+(?:please\s+)?)/;
-const RE_WAKE_INTENT = /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
+const RE_WAKE_INTENT =
+  /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
 const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
@@ -335,7 +336,8 @@ export function parseIntent(input: string): ParsedIntent {
   if (mPlay) {
     const phrase = mPlay[1];
     const playVerb = /^(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\b/.test(text);
-    const loose = phrase.replace(RE_DURATION_TAIL, "").replace(FILLER, " ").trim().split(/\s+/).length <= 2;
+    const loose =
+      phrase.replace(RE_DURATION_TAIL, "").replace(FILLER, " ").trim().split(/\s+/).length <= 2;
     const t = question
       ? null
       : (exactTrack(phrase) ?? (playVerb && loose ? resolveTrack(phrase) : null));
