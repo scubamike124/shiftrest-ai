@@ -339,7 +339,7 @@ function PlanPage() {
                           {r.detail}
                         </p>
                         {r.dataSource && (
-                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-indigo-glow">
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-indigo-glow">
                             {r.dataSource}
                           </p>
                         )}

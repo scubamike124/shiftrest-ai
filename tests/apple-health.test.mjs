@@ -11,7 +11,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.env.TZ = 'America/New_York';
 
 async function load(entry) {
-  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rp-ah-')), 'm.mjs');
+  // Inside the repo, so bundled-out packages resolve from node_modules.
+  const cache = path.join(root, 'node_modules', '.cache');
+  fs.mkdirSync(cache, { recursive: true });
+  const out = path.join(fs.mkdtempSync(path.join(cache, 'rp-ah-')), 'm.mjs');
   await build({
     entryPoints: [path.join(root, entry)],
     bundle: true,
@@ -21,6 +24,7 @@ async function load(entry) {
     alias: { '@': path.join(root, 'src') },
     // The supabase client is imported (type-only in practice) through prefs/shifts.
     external: ['@supabase/*'],
+    jsx: 'automatic',
     logLevel: 'silent',
   });
   return import(pathToFileURL(out).href);
@@ -183,4 +187,60 @@ test('stored data is tied to the account and Disconnect deletes it', async () =>
   } finally {
     delete globalThis.window;
   }
+});
+
+test('awake time is removed even when another source says "asleep" over it', () => {
+  const [n] = AH.mapAppleHealthNights({
+    sleep: [
+      S('2026-11-14 23:00', '2026-11-15 07:00', 'asleep'), // a ring/app writes one long block
+      S('2026-11-14 23:00', '2026-11-15 02:00', 'core'), // the Watch
+      S('2026-11-15 02:00', '2026-11-15 03:00', 'awake'),
+      S('2026-11-15 03:00', '2026-11-15 07:00', 'core'),
+    ],
+  });
+  assert.equal(n.sleepDurationMin, 420, '8 h minus the 1 h the Watch saw awake');
+  assert.equal(n.awakeMin, 60);
+  assert.ok(n.deepMin + n.remMin + n.lightMin <= n.sleepDurationMin, 'stages never exceed sleep');
+});
+
+test('stages from different sources never overlap or exceed total sleep', () => {
+  const [n] = AH.mapAppleHealthNights({
+    sleep: [
+      S('2026-11-14 23:00', '2026-11-15 06:00', 'core'),
+      S('2026-11-15 01:00', '2026-11-15 02:00', 'deep'),
+      S('2026-11-15 01:00', '2026-11-15 02:00', 'core'), // second source disagrees
+      S('2026-11-15 04:00', '2026-11-15 05:00', 'rem'),
+    ],
+  });
+  assert.equal(n.sleepDurationMin, 420);
+  assert.deepEqual([n.deepMin, n.remMin, n.lightMin], [60, 60, 300]);
+});
+
+test('a long in-bed record does not merge an evening nap into the night', () => {
+  const nights = AH.mapAppleHealthNights({
+    sleep: [
+      S('2026-11-14 18:00', '2026-11-15 07:00', 'inBed'),
+      S('2026-11-14 18:30', '2026-11-14 19:00', 'asleep'),
+      S('2026-11-14 23:00', '2026-11-15 07:00', 'asleep'),
+    ],
+  });
+  const night = nights.find((x) => x.date === '2026-11-15');
+  assert.equal(night.sleepDurationMin, 480);
+  assert.equal(night.sleepStart, t('2026-11-14 22:00'), 'in-bed time counts only within an hour of the sleep');
+  assert.equal(night.sleepEfficiency, Math.round((480 / 540) * 100) / 100);
+  const nap = nights.find((x) => x.date === '2026-11-14');
+  assert.equal(nap.sleepDurationMin, 30, 'the nap stays its own entry, not glued to the night');
+});
+
+test('nothing that can be sent to the AI is built from Apple Health', async () => {
+  const CW = await load('src/components/CompanionWhisper.tsx');
+  const device = DI.computeDeviceInsights({ shifts, prefs, now, appleHealthNights: shortNights });
+  const onPhone = CW.pickObservation(device.insights);
+  const shareable = CW.pickObservation(device.baseInsights);
+  assert.match(onPhone?.text ?? '', /slept|HRV|sleep/i, 'the test data would produce a Health-based observation');
+  assert.doesNotMatch(shareable?.text ?? '', /slept|HRV|under target|baseline/i);
+  assert.equal(device.baseInsights.sleepDebtHours, 0);
+  assert.equal(device.baseInsights.hrvTrend, null);
+  const dash = fs.readFileSync(path.join(root, 'src/routes/dashboard.tsx'), 'utf8');
+  assert.match(dash, /<CompanionWhisper\s+insights=\{device\?\.baseInsights \?\? insights\}/, 'dashboard gives CompanionWhisper the base insights');
 });

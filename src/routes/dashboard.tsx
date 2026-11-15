@@ -372,7 +372,11 @@ function Dashboard() {
 
       {insights && (
         <HomeCard accent className="!p-0">
-          <AIBriefCard insights={insights} recommendations={recommendations} />
+          <AIBriefCard
+            insights={insights}
+            recommendations={recommendations}
+            includesAppleHealth={device?.source === "apple-health"}
+          />
         </HomeCard>
       )}
 
@@ -415,8 +419,10 @@ function Dashboard() {
 
       {insights && (
         <HomeCard className="!p-0">
+          {/* It can send its observation to the AI ("adjust my plan"), so it
+              gets the insights computed without Apple Health. */}
           <CompanionWhisper
-            insights={insights}
+            insights={device?.baseInsights ?? insights}
             signedIn={signedIn === true}
             context={insights.contextString}
           />

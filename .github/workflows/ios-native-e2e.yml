@@ -58,6 +58,8 @@ jobs:
           npm ci --no-audit --no-fund
           (cd ios-app && npm ci --no-audit --no-fund)
           mkdir -p "$EV"
+      - name: Typecheck the site
+        run: npx tsc --noEmit
       - name: Unit tests for the native planner and helpers
         run: node --test tests/native-*.test.mjs tests/apple-health.test.mjs
       - name: Swap in the CI test page (never shipped)

@@ -26,8 +26,15 @@ export function useAppleHealth() {
       setUserId(id);
       setState(loadAppleHealth(id));
     });
+    // Follow sign-in changes, so Connect never saves under a previous account.
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user.id ?? null;
+      setUserId(id);
+      setState(loadAppleHealth(id));
+    });
     return () => {
       active = false;
+      sub.subscription.unsubscribe();
     };
   }, []);
 

@@ -1,8 +1,9 @@
 // Insights and recommendations on this device, with Apple Health folded in.
 //
-// Privacy rule: Apple Health data stays on the iPhone. The dashboard's AI
-// cards send `insights.contextString` to the server's AI providers, so that
-// string is ALWAYS the one computed WITHOUT Apple Health data. Apple Health
+// Privacy rule: Apple Health data stays on the iPhone. Anything that can be
+// sent to the server or its AI providers must come from `baseInsights`
+// (computed WITHOUT Apple Health). `insights.contextString` is also pinned to
+// the base version as a second guard. Apple Health
 // only changes what the person sees on their own phone: fatigue, recovery,
 // sleep debt, and the recommendations (labelled "from Apple Health").
 
@@ -16,7 +17,13 @@ import { lastNightFrom, recentNights, type AppleHealthNight } from "@/lib/health
 export const APPLE_HEALTH_LABEL = "Measured · from Apple Health";
 
 export type DeviceInsights = {
+  /** For what this phone SHOWS. May include Apple Health. Never send it anywhere. */
   insights: Insights;
+  /**
+   * The same insights computed WITHOUT Apple Health. Anything that can leave
+   * the phone (AI cards, "adjust my plan", sharing) must use this one.
+   */
+  baseInsights: Insights;
   /** Set when Apple Health data shaped these insights. */
   source: "apple-health" | null;
   /** The night shown as "last night", when it came from Apple Health. */
@@ -34,11 +41,13 @@ export function computeDeviceInsights(args: {
   const { shifts, prefs, now, employers = [] } = args;
   const base = computeInsights(shifts, prefs, now, employers, args.serverLastNight ?? null);
   const nights = args.appleHealthNights ? recentNights(args.appleHealthNights, now) : [];
-  if (!nights.length) return { insights: base, source: null, appleHealthLastNight: null };
+  if (!nights.length)
+    return { insights: base, baseInsights: base, source: null, appleHealthLastNight: null };
   const last = lastNightFrom(nights, now);
   const withHealth = computeInsights(shifts, prefs, now, employers, last, nights);
   return {
     insights: { ...withHealth, contextString: base.contextString },
+    baseInsights: base,
     source: "apple-health",
     appleHealthLastNight: last,
   };

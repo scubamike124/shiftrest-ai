@@ -44,8 +44,7 @@ export type AppleHealthNight = {
   restingHr: number | null;
 };
 
-const ASLEEP = new Set(["asleep", "core", "deep", "rem"]);
-const KNOWN = new Set([...ASLEEP, "inBed", "awake"]);
+const KNOWN = new Set(["asleep", "core", "deep", "rem", "inBed", "awake"]);
 const SESSION_GAP_MS = 60 * 60_000;
 const MIN_SESSION_ASLEEP_MIN = 20;
 const MAX_SAMPLE_MS = 24 * 60 * 60_000;
@@ -62,21 +61,39 @@ function parse(start: unknown, end: unknown): Interval | null {
   return { s, e };
 }
 
+/** Sorted, merged union of intervals. */
+function union(intervals: Interval[]): Interval[] {
+  const out: Interval[] = [];
+  for (const iv of [...intervals].sort((a, b) => a.s - b.s)) {
+    const last = out[out.length - 1];
+    if (last && iv.s <= last.e) last.e = Math.max(last.e, iv.e);
+    else out.push({ ...iv });
+  }
+  return out;
+}
+
+/** `a` minus `b` (both any intervals); result is a sorted union. */
+function subtract(a: Interval[], b: Interval[]): Interval[] {
+  const cut = union(b);
+  const out: Interval[] = [];
+  for (const iv of union(a)) {
+    let s = iv.s;
+    for (const c of cut) {
+      if (c.e <= s || c.s >= iv.e) continue;
+      if (c.s > s) out.push({ s, e: c.s });
+      s = Math.max(s, c.e);
+      if (s >= iv.e) break;
+    }
+    if (s < iv.e) out.push({ s, e: iv.e });
+  }
+  return out;
+}
+
+const minutes = (ivs: Interval[]) => Math.round(ivs.reduce((n, x) => n + (x.e - x.s), 0) / 60_000);
+
 /** Total length (minutes) of the union of intervals. */
 export function unionMinutes(intervals: Interval[]): number {
-  const sorted = [...intervals].sort((a, b) => a.s - b.s);
-  let total = 0;
-  let cur: Interval | null = null;
-  for (const iv of sorted) {
-    if (!cur || iv.s > cur.e) {
-      if (cur) total += cur.e - cur.s;
-      cur = { ...iv };
-    } else if (iv.e > cur.e) {
-      cur.e = iv.e;
-    }
-  }
-  if (cur) total += cur.e - cur.s;
-  return Math.round(total / 60_000);
+  return minutes(union(intervals));
 }
 
 function localYmd(ms: number): string {
@@ -86,6 +103,7 @@ function localYmd(ms: number): string {
 
 type Session = { s: number; e: number; samples: Sample[] };
 
+/** Groups sleep/awake samples (never "inBed") into sessions split at 60-min gaps. */
 function sessions(samples: Sample[]): Session[] {
   const out: Session[] = [];
   for (const x of [...samples].sort((a, b) => a.s - b.s)) {
@@ -100,25 +118,59 @@ function sessions(samples: Sample[]): Session[] {
   return out;
 }
 
-function stage(session: Session, value: string): number {
-  return unionMinutes(session.samples.filter((x) => x.value === value));
+type Scored = {
+  s: number;
+  e: number;
+  asleep: number;
+  inBed: number;
+  awake: number;
+  stages: { deep: number; rem: number; core: number } | null;
+};
+
+/**
+ * One session. Sources often disagree (a ring or app writes a long "asleep"
+ * while the Watch records "awake" inside it), so: awake time is removed from
+ * sleep, and stages are made disjoint (deep, then REM, then core, each minus
+ * awake and the stages before it), so they never add up to more than sleep.
+ */
+function score(x: Session, inBedAll: Interval[]): Scored {
+  const of = (...v: string[]) => x.samples.filter((y) => v.includes(y.value));
+  const awake = union(of("awake"));
+  const asleep = subtract(of("asleep", "core", "deep", "rem"), awake);
+  const deep = subtract(of("deep"), awake);
+  const rem = subtract(of("rem"), [...awake, ...deep]);
+  const core = subtract(of("core"), [...awake, ...deep, ...rem]);
+  const hasStages = deep.length + rem.length + core.length > 0;
+  // Time in bed: the session plus any in-bed record touching it (clipped to an hour around it).
+  const near = inBedAll
+    .filter((b) => b.e >= x.s - SESSION_GAP_MS && b.s <= x.e + SESSION_GAP_MS)
+    .map((b) => ({
+      s: Math.max(b.s, x.s - SESSION_GAP_MS),
+      e: Math.min(b.e, x.e + SESSION_GAP_MS),
+    }));
+  const bed = union([...x.samples, ...near]);
+  return {
+    s: bed[0]?.s ?? x.s,
+    e: bed[bed.length - 1]?.e ?? x.e,
+    asleep: minutes(asleep),
+    inBed: minutes(bed),
+    awake: minutes(awake),
+    stages: hasStages ? { deep: minutes(deep), rem: minutes(rem), core: minutes(core) } : null,
+  };
 }
 
 export function mapAppleHealthNights(raw: RawAppleHealth | null | undefined): AppleHealthNight[] {
   const sleep: Sample[] = [];
+  const inBed: Interval[] = [];
   for (const r of raw?.sleep ?? []) {
     const iv = parse(r?.start, r?.end);
-    if (iv && typeof r.value === "string" && KNOWN.has(r.value))
-      sleep.push({ ...iv, value: r.value });
+    if (!iv || typeof r.value !== "string" || !KNOWN.has(r.value)) continue;
+    if (r.value === "inBed") inBed.push(iv);
+    else sleep.push({ ...iv, value: r.value });
   }
 
-  type Scored = Session & { asleep: number; span: number };
-  const scored: Scored[] = sessions(sleep)
-    .map((x) => ({
-      ...x,
-      asleep: unionMinutes(x.samples.filter((y) => ASLEEP.has(y.value))),
-      span: unionMinutes(x.samples),
-    }))
+  const scored = sessions(sleep)
+    .map((x) => score(x, inBed))
     .filter((x) => x.asleep >= MIN_SESSION_ASLEEP_MIN);
 
   // HRV readings can be instantaneous (start == end): key them on the start time.
@@ -139,10 +191,7 @@ export function mapAppleHealthNights(raw: RawAppleHealth | null | undefined): Ap
   for (const [date, list] of byDate) {
     const main = list.reduce((a, b) => (b.asleep > a.asleep ? b : a));
     const asleep = list.reduce((n, x) => n + x.asleep, 0);
-    const span = list.reduce((n, x) => n + x.span, 0);
-    const hasStages = main.samples.some(
-      (x) => x.value === "core" || x.value === "deep" || x.value === "rem",
-    );
+    const inBedMin = list.reduce((n, x) => n + x.inBed, 0);
     const inMain = hrv.filter((h) => h.t >= main.s && h.t <= main.e).map((h) => h.ms);
     const rhrToday = resting.filter((r) => localYmd(r.t) === date).sort((a, b) => b.t - a.t)[0];
     nights.push({
@@ -151,11 +200,11 @@ export function mapAppleHealthNights(raw: RawAppleHealth | null | undefined): Ap
       sleepStart: new Date(main.s).toISOString(),
       sleepEnd: new Date(main.e).toISOString(),
       sleepDurationMin: asleep,
-      sleepEfficiency: span > 0 ? Math.round((asleep / span) * 100) / 100 : null,
-      deepMin: hasStages ? stage(main, "deep") : null,
-      remMin: hasStages ? stage(main, "rem") : null,
-      lightMin: hasStages ? stage(main, "core") : null,
-      awakeMin: list.reduce((n, x) => n + stage(x, "awake"), 0),
+      sleepEfficiency: inBedMin > 0 ? Math.round((asleep / inBedMin) * 100) / 100 : null,
+      deepMin: main.stages?.deep ?? null,
+      remMin: main.stages?.rem ?? null,
+      lightMin: main.stages?.core ?? null,
+      awakeMin: list.reduce((n, x) => n + x.awake, 0),
       hrvMs: inMain.length
         ? Math.round((inMain.reduce((a, b) => a + b, 0) / inMain.length) * 10) / 10
         : null,

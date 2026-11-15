@@ -75,9 +75,12 @@ async function fetchBrief(context: string): Promise<AIBrief> {
 export function AIBriefCard({
   insights,
   recommendations = [],
+  includesAppleHealth = false,
 }: {
   insights: Insights;
   recommendations?: Recommendation[];
+  /** Fatigue and recovery below include Apple Health measurements (on this phone only). */
+  includesAppleHealth?: boolean;
 }) {
   const context = insights.contextString;
   const [hasSession, setHasSession] = useState<boolean | null>(null);
@@ -179,6 +182,12 @@ export function AIBriefCard({
           </p>
         </div>
       </div>
+
+      {includesAppleHealth && (
+        <p className="relative z-10 mt-2 text-[11px] font-medium text-indigo-glow">
+          Includes your sleep and HRV, measured · from Apple Health
+        </p>
+      )}
 
       {/* 3-day fatigue forecast */}
       <div className="relative z-10 mt-3 flex gap-1.5">
@@ -334,7 +343,7 @@ export function AIBriefCard({
                       {r.detail}
                     </p>
                     {r.dataSource && (
-                      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-indigo-glow">
+                      <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-indigo-glow">
                         {r.dataSource}
                       </p>
                     )}

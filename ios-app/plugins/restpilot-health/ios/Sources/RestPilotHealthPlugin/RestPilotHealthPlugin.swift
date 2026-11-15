@@ -20,6 +20,9 @@ public class RestPilotHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     private let reader = HealthReader()
 
     /// True when the page currently in the WebView is one of the app's own.
+    /// Limit: Capacitor 6 does not tell a plugin which frame sent a call, so an
+    /// iframe inside a trusted page could trigger the permission sheet. Results
+    /// only ever go back to the main frame, and RestPilot embeds no iframes.
     private func pageIsTrusted(_ done: @escaping (Bool) -> Void) {
         DispatchQueue.main.async { [weak self] in
             guard let bridge = self?.bridge, let url = bridge.webView?.url else { return done(false) }

@@ -85,7 +85,9 @@ export function AppleHealthCard() {
                   ? `resting heart rate ${last.restingHr} bpm`
                   : "no resting heart rate"}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">Measured · from Apple Health</p>
+              <p className="mt-1 text-xs font-medium text-indigo-glow">
+                Measured · from Apple Health
+              </p>
             </>
           ) : (
             <p className="text-muted-foreground">
@@ -101,7 +103,9 @@ export function AppleHealthCard() {
       </p>
 
       <div className="flex flex-wrap gap-2 px-4 pb-4">
-        {!state ? (
+        {!userId ? (
+          <p className="text-sm text-muted-foreground">Sign in to connect Apple Health.</p>
+        ) : !state ? (
           <button
             type="button"
             disabled={busy || !userId}
