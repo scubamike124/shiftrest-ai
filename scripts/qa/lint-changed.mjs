@@ -19,7 +19,8 @@ const git = (...args) =>
 const files = git(
   "diff",
   "--name-only",
-  "--diff-filter=ACMR",
+  "--no-renames",
+  "--diff-filter=ACM",
   `${base}...HEAD`,
   "--",
   "*.ts",
@@ -37,7 +38,7 @@ if (files.length === 0) {
 // Added/modified line numbers per file, from a zero-context diff.
 const changed = new Map();
 let current = null;
-for (const line of git("diff", "-U0", `${base}...HEAD`, "--", ...files).split("\n")) {
+for (const line of git("diff", "-U0", "--no-renames", `${base}...HEAD`, "--", ...files).split("\n")) {
   if (line.startsWith("+++ ")) {
     current = line.slice(4).replace(/^b\//, "");
     changed.set(current, new Set());
