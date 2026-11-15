@@ -25,6 +25,8 @@ export type WearableReading = {
 export type WearableSummary = {
   connections: WearableConnection[];
   latest: WearableReading | null;
+  /** Providers with stored readings (connected or not), so leftover data can always be deleted. */
+  providersWithData?: WearableProvider[];
 };
 
 export const PROVIDER_LABEL: Record<WearableProvider, string> = {
