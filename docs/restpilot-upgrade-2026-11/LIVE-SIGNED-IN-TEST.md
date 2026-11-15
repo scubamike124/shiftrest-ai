@@ -11,7 +11,7 @@
 | # | Area | Result | Evidence (live) |
 |---|------|--------|-----------------|
 | 1 | Sign-in with the saved session; dashboard loads | PASS | `/dashboard` 200; greeting uses the preferred name |
-| 1 | Onboarding (intro, name, 6 consent acks) | PASS (done earlier) | `onboarded_at` 04:43:40Z was set during the coordinator's first sign-in (the name was entered as "Michael"). Not repeatable on this account |
+| 1 | Onboarding (intro, name, 6 consent acks) | PASS (done earlier) | `onboarded_at` 04:43:40Z was set during the coordinator's first sign-in (a real first name was entered, then replaced with "WGT Test" here). Not repeatable on this account |
 | 1 | Profile: preferred name → "WGT Test" | PASS | persists across a reload; dashboard reads "Good evening, WGT Test." |
 | 1 | Employer rename "My Job" → "Paramedic" | PASS | Employers list; used as a tag on shifts |
 | 1 | Rotation length 2 wks | PASS (saves) | `user_prefs.cycle_weeks = 2` |
@@ -36,7 +36,7 @@
 | 5 | Profile "Erase AI memory" | PASS | toast "AI memory cleared." |
 | 5 | Branding | **FAIL → fixed** | Skills, Inbox, Smart Home, Routines and calendar/traffic cards call the assistant "**Reelo**" (23 strings). Fix: #55, #59 |
 | 6 | Data export | PASS (isolation) / FAIL (completeness) → fixed | 23 KB JSON; one distinct `user_id`, one email (the test account), no other user's data. 13 user tables and `profiles` were missing → #54 (main). The migration branch already had most of them; #59 adds `trial_usage`, `store_entitlements` |
-| 6 | Side effect | NOTE | Export sends the transactional email "data-export-ready" to the account address (the owner's +restpilot-test inbox). One such email was sent by this test; it is product behaviour, not a bug |
+| 6 | Side effect | NOTE | Export sends the transactional email "data-export-ready" to the account address (the test account's inbox). One such email was sent by this test; it is product behaviour, not a bug |
 | 7 | Subscription state shown | PASS | Free: Profile shows "Upgrade to Premium"; `subscriptions` has no rows; paywall offers Monthly $7.99, Annual $49.99 |
 | 7 | Lifetime $99 still on the paywall | PENDING-PUBLISH | "FOUNDING MEMBER — LIMITED TIME · LIFETIME $99" (removal #19 is merged on main) |
 | 8 | Wearables UI | PASS (as designed) | Profile: "Coming in a future update — Apple Health, Oura, Fitbit, and Whoop." |
@@ -72,7 +72,7 @@ Shift: Saturday 19:00 → Sunday 07:00 (template "Night 12h"); target sleep 8 h;
 
 - Free tier `ai_daily_token_cap` = 15,000 tokens / rolling 24 h. `ai_log` for the test account: 9 automatic calls (`daily_review` ≈1.5k, `right_now` ≈1.9k, `tomorrow_preview` ≈1.8k tokens) from three dashboard visits between 04:43 and 04:45Z = **15,748 tokens**. After that every `/api/ai` call returns 429, including Companion chat. **A new free user can exhaust the day's AI by opening the dashboard about three times without ever chatting.** Those caches live in `sessionStorage`, so every new tab or app launch regenerates them.
 - Suggested fixes (not made; product/cost decision): cache the automatic cards in `localStorage` per user per day, exempt them from the chat budget or give them their own small budget, and/or raise the free cap.
-- For tomorrow's run and the AI-quality batch, the owner must lift this account's cap: grant the `tester` role or raise `ai_daily_token_cap` in the Supabase SQL editor (see `restpilot-test-account-status.md`). The cap-lock migration still allows changes from the SQL editor (it runs as the database owner).
+- For tomorrow's run and the AI-quality batch, the owner must lift this account's cap: grant the `tester` role (`INSERT INTO public.user_roles (user_id, role) SELECT id, 'tester' FROM auth.users WHERE email = '<test account email>' ON CONFLICT DO NOTHING;`) or raise only this account's `user_prefs.ai_daily_token_cap` (e.g. to 300000) in the Supabase SQL editor. The cap-lock migration still allows changes from the SQL editor (it runs as the database owner).
 
 ## AI companion notes
 
@@ -83,11 +83,11 @@ Shift: Saturday 19:00 → Sunday 07:00 (template "Night 12h"); target sleep 8 h;
 
 | PR | Base | What | Status |
 |----|------|------|--------|
-| #53 | main | rotation weeks advance without a saved anchor | open, review requested; fixed, pending Publish once merged |
-| #54 | main | share link carries only times; export covers all user tables | open, review requested; fixed, pending Publish once merged |
-| #55 | main | deep-link return paths; "Reelo" → RestPilot | open, review requested; fixed, pending Publish once merged |
-| #60 | main | Companion evening Smart Alarm in the user's time zone | open, review requested; fixed, pending Publish once merged |
-| #59 | migration | ports of #53–#55 + AI-cap lock migration | open; merge after independent APPROVE + green CI |
+| #53 | main | rotation weeks advance without a saved anchor | merged (031f0c6a); fixed, pending Publish |
+| #54 | main | share link carries only times; export covers all user tables | merged (1ecffae8); fixed, pending Publish |
+| #55 | main | deep-link return paths; "Reelo" → RestPilot | merged (20d7377d); fixed, pending Publish |
+| #60 | main | Companion evening Smart Alarm in the user's time zone | independent APPROVE; awaiting coordinator merge, then pending Publish. Follow-up: `main`'s one-pass `utcFromLocal` makes the tomorrow-window start 1 h off on Sydney/Auckland DST nights (the migration branch's DST-correct version does not) |
+| #59 | migration | ports of #53–#55 + AI-cap lock migration | review found an export-paging bug (`trial_usage`/`store_entitlements` have no `id`); fixed with a schema-backed test; re-review, then merge after APPROVE + green CI |
 | #61 | migration | port of #60 + this document | open; merge after independent APPROVE + green CI |
 
 ## Not fixed (logged for follow-up)
