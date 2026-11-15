@@ -1,0 +1,178 @@
+<testsuites id="" name="" tests="50" failures="0" skipped="7" errors="0" time="27.680283">
+<testsuite name="mobile/overflow.spec.ts" timestamp="2026-11-15T00:04:04.380Z" hostname="chromium-desktop" tests="7" failures="0" skipped="7" time="0.044" errors="0">
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/terms @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/privacy @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/cookies @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/disclaimers @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/subscription @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/third-parties @smoke" classname="mobile/overflow.spec.ts">
+<properties>
+<property name="skip" value="mobile viewports only">
+</property>
+</properties>
+<skipped>
+</skipped>
+</testcase>
+</testsuite>
+<testsuite name="public/marketing.spec.ts" timestamp="2026-11-15T00:04:04.380Z" hostname="chromium-desktop" tests="18" failures="0" skipped="0" time="28.014" errors="0">
+<testcase name="marketing pages @readonly › /legal renders without errors @smoke" classname="public/marketing.spec.ts" time="1.501">
+<properties>
+<property name="known-defect" value="R3 legal effective-date hydration mismatch">
+</property>
+</properties>
+</testcase>
+<testcase name="marketing pages @readonly › legal index shows the same effective date as the server render" classname="public/marketing.spec.ts" time="6.674">
+<properties>
+<property name="fail" value="R3: effective date is off by one day in US time zones">
+</property>
+</properties>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/public-marketing-marketing-9d494-e-date-as-the-server-render-chromium-desktop/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="marketing pages @readonly › legal/terms is published" classname="public/marketing.spec.ts" time="1.488">
+</testcase>
+<testcase name="marketing pages @readonly › legal/privacy is published" classname="public/marketing.spec.ts" time="1.405">
+</testcase>
+<testcase name="marketing pages @readonly › legal/cookies is published" classname="public/marketing.spec.ts" time="1.384">
+</testcase>
+<testcase name="marketing pages @readonly › legal/disclaimers is published" classname="public/marketing.spec.ts" time="0.845">
+</testcase>
+<testcase name="marketing pages @readonly › legal/subscription is published" classname="public/marketing.spec.ts" time="1.023">
+</testcase>
+<testcase name="marketing pages @readonly › legal/acceptable-use is published" classname="public/marketing.spec.ts" time="1.224">
+</testcase>
+<testcase name="marketing pages @readonly › legal/accessibility is published" classname="public/marketing.spec.ts" time="1.083">
+</testcase>
+<testcase name="marketing pages @readonly › legal/copyright is published" classname="public/marketing.spec.ts" time="1.271">
+</testcase>
+<testcase name="marketing pages @readonly › legal/electronic-consent is published" classname="public/marketing.spec.ts" time="1.357">
+</testcase>
+<testcase name="marketing pages @readonly › legal/license is published" classname="public/marketing.spec.ts" time="1.096">
+</testcase>
+<testcase name="marketing pages @readonly › legal/open-source is published" classname="public/marketing.spec.ts" time="1.301">
+</testcase>
+<testcase name="marketing pages @readonly › legal/regional is published" classname="public/marketing.spec.ts" time="1.419">
+</testcase>
+<testcase name="marketing pages @readonly › legal/security is published" classname="public/marketing.spec.ts" time="0.918">
+</testcase>
+<testcase name="marketing pages @readonly › legal/third-parties is published" classname="public/marketing.spec.ts" time="1.151">
+</testcase>
+<testcase name="marketing pages @readonly › legal/trademark is published" classname="public/marketing.spec.ts" time="1.369">
+</testcase>
+<testcase name="marketing pages @readonly › /privacy and /terms redirect to the legal pages" classname="public/marketing.spec.ts" time="1.505">
+</testcase>
+</testsuite>
+<testsuite name="mobile/overflow.spec.ts" timestamp="2026-11-15T00:04:04.380Z" hostname="chromium-iphone-se" tests="7" failures="0" skipped="0" time="9.789" errors="0">
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal @smoke" classname="mobile/overflow.spec.ts" time="1.518">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/terms @smoke" classname="mobile/overflow.spec.ts" time="1.375">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/privacy @smoke" classname="mobile/overflow.spec.ts" time="1.628">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/cookies @smoke" classname="mobile/overflow.spec.ts" time="1.334">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/disclaimers @smoke" classname="mobile/overflow.spec.ts" time="1.365">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/subscription @smoke" classname="mobile/overflow.spec.ts" time="1.076">
+</testcase>
+<testcase name="mobile layout @readonly › no horizontal overflow: /legal/third-parties @smoke" classname="mobile/overflow.spec.ts" time="1.493">
+</testcase>
+</testsuite>
+<testsuite name="public/marketing.spec.ts" timestamp="2026-11-15T00:04:04.380Z" hostname="chromium-iphone-se" tests="18" failures="0" skipped="0" time="27.181" errors="0">
+<testcase name="marketing pages @readonly › /legal renders without errors @smoke" classname="public/marketing.spec.ts" time="1.234">
+<properties>
+<property name="known-defect" value="R3 legal effective-date hydration mismatch">
+</property>
+</properties>
+</testcase>
+<testcase name="marketing pages @readonly › legal index shows the same effective date as the server render" classname="public/marketing.spec.ts" time="6.04">
+<properties>
+<property name="fail" value="R3: effective date is off by one day in US time zones">
+</property>
+</properties>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|artifacts/public-marketing-marketing-9d494-e-date-as-the-server-render-chromium-iphone-se/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="marketing pages @readonly › legal/terms is published" classname="public/marketing.spec.ts" time="1.257">
+</testcase>
+<testcase name="marketing pages @readonly › legal/privacy is published" classname="public/marketing.spec.ts" time="1.226">
+</testcase>
+<testcase name="marketing pages @readonly › legal/cookies is published" classname="public/marketing.spec.ts" time="1.537">
+</testcase>
+<testcase name="marketing pages @readonly › legal/disclaimers is published" classname="public/marketing.spec.ts" time="1.39">
+</testcase>
+<testcase name="marketing pages @readonly › legal/subscription is published" classname="public/marketing.spec.ts" time="1.302">
+</testcase>
+<testcase name="marketing pages @readonly › legal/acceptable-use is published" classname="public/marketing.spec.ts" time="1.15">
+</testcase>
+<testcase name="marketing pages @readonly › legal/accessibility is published" classname="public/marketing.spec.ts" time="1.169">
+</testcase>
+<testcase name="marketing pages @readonly › legal/copyright is published" classname="public/marketing.spec.ts" time="1.214">
+</testcase>
+<testcase name="marketing pages @readonly › legal/electronic-consent is published" classname="public/marketing.spec.ts" time="1.365">
+</testcase>
+<testcase name="marketing pages @readonly › legal/license is published" classname="public/marketing.spec.ts" time="0.946">
+</testcase>
+<testcase name="marketing pages @readonly › legal/open-source is published" classname="public/marketing.spec.ts" time="1.457">
+</testcase>
+<testcase name="marketing pages @readonly › legal/regional is published" classname="public/marketing.spec.ts" time="0.705">
+</testcase>
+<testcase name="marketing pages @readonly › legal/security is published" classname="public/marketing.spec.ts" time="1.052">
+</testcase>
+<testcase name="marketing pages @readonly › legal/third-parties is published" classname="public/marketing.spec.ts" time="1.483">
+</testcase>
+<testcase name="marketing pages @readonly › legal/trademark is published" classname="public/marketing.spec.ts" time="1.34">
+</testcase>
+<testcase name="marketing pages @readonly › /privacy and /terms redirect to the legal pages" classname="public/marketing.spec.ts" time="1.314">
+</testcase>
+</testsuite>
+</testsuites>

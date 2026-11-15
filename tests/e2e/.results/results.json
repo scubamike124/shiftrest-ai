@@ -1,0 +1,2330 @@
+{
+  "config": {
+    "argv": [
+      "/opt/node22/bin/node",
+      "/opt/node-tools/node_modules/playwright/cli.js",
+      "test",
+      "-c",
+      "tests/e2e",
+      "--project=chromium-desktop",
+      "--project=chromium-iphone-se",
+      "-g",
+      "legal"
+    ],
+    "configFile": "/home/user/sr-qa/tests/e2e/playwright.config.ts",
+    "rootDir": "/home/user/sr-qa/tests/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 3
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "chromium-desktop",
+        "name": "chromium-desktop",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "chromium-iphone-se",
+        "name": "chromium-iphone-se",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "chromium-iphone-15",
+        "name": "chromium-iphone-15",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "chromium-iphone-15-pro-max",
+        "name": "chromium-iphone-15-pro-max",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "webkit-desktop",
+        "name": "webkit-desktop",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "webkit-iphone-se",
+        "name": "webkit-iphone-se",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "webkit-iphone-15",
+        "name": "webkit-iphone-15",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/home/user/sr-qa/tests/e2e/.results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 3
+        },
+        "id": "webkit-iphone-15-pro-max",
+        "name": "webkit-iphone-15-pro-max",
+        "testDir": "/home/user/sr-qa/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.ts$/"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "./.results/html",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "./.results/results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "./.results/junit.xml"
+        }
+      ],
+      [
+        "/home/user/sr-qa/tests/e2e/support/summary-reporter.ts",
+        null
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 3,
+    "webServer": {
+      "command": "node tests/e2e/support/serve.mjs",
+      "cwd": "../..",
+      "url": "http://127.0.0.1:3000/api/public/health",
+      "reuseExistingServer": true,
+      "timeout": 60000,
+      "stdout": "pipe",
+      "stderr": "pipe"
+    }
+  },
+  "suites": [
+    {
+      "title": "mobile/overflow.spec.ts",
+      "file": "mobile/overflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "mobile layout @readonly",
+          "file": "mobile/overflow.spec.ts",
+          "line": 49,
+          "column": 6,
+          "specs": [
+            {
+              "title": "no horizontal overflow: /legal @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 30,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:06.697Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-dd9c6a0a78fba331ef9e",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/terms @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 10,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.571Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-0c0366bfc5f05404d61e",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/privacy @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "skipped",
+                      "duration": 2,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:06.699Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-4feca0fef1befb88886a",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/cookies @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 2,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.712Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-c304887e130954f6b23e",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/disclaimers @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.755Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-dd8e814668ee2217c37a",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/subscription @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.778Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-133e66dd4f95aa77d6e9",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/third-parties @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "mobile viewports only",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                        "line": 50,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.802Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "mobile viewports only",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/mobile/overflow.spec.ts",
+                            "line": 50,
+                            "column": 8
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-c153586e394643f4eb5a",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1518,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:17.783Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-9de1990c9c0cc2f7e488",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/terms @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1375,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:18.360Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-de54bfcdb097d9503a71",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/privacy @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1628,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:18.267Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-5ff9a3a7a989f12f948e",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/cookies @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1334,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:19.596Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-3b0f6f8dd3d11cc982b6",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/disclaimers @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1365,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:20.129Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-b1b91ede2a7f6c72682a",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/subscription @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1076,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:20.293Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-2c95d4953e813aa010d5",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            },
+            {
+              "title": "no horizontal overflow: /legal/third-parties @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1493,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:20.963Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "1e0bd3c9e4cb0f67d365-b66f783017585d2b4d72",
+              "file": "mobile/overflow.spec.ts",
+              "line": 53,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "public/marketing.spec.ts",
+      "file": "public/marketing.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "marketing pages @readonly",
+          "file": "public/marketing.spec.ts",
+          "line": 42,
+          "column": 6,
+          "specs": [
+            {
+              "title": "/legal renders without errors @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "known-defect",
+                      "description": "R3 legal effective-date hydration mismatch"
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1501,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:05.847Z",
+                      "annotations": [
+                        {
+                          "type": "known-defect",
+                          "description": "R3 legal effective-date hydration mismatch"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-37a5594f4b0ba20e0fb1",
+              "file": "public/marketing.spec.ts",
+              "line": 44,
+              "column": 5
+            },
+            {
+              "title": "legal index shows the same effective date as the server render",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "R3: effective date is off by one day in US time zones",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                        "line": 69,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 6674,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n\n    at /home/user/sr-qa/tests/e2e/public/marketing.spec.ts:74:57",
+                        "location": {
+                          "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                          "column": 57,
+                          "line": 74
+                        },
+                        "snippet": "  72 |     expect(server, \"server-rendered effective date\").toBeTruthy();\n  73 |     await page.goto(\"/legal\");\n> 74 |     await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });\n     |                                                         ^\n  75 |   });\n  76 |\n  77 |   test(\"home: primary calls to action lead to sign-up and the app preview @smoke\", async ({"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                            "column": 57,
+                            "line": 74
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n\n\n  72 |     expect(server, \"server-rendered effective date\").toBeTruthy();\n  73 |     await page.goto(\"/legal\");\n> 74 |     await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });\n     |                                                         ^\n  75 |   });\n  76 |\n  77 |   test(\"home: primary calls to action lead to sign-up and the app preview @smoke\", async ({\n    at /home/user/sr-qa/tests/e2e/public/marketing.spec.ts:74:57"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:06.803Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "R3: effective date is off by one day in US time zones",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                            "line": 69,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/user/sr-qa/tests/e2e/.results/artifacts/public-marketing-marketing-9d494-e-date-as-the-server-render-chromium-desktop/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                        "column": 57,
+                        "line": 74
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-0ba546621dcbbed25d87",
+              "file": "public/marketing.spec.ts",
+              "line": 65,
+              "column": 3
+            },
+            {
+              "title": "legal/terms is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1488,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:07.084Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-23355213125ed156c393",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/privacy is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1405,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:07.637Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-b2e6ea25850e7ff885c0",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/cookies is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1384,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:09.012Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-70825837665655dc68a5",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/disclaimers is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 845,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:09.084Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-02a50ecc3b588bc26bc8",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/subscription is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1023,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:09.951Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-4fdf6fe54d4958eca603",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/acceptable-use is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1224,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:10.446Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-dc75dd3e4abbdb93b4d7",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/accessibility is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1083,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:10.985Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-46c947b35280f5c600ed",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/copyright is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1271,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:11.681Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-bfbd52ba1788669a0e74",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/electronic-consent is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1357,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:12.088Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-f23c6615dcaa8d132a67",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/license is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1096,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:12.969Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-92e20e2b4ad4485b073c",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/open-source is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1301,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:13.458Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-b62d23e378baef19ba7e",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/regional is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1419,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:13.721Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-c636a7f27f3b8e5b271e",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/security is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 918,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:14.093Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-bdc486a54c9d237ec891",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/third-parties is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1151,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:14.775Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-47560afa2b1e5ada7d5e",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/trademark is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1369,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:15.038Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-3dbf733b1cd300bc35f2",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "/privacy and /terms redirect to the legal pages",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1505,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:15.162Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-b78abf8dcc7e9c221fcb",
+              "file": "public/marketing.spec.ts",
+              "line": 111,
+              "column": 3
+            },
+            {
+              "title": "/legal renders without errors @smoke",
+              "ok": true,
+              "tags": [
+                "readonly",
+                "smoke"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "known-defect",
+                      "description": "R3 legal effective-date hydration mismatch"
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1234,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:21.444Z",
+                      "annotations": [
+                        {
+                          "type": "known-defect",
+                          "description": "R3 legal effective-date hydration mismatch"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-3ab76108785f3f0b5789",
+              "file": "public/marketing.spec.ts",
+              "line": 44,
+              "column": 5
+            },
+            {
+              "title": "legal index shows the same effective date as the server render",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "R3: effective date is off by one day in US time zones",
+                      "location": {
+                        "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                        "line": 69,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 6040,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n\n    at /home/user/sr-qa/tests/e2e/public/marketing.spec.ts:74:57",
+                        "location": {
+                          "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                          "column": 57,
+                          "line": 74
+                        },
+                        "snippet": "  72 |     expect(server, \"server-rendered effective date\").toBeTruthy();\n  73 |     await page.goto(\"/legal\");\n> 74 |     await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });\n     |                                                         ^\n  75 |   });\n  76 |\n  77 |   test(\"home: primary calls to action lead to sign-up and the app preview @smoke\", async ({"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                            "column": 57,
+                            "line": 74
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByText('Effective June 27, 2026')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" getByText('Effective June 27, 2026') with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Effective June 27, 2026')\u001b[22m\n\n\n  72 |     expect(server, \"server-rendered effective date\").toBeTruthy();\n  73 |     await page.goto(\"/legal\");\n> 74 |     await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });\n     |                                                         ^\n  75 |   });\n  76 |\n  77 |   test(\"home: primary calls to action lead to sign-up and the app preview @smoke\", async ({\n    at /home/user/sr-qa/tests/e2e/public/marketing.spec.ts:74:57"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:21.594Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "R3: effective date is off by one day in US time zones",
+                          "location": {
+                            "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                            "line": 69,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/home/user/sr-qa/tests/e2e/.results/artifacts/public-marketing-marketing-9d494-e-date-as-the-server-render-chromium-iphone-se/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/home/user/sr-qa/tests/e2e/public/marketing.spec.ts",
+                        "column": 57,
+                        "line": 74
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-a2be296e6517a3d78159",
+              "file": "public/marketing.spec.ts",
+              "line": 65,
+              "column": 3
+            },
+            {
+              "title": "legal/terms is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1257,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:22.480Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-ffba2c2fda73306742b2",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/privacy is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1226,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:22.747Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-e1146c7492381301359e",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/cookies is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1537,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:23.758Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-715d0fe15218e347eae5",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/disclaimers is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1390,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:23.996Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-03c2eae13e421ef3817d",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/subscription is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1302,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:25.339Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-4fa142cadf97196e4f7d",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/acceptable-use is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1150,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:25.404Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-4ddcea5bb4db8f9ded7d",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/accessibility is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1169,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:26.614Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-5479a2850b593e228b79",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/copyright is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1214,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:26.650Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-3e85bbf62290d155cf1a",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/electronic-consent is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1365,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:27.688Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-c7126cae6a2921968c74",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/license is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 946,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:27.802Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-8fbb7f4f37689728dc57",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/open-source is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1457,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:27.912Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-72d951a49c2ecc6c7af3",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/regional is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 705,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:28.766Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-12dc9e71955068a30635",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/security is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1052,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:29.158Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-3e5efd779cf1eb9e1dc6",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/third-parties is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1483,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:29.391Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-e56dd6d379c7ef3a6e18",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "legal/trademark is published",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1340,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:29.482Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-de33459bfc7afab65301",
+              "file": "public/marketing.spec.ts",
+              "line": 103,
+              "column": 5
+            },
+            {
+              "title": "/privacy and /terms redirect to the legal pages",
+              "ok": true,
+              "tags": [
+                "readonly"
+              ],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-iphone-se",
+                  "projectName": "chromium-iphone-se",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1314,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-11-15T00:04:30.232Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fedd35ec99ecbd08208e-5610cfa7e930f889073b",
+              "file": "public/marketing.spec.ts",
+              "line": 111,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-15T00:04:04.026Z",
+    "duration": 27680.283,
+    "expected": 43,
+    "skipped": 7,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

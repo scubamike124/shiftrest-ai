@@ -1,0 +1,333 @@
+{
+  "status": "passed",
+  "totals": {
+    "passed": 43,
+    "failed": 0,
+    "flaky": 0,
+    "skipped": 7,
+    "blocked": 0,
+    "total": 50
+  },
+  "byProject": {
+    "chromium-desktop": {
+      "passed": 18,
+      "failed": 0,
+      "flaky": 0,
+      "skipped": 7,
+      "blocked": 0
+    },
+    "chromium-iphone-se": {
+      "passed": 25,
+      "failed": 0,
+      "flaky": 0,
+      "skipped": 0,
+      "blocked": 0
+    }
+  },
+  "blockedReasons": [],
+  "failures": [],
+  "rows": [
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/terms @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/cookies @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/disclaimers @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/subscription @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/third-parties @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/privacy @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal @smoke",
+      "project": "chromium-desktop",
+      "status": "skipped",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › /legal renders without errors @smoke",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/terms is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/privacy is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/disclaimers is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/cookies is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/subscription is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/acceptable-use is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/accessibility is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/copyright is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/electronic-consent is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal index shows the same effective date as the server render",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "error": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/license is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/open-source is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/security is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/regional is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/third-parties is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/trademark is published",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › /privacy and /terms redirect to the legal pages",
+      "project": "chromium-desktop",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/terms @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/privacy @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/cookies @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/subscription @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/disclaimers @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "mobile layout @readonly › no horizontal overflow: /legal/third-parties @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "overflow.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › /legal renders without errors @smoke",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/terms is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/privacy is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/cookies is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/disclaimers is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/acceptable-use is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/subscription is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal index shows the same effective date as the server render",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "error": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/accessibility is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/copyright is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/license is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/electronic-consent is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/open-source is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/regional is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/security is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/third-parties is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › legal/trademark is published",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    },
+    {
+      "title": "marketing pages @readonly › /privacy and /terms redirect to the legal pages",
+      "project": "chromium-iphone-se",
+      "status": "passed",
+      "file": "marketing.spec.ts"
+    }
+  ]
+}

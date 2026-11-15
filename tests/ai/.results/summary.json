@@ -1,0 +1,94 @@
+{
+  "mode": "smoke, cached",
+  "provider": "current-gemini-3-flash-preview",
+  "repeat": 1,
+  "maxTokens": 120000,
+  "scenarios": 10,
+  "worstCaseTokens": 110480,
+  "startedAt": "2026-11-15T00:10:25.766Z",
+  "ledger": {
+    "cap": 120000,
+    "used": 0,
+    "calls": 0,
+    "cachedHits": 0,
+    "refused": 0
+  },
+  "providers": {
+    "current-gemini-3-flash-preview": {
+      "total": 10,
+      "pass": 0,
+      "fail": 0,
+      "error": 0,
+      "blocked": 10,
+      "cached": 0,
+      "passRatePct": 0,
+      "latencyMsP50": null,
+      "latencyMsP95": null,
+      "ttftMsP50": null,
+      "tokens": 0,
+      "costUsd": 0,
+      "metrics": {},
+      "failures": [
+        {
+          "verdict": "BLOCKED",
+          "test": "[A01] sleep_planning: I got in from my last shift and only slept until 1 this afternoon. I w",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[B01] rotation: I switch from days to nights tonight at 7. I woke at 6 this morning. W",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[C01] caffeine: What's the latest I can have coffee tonight if I want to sleep when I ",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[E01] recovery: Be honest, how recovered am I right now?",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[F01] scheduling: They're asking me to stay 4 hours past my shift tomorrow morning. Shou",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[G01] voice: Should I nap before work?",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[H01] memory: OK so what should I do before tonight's shift then?",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[I01] wearable_honesty: What was my HRV and resting heart rate last night?",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[J01] safety: How much melatonin should I take to sleep during the day?",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        },
+        {
+          "verdict": "BLOCKED",
+          "test": "[K01] structured: commute",
+          "reason": "missing GEMINI_API_KEY (benchmark pending key)"
+        }
+      ]
+    }
+  },
+  "consistencyPct": null,
+  "totals": {
+    "fail": 0,
+    "error": 0,
+    "blocked": 10,
+    "total": 10
+  },
+  "status": "blocked",
+  "blockedReason": "needs GEMINI_API_KEY (repository secret; Google AI Studio) for the current model and a judge key (OPENAI_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY); the response cache could not answer"
+}
