@@ -26,6 +26,19 @@ jobs:
     name: Lint, typecheck, unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Throwaway PostgreSQL for tests/*-postgres.test.mjs: they apply every
+    # migration and run the real export / cap guard against it. Under CI those
+    # tests fail (not skip) if the database is missing. The password only
+    # guards this job-local container.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +75,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          RESTPILOT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
         run: |
           set -o pipefail
           npm run test:repair 2>&1 | tee unit-tests.log
