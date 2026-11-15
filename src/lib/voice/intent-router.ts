@@ -161,7 +161,9 @@ const RE_LEAD =
 const RE_COMMAND_VERB = /^(?:wake|set|start|play|put\s+on|turn\s+on|switch\s+on|fade|stop)\b/;
 const RE_WAKE_INTENT =
   /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
-const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
+const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b(?:\s+please)?\s*$/;
+// Words that may follow a timer or alarm command ("... tomorrow morning please").
+const COMMAND_TAIL_WORDS = new Set(["please", "tomorrow", "morning", "tonight", "today", "now", "for", "work", "my", "shift", "nap", "again", "thanks", "thank", "you"]);
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
 
@@ -240,7 +242,8 @@ export function parseIntent(input: string): ParsedIntent {
       .slice((m.index ?? 0) + m[0].length)
       .trim()
       .split(" ")
-      .filter(Boolean).length <= 2;
+      .filter(Boolean)
+      .every((w) => COMMAND_TAIL_WORDS.has(w));
   const question =
     (/\?\s*$/.test(raw) && !RE_COMMAND_VERB.test(text.slice(lead))) || RE_QUESTION_START.test(text);
 
