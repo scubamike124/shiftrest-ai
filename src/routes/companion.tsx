@@ -57,7 +57,14 @@ import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
-import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import {
+  CRISIS_LOCAL_REPLY,
+  hasCrisisCue,
+  shouldSendToAI,
+  showCardOnCrisis,
+} from "@/lib/safety/crisis-cues";
+import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 
 
@@ -179,6 +186,7 @@ function CompanionPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(false);
   const [orbState, setOrbState] = useState<OrbState>("idle");
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -208,6 +216,8 @@ function CompanionPage() {
     const fresh = rt.transcript.filter((t) => !seen.has(t.id));
     if (fresh.length === 0) return;
     fresh.forEach((t) => seen.add(t.id));
+    // Same local crisis-cue check on what the user said in a live voice call.
+    if (fresh.some((t) => t.from === "user" && hasCrisisCue(t.text))) setCrisisCard(true);
     setMessages((cur) => [
       ...cur,
       ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg),
@@ -654,7 +664,13 @@ function CompanionPage() {
     // Gate only on send-in-flight and empty text. companionOn used to gate
     // here, which silently swallowed every voice turn for users who hadn't
     // toggled Companion Mode on — root cause of "Nova never replies".
-    if (!text || sending) return;
+    if (!text) return;
+    // Local crisis-cue check first: before the `sending` guard, intent
+    // routing, the AI consent gate and any AI or network call, so the crisis
+    // line shows with or without AI permission, even while a reply is still
+    // streaming. It never stops the conversation.
+    const crisis = showCardOnCrisis(text, () => setCrisisCard(true));
+    if (sending) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
@@ -686,10 +702,11 @@ function CompanionPage() {
       setPendingSoundIntent(null);
     }
 
+    // A crisis message is never turned into a sound, alarm or other action.
     // Slice 8 — action-first routing. Parse intent; if it maps to a known action
     // and suggestions are enabled, propose it (never auto-execute when
     // requireActionConfirmation is on).
-    if (localPrefs.actionSuggestionsEnabled) {
+    if (localPrefs.actionSuggestionsEnabled && !crisis) {
       try {
         const parsed = parseIntent(text);
         const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
@@ -763,6 +780,13 @@ function CompanionPage() {
           },
         ]);
         track({ event: "voice_turn_failed", stage: "auth" });
+        return;
+      }
+      // Without AI permission, a crisis message gets the crisis card (already
+      // shown above; keep this after showCardOnCrisis) rather than a
+      // data-sharing prompt. Nothing is sent; the user can keep typing.
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
         return;
       }
       emitDebug("ai-req");
@@ -1495,6 +1519,12 @@ function CompanionPage() {
 
       {/* Now-playing strip — visible only when sounds are active. */}
       <NowPlayingStrip />
+
+      {crisisCard && (
+        <div className="mt-3">
+          <CrisisSupportCard onClose={() => setCrisisCard(false)} />
+        </div>
+      )}
 
       {/* Composer */}
       <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
