@@ -333,6 +333,21 @@ for (const [label, file, makeReq] of ROUTES) {
   });
 }
 
+test("the legacy /api/coach route only forwards to the gated /api/ai", () => {
+  const src = read("src/routes/api/coach.ts");
+  assert.match(src, /url\.pathname = "\/api\/ai"/);
+  assert.match(src, /intent: "coach"/);
+  for (const upstream of [
+    "ai.gateway.lovable.dev",
+    "api.openai.com",
+    "elevenlabs",
+    "chatJSON",
+    "chatStream",
+  ]) {
+    assert.ok(!src.includes(upstream), `/api/coach must not call ${upstream} itself`);
+  }
+});
+
 test("the gate runs before any prompt is built or provider is called in every AI route", () => {
   for (const file of [
     "ai",

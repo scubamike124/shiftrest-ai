@@ -70,7 +70,9 @@ export function AIConsentDialog() {
     <AlertDialogPrimitive.Root
       open={open}
       onOpenChange={(o) => {
-        if (!o && open) notNow();
+        // While "Allow" is saving, ignore Escape / outside clicks so the
+        // request that opened the dialog isn't dropped after consent is given.
+        if (!o && open && !saving) notNow();
       }}
     >
       <AlertDialogPrimitive.Portal>

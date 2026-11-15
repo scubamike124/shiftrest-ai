@@ -36,7 +36,7 @@ const ACTIVE: Row[] = [
     name: "OpenAI (directly and via the Lovable AI Gateway)",
     purpose:
       "Speech-to-text, text-to-speech and live voice conversations. Only after you allow AI features.",
-    shared: "Your voice recordings, the text read aloud to you, your voice settings",
+    shared: "Your voice recordings, the text read aloud to you, your preferred name, your voice settings",
     policy: "https://openai.com/policies/privacy-policy",
   },
   {

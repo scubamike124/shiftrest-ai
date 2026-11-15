@@ -9,8 +9,10 @@
 // - The dialog itself is <AIConsentDialog />, mounted once in __root.tsx.
 //
 // The server enforces the same rule (consent.server.ts); this layer exists so
-// users see a clear question instead of an error, and so nothing is sent while
-// the answer is unknown.
+// users see a clear question instead of an error. When the stored answer is
+// "no", nothing leaves the device. When it couldn't be loaded ("unknown"),
+// the request goes only to RestPilot's own server, which checks again and
+// refuses without permission, so no data reaches an AI provider either way.
 
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";

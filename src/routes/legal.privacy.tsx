@@ -139,9 +139,9 @@ export const Route = createFileRoute("/legal/privacy")({
         </li>
         <li>
           <strong>OpenAI</strong> (directly, and through the Lovable AI
-          Gateway): your voice recordings, the text read aloud to you, and your
-          voice settings. Used for speech-to-text, spoken replies and briefings,
-          and live voice conversations.
+          Gateway): your voice recordings, the text read aloud to you, your
+          preferred name and your voice settings. Used for speech-to-text,
+          spoken replies and briefings, and live voice conversations.
         </li>
         <li>
           <strong>ElevenLabs:</strong> the text of companion replies being read
@@ -153,8 +153,10 @@ export const Route = createFileRoute("/legal/privacy")({
         feature. If you choose "Not now", nothing is sent and the rest of
         RestPilot keeps working. You can withdraw your permission at any time
         in Profile → Privacy &amp; AI data sharing; new
-        AI requests stop immediately. Withdrawing does not recall data already
-        sent for earlier requests. We do not sell this data or use it for
+        AI requests stop immediately, and a live voice conversation on that
+        device ends (one already running on another device continues until it
+        ends). Withdrawing does not recall data already sent for earlier
+        requests. We do not sell this data or use it for
         advertising. Each provider is listed, with a link to its privacy
         policy, in{" "}
         <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
