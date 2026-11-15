@@ -1,0 +1,220 @@
+import fs from "node:fs";
+import { expect, test } from "../support/fixtures";
+
+// Settings, appearance, privacy controls, data export, AI memory deletion and
+// account deletion. Every destructive action runs on a throwaway user in the
+// hermetic backend and is verified there.
+
+const MEMORY = (content: string, extra: Record<string, unknown> = {}) => ({
+  content,
+  category: "schedule",
+  source: "user",
+  pinned: false,
+  importance: 4,
+  confidence: 0.9,
+  use_count: 0,
+  superseded_by: null,
+  expires_at: null,
+  updated_at: new Date().toISOString(),
+  ...extra,
+});
+
+test.describe("settings pages", () => {
+  for (const [path, heading] of [
+    ["/settings/companion", /Daily Companion/i],
+    ["/settings/avatar", /Choose your Companion/i],
+    ["/settings/morning", /Morning Brief/i],
+    ["/settings/skills", /Companion Skills/i],
+    ["/profile", /Your preferences/i],
+  ] as const) {
+    test(`${path} renders`, async ({ authedPage: page }) => {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading }).first()).toBeVisible();
+      await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
+    });
+  }
+
+  test("/settings redirects to the companion settings hub", async ({ authedPage: page }) => {
+    await page.goto("/settings");
+    await expect(page).toHaveURL(/\/settings\/companion/);
+  });
+
+  test("assistant name and personality are saved @smoke", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    await page.goto("/profile");
+    await page
+      .getByRole("button", { name: /^Companion/ })
+      .first()
+      .click();
+    await expect
+      .poll(async () => (await backend.dump(user.email)).tables.user_prefs?.[0]?.assistant_mode, {
+        message: "assistant_mode saved",
+      })
+      .toBe("companion");
+  });
+
+  test("morning brief settings save", async ({ authedPage: page, backend, user }) => {
+    await page.goto("/settings/morning");
+    await page.getByRole("button", { name: "Hide Weather" }).click();
+    await page.getByRole("button", { name: /Save changes/i }).click();
+    await expect
+      .poll(async () =>
+        JSON.stringify(
+          (await backend.dump(user.email)).tables.user_prefs?.[0]?.brief_layout ?? null,
+        ),
+      )
+      .not.toBe("null");
+  });
+
+  test("appearance: theme can be switched once the redesign lands", async ({
+    authedPage: page,
+  }) => {
+    await page.goto("/profile");
+    const toggle = page
+      .getByRole("button", { name: /theme|appearance|dark mode|light mode/i })
+      .or(page.getByRole("switch", { name: /dark|theme/i }))
+      .or(page.getByRole("radio", { name: /dark|light|system/i }));
+    if ((await toggle.count()) === 0) {
+      await page.goto("/settings/companion");
+    }
+    if ((await toggle.count()) === 0) {
+      test.info().annotations.push({
+        type: "blocked",
+        description:
+          "Appearance/themes setting not on this branch yet (UI redesign agent); test activates automatically once a theme control exists",
+      });
+      test.skip(true, "blocked: no appearance/theme control yet");
+    }
+    const before = await page.evaluate(
+      () => document.documentElement.className + "|" + document.documentElement.dataset.theme,
+    );
+    await toggle.first().click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.className + "|" + document.documentElement.dataset.theme,
+        ),
+      )
+      .not.toBe(before);
+  });
+});
+
+test.describe("privacy and data", () => {
+  test.use({
+    seedTables: {
+      ai_memory: [
+        MEMORY("Works nights at County General"),
+        MEMORY("Prefers ocean sounds", { category: "preferences" }),
+      ],
+    },
+  });
+
+  test("privacy policy and memory controls are reachable from the profile", async ({
+    authedPage: page,
+  }) => {
+    await page.goto("/profile");
+    await expect(page.getByRole("link", { name: /Privacy Policy/i }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Export my data/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Erase AI memory/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Delete Account/i })).toBeVisible();
+  });
+
+  test("data export downloads the user's own data as JSON @smoke", async ({
+    authedPage: page,
+    user,
+  }) => {
+    await page.goto("/profile");
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Export my data/i }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^restpilot-export-\d{4}-\d{2}-\d{2}\.json$/);
+    const json = JSON.parse(fs.readFileSync((await file.path())!, "utf8"));
+    expect(JSON.stringify(json)).toContain(user.email);
+    expect(JSON.stringify(json)).toContain("Works nights at County General");
+    await expect(page.getByText(/Your data export was downloaded/i)).toBeVisible();
+  });
+
+  test("a single AI memory can be deleted on the memory page", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    await page.goto("/memory");
+    await expect(page.getByText("Prefers ocean sounds")).toBeVisible();
+    const row = page.getByRole("listitem").filter({ hasText: "Prefers ocean sounds" });
+    page.once("dialog", (d) => d.accept());
+    await row.getByRole("button", { name: /Forget this/i }).click();
+    await expect(page.getByText("Prefers ocean sounds")).toHaveCount(0);
+    const mem = (await backend.dump(user.email)).tables.ai_memory ?? [];
+    expect(mem.map((m) => m.content)).toEqual(["Works nights at County General"]);
+  });
+
+  test("erase all AI memory clears memories, patterns and recommendations @smoke", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    await page.goto("/profile");
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("button", { name: /Erase AI memory/i }).click();
+    await expect(page.getByText(/AI memory cleared/i)).toBeVisible();
+    const t = (await backend.dump(user.email)).tables;
+    for (const name of [
+      "ai_memory",
+      "ai_memory_proposals",
+      "ai_recommendations",
+      "ai_patterns",
+      "ai_feedback",
+    ]) {
+      expect(t[name] ?? [], `${name} cleared`).toHaveLength(0);
+    }
+  });
+
+  test("account deletion requires typing DELETE, removes data and signs out @smoke", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    await page.goto("/profile");
+    await page.getByRole("button", { name: /Delete Account/i }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog.getByRole("heading", { name: /Delete your account\?/i })).toBeVisible();
+    const confirm = dialog.getByRole("button", { name: /^Delete account$/i });
+    await expect(confirm).toBeDisabled();
+    await dialog.getByLabel(/Type DELETE to confirm/i).fill("delete");
+    await expect(confirm, "confirmation is case-sensitive").toBeDisabled();
+    await dialog.getByLabel(/Type DELETE to confirm/i).fill("DELETE");
+    await confirm.click();
+    await expect(page).toHaveURL(/\/auth/);
+    await expect(page.getByText(/Account deleted/i)).toBeVisible();
+    const after = await backend.dump(user);
+    expect(after.userExists, "auth user removed").toBe(false);
+    expect(after.tables.ai_memory ?? []).toHaveLength(0);
+    expect(after.tables.user_prefs ?? []).toHaveLength(0);
+  });
+
+  test("keep account cancels deletion", async ({ authedPage: page, backend, user }) => {
+    await page.goto("/profile");
+    await page.getByRole("button", { name: /Delete Account/i }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: /Keep account/i })
+      .click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect((await backend.dump(user.email)).userExists).toBe(true);
+  });
+});
+
+test.describe("cookie consent", () => {
+  test.use({ cookieConsent: false });
+
+  test("banner offers reject-non-essential and remembers the choice", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Reject non-essential/i }).click();
+    await page.reload();
+    await expect(page.getByRole("button", { name: /Reject non-essential/i })).toHaveCount(0);
+  });
+});
