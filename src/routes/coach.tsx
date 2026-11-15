@@ -17,7 +17,7 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
-import { shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
+import { CRISIS_LOCAL_REPLY, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 export const Route = createFileRoute("/coach")({
@@ -202,7 +202,10 @@ function Coach() {
       // Without AI permission, a crisis message gets the card (already shown
       // above; keep this after showCardOnCrisis) rather than a data-sharing
       // prompt. Nothing is sent; the user can keep typing.
-      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) return;
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        return;
+      }
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       const resp = await aiFetch("/api/ai", {

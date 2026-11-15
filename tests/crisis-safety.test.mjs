@@ -254,6 +254,30 @@ const POSITIVE = [
   "I don't want to wake up ever again",
   "I don't want to wake up at all.",
   "I wish I could just not wake up",
+  // From the third round of independent reviews
+  "I took a bottle of melatonin",
+  "I swallowed a whole bottle of melatonin",
+  "I took all my ambien",
+  "I took my whole bottle of ambien",
+  "I took 20 ambien",
+  "I took 30 tylenol",
+  "I took a whole bottle of tylenol",
+  "I took a bunch of benadryl",
+  "I just took a bunch of xanax",
+  "I took the whole bottle",
+  "I'm going to take all my sleeping pills",
+  "I want to go to sleep and never wake up",
+  "I want to fall asleep and never wake up",
+  "I wish I could go to sleep and never wake up",
+  "I hope I never wake up",
+  "I hope I don't wake up",
+  "sometimes I wish I'd just not wake up",
+  "I'm thinking of killing myself with pills",
+  "I'm killing myself on purpose",
+  "I want to stop existing",
+  "I keep thinking about dying",
+  "I'm done with life",
+  "everyone would be better off without me",
 ];
 
 const NEGATIVE = [
@@ -298,6 +322,19 @@ const NEGATIVE = [
   "I hang my scrubs up after work",
   "life is worth it when I get a full night",
   "my cat likes to jump off the couch at 4am",
+  "I'll shoot myself an email about the rota",
+  "gonna shoot myself a reminder for the 5am alarm",
+  "my patient overdosed last night",
+  "we had an overdose in the ER at 3am",
+  "I'm an ER nurse treating overdoses on nights",
+  "I took all my meds this morning",
+  "I took all my pills this morning",
+  "I take all my pills at night",
+  "I took too much melatonin last night and feel groggy",
+  "I took 20 mg of melatonin",
+  "I want to sleep and not wake up until noon",
+  "I hope I don't wake up at 4am again",
+  "killing myself at work this week",
   "",
 ];
 
@@ -478,7 +515,11 @@ for (const [route, sendFn] of [
     assert.ok(show > 0 && show < guard, "checked before the sending guard");
     assert.ok(show < firstAwait, "checked before the first await");
     assert.ok(guard < gate && gate < ai, "before the consent check and the AI request");
-    assert.match(body, /if \(!\(await shouldSendToAI\(crisis, aiConsentWouldAsk\)\)\) return;/);
+    // Not sent: a static caring line stands in for the reply, then return.
+    assert.match(
+      body,
+      /if \(!\(await shouldSendToAI\(crisis, aiConsentWouldAsk\)\)\) \{\s*setMessages\(\[\.\.\.baseMessages, \{ role: "assistant", content: CRISIS_LOCAL_REPLY \}\]\);\s*return;\s*\}/,
+    );
     assert.match(src, /<CrisisSupportCard onClose=\{\(\) => setCrisisCard\(false\)\} \/>/);
     assert.doesNotMatch(src, /disabled=\{[^}]*crisis/i, "the composer is never disabled by it");
   });

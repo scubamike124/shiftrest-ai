@@ -21,32 +21,52 @@ function normalize(text: string): string {
   return text.replace(/[‘’ʼ]/g, "'").replace(/\s+/g, " ");
 }
 
+// Sleep aids and common over-the-counter or prescription drugs people name
+// instead of saying "pills".
+const DRUGS =
+  "(sleeping |sleep )?(pills|meds|medications?|tablets|melatonin|ambien|zolpidem|benadryl|diphenhydramine|zzzquil|unisom|doxylamine|trazodone|tylenol|acetaminophen|paracetamol|ibuprofen|advil|motrin|aspirin|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|oxycontin|percocet|vicodin|opioids|insulin|antidepressants)";
+// "All my ..." without the daily-routine words ("I took all my meds this morning").
+const DRUGS_ALL =
+  "(sleeping |sleep )?(pills|tablets|melatonin|ambien|zolpidem|benadryl|zzzquil|unisom|trazodone|tylenol|acetaminophen|paracetamol|ibuprofen|advil|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|percocet|vicodin|opioids|insulin|antidepressants)";
+const TOOK =
+  "(took|swallowed|downed|have taken|i've taken|just took|(going to|gonna|want to|wanna|about to|i'll) (take|swallow))";
+const END = "\\s*([.!?,;]|$)";
+
 export const CRISIS_PATTERNS: readonly RegExp[] = [
   // Suicide
   /\bsuicid(?!e (doors?|squad)\b)/i,
   /\bkill myself\b/i,
-  // "killing myself with these doubles / working nights" is overwork talk.
-  /\bkilling myself\b(?! (with|working|at|on|over|for|laughing|to (get|make|finish|keep))\b)/i,
+  // "killing myself with these doubles / working nights" is overwork talk;
+  // "killing myself with pills" or "on purpose" is not.
+  /\bkilling myself\b(?! (working|laughing|with (these|this|my|all (these|this|the|my)|the|all|extra|back-to-back) (double|doubles|shifts?|hours|nights?|job|work|overtime|rota|schedule|commute|deadlines)|over (this|the|my|these|a|an)|at (work|the gym|my job|the office)|for (this|the|my|a) (job|company|boss|team|exam|promotion)|to (get|make|finish|keep|meet|pass))\b)/i,
   /\b(going to|gonna|want to|wanna|might|will|i'll|could) off myself\b/i,
   /\b(going to|gonna|want to|wanna|about to|i'll|ima|i'm gonna) kms\b/i,
   // A stated method is the highest risk.
-  /\b(hang|hanging|shoot|shooting|drown|drowning|stab|stabbing|poison|poisoning) myself\b/i,
+  /\b(hang|hanging|drown|drowning|stab|stabbing|poison|poisoning) myself\b/i,
+  // Not "I'll shoot myself an email / a reminder".
+  /\b(shoot|shooting) myself\b(?! (a|an|another|some) (quick )?(text|email|e-mail|message|note|reminder|dm|msg|line|pic|photo)\b)/i,
   /\bjump(ing)? (off|from) (a|the|that) (bridge|building|roof|cliff|balcony|tower)\b/i,
   /\b(jump|jumping|step|stepping|throw myself|throwing myself) in front of (a|the) (train|bus|car|truck|lorry)\b/i,
   /\b(end|ending|take|taking) my (own )?life\b(?! back)/i,
   /\bend it all\b/i,
   /\bunalive myself\b/i,
   /\b(better off|rather be|i'd rather be) dead\b/i,
+  /\b(everyone|everybody|they|my family|my kids|the world|people) (would be|'d be|would all be|are) better off without me\b/i,
+  /\bdone with (life|living)\b/i,
+  /\b(keep|been|always|can't stop|cannot stop|constantly) thinking about (dying|death|ending it all)\b/i,
   /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
   // Wanting to die
-  /\b(want to|wanted to|wanna) (die|be dead|stop living)\b/i,
+  /\b(want to|wanted to|wanna) (die|be dead|stop living|stop existing)\b/i,
   /\bready to die\b/i,
   /\bwish (i was|i were|i'd) dead\b/i,
   /\bwish i (could|would) (just )?die\b/i,
   // Not wanting to wake up at all (not "don't want to wake up at 5").
   /\bdon'?t (want to|wanna) (ever )?wake up( ever)? (ever again|again|at all|anymore|any more)\s*([.!?,;]|$)/i,
-  /\bwish i (could|would)? ?(just )?(not|never) wake up( again| ever again)?\s*([.!?,;]|$)/i,
+  /\bwish i('d| could| would)? ?(just )?(not|never) wake up( again| ever again)?\s*([.!?,;]|$)/i,
+  /\b(sleep|asleep) (and|&) never wake (up|back up)\b/i,
+  /\b(sleep|asleep) (and|&) not wake (up|back up)( again| ever again)?\s*([.!?,;]|$)/i,
+  /\bhope i (never|don'?t|do not|won'?t) wake up( again| ever again)?( tomorrow( morning)?)?\s*([.!?,;]|$)/i,
   /\bwish i (wasn't|weren't|wasnt|werent) alive\b/i,
   /\bwish i'?d never been born\b/i,
   /\bdon'?t (want to|wanna) (be alive|exist)\b/i,
@@ -59,12 +79,22 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\b(been|keep|keeps|kept|started|start) (hurting|cutting|burning|harming) myself\b/i,
   /\b(hurt|hurting|cut|cutting|burn|burning|burned|burnt) myself on purpose\b/i,
   /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the)\b)/i,
-  // Overdose ("overdosing on coffee" is tiredness slang; anything else counts)
-  /\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
-  /\b(took|take|taking|swallow(ed)?|swallowing) (all|(a |the )?(whole )?bottle of|a bunch of) (of )?(my |the )?(sleeping )?(pills|meds|medication|tablets)\b/i,
+  // Overdose ("overdosing on coffee" is tiredness slang; "my patient
+  // overdosed" / "treating overdoses" is clinicians talking about work).
+  /(?<!(patient|patients|someone|somebody|client|resident|we had an|we had a|treating|treated|treat) )\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
+  new RegExp(
+    `\\b${TOOK} all (of )?(my |the )?${DRUGS_ALL}\\b(?! (this|today|tonight|every|each|at|in the|for|on time|as prescribed)\\b)`,
+    "i",
+  ),
+  new RegExp(`\\b${TOOK} ((a|the|my) )?(whole |entire )?bottle of (my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(`\\b${TOOK} a bunch of (my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(`\\b${TOOK} (the|a|my) (whole|entire) bottle${END}`, "i"),
   // Two or more digits, so "took 2 pills" stays quiet.
-  /\b(took|swallowed|have taken|i've taken|just took) \d{2,} (of )?(my |the )?(sleeping )?(pills|meds|tablets)\b/i,
-  /\b(took|swallowed|have taken|i've taken|i just took) (way )?(too many|a handful of|a lot of|loads of) (of )?(my |the )?(sleeping )?(pills|meds|medication|tablets)\b/i,
+  new RegExp(`\\b${TOOK} \\d{2,} (of )?(my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(
+    `\\b${TOOK} (way )?(too many|a handful of|a lot of|loads of) (of )?(my |the )?${DRUGS}\\b`,
+    "i",
+  ),
 ];
 
 /** True when the message clearly mentions suicide, self-harm, overdose or wanting to die. */
@@ -103,6 +133,10 @@ export async function shouldSendToAI(
     return true;
   }
 }
+
+/** Shown as the assistant's turn when a crisis message is not sent to the AI (no AI permission). */
+export const CRISIS_LOCAL_REPLY =
+  "I'm really glad you told me. You matter, and you don't have to carry this alone. The support options just below are there for you right now, any time of day or night.";
 
 /** Static resources shown by <CrisisSupportCard />. No network needed to read them. */
 export const CRISIS_RESOURCES = {
