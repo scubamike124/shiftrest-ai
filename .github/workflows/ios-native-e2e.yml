@@ -236,12 +236,12 @@ jobs:
           import sys
           rows = [l.rstrip("\n").split("\t", 1) for l in open(sys.argv[1]) if "\t" in l]
           want = " " + sys.argv[2]
-          seen = {path: ua for path, ua in rows}
           for path, what in (("/", "page load"), ("/fetch-check", "fetch() from the page")):
-              ua = seen.get(path)
-              assert ua is not None, f"no {what} request reached the server"
-              assert ua.endswith(want), f"{what} User-Agent lacks {want!r}: {ua!r}"
-              print(f"OK {what}: User-Agent ends with {want.strip()!r}")
+              uas = [ua for p, ua in rows if p == path]
+              assert uas, f"no {what} request reached the server"
+              for ua in uas:
+                  assert ua.endswith(want), f"{what} User-Agent lacks {want!r}: {ua!r}"
+              print(f"OK {what} ({len(uas)} request(s)): User-Agent ends with {want.strip()!r}")
           EOF
       - name: Collect evidence
         if: always()
@@ -257,6 +257,7 @@ jobs:
           done
           xcrun simctl spawn "$DEVICE" log show --last 15m --style compact --predicate 'process == "App"' > "$EV/shell-app.log" 2>/dev/null
           ls -R "$EV" | head -80
+          exit 0  # evidence is best effort; head closing the pipe must not fail the job
       - uses: actions/upload-artifact@v4
         if: always()
         with:
