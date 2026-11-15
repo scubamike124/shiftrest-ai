@@ -14,6 +14,7 @@ import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
 import { greetingLabel } from "@/lib/time/day-part";
+import { isNativeApp } from "@/lib/native-app";
 
 export const Route = createFileRoute("/pilot")({
   ssr: false,
@@ -273,9 +274,15 @@ function PilotPage() {
         cancelAllAudio();
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
         if (resp.status === 429) {
-          toast.error("Daily AI limit reached.", {
-            action: { label: "Upgrade", onClick: () => (window.location.href = "/paywall") },
-          });
+          // No upgrade prompt inside the iPhone app (Guideline 3.1.1).
+          toast.error(
+            "Daily AI limit reached.",
+            isNativeApp()
+              ? {}
+              : {
+                  action: { label: "Upgrade", onClick: () => (window.location.href = "/paywall") },
+                },
+          );
         } else {
           toast.error(err.error || "Pilot is unavailable.");
         }
