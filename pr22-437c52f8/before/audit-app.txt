@@ -1,0 +1,13 @@
+ok   375 /dashboard status=200 scrollWidth=375/375 inner=375 scale=1 offenders=0 smallText=76 smallTargets=20
+ok   375 /plan status=200 scrollWidth=375/375 inner=375 scale=1 offenders=0 smallText=5 smallTargets=1
+ok   375 /companion status=200 scrollWidth=375/375 inner=375 scale=1 offenders=0 smallText=10 smallTargets=3
+ok   375 /profile status=200 scrollWidth=375/375 inner=375 scale=1 offenders=0 smallText=44 smallTargets=41
+ok   390 /dashboard status=200 scrollWidth=390/390 inner=390 scale=1 offenders=0 smallText=76 smallTargets=21
+ok   390 /plan status=200 scrollWidth=390/390 inner=390 scale=1 offenders=0 smallText=5 smallTargets=1
+ok   390 /companion status=200 scrollWidth=390/390 inner=390 scale=1 offenders=0 smallText=10 smallTargets=3
+ok   390 /profile status=200 scrollWidth=390/390 inner=390 scale=1 offenders=0 smallText=44 smallTargets=41
+ok   430 /dashboard status=200 scrollWidth=430/430 inner=430 scale=1 offenders=0 smallText=76 smallTargets=21
+ok   430 /plan status=200 scrollWidth=430/430 inner=430 scale=1 offenders=0 smallText=5 smallTargets=1
+ok   430 /companion status=200 scrollWidth=430/430 inner=430 scale=1 offenders=0 smallText=10 smallTargets=3
+ok   430 /profile status=200 scrollWidth=430/430 inner=430 scale=1 offenders=0 smallText=44 smallTargets=42
+0 failing route/viewport combinations
