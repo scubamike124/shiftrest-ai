@@ -253,3 +253,8 @@ test("sound requests with common endings, timer leads and 'tonight' hours", () =
   assert.equal(parseIntent("set an alarm for 12 tonight").intent.hour, 0);
   assert.equal(parseIntent("set an alarm for 6 on Monday").intent.kind, "wake_at");
 });
+
+test("phone keyboards' curly apostrophes work like straight ones", () => {
+  assert.equal(parseIntent("I\u2019d like rain").intent.kind, "play_track");
+  assert.equal(parseIntent("wake me up at 6 o\u2019clock").intent.kind, "wake_at");
+});
