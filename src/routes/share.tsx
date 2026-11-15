@@ -2,7 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Moon, ChevronLeft } from "lucide-react";
-import { DAYS, fmt, fetchShifts, endAbsolute, type Shift } from "@/lib/shifts";
+import {
+  DAYS,
+  fmt,
+  fetchShifts,
+  endAbsolute,
+  toSharedShifts,
+  type SharedShift,
+} from "@/lib/shifts";
 import { DEFAULT_PREFS, fetchPrefs, type Prefs } from "@/lib/prefs";
 import { toast } from "sonner";
 
@@ -20,7 +27,7 @@ export const Route = createFileRoute("/share")({
   component: SharePage,
 });
 
-type Payload = { name: string; shifts: Shift[]; sleepHours: number; windDownMin: number };
+type Payload = { name: string; shifts: SharedShift[]; sleepHours: number; windDownMin: number };
 
 function encode(p: Payload): string {
   const json = JSON.stringify(p);
@@ -57,7 +64,7 @@ function SharePage() {
     if (!mine) return "";
     const payload: Payload = {
       name: mine.prefs.partnerName || "Your partner",
-      shifts: mine.shifts,
+      shifts: toSharedShifts(mine.shifts),
       sleepHours: mine.prefs.sleepHours,
       windDownMin: mine.prefs.windDownMin,
     };

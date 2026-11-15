@@ -127,7 +127,7 @@ export function AgendaCard({
       )}
 
       <p className="mt-2 text-[10px] text-muted-foreground">
-        Read-only · Reelo can't add, move, or delete events.
+        Read-only · RestPilot can't add, move, or delete events.
       </p>
     </Card>
   );

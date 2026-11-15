@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fetchTomorrowWeather } from "@/lib/weather.server";
 import type { EveningBriefDTO } from "./types";
+import { userTz, utcAtLocalDay } from "@/lib/time/tz";
 
 function greetingName(preferredName: string | null): string {
   const raw = (preferredName ?? "").trim();
@@ -35,7 +36,7 @@ export const getEveningBrief = createServerFn({ method: "GET" })
     const { data: prefsRow } = await supabase
       .from("user_prefs")
       .select(
-        "lat, lon, partner_name, preferred_name, brief_layout, sleep_hours, wind_down_min",
+        "lat, lon, partner_name, preferred_name, brief_layout, sleep_hours, wind_down_min, current_tz, home_tz",
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -57,9 +58,13 @@ export const getEveningBrief = createServerFn({ method: "GET" })
     );
 
 
-    // Tomorrow window in local time.
-    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+    // Tomorrow window in the USER's zone (this runs on a UTC server).
+    const tz = userTz(
+      prefsRow?.current_tz as string | null | undefined,
+      prefsRow?.home_tz as string | null | undefined,
+    );
+    const tomorrowStart = utcAtLocalDay(now, tz, 1);
+    const tomorrowEnd = utcAtLocalDay(now, tz, 2);
 
     const [eventsRes, weatherRes, tripRes] = await Promise.allSettled([
       eveningHidden.has("tomorrowFirst") && eveningHidden.has("prep") && eveningHidden.has("smartAlarm")
@@ -125,9 +130,7 @@ export const getEveningBrief = createServerFn({ method: "GET" })
         const wake = new Date(new Date(tomorrowFirst.atISO).getTime() - 60 * 60_000); // 1h before
         wakeISO = wake.toISOString();
       } else {
-        const def = new Date(tomorrowStart);
-        def.setHours(7, 0, 0, 0);
-        wakeISO = def.toISOString();
+        wakeISO = utcAtLocalDay(now, tz, 1, 7 * 60).toISOString();
       }
       const bedtime = new Date(new Date(wakeISO).getTime() - sleepHours * 3_600_000);
       smartAlarm = {
@@ -148,9 +151,10 @@ export const getEveningBrief = createServerFn({ method: "GET" })
     if (!eveningHidden.has("summary") && (tomorrowFirst || tomorrowWeather)) {
       const parts: string[] = [];
       if (tomorrowFirst) {
-        const at = new Date(tomorrowFirst.atISO).toLocaleTimeString([], {
+        const at = new Date(tomorrowFirst.atISO).toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
+          timeZone: tz,
         });
         parts.push(`Tomorrow starts with ${tomorrowFirst.title} at ${at}.`);
       }
@@ -160,9 +164,10 @@ export const getEveningBrief = createServerFn({ method: "GET" })
         );
       }
       if (smartAlarm) {
-        const bed = new Date(smartAlarm.suggestedBedtimeISO).toLocaleTimeString([], {
+        const bed = new Date(smartAlarm.suggestedBedtimeISO).toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
+          timeZone: tz,
         });
         parts.push(`Aim for lights out around ${bed}.`);
       }
