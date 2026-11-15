@@ -214,7 +214,7 @@ function AuthPage() {
               <span>
                 <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
                 and Apple sign-in do not work inside the Lovable editor preview. Please use{" "}
-                <strong>email &amp; password</strong> below to test. Google works normally on the
+                <strong>email &amp; password</strong> below to test. Both work normally on the
                 published site.
               </span>
             </div>
