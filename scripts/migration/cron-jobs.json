@@ -1,0 +1,16 @@
+{
+  "comment": "Scheduled jobs the app expects (paths from src/routes). Schedules here are fallbacks; rewire.mjs prefers the live schedule found in the export. Names and paths only - no secrets.",
+  "pgmqQueues": ["auth_emails", "auth_emails_dlq", "transactional_emails", "transactional_emails_dlq"],
+  "vault": {
+    "cronSecret": "restpilot_cron_secret",
+    "serviceRole": "email_queue_service_role_key"
+  },
+  "jobs": [
+    { "name": "restpilot-dispatch-alarms", "path": "/api/public/hooks/dispatch-alarms", "schedule": "* * * * *", "auth": "cron-secret" },
+    { "name": "restpilot-notify-tick", "path": "/api/public/hooks/notify", "schedule": "*/5 * * * *", "auth": "cron-secret" },
+    { "name": "restpilot-ai-learn", "path": "/api/public/hooks/ai-learn", "schedule": "17 9 * * *", "auth": "cron-secret" },
+    { "name": "restpilot-wearables-sync", "path": "/api/public/wearables/cron", "schedule": "41 10 * * *", "auth": "cron-secret" },
+    { "name": "subscription-lifecycle-daily", "path": "/api/public/hooks/subscription-lifecycle", "schedule": "23 15 * * *", "auth": "cron-secret", "note": "emails subscribers about trials/expiry; confirm with the owner while Stripe sync is disabled" },
+    { "name": "process-email-queue", "path": "/lovable/email/queue/process", "schedule": "5 seconds", "auth": "service-role" }
+  ]
+}

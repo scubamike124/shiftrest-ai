@@ -29,6 +29,8 @@ import {
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
 import { logAIRequest } from "@/lib/ai/log.server";
+import { modelForTask } from "@/lib/ai/models.server";
+import { commuteTimes, normalizeLiveContext } from "@/lib/ai/intent-guards";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
@@ -73,7 +75,7 @@ In addition to the schema below, ALWAYS include a top-level field:
   "tomorrow": string (<=110 chars, concrete effect on tomorrow's energy/sleep/readiness),
   "week":     string (<=110 chars, concrete effect over the next 5-7 days if they keep doing it)
 }
-Be specific and grounded — name a number, a window, or a body-clock outcome where possible. No hype, no emoji.`;
+Be specific and grounded — name a time window or a likely body-clock outcome where possible. These are predictions: phrase them as "likely"/"should", and never invent a measured number (sleep minutes, HRV, heart rate, stages) you were not given. No hype, no emoji.`;
 
 const BRIEF_SYSTEM = SHARED_BRIEF_SYSTEM;
 
@@ -96,11 +98,11 @@ Hard safety rule: never move the alarm outside ±windowMin from the target. If w
 Return ONLY valid JSON:
 {
   "wakeAt": ISO string strictly inside [target - windowMin, target + windowMin],
-  "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you wake near the end of a REM cycle instead of mid-deep sleep"),
+  "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you're more likely to wake near the end of a cycle, not mid-deep sleep"),
   "cyclePosition": "rem_end"|"light_sleep"|"deep_avoid"|"natural",
   "confidence": "low"|"medium"|"high",
   "confidenceReason": string (<=120 chars, name the evidence — e.g. "High confidence: 3 nights of Oura data with a consistent sleep-onset window"),
-  "message": string (<=80 chars, warm one-liner shown when the alarm fires — e.g. "Morning. You're at the lightest moment of your cycle — easy start.")
+  "message": string (<=80 chars, warm one-liner shown when the alarm fires — e.g. "Morning. Timed for a likely light moment in your cycle — easy start.")
 }`;
 
 const COMMUTE_SYSTEM = `${COACH_VOICE}
@@ -130,8 +132,8 @@ Return ONLY valid JSON:
 {
   "action": string (<=70 chars, imperative — e.g. "Get 10 min of bright light before 9:30am"),
   "why": string (<=140 chars, the circadian/fatigue reason, references their real signal when possible),
-  "followBenefit": string (<=120 chars, concrete upside — e.g. "Locks in tonight's sleep onset and protects 90 min of deep sleep"),
-  "ignoreCost": string (<=120 chars, concrete consequence — e.g. "Tonight's sleep onset slides 25 min later and tomorrow's REM drops"),
+  "followBenefit": string (<=120 chars, concrete likely upside — e.g. "Should keep tonight's sleep onset on time before tomorrow's early shift"),
+  "ignoreCost": string (<=120 chars, concrete likely consequence — e.g. "Tonight's sleep onset is likely to slide later, shortening sleep before your shift"),
   "confidence": "low"|"medium"|"high",
   "confidenceReason": string (<=120 chars, what the confidence is based on — e.g. "Medium confidence: no wearable data today, working from your schedule alone"),
   "urgency": "now"|"soon"|"later",
@@ -316,7 +318,7 @@ export const Route = createFileRoute("/api/ai")({
               admin,
               userId,
               profile,
-              liveContext: body.context,
+              liveContext: normalizeLiveContext(body.context),
               intent: "coach",
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
@@ -326,8 +328,11 @@ export const Route = createFileRoute("/api/ai")({
 
             const trimmed = body.messages.slice(-20);
             const isVoice = (body.surface ?? "text") === "voice";
+            const coachTask = isVoice ? "voice" : "coach";
+            const coachModel = modelForTask(coachTask) ?? DEFAULT_CHAT_MODEL;
             const upstream = await chatStream({
-              model: DEFAULT_CHAT_MODEL,
+              model: coachModel,
+              task: coachTask,
               messages: [{ role: "system", content: systemWithTime }, ...trimmed],
               maxTokens: isVoice && !body.expand ? 180 : undefined,
             });
@@ -388,7 +393,7 @@ export const Route = createFileRoute("/api/ai")({
                     await logAIRequest(admin, {
                       user_id: userId,
                       intent: "coach",
-                      model: DEFAULT_CHAT_MODEL,
+                      model: coachModel,
                       prompt_tokens: usage?.p ?? 0,
                       completion_tokens: usage?.c ?? 0,
                       latency_ms: Date.now() - started,
@@ -440,6 +445,7 @@ export const Route = createFileRoute("/api/ai")({
                 timezone: body.timezone,
               }).directive;
             const result = await chatJSON({
+              task: "brief",
               messages: [
                 { role: "system", content: briefSystem },
                 { role: "user", content: body.plan },
@@ -450,7 +456,7 @@ export const Route = createFileRoute("/api/ai")({
               await logAIRequest(admin, {
                 user_id: userId,
                 intent: "brief",
-                model: DEFAULT_CHAT_MODEL,
+                model: result.model,
                 prompt_tokens: result.promptTokens,
                 completion_tokens: result.completionTokens,
                 latency_ms: Date.now() - started,
@@ -467,7 +473,7 @@ export const Route = createFileRoute("/api/ai")({
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
-            const ctxString = "context" in body ? body.context : undefined;
+            const ctxString = normalizeLiveContext("context" in body ? body.context : undefined);
             const system = await buildSystemPrompt({
               admin,
               userId,
@@ -573,6 +579,7 @@ export const Route = createFileRoute("/api/ai")({
             }
 
             const result = await chatJSON({
+              task: "structured",
               messages: [
                 { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
                 { role: "user", content: userPayload },
@@ -582,7 +589,7 @@ export const Route = createFileRoute("/api/ai")({
               await logAIRequest(admin, {
                 user_id: userId,
                 intent: body.intent,
-                model: DEFAULT_CHAT_MODEL,
+                model: result.model,
                 prompt_tokens: result.promptTokens,
                 completion_tokens: result.completionTokens,
                 latency_ms: Date.now() - started,
@@ -639,10 +646,15 @@ export const Route = createFileRoute("/api/ai")({
                 if (!parsed.cyclePosition) parsed.cyclePosition = "light_sleep";
                 if (!parsed.confidence) parsed.confidence = "low";
                 if (!parsed.confidenceReason) parsed.confidenceReason = "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
-                if (!parsed.message) parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
+                if (!parsed.message) parsed.message = "Good morning. Timed for a likely light moment in your cycle.";
               }
             }
 
+
+            if (body.intent === "commute") {
+              const times = commuteTimes(body.shiftStartIso, body.travelMin, body.prepMin);
+              if (times) Object.assign(parsed, times);
+            }
 
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;

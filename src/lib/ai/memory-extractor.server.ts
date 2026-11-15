@@ -8,6 +8,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chatJSON, FAST_MODEL } from "./gateway.server";
+import { modelForTask } from "./models.server";
 import { logAIRequest } from "./log.server";
 
 const EXTRACT_SYSTEM = `You extract durable, factual long-term memories about a shift worker from chat snippets, for an AI sleep/recovery coach.
@@ -62,13 +63,23 @@ export async function extractAndStoreMemories(opts: {
   userTurn: string;
   assistantTurn: string;
 }): Promise<number> {
+  // "Pause learning" must stop ALL memory writes, not only pattern
+  // proposals. Re-read consent server-side; fail closed if it can't be read.
+  const { data: consent, error: consentError } = await opts.admin
+    .from("user_prefs")
+    .select("memory_enabled, memory_learning_paused")
+    .eq("user_id", opts.userId)
+    .maybeSingle();
+  const c = consent as { memory_enabled: boolean | null; memory_learning_paused: boolean | null } | null;
+  if (consentError || !c?.memory_enabled || c.memory_learning_paused) return 0;
+
   const start = Date.now();
   const snippet = `USER: ${opts.userTurn}\nASSISTANT: ${opts.assistantTurn}`.slice(0, 4000);
 
   let result;
   try {
     result = await chatJSON({
-      model: FAST_MODEL,
+      task: "background",
       jsonMode: true,
       temperature: 0.1,
       messages: [
@@ -80,7 +91,7 @@ export async function extractAndStoreMemories(opts: {
     await logAIRequest(opts.admin, {
       user_id: opts.userId,
       intent: "memory_extract",
-      model: FAST_MODEL,
+      model: modelForTask("background") ?? FAST_MODEL,
       prompt_tokens: 0,
       completion_tokens: 0,
       latency_ms: Date.now() - start,
@@ -93,7 +104,7 @@ export async function extractAndStoreMemories(opts: {
   await logAIRequest(opts.admin, {
     user_id: opts.userId,
     intent: "memory_extract",
-    model: FAST_MODEL,
+    model: result.model,
     prompt_tokens: result.promptTokens,
     completion_tokens: result.completionTokens,
     latency_ms: Date.now() - start,

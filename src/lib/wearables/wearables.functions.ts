@@ -59,12 +59,31 @@ export const disconnectWearable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { provider: WearableProvider }) => ProviderSchema.parse(data))
   .handler(async ({ data, context }) => {
-    await context.supabase
+    // The privacy policy promises wearable readings are "deleted on
+    // disconnect". Order matters so a failure always leaves a way to retry:
+    //   1. delete readings (on failure the connection, and the Disconnect
+    //      button, still exist);
+    //   2. delete the connection (stops further syncs);
+    //   3. delete readings again, in case a sync landed between 1 and 2.
+    const deleteReadings = async () => {
+      const { error } = await context.supabase
+        .from("wearable_readings")
+        .delete()
+        .eq("user_id", context.userId)
+        .eq("provider", data.provider);
+      if (error) throw new Error("We couldn't delete this wearable's data. Please retry.");
+    };
+    await deleteReadings();
+    const { error: connectionError } = await context.supabase
       .from("wearable_connections")
       .delete()
       .eq("user_id", context.userId)
       .eq("provider", data.provider);
-    return { ok: true };
+    if (connectionError) {
+      throw new Error("Your wearable data was deleted, but we couldn't disconnect the wearable. Please retry.");
+    }
+    await deleteReadings();
+    return { ok: true as const, deletedReadings: true as const };
   });
 
 export const syncWearableNow = createServerFn({ method: "POST" })
@@ -105,7 +124,18 @@ export const getWearableSummary = createServerFn({ method: "GET" })
     ]);
 
     const latest = latestRows?.[0];
+    const providersWithData: WearableProvider[] = [];
+    for (const provider of ["fitbit", "oura"] as const) {
+      const { data: any } = await context.supabase
+        .from("wearable_readings")
+        .select("id")
+        .eq("user_id", context.userId)
+        .eq("provider", provider)
+        .limit(1);
+      if (any?.length) providersWithData.push(provider);
+    }
     return {
+      providersWithData,
       connections: (connections ?? []).map((c) => ({
         provider: c.provider as WearableProvider,
         connected: true,

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteAccountFn, exportAccountFn, purgeAiMemoryFn } from "@/lib/account.functions";
+import { clearDeviceAiCaches, clearPersonalDeviceData } from "@/lib/user/device-data";
 import {
   Bell as _UnusedBell,
   Moon,
@@ -94,6 +95,7 @@ function Profile() {
     queryClient.clear();
     try { await supabase.auth.signOut({ scope: "local" }); } catch { /* account is already deleted */ }
     try { localStorage.clear(); clearPrefsMigrationFlag(); } catch { /* unavailable storage */ }
+    clearPersonalDeviceData(); // also sessionStorage (AI recap caches)
     toast.success("Account deleted.");
     navigate({ to: "/auth", replace: true });
   }
@@ -172,6 +174,9 @@ function Profile() {
     clearAllForUser(null); // also clear any anon-namespaced rows
     queryClient.clear();
     await supabase.auth.signOut();
+    // AI recaps, hydration logs, companion history and other personal data
+    // cached on this device (keeps device settings such as cookie consent).
+    clearPersonalDeviceData();
     toast.success("Signed out.");
     navigate({ to: "/auth", replace: true });
   }
@@ -614,7 +619,7 @@ function Profile() {
 
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
-      <WearableCard />
+      <WearableCard signedIn={signedIn} />
 
       <NotificationsSection signedIn={signedIn} />
 
@@ -691,6 +696,7 @@ function Profile() {
             setPurging(true);
             try {
               await purgeAiMemory({ data: undefined });
+              clearDeviceAiCaches();
               toast.success("AI memory cleared.");
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Purge failed.");
@@ -1150,6 +1156,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="New password"
           placeholder="New password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -1158,6 +1165,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="Confirm new password"
           placeholder="Confirm new password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
