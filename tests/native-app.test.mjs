@@ -28,14 +28,24 @@ test('isNativeApp is true only inside the Capacitor app shell', () => {
 
 test('the app shell hides Google sign-in and Safari install instructions', () => {
   const auth = read('src/routes/auth.tsx');
-  const gate = auth.indexOf('{inNativeApp ? (');
+  // Google is rendered only when visibleOAuthProviders() allows it, which is
+  // never in the app shell (tests/apple-signin.test.mjs covers the rules).
+  const gate = auth.indexOf("{providers.google && (");
   const google = auth.indexOf('handleOAuth("google")');
   const form = auth.indexOf('<form onSubmit={handleEmailSubmit}');
-  assert.ok(gate > 0 && gate < google && google < form, 'Google button sits inside the not-in-app block, before the email form');
+  assert.ok(
+    gate > 0 && gate < google && google < form,
+    "Google button sits inside the providers.google block, before the email form",
+  );
+  assert.match(auth, /native: inNativeApp,/);
   assert.match(read('src/components/SmartAlarmCoach.tsx'), /setHidden\(dismissed \|\| granted \|\| isNativeApp\(\)\)/);
   const card = read('src/components/SmartAlarmCard.tsx');
   assert.ok(card.indexOf('{inNativeApp ? (') > 0 && card.indexOf('{inNativeApp ? (') < card.indexOf('Home Screen installation'), 'alarm footer has an app-shell variant before the Home Screen copy');
-  assert.match(auth, /mode === "signin" \? \(\s*<p[^>]*>\s*Signed up with Google\? Enter your email and tap Forgot Password/, 'hint only where the Forgot Password button exists');
+  assert.match(
+    auth,
+    /\{inNativeApp && mode === "signin" && \(\s*<p[^>]*>[\s\S]{0,80}Signed up with Google\? Enter your email and tap Forgot Password/,
+    "hint only where the Forgot Password button exists",
+  );
   // The app shell draws the page under the status bar (viewport-fit=cover); the header must clear it.
   assert.match(read('src/components/site/SiteHeader.tsx'), /sticky top-0 z-50 w-full pt-\[env\(safe-area-inset-top\)\]/);
   assert.match(read('src/lib/alarm/push-enroll.ts'), /!isStandalone\(\) && !isNativeApp\(\)\) showInstallHint\(\)/);
