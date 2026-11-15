@@ -7,6 +7,8 @@ import XCTest
 final class ShellE2ETests: XCTestCase {
     private let shellId = "com.restpilotai.app"
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+    /// The process that draws Apple's Health permission sheet.
+    private let healthPrivacy = XCUIApplication(bundleIdentifier: "com.apple.HealthPrivacyService")
 
     override func setUp() {
         continueAfterFailure = false
@@ -85,7 +87,7 @@ final class ShellE2ETests: XCTestCase {
     private func findHealthSheet(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            for p in [app, springboard] {
+            for p in [app, healthPrivacy, springboard] {
                 let el = p.descendants(matching: .any)
                     .matching(NSPredicate(format: "label == %@", "Turn On All")).firstMatch
                 if el.waitForExistence(timeout: 3) { return el }
@@ -98,7 +100,7 @@ final class ShellE2ETests: XCTestCase {
         turnOn.tap()
         snapshot("Health sheet, all turned on", app)
         var allow: XCUIElement?
-        for p in [app, springboard] {
+        for p in [app, healthPrivacy, springboard] {
             for q in [p.navigationBars.buttons, p.buttons] {
                 let el = q.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch
                 if el.waitForExistence(timeout: 5) { allow = el; break }
@@ -107,6 +109,19 @@ final class ShellE2ETests: XCTestCase {
         }
         guard let allow else { return XCTFail("no Allow button on the Health sheet") }
         allow.tap()
+    }
+
+    /// Fallback when the sheet is on screen but its controls are missing from the
+    /// accessibility tree (seen on CI: the screenshot shows the sheet, queries
+    /// find nothing). Taps "Turn On All", then "Allow", at their positions on
+    /// the sheet as laid out on the CI iPhone simulator. If the taps miss, the
+    /// page never reports HEALTH PASS and the test fails.
+    private func allowOnHealthSheetByPosition(_ app: XCUIApplication) {
+        snapshot("Health sheet controls not in the accessibility tree; tapping by position", app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.507)).tap()
+        sleep(2)
+        snapshot("Health sheet after Turn On All (by position)", app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.859)).tap()
     }
 
     private func approveHealthSheet(in app: XCUIApplication) {
@@ -136,11 +151,13 @@ final class ShellE2ETests: XCTestCase {
         XCTAssertTrue(seeded.label.hasPrefix("SEED OK"), "seeder said: \(seeded.label)")
 
         // 2. The RestPilot shell connects through its read-only plugin and checks the mapped night.
-        //    (CI installed a copy whose page starts the Health check on load.)
+        //    (CI installed a copy whose page has the Health check behind a Connect button.)
         //    As in the real app, the permission request starts from a tap on Connect,
-        //    once the app is on screen. On a busy CI simulator HealthKit sometimes
-        //    reports "Authorization session timed out" without showing its sheet;
-        //    the page then re-enables Connect, and the test taps it again.
+        //    once the app is on screen. On CI the sheet is sometimes on screen while
+        //    its controls are missing from the accessibility tree; left unanswered,
+        //    HealthKit then reports "Authorization session timed out". So: look for
+        //    the controls (app, Health privacy service, SpringBoard), else tap them by
+        //    position; if the page has already failed, tap Connect again.
         let app = XCUIApplication(bundleIdentifier: shellId)
         app.launch()
         let result = text(app, startingWith: "HEALTH ")
@@ -154,6 +171,10 @@ final class ShellE2ETests: XCTestCase {
             connect.tap()
             if let turnOn = findHealthSheet(in: app, timeout: 60) {
                 allowOnHealthSheet(turnOn, in: app)
+                approved = true
+            } else if result.label == "HEALTH RUNNING" {
+                // Still waiting on Apple's sheet: it is very likely on screen.
+                allowOnHealthSheetByPosition(app)
                 approved = true
             } else {
                 snapshot("Health sheet not shown (attempt \(attempt))", app)
