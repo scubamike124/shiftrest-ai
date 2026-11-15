@@ -51,5 +51,10 @@ export function buildRealtimeInstructions(
     },
     "normal",
   );
-  return `${[REPLY_SHAPE, personalityBlock, pacingHint(profile.speed)].join(" ")}\n\n${SAFETY_AND_CARE}`;
+  // Runtime guard: if anything before the safety rules ever grows past the
+  // budget, that part is cut; SAFETY_AND_CARE itself is never cut.
+  const rules = [REPLY_SHAPE, personalityBlock, pacingHint(profile.speed)]
+    .join(" ")
+    .slice(0, MAX_REALTIME_INSTRUCTIONS_CHARS - SAFETY_AND_CARE.length - 2);
+  return `${rules}\n\n${SAFETY_AND_CARE}`;
 }
