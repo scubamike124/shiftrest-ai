@@ -19,10 +19,26 @@ const ACTIVE: Row[] = [
     policy: "https://lovable.dev/privacy",
   },
   {
-    name: "Stripe",
-    purpose: "Subscription billing and payment processing",
+    name: "Stripe (website payments)",
+    purpose: "Subscription billing and payment processing on the website",
     shared: "Email, billing details you enter at checkout",
     policy: "https://stripe.com/privacy",
+  },
+  {
+    name: "Apple (iPhone app)",
+    purpose:
+      "In-app purchases and subscriptions in the iPhone app (purchases are made through Apple, not Stripe); Sign in with Apple if you choose it",
+    shared:
+      "Purchases are processed by Apple under its own terms; we receive subscription status and transaction information, not your payment card. With Sign in with Apple: the identifier, name and email (or private relay email) you choose to share",
+    policy: "https://www.apple.com/legal/privacy/",
+  },
+  {
+    name: "RevenueCat",
+    purpose:
+      "Managing in-app purchases and subscription status in the iPhone app",
+    shared:
+      "Your RestPilot user ID (used as the RevenueCat app user ID) and your purchase and subscription history",
+    policy: "https://www.revenuecat.com/privacy/",
   },
   {
     name: "Lovable AI Gateway (Google Gemini)",
@@ -46,30 +62,42 @@ const ACTIVE: Row[] = [
     policy: "https://elevenlabs.io/privacy-policy",
   },
   {
-    name: "Fitbit (optional)",
-    purpose: "Wearable sleep & activity sync",
+    name: "Fitbit (existing connections only)",
+    purpose:
+      "Wearable sleep & activity sync for accounts connected earlier. New connections are not currently offered in the app.",
     shared:
       "OAuth tokens; sleep, readiness, activity, heart-rate readings shared by Fitbit",
     policy: "https://www.fitbit.com/global/us/legal/privacy-policy",
   },
   {
-    name: "Oura (optional)",
-    purpose: "Wearable sleep & readiness sync",
+    name: "Oura (existing connections only)",
+    purpose:
+      "Wearable sleep & readiness sync for accounts connected earlier. New connections are not currently offered in the app.",
     shared:
       "OAuth tokens; sleep, readiness, HRV, activity readings shared by Oura",
     policy: "https://ouraring.com/privacy-policy",
   },
   {
     name: "Open-Meteo",
-    purpose: "Sunrise/sunset and weather inputs for the light plan",
-    shared: "Approximate latitude/longitude only",
+    purpose:
+      "Weather, air quality and sunrise/sunset for the light plan, and looking up a city name you type",
+    shared:
+      "Your saved latitude/longitude (to about 11 m precision, or as your device reports it) for weather; the city name you type when searching",
     policy: "https://open-meteo.com/en/terms",
   },
   {
     name: "BigDataCloud",
     purpose: "Reverse geocoding (turning coordinates into a city name)",
-    shared: "Approximate latitude/longitude only",
+    shared:
+      "The latitude/longitude your device reports when you tap Detect, sent from your device",
     policy: "https://www.bigdatacloud.com/privacy-and-cookie-policy",
+  },
+  {
+    name: "OSRM (public routing service)",
+    purpose: "Driving route and travel-time estimates between your places",
+    shared:
+      "Start and destination coordinates (your current location or saved places), sent from our servers; no name or account details",
+    policy: "https://project-osrm.org/",
   },
   {
     name: "Web Push (Mozilla/Apple/Google push services)",
@@ -79,15 +107,7 @@ const ACTIVE: Row[] = [
   },
 ];
 
-const PLANNED = [
-  "Apple Health",
-  "Google Health Connect",
-  "Garmin",
-  "WHOOP",
-  "Calendar integrations",
-  "Traffic providers",
-  "Maps providers",
-];
+const PLANNED = ["Google Health Connect", "Garmin", "WHOOP"];
 
 export const Route = createFileRoute("/legal/third-parties")({
   head: () => ({
@@ -148,6 +168,26 @@ export const Route = createFileRoute("/legal/third-parties")({
           </tbody>
         </table>
       </div>
+
+      <h2>Apple Health (on your iPhone only)</h2>
+      <p>
+        If you connect Apple Health in the iPhone app, RestPilot reads sleep
+        analysis, heart rate variability and resting heart rate on your device.
+        This data stays on your iPhone: it is not sent to RestPilot's servers,
+        to any provider listed above, or to AI providers, and it is not used
+        for advertising or sold. Details are in the{" "}
+        <Link to="/legal/privacy" hash="apple-health">
+          Privacy Policy
+        </Link>
+        .
+      </p>
+
+      <h2>Calendar feeds</h2>
+      <p>
+        If you add a calendar (.ics) link, our servers fetch it from the host
+        that link points to, so that host (for example your calendar provider)
+        sees the request. Only the link you provide is requested.
+      </p>
 
       <h2>Planned integrations (not yet active)</h2>
       <p>

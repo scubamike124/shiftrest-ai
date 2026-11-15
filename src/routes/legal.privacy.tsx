@@ -39,13 +39,41 @@ export const Route = createFileRoute("/legal/privacy")({
           wind-down preferences, employers, role, notification preferences.
         </li>
         <li>
+          <strong>Places &amp; addresses:</strong> the home, work and other
+          destination addresses and labels you save for travel-time estimates,
+          and the city or location name you choose for weather.
+        </li>
+        <li>
+          <strong>Calendars:</strong> the calendar feed (.ics) web addresses
+          you add and the events imported from them.
+        </li>
+        <li>
+          <strong>Coach messages &amp; voice:</strong> the messages you send to
+          the AI coach and, if you use voice, your voice recordings. See{" "}
+          <a href="#ai-providers">AI providers and your permission</a> for
+          who processes them.
+        </li>
+        <li>
           <strong>Shifts &amp; planning data:</strong> shifts you log, trips,
           time-zone events, manual feedback you give the AI coach.
         </li>
         <li>
-          <strong>Wearable data (optional):</strong> if you connect Fitbit or
-          Oura, we receive the sleep, readiness, and activity metrics those
-          services share with us.
+          <strong>Wearable data (optional, existing connections only):</strong>{" "}
+          Fitbit and Oura can no longer be newly connected from the app at the
+          moment. If you connected one earlier, we receive the sleep,
+          readiness, and activity metrics that service shares with us.
+        </li>
+        <li>
+          <strong>Purchases (iPhone app):</strong> if you subscribe in the
+          iPhone app, the purchase is made through Apple, and we (with our
+          subscription provider RevenueCat) receive your subscription status
+          and purchase history for your account. We do not receive your Apple
+          payment card details.
+        </li>
+        <li>
+          <strong>Apple Health (iPhone app, optional):</strong> read on your
+          device only if you connect it, and kept on your iPhone. See{" "}
+          <a href="#apple-health">Apple Health</a> below.
         </li>
       </ul>
 
@@ -56,16 +84,28 @@ export const Route = createFileRoute("/legal/privacy")({
           coarse approximate timezone, and basic diagnostic info.
         </li>
         <li>
-          <strong>Location (only on request):</strong> if you tap "Detect," we
-          read approximate latitude/longitude in your browser to compute
-          sunrise/sunset for your light plan. We do not continuously track
-          location.
+          <strong>Location (only on request):</strong> in the iPhone app or in
+          your browser, when you tap "Detect" or "Use current location", your
+          device location is read (only while the app is open and only at that
+          moment). The latitude and longitude are then{" "}
+          <strong>stored in your account</strong>. In some places (weather
+          location and saved destinations) we round them to four decimal
+          places, about 11 metres, before saving; elsewhere in Profile they
+          are saved as your device reports them. We use the stored coordinates
+          for weather (Open-Meteo), sunrise and sunset for your light plan, a
+          city name for display (BigDataCloud receives the coordinates to look
+          it up) and travel time (the OSRM routing service receives your
+          starting point and destination coordinates). We do not track your
+          location in the background or continuously. You can change the saved
+          location in Profile, and turn location permission off in your device
+          settings.
         </li>
         <li>
           <strong>Storage on your device:</strong> we use{" "}
           <Link to="/legal/cookies">browser storage</Link> (cookies,
           localStorage, IndexedDB, service-worker cache) to keep you signed in
-          and to enable offline mode.
+          and to enable offline mode. In the iPhone app the same storage lives
+          in the app's own web view (see section 4).
         </li>
       </ul>
 
@@ -86,7 +126,7 @@ export const Route = createFileRoute("/legal/privacy")({
         <li>To operate, secure, and improve the Service.</li>
         <li>To generate your circadian schedule, alarms, and recovery plan.</li>
         <li>To send notifications you opt into.</li>
-        <li>To process payments through our payment processor.</li>
+        <li>To process payments: on the website through Stripe, and in the iPhone app through Apple (with RevenueCat managing subscription status).</li>
         <li>To comply with law and enforce our agreements.</li>
       </ul>
       <p>
@@ -99,8 +139,8 @@ export const Route = createFileRoute("/legal/privacy")({
         Where the GDPR applies, we process personal data under the following
         bases: performance of a contract (operating the Service), legitimate
         interests (security, product improvement, fraud prevention), consent
-        (location, push notifications, wearables, optional AI memory, and
-        sharing your data with AI providers), and
+        (location, Apple Health, push notifications, wearables, optional AI
+        memory, and sharing your data with AI providers), and
         compliance with legal obligations.
       </p>
 
@@ -112,8 +152,61 @@ export const Route = createFileRoute("/legal/privacy")({
         can clear this data at any time by signing out, clearing site data in
         your browser, or uninstalling the installed app.
       </p>
+      <p>
+        In the RestPilot iPhone app this storage is the app's own web view
+        storage on your phone; it holds your signed-in session and cached
+        data, and if you connect Apple Health, the Apple Health summaries
+        described in section 5. Signing out removes the cached plan data and
+        the Apple Health summaries from the app. Like other app data, the
+        app's local storage may be included in your iPhone backup (iCloud or
+        computer backup) if you have device backups turned on; RestPilot does
+        not itself upload it to iCloud.
+      </p>
 
-      <h2>5. AI memory</h2>
+      <h2 id="apple-health">5. Apple Health (iPhone app)</h2>
+      <p>
+        In the RestPilot iPhone app you can choose to connect Apple Health.
+        RestPilot asks Apple Health for access only after you tap "Connect
+        Apple Health" and approve Apple's permission sheet. If you connect:
+      </p>
+      <ul>
+        <li>
+          <strong>What we read:</strong> sleep analysis, heart rate
+          variability (SDNN) and resting heart rate. Nothing else.
+        </li>
+        <li>
+          <strong>Read only:</strong> RestPilot never writes anything to Apple
+          Health.
+        </li>
+        <li>
+          <strong>What we keep, and where:</strong> nightly summaries for the
+          last 14 days, stored in the RestPilot app's local storage on your
+          iPhone. They are used on your phone to tailor your sleep plan and
+          recommendations.
+        </li>
+        <li>
+          <strong>Not sent anywhere:</strong> Apple Health data is not sent to
+          RestPilot's servers and is not included in what we send to AI
+          providers.
+        </li>
+        <li>
+          <strong>Not for advertising:</strong> we do not use Apple Health
+          data for advertising or marketing, and we do not sell it.
+        </li>
+        <li>
+          <strong>Removal:</strong> tapping Disconnect in Profile, signing
+          out, or signing in as a different account deletes RestPilot's copy.
+          To withdraw RestPilot's permission in Apple Health too, use
+          Settings → Health → Data Access &amp; Devices → RestPilot.
+        </li>
+        <li>
+          <strong>Backups:</strong> RestPilot does not upload this data to
+          iCloud itself. However, like other app data, it may be included in
+          your iPhone backup if you have iCloud or computer backup turned on.
+        </li>
+      </ul>
+
+      <h2>6. AI memory</h2>
       <p>
         With your permission, the AI maintains a small set of structured
         memories about you (such as "prefers caffeine cutoff at 14:00") to
@@ -123,7 +216,7 @@ export const Route = createFileRoute("/legal/privacy")({
         memories about your health or other sensitive categories.
       </p>
 
-      <h2 id="ai-providers">6. AI providers and your permission</h2>
+      <h2 id="ai-providers">7. AI providers and your permission</h2>
       <p>
         RestPilot's AI features (the coach, voice conversations, spoken
         briefings, insights, plans and shift-swap advice) are powered by
@@ -136,7 +229,7 @@ export const Route = createFileRoute("/legal/privacy")({
           coach messages and the context RestPilot adds to them, such as your
           shifts and schedule, sleep and fatigue estimates, preferences,
           preferred name, AI memories (only if you turned AI memory on), and
-          summaries from a wearable you connect (Fitbit or Oura). Used to write
+          summaries from a wearable you connected earlier (Fitbit or Oura). Used to write
           coach replies, briefings, plans, insights and shift-swap advice.
         </li>
         <li>
@@ -164,7 +257,7 @@ export const Route = createFileRoute("/legal/privacy")({
         <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
       </p>
 
-      <h2>7. Retention</h2>
+      <h2>8. Retention</h2>
       <table className="w-full text-left text-xs">
         <thead>
           <tr>
@@ -180,6 +273,17 @@ export const Route = createFileRoute("/legal/privacy")({
           <tr>
             <td>Shifts, trips, preferences</td>
             <td>Until you delete them or delete your account</td>
+          </tr>
+          <tr>
+            <td>Saved location, addresses and calendar feeds</td>
+            <td>Until you change or delete them or delete your account</td>
+          </tr>
+          <tr>
+            <td>Apple Health summaries (iPhone only)</td>
+            <td>
+              Last 14 days, on your iPhone only; deleted on Disconnect, sign-out
+              or account switch; may be included in your device backup
+            </td>
           </tr>
           <tr>
             <td>Wearable readings</td>
@@ -204,22 +308,26 @@ export const Route = createFileRoute("/legal/privacy")({
         </tbody>
       </table>
 
-      <h2>8. Sharing</h2>
+      <h2>9. Sharing</h2>
       <p>
         We share data with the third-party providers listed in our{" "}
         <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>{" "}
         registry only as needed to operate the Service, and with authorities
-        when required by law.
+        when required by law. Payments: on the website, payments are handled by
+        Stripe; in the iPhone app, purchases are made through Apple, and
+        RevenueCat receives your user ID and purchase history to tell us
+        whether your subscription is active. Apple Health data is not shared
+        with anyone (see section 5).
       </p>
 
-      <h2>9. International transfers</h2>
+      <h2>10. International transfers</h2>
       <p>
         Our infrastructure may process data in the United States and the
         European Union. Where required, we rely on Standard Contractual
         Clauses or equivalent safeguards.
       </p>
 
-      <h2>10. Your rights</h2>
+      <h2>11. Your rights</h2>
       <p>
         Depending on where you live, you may have the right to access,
         correct, port, delete, restrict, or object to processing of your
@@ -237,7 +345,7 @@ export const Route = createFileRoute("/legal/privacy")({
         CCPA/CPRA.
       </p>
 
-      <h2>11. Security</h2>
+      <h2>12. Security</h2>
       <p>
         Data is transmitted over HTTPS and stored on encrypted servers
         operated by our infrastructure provider. See our{" "}
@@ -246,7 +354,7 @@ export const Route = createFileRoute("/legal/privacy")({
         vulnerability.
       </p>
 
-      <h2>12. Children</h2>
+      <h2>13. Children</h2>
       <p>
         The Service is not directed to children under 16, and we do not
         knowingly collect personal information from them. If you believe a
@@ -254,13 +362,13 @@ export const Route = createFileRoute("/legal/privacy")({
         <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
-      <h2>13. Changes</h2>
+      <h2>14. Changes</h2>
       <p>
         We will post any changes to this Policy here with an updated
         "Effective" date. Material changes will be highlighted in the app.
       </p>
 
-      <h2>14. Contact</h2>
+      <h2>15. Contact</h2>
       <p>
         Email{" "}
         <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> for
