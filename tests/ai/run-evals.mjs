@@ -6,7 +6,7 @@
 //                               [--strict]
 //
 // What it guarantees:
-//   - a hard token cap (default 40k for --smoke, 1.5M otherwise) that every
+//   - a hard token cap (default 120k for --smoke, 1.5M otherwise) that every
 //     model call, including llm-rubric grading, reserves against before it is
 //     sent; calls past the cap are refused, never made;
 //   - a preflight estimate that refuses to start an uncached run whose worst
@@ -38,7 +38,7 @@ const strict = flag("--strict");
 const repeat = Math.max(1, Number(opt("--repeat", "1")) || 1);
 const filterPattern = opt("--filter-pattern", "");
 const maxTokens = Number(
-  opt("--max-tokens", process.env.RESTPILOT_EVAL_MAX_TOKENS || (smoke ? 40_000 : 1_500_000)),
+  opt("--max-tokens", process.env.RESTPILOT_EVAL_MAX_TOKENS || (smoke ? 120_000 : 1_500_000)),
 );
 const outDir = path.resolve(opt("--out", path.join(here, ".results")));
 
@@ -111,10 +111,19 @@ function summarise(resultsFile, ledger, meta) {
     });
     p.total += 1;
     const err = r.error || r.response?.error || "";
-    if (/BLOCKED|COST_CAP/.test(err)) p.blocked += 1;
-    else if (err && !r.gradingResult) p.error += 1;
-    else if (r.success) p.pass += 1;
-    else p.fail += 1;
+    // A refusal can come from the coach call or from any grading call.
+    const gradingText = [
+      r.gradingResult?.reason,
+      ...(r.gradingResult?.componentResults ?? []).map((c) => c?.reason),
+    ].join("\n");
+    const isBlocked = /BLOCKED|COST_CAP/.test(`${err}\n${gradingText}`);
+    let verdict;
+    if (dryRun) verdict = err ? "error" : "assembled";
+    else if (isBlocked) verdict = "blocked";
+    else if (err && !r.gradingResult) verdict = "error";
+    else verdict = r.success ? "pass" : "fail";
+    if (verdict === "assembled") p.pass += 1;
+    else p[verdict] += 1;
     if (r.response?.cached) p.cached += 1;
     const m = r.response?.metadata ?? {};
     if (m.latencyMs) p.latency.push(m.latencyMs);
@@ -126,10 +135,14 @@ function summarise(resultsFile, ledger, meta) {
       s.sum += Number(v) || 0;
       s.n += 1;
     }
-    if (!r.success) {
+    if (verdict === "fail" || verdict === "error" || verdict === "blocked") {
+      const reason = isBlocked
+        ? (`${err}\n${gradingText}`.match(/(BLOCKED|COST_CAP)[^\n]*/)?.[0] ?? "blocked")
+        : String(err || r.failureReason || r.gradingResult?.reason || "");
       p.failures.push({
+        verdict: verdict.toUpperCase(),
         test: r.testCase?.description ?? `#${r.testIdx}`,
-        reason: String(err || r.failureReason || r.gradingResult?.reason || "").slice(0, 300),
+        reason: reason.slice(0, 300),
       });
     }
     const key = `${label}::${r.testCase?.description ?? r.testIdx}`;
@@ -169,6 +182,11 @@ function summarise(resultsFile, ledger, meta) {
 
 function toMarkdown(s) {
   const lines = [`### RestPilot AI evals (${s.mode})`, ""];
+  if (s.status === "dry-run" || (s.mode ?? "").includes("dry-run"))
+    lines.push(
+      "Dry run: Pass = prompt assembled through the app code; no model calls, assertions not scored.",
+      "",
+    );
   if (s.status === "blocked") lines.push(`**Status: BLOCKED** - ${s.blockedReason}`, "");
   lines.push(
     `Token cap ${s.ledger?.cap ?? s.maxTokens}; used ${s.ledger?.used ?? 0} in ${s.ledger?.calls ?? 0} paid calls; ${s.ledger?.cachedHits ?? 0} cache hits; ${s.ledger?.refused ?? 0} refused by cap.`,
@@ -191,7 +209,7 @@ function toMarkdown(s) {
         .join(", ");
       if (m) lines.push(`- **${label}** metric averages: ${m}`);
       for (const f of p.failures.slice(0, 10))
-        lines.push(`  - FAIL ${f.test}: ${f.reason.replace(/\n/g, " ")}`);
+        lines.push(`  - ${f.verdict} ${f.test}: ${f.reason.replace(/\n/g, " ")}`);
     }
   }
   if (s.consistencyPct !== null && s.consistencyPct !== undefined)
@@ -226,6 +244,7 @@ const meta = {
     compare ? "compare" : null,
     repeat > 1 ? `repeat x${repeat}` : null,
     noCache ? "no-cache" : "cached",
+    dryRun ? "dry-run" : null,
   ]
     .filter(Boolean)
     .join(", "),
@@ -331,7 +350,7 @@ const totals = Object.values(summary.providers).reduce(
   { fail: 0, error: 0, blocked: 0, total: 0 },
 );
 summary.totals = totals;
-if (dryRun) summary.status = "dry-run";
+if (dryRun) summary.status = totals.error ? "error" : "dry-run";
 else if (totals.blocked === totals.total) {
   summary.status = "blocked";
   summary.blockedReason = ledgerData.refused

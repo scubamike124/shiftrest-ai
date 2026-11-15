@@ -1,7 +1,7 @@
 # Promptfoo AI evals for the RestPilot companion.
 #
 # PR smoke run: ~10 scenarios, served from the response cache when prompts are
-# unchanged, hard-capped at 40k tokens by tests/ai/run-evals.mjs. Runs only when
+# unchanged, hard-capped at 120k tokens by tests/ai/run-evals.mjs. Runs only when
 # AI code or the eval suite changes. The full suite, model comparison and
 # consistency runs are manual (workflow_dispatch) or part of qa-full.yml.
 #
@@ -74,7 +74,7 @@ jobs:
         run: |
           [[ -z "$CAP" || "$CAP" =~ ^[0-9]+$ ]] || { echo "max_tokens must be a number"; exit 1; }
           case "$MODE" in
-            smoke)       ARGS="--smoke";              CAP="${CAP:-40000}" ;;
+            smoke)       ARGS="--smoke";              CAP="${CAP:-120000}" ;;
             full)        ARGS="";                     CAP="${CAP:-1500000}" ;;
             compare)     ARGS="--compare";            CAP="${CAP:-3000000}" ;;
             consistency) ARGS="--repeat 3 --no-cache"; CAP="${CAP:-4500000}" ;;
