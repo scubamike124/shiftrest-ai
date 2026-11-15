@@ -331,6 +331,9 @@ export function computeInsights(
       : countedNights;
   const wearableNights = usedNights.length;
   const wearableProviders = [...new Set(usedNights.map((r) => r.provider))];
+  const shiftSource = shifts.length
+    ? "shifts entered by the user"
+    : "no shifts entered yet, so schedule values are defaults";
   const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
   const hrvTrend = computeHrvTrend(history);
   const lastNightDeficit =
@@ -504,24 +507,34 @@ export function computeInsights(
       : "",
     signals.length ? `Signals: ${signals.join("; ")}.` : "",
     `Sleep target ${prefs.sleepHours}h, wind-down ${prefs.windDownMin}min.`,
-    lastNight && lastNight.sleepDurationMin
-      ? `Last night (${lastNight.provider}, ${lastNight.date}): slept ${(
-          lastNight.sleepDurationMin / 60
-        ).toFixed(1)}h${
+    lastNight &&
+    !lastNight.sleepDurationMin &&
+    (lastNight.sleepEfficiency != null || lastNight.hrvMs != null)
+      ? `Last night (${lastNight.provider}, ${lastNight.date}): no sleep duration recorded${
           lastNight.sleepEfficiency != null
-            ? ` at ${Math.round(lastNight.sleepEfficiency * 100)}% efficiency`
+            ? `, ${Math.round(lastNight.sleepEfficiency * 100)}% efficiency`
             : ""
         }${lastNight.hrvMs != null ? `, HRV ${Math.round(lastNight.hrvMs)}ms` : ""}${
           lastNight.restingHr != null ? `, resting HR ${lastNight.restingHr}bpm` : ""
         }.`
-      : "",
+      : lastNight && lastNight.sleepDurationMin
+        ? `Last night (${lastNight.provider}, ${lastNight.date}): slept ${(
+            lastNight.sleepDurationMin / 60
+          ).toFixed(1)}h${
+            lastNight.sleepEfficiency != null
+              ? ` at ${Math.round(lastNight.sleepEfficiency * 100)}% efficiency`
+              : ""
+          }${lastNight.hrvMs != null ? `, HRV ${Math.round(lastNight.hrvMs)}ms` : ""}${
+            lastNight.restingHr != null ? `, resting HR ${lastNight.restingHr}bpm` : ""
+          }.`
+        : "",
     // Provenance for the AI: it must not present estimates as measurements
     // or invent wearable readings that are not listed here.
     // "No recent readings" only when no reading feeds anything (history can
     // be fresh even if the newest single night is not).
     wearableNights > 0
-      ? `Data sources: shifts entered by the user; ${wearableProviders.join(" and ")} wearable readings for ${wearableNights} night${wearableNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
-      : `Data sources for this summary: shifts entered by the user; it contains no recent wearable readings${wearableStale ? " (the newest one is more than 3 days old)" : ""}. Fatigue and recovery scores are schedule-based estimates. Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one.`,
+      ? `Data sources: ${shiftSource}; ${wearableProviders.join(" and ")} wearable readings for ${wearableNights} night${wearableNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements. Only cite a wearable measurement that is written out in this prompt; never guess one.`
+      : `Data sources for this summary: ${shiftSource}; it contains no recent wearable readings${wearableStale ? " (the newest one is more than 3 days old)" : ""}. Fatigue and recovery scores are schedule-based estimates. Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one.`,
   ]
     .filter(Boolean)
     .join(" ");

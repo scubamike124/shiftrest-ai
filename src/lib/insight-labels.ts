@@ -24,3 +24,37 @@ export function estimateSourceLabel(insights: Pick<Insights, "dataSources">): st
     return `${base}. Your newest wearable reading is more than 3 days old, so it isn't used.`;
   return `${base}. No wearable sleep data is used.`;
 }
+
+/**
+ * The dashboard whisper's one observation. Sleep debt is an estimate against
+ * the sleep target, so it says so and names the real number of nights.
+ */
+export function pickObservation(
+  insights: Pick<Insights, "sleepDebtHours" | "hrvTrend" | "signals" | "dataSources"> | null,
+): { id: string; text: string } | null {
+  if (!insights) return null;
+  // Highest-leverage signal first.
+  if (Math.abs(insights.sleepDebtHours) >= 2) {
+    const n = insights.dataSources.sleepNights;
+    const nights = `${n} night${n === 1 ? "" : "s"} of wearable sleep`;
+    const hours = Math.abs(insights.sleepDebtHours).toFixed(1);
+    return {
+      id: `debt-${Math.round(insights.sleepDebtHours)}`,
+      text:
+        insights.sleepDebtHours > 0
+          ? `Estimated sleep debt: about ${hours}h, from ${nights}.`
+          : `You're about ${hours}h ahead of your sleep target (an estimate from ${nights}).`,
+    };
+  }
+  if (insights.hrvTrend != null && insights.hrvTrend <= -0.07) {
+    return {
+      id: `hrv-${Math.round(insights.hrvTrend * 100)}`,
+      text: `Your HRV is trending ${Math.round(Math.abs(insights.hrvTrend) * 100)}% below your 7-day baseline — your body is asking for more recovery.`,
+    };
+  }
+  const firstSignal = insights.signals[0];
+  if (firstSignal) {
+    return { id: `sig-${firstSignal.slice(0, 24)}`, text: firstSignal };
+  }
+  return null;
+}

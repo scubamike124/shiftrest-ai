@@ -230,9 +230,9 @@ export function buildRecommendations(
       whenLabel: "tonight",
       kind: "recovery",
       title: `Bank ${Math.min(2, insights.sleepDebtHours - 2).toFixed(1)}h extra tonight`,
-      detail: `You're carrying ${insights.sleepDebtHours.toFixed(
-        1,
-      )}h of sleep debt. Add 30–90 min to tonight's window — don't try to repay it all at once.`,
+      detail: `About ${insights.sleepDebtHours.toFixed(1)}h of estimated sleep debt (from ${
+        insights.dataSources.sleepNights
+      } night${insights.dataSources.sleepNights === 1 ? "" : "s"} of wearable sleep). Add 30–90 min to tonight's window — don't try to repay it all at once.`,
       priority: 1,
       basedOnWearable: true,
     });

@@ -38,7 +38,10 @@ const load = (file, names, globals = {}) =>
     `${strip(file)}\n({${names.join(",")}})`,
     vm.createContext({ Date, Math, Number, String, ...globals }),
   );
-const { estimateSourceLabel } = load("src/lib/insight-labels.ts", ["estimateSourceLabel"]);
+const { estimateSourceLabel, pickObservation } = load("src/lib/insight-labels.ts", [
+  "estimateSourceLabel",
+  "pickObservation",
+]);
 const { lastNightFrom, recentNights } = load("src/lib/health/apple-health.ts", [
   "lastNightFrom",
   "recentNights",
@@ -306,4 +309,52 @@ test("privacy: nothing from Apple Health reaches the AI-bound context string", (
   assert.equal(d.insights.contextString, d.baseInsights.contextString);
   assert.doesNotMatch(d.insights.contextString, /apple|5\.8h|333|347/i);
   assert.match(d.insights.contextString, /contains no recent wearable readings/);
+});
+
+test("the dashboard whisper calls sleep debt an estimate and names the real night count", () => {
+  const i = computeInsights(shifts, prefs, now, [], night("2026-11-16", 300));
+  const obs = pickObservation(i);
+  assert.equal(obs.text, "Estimated sleep debt: about 3.0h, from 1 night of wearable sleep.");
+  assert.doesNotMatch(obs.text, /7 nights|You slept/);
+  const ahead = pickObservation({ ...i, sleepDebtHours: -2.5 });
+  assert.equal(
+    ahead.text,
+    "You're about 2.5h ahead of your sleep target (an estimate from 1 night of wearable sleep).",
+  );
+});
+
+test("efficiency-only night: the AI sees the reading it is told about, and is told not to guess", () => {
+  const r = {
+    provider: "oura",
+    date: "2026-11-16",
+    sleepDurationMin: null,
+    sleepEfficiency: 0.82,
+    hrvMs: null,
+    restingHr: null,
+  };
+  const i = computeInsights(shifts, prefs, now, [], r);
+  assert.match(
+    i.contextString,
+    /Last night \(oura, 2026-11-16\): no sleep duration recorded, 82% efficiency\./,
+  );
+  assert.match(i.contextString, /oura wearable readings for 1 night/);
+  assert.match(
+    i.contextString,
+    /Only cite a wearable measurement that is written out in this prompt; never guess one\./,
+  );
+});
+
+test("no shifts: the AI is told the schedule values are defaults", () => {
+  const i = computeInsights([], prefs, now);
+  assert.match(
+    i.contextString,
+    /Data sources for this summary: no shifts entered yet, so schedule values are defaults;/,
+  );
+  assert.doesNotMatch(i.contextString, /shifts entered by the user/);
+});
+
+test("the sleep-debt recommendation says estimated and how many nights", () => {
+  const rec = read("src/lib/recommendations.ts");
+  assert.doesNotMatch(rec, /You're carrying/);
+  assert.match(rec, /of estimated sleep debt \(from \$\{/);
 });
