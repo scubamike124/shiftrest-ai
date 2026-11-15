@@ -52,6 +52,7 @@ import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
+import { mondayIso } from "@/lib/schedule";
 
 export const Route = createFileRoute("/profile")({
   ssr: false,
@@ -627,6 +628,21 @@ function Profile() {
       <NotificationsSection signedIn={signedIn} />
 
       <section className="rounded-2xl border border-border bg-card">
+        <Link to="/settings/privacy" className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Shield className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Privacy &amp; AI data sharing</p>
+              <p className="text-xs text-muted-foreground">
+                Choose whether RestPilot may send your data to its AI providers.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Divider />
         <Link to="/privacy" className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
@@ -1061,13 +1077,7 @@ function RotationSection({
       })
     : "this week";
   function setThisWeekAsA() {
-    const now = new Date();
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    const y = mon.getFullYear();
-    const m = String(mon.getMonth() + 1).padStart(2, "0");
-    const d = String(mon.getDate()).padStart(2, "0");
-    update("cycleAnchor", `${y}-${m}-${d}`);
+    update("cycleAnchor", mondayIso());
   }
   return (
     <section className="rounded-2xl border border-border bg-card">
@@ -1083,7 +1093,12 @@ function RotationSection({
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <button
               key={n}
-              onClick={() => update("cycleWeeks", n)}
+              onClick={() => {
+                update("cycleWeeks", n);
+                // Without a saved anchor the rotation has no fixed Week A;
+                // pin it to this week, which is what the schedule shows now.
+                if (n > 1 && !prefs.cycleAnchor) setThisWeekAsA();
+              }}
               className={`min-h-11 min-w-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold transition sm:min-h-0 sm:text-xs ${
                 cw === n
                   ? "border-transparent bg-primary text-primary-foreground"

@@ -81,63 +81,74 @@ final class ShellE2ETests: XCTestCase {
         snapshot("B2 offline screen after retry", app)
     }
 
-    /// Apple's Health permission sheet: "Turn On All", then "Allow". The sheet is
-    /// hosted by a system service and can take a while on a busy CI simulator,
-    /// so look in the app and in SpringBoard. Returns the "Turn On All" control.
-    private func findHealthSheet(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
+    /// Apple's Health permission sheet, found by its "Turn On All" control.
+    /// `tappable` is false when the control was found only through
+    /// com.apple.HealthPrivacyService: those elements carry the remote scene's
+    /// frames, so XCUITest's taps on them fail ("not hittable") even when
+    /// isHittable says otherwise.
+    private struct HealthSheet {
+        let turnOn: XCUIElement
+        let tappable: Bool
+    }
+
+    /// The sheet is drawn by a system service and can take a while on a busy CI
+    /// simulator, so look in the app, the Health privacy service and SpringBoard.
+    private func findHealthSheet(in app: XCUIApplication, timeout: TimeInterval) -> HealthSheet? {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            for p in [app, healthPrivacy, springboard] {
+            for (p, tappable) in [(app, true), (healthPrivacy, false), (springboard, true)] {
                 let el = p.descendants(matching: .any)
                     .matching(NSPredicate(format: "label == %@", "Turn On All")).firstMatch
-                if el.waitForExistence(timeout: 3) { return el }
+                if el.waitForExistence(timeout: 3) { return HealthSheet(turnOn: el, tappable: tappable) }
             }
         }
         return nil
     }
 
-    private func allowOnHealthSheet(_ turnOn: XCUIElement, in app: XCUIApplication) {
-        // Found through the Health privacy service, the controls can carry frames
-        // from the remote scene that XCUITest cannot tap ("not hittable").
-        guard turnOn.isHittable else { return allowOnHealthSheetByPosition(app) }
-        turnOn.tap()
+    private func allowOnHealthSheet(_ sheet: HealthSheet, in app: XCUIApplication) {
+        guard sheet.tappable, sheet.turnOn.isHittable else { return allowOnHealthSheetByPosition(app) }
+        sheet.turnOn.tap()
         snapshot("Health sheet, all turned on", app)
         var allow: XCUIElement?
-        for p in [app, healthPrivacy, springboard] {
+        for p in [app, springboard] {
             for q in [p.navigationBars.buttons, p.buttons] {
                 let el = q.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch
                 if el.waitForExistence(timeout: 5) { allow = el; break }
             }
             if allow != nil { break }
         }
-        guard let allow else { return XCTFail("no Allow button on the Health sheet") }
-        if allow.isHittable {
+        if let allow, allow.isHittable {
             allow.tap()
         } else {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.859)).tap()
+            app.coordinate(withNormalizedOffset: allowPosition).tap()
         }
     }
 
-    /// Fallback when the sheet is on screen but its controls are missing from, or
-    /// not hittable in, the
-    /// accessibility tree (seen on CI: the screenshot shows the sheet, queries
-    /// find nothing). Taps "Turn On All", then "Allow", at their positions on
-    /// the sheet as laid out on the CI iPhone simulator. If the taps miss, the
-    /// page never reports HEALTH PASS and the test fails.
+    /// Positions of "Turn On All" and "Allow" on the sheet as laid out on the CI
+    /// iPhone simulator (normalized to the screen).
+    private let turnOnAllPosition = CGVector(dx: 0.5, dy: 0.507)
+    private let allowPosition = CGVector(dx: 0.5, dy: 0.859)
+
+    /// Fallback when the sheet is on screen but its controls are missing from,
+    /// or not tappable in, the accessibility tree (seen on CI: the screenshot
+    /// shows the sheet, queries find nothing or only remote-scene frames). Taps
+    /// "Turn On All", then "Allow", by position. If the taps miss, the seeder or
+    /// the page never reports success and the test fails.
     private func allowOnHealthSheetByPosition(_ app: XCUIApplication) {
-        snapshot("Health sheet controls not in the accessibility tree; tapping by position", app)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.507)).tap()
+        print("E2E: Health sheet controls not tappable via accessibility; tapping by position")
+        snapshot("Health sheet: tapping by position", app)
+        app.coordinate(withNormalizedOffset: turnOnAllPosition).tap()
         sleep(2)
         snapshot("Health sheet after Turn On All (by position)", app)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.859)).tap()
+        app.coordinate(withNormalizedOffset: allowPosition).tap()
     }
 
     private func approveHealthSheet(in app: XCUIApplication) {
-        guard let turnOn = findHealthSheet(in: app, timeout: 90) else {
+        guard let sheet = findHealthSheet(in: app, timeout: 90) else {
             snapshot("Health sheet not found", app)
             return XCTFail("Health permission sheet did not appear within 90 s")
         }
-        allowOnHealthSheet(turnOn, in: app)
+        allowOnHealthSheet(sheet, in: app)
     }
 
     private func waitForResult(_ el: XCUIElement, notEqual running: String, timeout: TimeInterval) {
@@ -177,8 +188,8 @@ final class ShellE2ETests: XCTestCase {
             let ready = expectation(for: enabled, evaluatedWith: connect)
             wait(for: [ready], timeout: 90)
             connect.tap()
-            if let turnOn = findHealthSheet(in: app, timeout: 60) {
-                allowOnHealthSheet(turnOn, in: app)
+            if let sheet = findHealthSheet(in: app, timeout: 60) {
+                allowOnHealthSheet(sheet, in: app)
                 approved = true
             } else if result.label == "HEALTH RUNNING" {
                 // Still waiting on Apple's sheet: it is very likely on screen.

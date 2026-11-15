@@ -17,7 +17,10 @@ test("the app shell appends RestPilotApp/<marketing version> to its user agent",
   ].map((m) => m[1]);
   assert.ok(versions.length >= 1);
   assert.equal(new Set(versions).size, 1, "Debug and Release share one marketing version");
-  assert.equal(config.appendUserAgent, `RestPilotApp/${versions[0]}`);
+  // RestPilotApp/<version> stays last (the native E2E checks the suffix).
+  // RestPilotWebOAuth/1 tells the site this build keeps OAuth in the web view
+  // (src/lib/auth/oauth-providers.ts), so Sign in with Apple can be offered.
+  assert.equal(config.appendUserAgent, `RestPilotWebOAuth/1 RestPilotApp/${versions[0]}`);
   assert.equal(
     config.ios?.overrideUserAgent ?? config.overrideUserAgent,
     undefined,

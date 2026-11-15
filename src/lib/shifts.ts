@@ -240,8 +240,24 @@ export function toTimeInput(min: number): string {
   return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
 }
 
+/**
+ * A shift as it appears in a Partner Mode link. The link is readable by anyone
+ * who has it, so it carries only the times: never notes, titles, employers or
+ * database ids.
+ */
+export type SharedShift = Pick<Shift, "day" | "start" | "end"> & { weekIndex?: number };
+
+export function toSharedShifts(shifts: Shift[]): SharedShift[] {
+  return shifts.map((s) => ({
+    day: s.day,
+    weekIndex: s.weekIndex ?? 0,
+    start: s.start,
+    end: s.end,
+  }));
+}
+
 /** Returns shift end as absolute minutes (may exceed 1440 if overnight). */
-export function endAbsolute(shift: Shift): number {
+export function endAbsolute(shift: Pick<Shift, "start" | "end">): number {
   return shift.end <= shift.start ? shift.end + 1440 : shift.end;
 }
 

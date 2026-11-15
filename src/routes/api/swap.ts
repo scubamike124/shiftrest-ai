@@ -37,10 +37,18 @@ export const Route = createFileRoute("/api/swap")({
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
           if ("response" in auth) return auth.response;
+          // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+          // Before admission, so a refusal never uses up the user's AI allowance.
+          {
+            const { requireAIConsent } = await import("@/lib/ai/consent.server");
+            const refused = await requireAIConsent(auth.userId);
+            if (refused) return refused;
+          }
         const admission = await requireAIAdmission(auth.userId);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
+
 
           {
             const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
