@@ -99,6 +99,7 @@ const TRACK_ALIASES: Record<string, string> = {
 function normalize(s: string): string {
   return s
     .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
     .normalize("NFKD")
     .replace(/[^\p{Letter}\p{Number}\s:']/gu, " ")
     .replace(/\s+/g, " ")
@@ -148,7 +149,78 @@ const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.
 // "schedule alarm", "wake me up"), then the time. This lets us catch
 // every common phrasing without false positives on bare clock mentions.
 const RE_WAKE =
-  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|a\s?m|p\s?m)?\b/i;
+
+// Questions and long sentences are for the AI, even when they mention a sound
+// ("is rain bad?", "my fire captain..."), a wake time ("I usually wake at 6
+// AM...") or a timer. Local actions need a command.
+const RE_QUESTION_START =
+  /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
+// Optional lead-in before a command: "hey", "ok", "please", "can you".
+const RE_LEAD =
+  /^(?:(?:hey|ok|okay|hi)\s+)?(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?)?/;
+const RE_COMMAND_VERB = /^(?:wake|set|start|play|put\s+on|turn\s+on|switch\s+on|fade|stop)\b/;
+const RE_WAKE_INTENT =
+  /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
+// Endings a sound request may have: "for 20 minutes", "for an hour", "all
+// night", "until I fall asleep", "for me", "to help me sleep", "please".
+const RE_DURATION_TAIL =
+  /(?:\s+(?:for\s+(?:\d{1,3}|an?|one|two|three|half\s+an)\s*(?:min|mins|minute|minutes|m|hours?|h)\b|all\s+night|until\s+i\s+(?:fall\s+asleep|sleep)|for\s+me|to\s+help\s+me\s+sleep|please))+\s*$/;
+// Words that may follow a timer or alarm command ("... tomorrow morning please").
+const COMMAND_TAIL_WORDS = new Set([
+  "please",
+  "tomorrow",
+  "morning",
+  "tonight",
+  "today",
+  "now",
+  "for",
+  "work",
+  "my",
+  "shift",
+  "nap",
+  "again",
+  "thanks",
+  "thank",
+  "you",
+  "o'clock",
+  "oclock",
+  "in",
+  "the",
+  "on",
+  "at",
+  "night",
+  "evening",
+  "afternoon",
+  "early",
+  "day",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+const FILLER =
+  /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
+
+/** A phrase that is nothing but a sound name ("rain", "the ocean sounds", "rain for 20 minutes"). */
+function exactTrack(phrase: string): { slug: string; label: string } | null {
+  const whole = normalize(phrase).replace(RE_DURATION_TAIL, "").trim();
+  const direct = TRACK_ALIASES[whole] ?? TRACK_ALIASES[whole.replace(/^(?:some|the|a)\s+/, "")];
+  if (direct) {
+    const d = TRACKS.find((x) => x.slug === direct);
+    if (d) return { slug: d.slug, label: d.label };
+  }
+  const c = whole.replace(FILLER, " ").replace(/\s+/g, " ").trim();
+  if (!c) return null;
+  const alias = TRACK_ALIASES[c];
+  const t = alias
+    ? TRACKS.find((x) => x.slug === alias)
+    : TRACKS.find((x) => x.label.toLowerCase() === c);
+  return t ? { slug: t.slug, label: t.label } : null;
+}
 
 const RE_SLEEP_MODE =
   /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode|bedtime(?:\s+routine)?)\s*$/i;
@@ -191,7 +263,7 @@ const RE_OPEN_PAGE =
   /^(?:open|go\s+to|show)\s+(?:my\s+|the\s+)?(inbox|memory|automations?|routines?|smart\s*home|dashboard|sleep|companion|events?|plan)\s*$/i;
 
 const RE_PLAY =
-  /^(?:please\s+)?(?:play|start|put\s+on|i\s+(?:want|need|would\s+like))\s+(.+?)\s*$/i;
+  /^(?:please\s+)?(?:play|start|put\s+on|turn\s+on|switch\s+on|i\s+(?:want|need|would\s+like)|i'd\s+like)\s+(.+?)\s*$/i;
 
 // ---------- main parser ----------
 
@@ -199,6 +271,19 @@ export function parseIntent(input: string): ParsedIntent {
   const raw = (input ?? "").trim();
   const text = normalize(raw);
   if (!text) return { intent: { kind: "unknown" }, confidence: 0, raw };
+  // "Can you wake me up at 6?" is a polite command, not a question; a command
+  // must start right after the lead-in.
+  const lead = (text.match(RE_LEAD)?.[0] ?? "").length;
+  const commandAt = (i: number | undefined) => i === 0 || i === lead;
+  const tailOk = (m: RegExpMatchArray) =>
+    text
+      .slice((m.index ?? 0) + m[0].length)
+      .trim()
+      .split(" ")
+      .filter(Boolean)
+      .every((w) => COMMAND_TAIL_WORDS.has(w));
+  const question =
+    (/\?\s*$/.test(raw) && !RE_COMMAND_VERB.test(text.slice(lead))) || RE_QUESTION_START.test(text);
 
   if (RE_CANCEL.test(text)) return { intent: { kind: "cancel" }, confidence: 1, raw };
   if (RE_GOODNIGHT.test(text)) return { intent: { kind: "goodnight" }, confidence: 1, raw };
@@ -228,7 +313,14 @@ export function parseIntent(input: string): ParsedIntent {
 
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
-  if (mTimer) {
+  // A command, and nothing much after it ("the sleep timer 30 minutes is too short" is not one).
+  if (
+    mTimer &&
+    !question &&
+    (commandAt(mTimer.index) ||
+      /^(?:start|set|turn\s+on|i\s+need|i\s+want)\b/.test(text.slice(lead))) &&
+    tailOk(mTimer)
+  ) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
     return { intent: { kind: "set_timer", minutes }, confidence: 0.95, raw };
   }
@@ -240,12 +332,23 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   const mWake = text.match(RE_WAKE);
-  if (mWake) {
+  if (
+    mWake &&
+    !question &&
+    (commandAt(mWake.index) || RE_WAKE_INTENT.test(text)) &&
+    tailOk(mWake)
+  ) {
     let hour = parseInt(mWake[1], 10);
     const minute = mWake[2] ? clamp(parseInt(mWake[2], 10), 0, 59) : 0;
     const ampm = mWake[3]?.toLowerCase();
     if (ampm?.startsWith("p") && hour < 12) hour += 12;
     if (ampm?.startsWith("a") && hour === 12) hour = 0;
+    // "6 in the evening", "5 in the afternoon", "9 tonight" without a.m./p.m.
+    const after = text.slice((mWake.index ?? 0) + mWake[0].length);
+    if (!ampm && hour < 12 && /\b(?:afternoon|evening)\b/.test(after)) hour += 12;
+    // "9 tonight" is 21:00, but "2 tonight" (after midnight) and "12 tonight" are early morning.
+    if (!ampm && /\btonight\b/.test(after))
+      hour = hour === 12 ? 0 : hour >= 6 && hour < 12 ? hour + 12 : hour;
     hour = clamp(hour, 0, 23);
     return { intent: { kind: "wake_at", hour, minute }, confidence: 0.9, raw };
   }
@@ -282,11 +385,37 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   // Play <track> — explicit play verb is high-confidence regardless of phrasing.
-  const mPlay = text.match(RE_PLAY);
+  // Polite commands: "can you play rain", "could you put on ocean sounds".
+  // "hey play rain", "ok, could you turn on white noise".
+  const playText = text.replace(/^(?:hey|ok|okay|hi)\s+/, "");
+  const mPolite = playText.match(
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\s+(.+)$/,
+  );
+  const politeTrack = mPolite ? exactTrack(mPolite[1]) : null;
+  if (politeTrack) {
+    return {
+      intent: { kind: "play_track", slug: politeTrack.slug, label: politeTrack.label },
+      confidence: 0.95,
+      raw,
+    };
+  }
+
+  const mPlay = playText.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
-    const t = resolveTrack(phrase);
-    if (t) return { intent: { kind: "play_track", slug: t.slug, label: t.label }, confidence: 0.95, raw };
+    const playVerb = /^(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\b/.test(playText);
+    const loose =
+      phrase.replace(RE_DURATION_TAIL, "").replace(FILLER, " ").trim().split(/\s+/).length <= 2;
+    const t = question
+      ? null
+      : (exactTrack(phrase) ?? (playVerb && loose ? resolveTrack(phrase) : null));
+    if (t) {
+      return {
+        intent: { kind: "play_track", slug: t.slug, label: t.label },
+        confidence: 0.95,
+        raw,
+      };
+    }
     return {
       intent: { kind: "unknown", alternates: suggestTracks(phrase) },
       confidence: 0.3,
@@ -297,11 +426,16 @@ export function parseIntent(input: string): ParsedIntent {
   // Bare track name ("rain", "ocean sounds") — upgrade to high confidence
   // when the whole utterance unambiguously matches a known sound noun
   // (with optional "sound(s)" / leading filler stripped by normalize()).
-  const bare = resolveTrack(text);
+  // Only an utterance that is just a sound name counts: a sentence that
+  // merely contains a sound word ("cabin crew", "fire captain", "is rain bad?")
+  // is a question for the AI, not a request to play a track.
+  const bare = question ? null : exactTrack(text);
   if (bare) {
-    const stripped = text.replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim();
-    const shortAndClean = stripped.split(" ").length <= 3;
-    return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: shortAndClean ? 0.9 : 0.65, raw };
+    return {
+      intent: { kind: "play_track", slug: bare.slug, label: bare.label },
+      confidence: 0.9,
+      raw,
+    };
   }
 
   return { intent: { kind: "unknown" }, confidence: 0, raw };
