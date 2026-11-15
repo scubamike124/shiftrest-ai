@@ -126,3 +126,20 @@ test('every link or redirect to /paywall or /pricing in the app UI is gated', ()
   const pricingLink = index.indexOf('to="/pricing"');
   assert.ok(pricingLink > index.indexOf('function PricingPreview') && pricingLink < index.indexOf('function CtaBand'));
 });
+
+test('after hydration, components mounted later start hidden in the app (no flash on client navigation)', () => {
+  const src = read('src/lib/native-app.ts');
+  assert.match(src, /useState\(\(\) => \(hydrated \? isNativeApp\(\) : false\)\)/);
+  assert.match(src, /useEffect\(\(\) => \{\s*hydrated = true;\s*setNative\(isNativeApp\(\)\);/);
+  // Behaviour: simulate React's useState initialiser and effect with a stub.
+  let effects = [];
+  const react = { useState: (init) => [typeof init === 'function' ? init() : init, () => {}], useEffect: (fn) => effects.push(fn) };
+  const m = (() => {
+    const ts = process.getBuiltinModule('node:module').stripTypeScriptTypes;
+    const js = ts(read('src/lib/native-app.ts')).replace(/^import[\s\S]*?;\n/gm, '').replaceAll('export ', '');
+    return new Function('useState', 'useEffect', 'window', 'navigator', `${js}; return { useIsNativeApp };`)(react.useState, react.useEffect, { Capacitor: { isNativePlatform: () => true } }, { userAgent: 'x' });
+  })();
+  assert.equal(m.useIsNativeApp(), false, 'first render matches the server');
+  effects.forEach((fn) => fn());
+  assert.equal(m.useIsNativeApp(), true, 'a component mounted after hydration starts hidden');
+});
