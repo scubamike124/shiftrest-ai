@@ -58,7 +58,7 @@ import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
-import { hasCrisisCue } from "@/lib/safety/crisis-cues";
+import { hasCrisisCue, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 
@@ -659,12 +659,13 @@ function CompanionPage() {
     // Gate only on send-in-flight and empty text. companionOn used to gate
     // here, which silently swallowed every voice turn for users who hadn't
     // toggled Companion Mode on — root cause of "Nova never replies".
-    if (!text || sending) return;
-    // Local crisis-cue check first: before intent routing, the AI consent gate
-    // and any AI or network call, so the crisis line shows with or without AI
-    // permission. It never stops the conversation.
-    const crisis = hasCrisisCue(text);
-    if (crisis) setCrisisCard(true);
+    if (!text) return;
+    // Local crisis-cue check first: before the `sending` guard, intent
+    // routing, the AI consent gate and any AI or network call, so the crisis
+    // line shows with or without AI permission, even while a reply is still
+    // streaming. It never stops the conversation.
+    const crisis = showCardOnCrisis(text, () => setCrisisCard(true));
+    if (sending) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
@@ -776,9 +777,10 @@ function CompanionPage() {
         track({ event: "voice_turn_failed", stage: "auth" });
         return;
       }
-      // Without AI permission, a crisis message gets the crisis card rather
-      // than a data-sharing prompt. Nothing is sent; the user can keep typing.
-      if (crisis && (await aiConsentWouldAsk())) return;
+      // Without AI permission, a crisis message gets the crisis card (already
+      // shown above; keep this after showCardOnCrisis) rather than a
+      // data-sharing prompt. Nothing is sent; the user can keep typing.
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) return;
       emitDebug("ai-req");
       const resp = await aiFetch("/api/ai", {
         method: "POST",
