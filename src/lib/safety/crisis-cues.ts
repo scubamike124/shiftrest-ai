@@ -36,13 +36,14 @@ const TOOK_PAST = "(took|swallowed|downed|have taken|i've taken|just took)";
 // people describe a routine, so those skip specific routine phrases ("with
 // breakfast", "before my shift").
 const TOOK_INTENT =
-  "((going to|gonna|want to|wanna|about to|planning to|might) (take|swallow)|(thinking (of|about)|considering) (taking|swallowing))";
-const TOOK_MAYBE = "((i'll|i will|will|could|may) (take|swallow))";
+  "((going to|gonna|want to|wanna|about to|planning to) (take|swallow)|(thinking (of|about)|considering) (taking|swallowing))";
+// First person only, so not "the pharmacy will take all my pills back".
+const TOOK_MAYBE = "((i'll|i will|i could|i may|i might) (take|swallow))";
 const TOOK = `(${TOOK_PAST}|${TOOK_INTENT}|${TOOK_MAYBE})`;
 // Specific daily-routine phrases only, so "at once", "with vodka" or "before
 // anyone wakes up" still count.
 const ROUTINE =
-  "(with (my )?(breakfast|lunch|dinner|food|water|a meal|meals|my meal)|(before|after) (my |the )?(shift|work|bed|breakfast|lunch|dinner|meal)|as prescribed|on time|(every|each) (day|morning|night|evening)|(in the|this) (morning|afternoon|evening)|today|at \\d)";
+  "(with (my )?(breakfast|lunch|dinner|food|water|a meal|meals|my meal)|(before|after) (my |the )?(shift|work|bed|breakfast|lunch|dinner|meal)|as prescribed|on time|(every|each) (day|morning|night|evening)|(in the|this) (morning|afternoon|evening)|at \\d|with me|on (the |my )?(trip|flight|holiday|vacation|plane))";
 const CONTAINER = "((a|the|my) )?(whole |entire )?(bottle|pack|packet|box|strip|blister pack)";
 const END = "\\s*([.!?,;]|$)";
 
@@ -71,8 +72,10 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bunalive myself\b/i,
   /\b(better off|rather be|i'd rather be) dead\b/i,
   /\b(everyone|everybody|they|my family|my kids|the world|people) (would be|'d be|would all be|are) better off without me\b/i,
-  /\bdone (with )?(life|living)\b/i,
-  /\b(deserve|deserved) to die\b/i,
+  /\bdone with (life|living)\b/i,
+  // Not "done living here / with my parents / paycheck to paycheck".
+  /\b(i'?m|i am) (so |just |really |honestly )?done living( like this| anymore| any more)?\s*([.!?;]|$)/i,
+  /\bi (really |just |honestly |probably )?(deserve|deserved) to die\b/i,
   /\b(keep|been|always|can't stop|cannot stop|constantly) thinking about (dying|death|ending it all)\b/i,
   /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
