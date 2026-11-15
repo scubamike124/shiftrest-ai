@@ -141,6 +141,7 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
 
 ### E. Railway cutover (later)
 - **Enable Apple in the Railway Supabase project** (computer): Auth → Providers → Apple, with the Services ID, Team ID, Key ID and `.p8` secret. Return URL: `https://<project>.supabase.co/auth/v1/callback`.
+- **Shell for Apple in the app on Railway** (Mac): add that project's exact `<ref>.supabase.co` to `server.allowNavigation`, append `RestPilotWebOAuth/2` to `appendUserAgent`, then rebuild. Never use a wildcard.
 - **Keep the AI providers matching the copy.** On that hosting, text AI goes to `AI_BASE_URL`, or to OpenAI when `AI_BASE_URL` is unset. #62's copy therefore names "Google Gemini (Google's Gemini API), or OpenAI" for text, and "OpenAI" for voice. Its consent version, `2026-11-15-railway`, differs from main's, so users are asked again after the cutover, which is correct because the recipients change. If you set `AI_BASE_URL` to Gemini for good, you can narrow the copy to Google. Whenever the copy changes, also update `/legal/privacy` and `/legal/third-parties`, and bump the version.
 
 ---
