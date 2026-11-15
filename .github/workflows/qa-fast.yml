@@ -43,11 +43,19 @@ jobs:
       # carries the repository's ~6.4k pre-existing findings.
       - name: Lint (changed lines)
         if: >-
-          (github.event_name == 'pull_request' && github.head_ref != 'codex/restpilot-railway-migration') ||
-          (github.event_name == 'push' && github.event.before != '0000000000000000000000000000000000000000')
+          (github.event_name == 'pull_request' &&
+           !(github.head_ref == 'codex/restpilot-railway-migration' &&
+             github.event.pull_request.head.repo.full_name == github.repository)) ||
+          (github.event_name == 'push' && !github.event.forced &&
+           github.event.before != '0000000000000000000000000000000000000000')
         env:
           LINT_BASE: ${{ github.event_name == 'push' && github.event.before || format('origin/{0}', github.base_ref) }}
-        run: node scripts/qa/lint-changed.mjs "$LINT_BASE"
+        run: |
+          if ! git cat-file -e "$LINT_BASE^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$LINT_BASE" 2>/dev/null || {
+              echo "::notice::Lint base $LINT_BASE is not available; changed-lines lint skipped."; exit 0; }
+          fi
+          node scripts/qa/lint-changed.mjs "$LINT_BASE"
       # Typecheck and unit tests always report, even when lint fails.
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -57,7 +65,10 @@ jobs:
         run: |
           set -o pipefail
           npm run test:repair 2>&1 | tee unit-tests.log
-          { echo "### Unit tests"; grep -E '^# (tests|pass|fail)' unit-tests.log | sed 's/^# /- /'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Unit-test summary
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          { echo "### Unit tests"; grep -E '^# (tests|pass|fail)' unit-tests.log | sed 's/^# /- /' || echo "- no TAP summary found"; } >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: Production build
