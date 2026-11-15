@@ -231,6 +231,29 @@ const POSITIVE = [
   "I'm going to kill myself",
   "can you overdose on melatonin?", // deliberate: any overdose mention shows the card
   "this job makes me want to die lol", // deliberate: cautious side
+  // From the second independent reviews (#68, #69)
+  "I'd rather be dead",
+  "I would rather be dead",
+  "Life isn't worth living",
+  "I want to stop living",
+  "I'm ready to die",
+  "I hurt myself on purpose",
+  "I've been hurting myself",
+  "I keep hurting myself",
+  "I took 20 sleeping pills",
+  "I took 30 pills",
+  "I swallowed a bottle of pills",
+  "I took a bottle of pills",
+  "I'm going to off myself",
+  "I wanna kms",
+  "I'm going to hang myself",
+  "I want to shoot myself",
+  "I want to jump off a bridge",
+  "I want to jump in front of a train",
+  "I wish I could just die",
+  "I don't want to wake up ever again",
+  "I don't want to wake up at all.",
+  "I wish I could just not wake up",
 ];
 
 const NEGATIVE = [
@@ -265,6 +288,16 @@ const NEGATIVE = [
   "should I get suicide doors on my next car",
   "watched Suicide Squad before bed",
   "I take too many vitamins",
+  "I'm killing myself laughing at this rota",
+  "I took 2 pills of ibuprofen for my back",
+  "I drove 40 kms to work",
+  "I need to take the pressure off myself",
+  "I don't want to wake up at 5 tomorrow",
+  "I don't want to wake up again at 3am",
+  "I wish I could not wake up early tomorrow",
+  "I hang my scrubs up after work",
+  "life is worth it when I get a full night",
+  "my cat likes to jump off the couch at 4am",
   "",
 ];
 

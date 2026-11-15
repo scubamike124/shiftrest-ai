@@ -26,16 +26,27 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bsuicid(?!e (doors?|squad)\b)/i,
   /\bkill myself\b/i,
   // "killing myself with these doubles / working nights" is overwork talk.
-  /\bkilling myself\b(?! (with|working|at|on|over|for|to (get|make|finish|keep))\b)/i,
+  /\bkilling myself\b(?! (with|working|at|on|over|for|laughing|to (get|make|finish|keep))\b)/i,
+  /\b(going to|gonna|want to|wanna|might|will|i'll|could) off myself\b/i,
+  /\b(going to|gonna|want to|wanna|about to|i'll|ima|i'm gonna) kms\b/i,
+  // A stated method is the highest risk.
+  /\b(hang|hanging|shoot|shooting|drown|drowning|stab|stabbing|poison|poisoning) myself\b/i,
+  /\bjump(ing)? (off|from) (a|the|that) (bridge|building|roof|cliff|balcony|tower)\b/i,
+  /\b(jump|jumping|step|stepping|throw myself|throwing myself) in front of (a|the) (train|bus|car|truck|lorry)\b/i,
   /\b(end|ending|take|taking) my (own )?life\b(?! back)/i,
   /\bend it all\b/i,
   /\bunalive myself\b/i,
-  /\bbetter off dead\b/i,
+  /\b(better off|rather be|i'd rather be) dead\b/i,
+  /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
   // Wanting to die
-  /\b(want to|wanted to|wanna) (die|be dead)\b/i,
+  /\b(want to|wanted to|wanna) (die|be dead|stop living)\b/i,
+  /\bready to die\b/i,
   /\bwish (i was|i were|i'd) dead\b/i,
-  /\bwish i (could|would) die\b/i,
+  /\bwish i (could|would) (just )?die\b/i,
+  // Not wanting to wake up at all (not "don't want to wake up at 5").
+  /\bdon'?t (want to|wanna) (ever )?wake up( ever)? (ever again|again|at all|anymore|any more)\s*([.!?,;]|$)/i,
+  /\bwish i (could|would)? ?(just )?(not|never) wake up( again| ever again)?\s*([.!?,;]|$)/i,
   /\bwish i (wasn't|weren't|wasnt|werent) alive\b/i,
   /\bwish i'?d never been born\b/i,
   /\bdon'?t (want to|wanna) (be alive|exist)\b/i,
@@ -45,10 +56,14 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bself[-\s]?harm/i,
   /\bharm(ing)? myself\b/i,
   /\b(want|wanna|going|gonna|urge|tempted|thinking about|think about|thought about|feel like)( to)? (hurt|hurting) myself\b/i,
+  /\b(been|keep|keeps|kept|started|start) (hurting|cutting|burning|harming) myself\b/i,
+  /\b(hurt|hurting|cut|cutting|burn|burning|burned|burnt) myself on purpose\b/i,
   /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the)\b)/i,
   // Overdose ("overdosing on coffee" is tiredness slang; anything else counts)
   /\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
-  /\b(took|take|taking|swallow(ed)?|swallowing) (all|a whole bottle of|the whole bottle of|a bunch of) (of )?(my |the )?(sleeping )?(pills|meds|medication|tablets)\b/i,
+  /\b(took|take|taking|swallow(ed)?|swallowing) (all|(a |the )?(whole )?bottle of|a bunch of) (of )?(my |the )?(sleeping )?(pills|meds|medication|tablets)\b/i,
+  // Two or more digits, so "took 2 pills" stays quiet.
+  /\b(took|swallowed|have taken|i've taken|just took) \d{2,} (of )?(my |the )?(sleeping )?(pills|meds|tablets)\b/i,
   /\b(took|swallowed|have taken|i've taken|i just took) (way )?(too many|a handful of|a lot of|loads of) (of )?(my |the )?(sleeping )?(pills|meds|medication|tablets)\b/i,
 ];
 
