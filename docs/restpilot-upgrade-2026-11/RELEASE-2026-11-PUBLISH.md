@@ -1,6 +1,6 @@
 # RestPilot production release package: publish checklist and post-publish verification
 
-_Nov 15 2026. Audited commit: `main` at **4b9ebde** (merge of #76). Nothing in this package was published, deployed or written to production. Production was only read with GET requests. The agent that wrote this has no Lovable, Supabase, Stripe or GitHub-admin credentials._
+_Nov 15 2026. Audited commit: `main` at **4b9ebde** (merge of #76). This package is PR #80; **Publish ships whatever `main` holds at that moment**, so the commit you publish must be `4b9ebde` plus #80 only (docs, one script, one workflow; no app code). Do not merge anything else before Publish and confirm the head of `main` first. Nothing in this package was published, deployed or written to production. Production was only read with GET requests. The agent that wrote this has no Lovable, Supabase, Stripe or GitHub-admin credentials._
 
 Files in this package:
 - this document;
@@ -19,7 +19,7 @@ Existing docs this package builds on (not duplicated): `AI-CAP-MIGRATION-VERIFY.
 | Database | Exactly **2** migrations on `main` are newer than the live build. Both are safety-critical and idempotent (section 3). Whether Lovable applies them for you is **unknown**; assume it does not and apply them yourself. |
 | Order | Apply migrations **before or right after** Publish. Either order is safe (section 3.4). Do the cap-trigger migration first if you do both separately. |
 | Not in this release | #72 (privacy policy draft for iOS), #63 (Apple In-App Purchase), #57 (website checkout kill switch and past-due billing fix), #21 (Stripe on Railway). All stay unmerged. |
-| Biggest honest gaps | Section 1.5: the iOS app shell is not in `main`; #57 is not in `main`, so the website still sells Monthly/Annual and past-due customers still have no "fix card" path; the AI cap is fail-closed (an outage of the database check blocks AI). |
+| Biggest honest gaps | Section 1.3: the iOS app shell is not in `main`; #57 is not in `main`, so the website still sells Monthly/Annual and past-due customers still have no "fix card" path; the AI cap is fail-closed (an outage of the database check blocks AI). |
 
 ## 1. Main readiness audit
 
@@ -100,7 +100,7 @@ Existing docs this package builds on (not duplicated): `AI-CAP-MIGRATION-VERIFY.
 ### 3.1 What is known and not known
 - Migrations newer than the live build: **exactly two**, both from Nov 15 (`git diff --stat 3bcbf05 origin/main -- supabase`). Everything else in `supabase/migrations/` (49 files, latest `20260706024628_...`) is older than the Aug 17 build and was part of what the live site already runs.
 - **Unknown:** whether those 49 older migrations are all applied in the live database (repo notes in `docs/launch/production-checklist.md` say 18 were applied in June), whether Lovable applies migration files that arrive from GitHub (as opposed to ones generated inside the Lovable chat, which have the UUID filenames), and which database role Lovable's SQL editor runs as. Nobody can read the production database from here.
-- Known mechanism in the repo: `supabase/config.toml` project id `czsgjqfcjiuqirvmdlps`; the existing docs tell the owner to run SQL from **Lovable > project > More (...) > Database > Manage > SQL editor**, or the Supabase dashboard SQL Editor. Treat both as paste-and-run. Running SQL by hand does not write a migration-history row; the files are idempotent, so a later automatic apply is harmless.
+- Known mechanism in the repo: `supabase/config.toml` project id `czsgjqfcjiuqirvmdlps`; the existing docs tell the owner to run SQL from **Lovable > project > More (...) > Database > Manage > SQL editor**, or the Supabase dashboard SQL Editor. Treat both as paste-and-run. SQL-editor runs are **not** saved as migration files, and a multi-statement script is **not guaranteed to run in one transaction**: **if an error appears, re-run the whole file (the SQL is idempotent)**. Migration files that sync from GitHub may be applied by Lovable the next time it changes the database; that is harmless because the files are idempotent. Lovable's Revert restores code only, never the database.
 
 ### 3.2 The migrations, in order
 
@@ -136,7 +136,9 @@ Before: no `user_prefs_guard_ai_cap` row; `has_ai_budget` shows `authenticated_c
 
 **After (same two queries):** a `user_prefs_guard_ai_cap` row with `tgenabled = O`; `has_ai_budget` `authenticated_can_run = false`, `anon_can_run = false`, `service_role_can_run = true`; all three voice functions present with `authenticated_can_run = false`, `service_role_can_run = true`.
 
-Then run the rolled-back negative test from `AI-CAP-MIGRATION-VERIFY.md` ("Safe negative test": it must end with an error showing `before` equals `after`, not 999999).
+**Optional read-only check of the older migrations** (`docs/launch/production-checklist.md` says "All 18 migrations applied" in June; the repo now has 49 older ones, so what is applied is unknown): `select count(*) from supabase_migrations.schema_migrations;`. Caveat: it does not count files applied through the SQL editor, so a low number is not proof that something is missing; compare with the trigger and function checks above, which are the real tests.
+
+Then run the rolled-back negative test from `AI-CAP-MIGRATION-VERIFY.md` ("Safe negative test": it must end with an error showing `before` equals `after`, not 999999). It uses `set local role authenticated`; if that errors in Lovable's SQL editor, **do not retry there**: run it in the Supabase dashboard SQL Editor instead.
 
 **Optional read-only check for abuse before the fix** (counts only):
 ```sql
@@ -153,7 +155,7 @@ Free users should all be at 15000 (older rows may sit at the former default 6000
 ## 4. Rollback plan
 
 ### 4.1 Website (Lovable)
-In Lovable: project > version history (the same screen as `RELEASE-READINESS.md` uses), restore the version before this publish (the Aug 17 build `b-1786931160964` is the live one now; confirm which entry that is by its timestamp), then **Publish > Update** again. Exact button names beyond "restore previous version" and "Publish > Update" are unknown to me. Verify with `GET /api/public/version`: `buildId` returns to the older value. Note the restore reintroduces the $99 lifetime offer for new visitors: only roll back if the problem outweighs that (you can archive the lifetime price in Stripe, section 6, to stop sales either way).
+In Lovable (docs.lovable.dev/features/projects/history): turn on the **History** toggle in the top bar; each version has a **Revert** button and the version that is live carries a **Published** badge. Use that badge to identify the Aug 17 version (`b-1786931160964`). Lovable's documentation does **not** say whether Revert changes the live site by itself or whether you must **Publish** again afterwards: assume you must, press **Publish > Publish changes** after reverting, and verify with `GET /api/public/version` (`buildId` returns to the older value). **Revert restores code only**: it does not undo any database change (section 4.2). The revert reintroduces the $99 lifetime offer for new visitors: only roll back if the problem outweighs that (you can archive the lifetime price in Stripe, section 6, to stop sales either way).
 
 ### 4.2 Database rollback SQL (only if a migration itself causes a problem)
 Rolling back the website does **not** require rolling back migrations (section 1.4).
@@ -184,7 +186,7 @@ Rows already written to `ai_log` (`rt-mint:*`, `rt-end:*`, `rt-over:*`) are usag
 ### 4.4 Decision points
 | Trigger | Action |
 |---|---|
-| Verification script FAILs on build id after a few minutes | Wait 5 minutes (CDN), reload; if still old, the publish did not promote: repeat Publish > Update. No rollback. |
+| Verification script FAILs on build id after a few minutes | Wait 5 minutes (CDN), reload; if still old, the publish did not promote: repeat Publish > Publish changes. No rollback. |
 | Verification FAILs on lifetime/consent/crisis strings but build id is new | Treat as a bad build: roll back the website (4.1), send me the output. |
 | Existing lifetime or paying subscriber shows Free after publish | Roll back the website at once (4.1); do not touch the database. Then check Stripe webhook and the `VITE_PAYMENTS_CLIENT_TOKEN` build value. |
 | Wave of AI refusals for premium users ("temporarily unavailable" 503) | It is the fail-closed budget check erroring. Check database health and migration 2 grants (section 3.3). Roll back the **website** only if it persists past a database recovery. Do not drop the migrations. |
@@ -210,23 +212,26 @@ Exit code 0 = no FAIL (WARN allowed), 1 = at least one FAIL. Checks (the first c
 | /api/public/health | 200 and `ok: true` |
 | /pricing and /paywall HTML | no `$99`, `Founding Member`, `restpilot_lifetime`, or the word "lifetime" (the one allowed phrase: "Lifetime purchases (no longer sold)" in the paywall renewal disclosure) |
 | `/`, `/safety`, `/coach` HTML | no `$99`, "Founding Member - Limited", `restpilot_lifetime` |
-| JS bundles | every JS file the pages reference loads; none contains the `$99` literal, "Founding Member - Limited" or a one-time cadence; the pricing, paywall and billing chunks contain no lifetime string. (`restpilot_lifetime` and "Founding Member" are *expected* elsewhere in the bundle set: the shared entitlement chunk and the existing-member notice. That is why those two strings are only forbidden in the offer chunks.) |
+| JS bundles | every JS file the pages reference loads; none contains the `$99` literal, "Founding Member - Limited" or a one-time cadence; the pricing, paywall **and** billing.functions chunks must all be found (otherwise FAIL naming the missing one) and contain no lifetime string; the PASS line lists the chunk files inspected. (`restpilot_lifetime` and "Founding Member" are *expected* elsewhere in the bundle set: the shared entitlement chunk and the existing-member notice. That is why those two strings are only forbidden in the offer chunks.) |
 | consent gate strings | `ai_consent` present in the bundles |
-| crisis strings | `988` present on `/safety` or bundles, and the `x-crisis-support` handler is in the coach/companion bundles |
+| crisis strings | `x-crisis-support` handler is in the coach/companion bundles (the new-build signal); `988` is shown on `/safety` (the **old build passes this too**, so it only guards against regression) |
 | no "Reelo" | not in any page or bundle |
 | robots.txt | `Sitemap:` host is restpilotai.com; `/sitemap.xml` 200 with all URLs on restpilotai.com (WARN only) |
-| legal pages | `/legal/privacy`, `/terms`, `/subscription`, `/third-parties`, `/disclaimers` return 200 |
-| `/settings/privacy` | 200 (new consent page) |
+| legal pages | `/legal/privacy`, `/terms`, `/subscription`, `/third-parties`, `/disclaimers` return 200 **and** carry the right page title and heading; the privacy policy contains the new "AI providers and your permission" section |
+| `/settings/privacy` | 200 and the title `Privacy | RestPilot AI` (new consent page) |
 
-**Dry runs (Nov 15, from this session):**
-- Against **production now** (old build): **12 PASS, 0 WARN, 11 FAIL**, overall FAIL. The failures are exactly the ones the release should fix: build id unchanged, deployment id unchanged, sw.js old build, `$99` and "Founding Member" and "Lifetime" in `/pricing` and `/paywall` HTML, lifetime literals in the JS bundles, no `ai_consent`, no `x-crisis-support`, one "Reelo" string, robots.txt sitemap host `shift-rest-ai.lovable.app`, `/settings/privacy` 404. The script therefore detects the old build.
-- Against a **local node_server build of main 4b9ebde**: **21 PASS, 2 WARN, 0 FAIL**, overall PASS (WARNs: no `x-deployment-id` header and no `/sw.js` on a local build; both expected).
+**Limits (also in the script header):** only JS chunks referenced from the initial HTML of `/`, `/pricing`, `/paywall`, `/safety`, `/coach` are fetched (not dynamically imported ones); the lifetime check is by chunk file name, so a lifetime string in a differently named chunk would be missed; the server-rendered HTML checks still apply. **If almost everything FAILs with HTTP 403, a firewall (Cloudflare) is blocking the runner, not a bad build: use the manual checks.** The dry runs below were run from a developer sandbox, **not from a GitHub Actions runner**, so it is untested whether GitHub's runner IPs are blocked.
+
+**Dry runs (Nov 15, re-run after review changes):**
+- Against **production now** (old build): **11 PASS, 0 WARN, 13 FAIL**, overall FAIL. The failures are exactly the ones the release should fix: build id unchanged, deployment id unchanged, sw.js old build, `$99` and "Founding Member" and "Lifetime" in `/pricing` and `/paywall` HTML, lifetime literals in the JS bundles, no `ai_consent`, no `x-crisis-support`, one "Reelo" string, robots.txt sitemap host `shift-rest-ai.lovable.app`, `/settings/privacy` 404, privacy policy without the AI-providers section. The script therefore detects the old build.
+- Against a **local node_server build of main 4b9ebde**: **22 PASS, 2 WARN, 0 FAIL**, overall PASS (WARNs: no `x-deployment-id` header and no `/sw.js` on a local build; both expected).
 
 ### 5.2 Running it from an iPhone
+0. Actions must be enabled on the repository. On iPhone Safari the **Run workflow** button may only appear in **desktop site** view (aA > Request Desktop Website).
 1. Merge this PR first. GitHub lists a manually run workflow only once its file is on the default branch (`main`). (I am not merging it; this is a prerequisite you control. Until then run the script from a laptop, or ask me to run it.)
 2. Safari > github.com/scubamike124/shiftrest-ai > **Actions** > **Post-publish verify** (left list) > **Run workflow** > leave the URL as `https://restpilotai.com` > **Run workflow**.
 3. Open the run, then the **verify** job; the result table is also at the top of the run's **Summary**. Green = no FAIL.
-The workflow is read-only (`contents: read`, no secrets) and refuses any target other than restpilotai.com, www.restpilotai.com or the Lovable preview host.
+The workflow is read-only (`contents: read`, no secrets) and refuses any target other than restpilotai.com or www.restpilotai.com. (`shift-rest-ai.lovable.app` is the published `.lovable.app` domain that redirects to restpilotai.com, not a preview; it is deliberately not allowed. The Lovable preview host is not covered by this workflow.)
 
 ### 5.3 Manual checklist (cannot be automated)
 Use your own accounts. Do not tap "Start" on a live checkout.
@@ -247,13 +252,14 @@ Use your own accounts. Do not tap "Start" on a live checkout.
 
 ### Steps (Stripe dashboard in Safari on iPhone, live mode)
 1. dashboard.stripe.com, make sure **Test mode is off**.
-2. Menu > **Product catalog** > open the RestPilot lifetime product > tap the **$99.00 one-time** price row.
-3. Top right (...) > **Archive price** > confirm.
-4. **Do not** create a replacement price with the same lookup key, do not edit or transfer the `restpilot_lifetime` lookup key, and do not delete the price or product.
+2. **More > Product catalog** > open the RestPilot lifetime product (docs.stripe.com/products-prices/manage-prices).
+3. **Before archiving, check Payment Links** (Stripe: Payment Links): archiving deactivates existing Payment Links that use that price or product. If any use it, decide first.
+4. Overflow menu (...) next to the **$99.00 one-time price** > **Archive price** > confirm. Archive the **price**, never the product. An archived price can be **unarchived** (undo) from the same product page.
+5. **Do not** create a replacement price with the same lookup key, do not edit or transfer the `restpilot_lifetime` lookup key, and do not delete the price or product.
 
-### Effects (Stripe behaviour as documented; I have not run it)
+### Effects (Stripe behaviour; items marked UNVERIFIED were not tested)
 - Existing subscriptions and past payments are unaffected; lifetime members' access comes from the `lifetime` rows in `public.subscriptions`, which need no Stripe call.
-- An archived price cannot be used to create new Checkout Sessions. A Checkout Session **opened before publish** can still be paid until it expires (up to 24 hours). The webhook then runs `checkout.session.completed`, fetches the line item and resolves the price by **`lookup_key`** (or `metadata.lovable_external_id`) via `priceLookup()`. If it still resolves to `restpilot_lifetime`, it mints the lifetime row; if the lookup key were moved or removed, it would resolve to something else, **mint nothing and alert you** while the customer has paid. So the lookup key must stay on that price.
+- An archived price cannot be used to create new Checkout Sessions. **UNVERIFIED:** a Checkout Session **opened before publish** can still be paid until it expires (up to 24 hours). The webhook then runs `checkout.session.completed`, fetches the line item and resolves the price by **`lookup_key`** (or `metadata.lovable_external_id`) via `priceLookup()`. If it still resolves to `restpilot_lifetime`, it mints the lifetime row; if the lookup key were moved or removed, it would resolve to something else, **mint nothing and alert you** while the customer has paid. So the lookup key must stay on that price. **UNVERIFIED:** that an archived price keeps its `lookup_key` and still appears on the line item; verify with a Stripe **test-mode** purchase of a test lifetime price before relying on it.
 - Unknown: whether Lovable's Stripe integration re-syncs or reactivates prices. Check the price is still archived after the next catalog change.
 
 ### Read-only subscriber audit for existing lifetime holders (you run these; counts only)
@@ -293,8 +299,8 @@ Estimated time 30-40 minutes. Do these in order. Buttons marked (unknown) are me
 8. Run the "After" queries and the rolled-back negative test. Stop if anything differs from the expected result.
 
 **(c) Publish from Lovable**
-9. Project preview first: `/pricing` shows Monthly $7.99 and Annual $49.99 with the 14-day trial and no $99; `/version` shows a new Build ID.
-10. **Publish** (top right) > **Update** (as in `RELEASE-READINESS.md`; exact wording (unknown)). Wait for it to finish.
+9. Before publishing, open the Lovable project preview (inside the editor). It builds from `main`: `/pricing` shows Monthly $7.99 and Annual $49.99 with the 14-day trial and no $99; `/version` shows a new Build ID. Also confirm the head of `main` on GitHub is `4b9ebde` plus #80 only.
+10. **Publish** (top right) > **Publish changes** (docs.lovable.dev/features/deploy; the older `RELEASE-READINESS.md` says "Update", which is outdated). **If Lovable shows an "Update anyway" dialog about unresolved critical security findings, decide in advance what you want: the default for this package is STOP and report what it says; do not click through unless you have decided to.** Wait for it to finish.
 
 **(d) Run verification**
 11. Safari > the repo > **Actions** > **Post-publish verify** > **Run workflow** (section 5.2). Open the summary. If the result is FAIL on the build id, wait five minutes and run again.
@@ -327,9 +333,13 @@ Estimated time 30-40 minutes. Do these in order. Buttons marked (unknown) are me
 6. **Voice flag.** Voice is **off** after publish; turning it on needs the OpenAI spend limit first (section 7g). The longer-term fix (server-mediated calls) is designed but not built (`VOICE-SERVER-MEDIATED-CALLS-PLAN.md`).
 7. **#63 and #72 are not in this release.** Without #63 there is no Apple IAP, so the App Store submission is still blocked (internal TestFlight is fine); the live privacy policy is the one on main. #57 is also not in: the website still sells Monthly/Annual and past-due customers still have no Manage billing button.
 8. **Railway line parity.** Production is Lovable on `main`; the Railway branch (`codex/restpilot-railway-migration`) has parity ports of consent and Apple sign-in (#62, #64) and a different Supabase auth path. Fixes here do not reach Railway automatically, and the iPhone app shell with in-app Apple sign-in exists only there. Decision: when to cut over, and keep the two lines in step until then.
-9. **Bugbot.** Automated review bot findings (Cursor Bugbot, if enabled on this repo) are not part of the required checks and I could not read them from here. Please check the open comments on the merged PRs #74-#79 before publishing; I did not verify them.
+9. **Bugbot.** I read every comment on #74-#79 through the GitHub REST API: the only Cursor Bugbot output is "Bugbot couldn't run - usage limit reached" on each of them, i.e. **Bugbot never reviewed these PRs**; there are no findings, and no human review comments either. The independent review was done by people/agents, not Bugbot. Decision: raise the Cursor usage limit if you want that second check on future PRs.
 10. **Lifetime window.** Lifetime Checkout Sessions opened before publish remain payable for up to 24 hours and are honoured. Archive the price after publish (section 6) and keep the lookup key.
-11. **Stale docs.** `RELEASE-READINESS.md` still names `e8742a9` and a different Publish scope. Treat this document as current.
+11. **Every existing user meets the consent dialog.** After publish, each existing user sees "Allow AI features?" on first AI use and AI is blocked for them until they answer. Expect a dip in AI usage and some support emails ("the coach asks permission").
+12. **Uneven cap tightening.** The cap trigger preserves stored values, so users still on the older default of 60000 keep it; only new rows get 15000. Decision: leave it, or run a one-off update to 15000 for free users (not included here; it needs your approval).
+13. **Merge timing.** Merging #80 changes `main` before Publish, and Publish ships whatever `main` holds at that moment. Do not merge anything else first; confirm `main` = `4b9ebde` plus #80.
+14. **Known residual: silent webhook ignore.** `checkout.session.completed` returns without any alert when the paid session has no `userId` metadata or no line item (`webhook.ts` lines 84-91). The alert I list in section 1.2 only covers a paid one-time session for a non-lifetime price. Nothing in this package changes that; a paid session of that kind would be visible only in Stripe. Fixing it needs an app-code PR (not done here).
+15. **Stale docs.** `RELEASE-READINESS.md` still names `e8742a9` and a different Publish scope. Treat this document as current.
 
 ## Appendix A: dry-run output (abridged)
 
@@ -347,6 +357,6 @@ FAIL  crisis server-guard marker present in client
 FAIL  no 'Reelo' product name
 FAIL  robots.txt sitemap host correct      https://shift-rest-ai.lovable.app/sitemap.xml
 FAIL  /settings/privacy ... 200            HTTP 404
-12 PASS, 0 WARN, 11 FAIL   OVERALL: FAIL
+11 PASS, 0 WARN, 13 FAIL   OVERALL: FAIL
 ```
-Local build of main 4b9ebde: `21 PASS, 2 WARN, 0 FAIL   OVERALL: PASS`.
+Local build of main 4b9ebde: `22 PASS, 2 WARN, 0 FAIL   OVERALL: PASS`.

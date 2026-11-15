@@ -12,6 +12,19 @@
 //
 // Exit code 0 = every check passed (WARN does not fail). 1 = at least one FAIL.
 //
+// Limits of this script (read before trusting a PASS):
+//  - It only fetches the JS chunks referenced from the INITIAL HTML of /, /pricing,
+//    /paywall, /safety and /coach. Dynamically imported chunks that those pages do
+//    not preload are not inspected.
+//  - The lifetime-string check inspects the pricing, paywall and billing.functions
+//    chunks by file name. If a future build renames or merges them, the check says
+//    which chunks it inspected; a lifetime string in a differently named chunk would
+//    be missed (the HTML checks would still catch server-rendered text).
+//  - If almost every request returns HTTP 403, a firewall (for example Cloudflare)
+//    is blocking the machine running this, NOT a bad build. Use the manual checks.
+//  - The dry runs recorded in the release doc were run from a developer sandbox,
+//    NOT from a GitHub Actions runner.
+//
 // What it cannot prove (needs a signed-in human, see RELEASE-2026-11-PUBLISH.md
 // section 8): an existing lifetime subscriber still being Premium, the database
 // migrations, voice disabled, Stripe webhook delivery, the iPhone UI itself.
@@ -192,9 +205,11 @@ const OFFER_FORBIDDEN = [
     for (const [n, re] of ANY_BUNDLE_FORBIDDEN) if (re.test(text)) hits.push(`${a.split("/").pop()}: ${n}`);
     if (OFFER_CHUNK.test(a)) for (const [n, re] of OFFER_FORBIDDEN) if (re.test(text)) hits.push(`${a.split("/").pop()}: ${n}`);
   }
-  const offerChunks = chunkEntries.filter(([a]) => OFFER_CHUNK.test(a)).length;
-  if (offerChunks === 0) fail("JS bundles contain no lifetime offer", "no pricing/paywall chunk found to inspect");
-  else if (hits.length === 0) pass("JS bundles contain no lifetime offer", `${chunkEntries.length} bundles, ${offerChunks} pricing/paywall/billing chunks inspected`);
+  const inspected = chunkEntries.filter(([a]) => OFFER_CHUNK.test(a)).map(([a]) => a.split("/").pop());
+  const need = ["pricing", "paywall", "billing.functions"];
+  const missing = need.filter((n) => !inspected.some((f) => f.startsWith(n + "-")));
+  if (missing.length > 0) fail("JS bundles contain no lifetime offer", `could not inspect: ${missing.join(", ")} chunk(s) (inspected: ${inspected.join(", ") || "none"})`);
+  else if (hits.length === 0) pass("JS bundles contain no lifetime offer", `${chunkEntries.length} bundles; inspected ${inspected.join(", ")}`);
   else fail("JS bundles contain no lifetime offer", hits.slice(0, 6).join("; "));
 }
 
@@ -208,8 +223,12 @@ const allJs = chunkEntries.map(([, r]) => r.text).join("\n");
   ? pass("crisis server-guard marker present in client", "x-crisis-support handled by coach/companion/pilot")
   : fail("crisis server-guard marker present in client", "x-crisis-support not found in coach/companion bundles (old build?)");
 
-const safetyText = pages["/safety"].text + "\n" + allJs;
-/\b988\b/.test(safetyText) ? pass("crisis line 988 present", "/safety and bundles") : fail("crisis line 988 present", "no 988 on /safety or in bundles");
+// NOTE: the old build also shows 988 on /safety, so this check cannot tell old
+// from new. The new-build signals are x-crisis-support above and ai_consent.
+const safetyText = pages["/safety"].text + "\n" + assetsIn(pages["/safety"].text).map((a) => chunks[a]?.text ?? "").join("\n");
+/\b988\b/.test(safetyText)
+  ? pass("crisis line 988 shown on /safety (not a new-build signal)", "/safety HTML and its own chunks")
+  : fail("crisis line 988 shown on /safety (not a new-build signal)", "no 988 in /safety HTML or its chunks");
 
 // ------------------------------------------------------------------ 5. Reelo
 {
@@ -245,18 +264,35 @@ const sitemap = await get("/sitemap.xml", { bust: true });
 }
 
 // ------------------------------------------------------------- 7. legal pages
-for (const p of ["/legal/privacy", "/legal/terms", "/legal/subscription", "/legal/third-parties", "/legal/disclaimers"]) {
+const LEGAL = [
+  ["/legal/privacy", "Privacy Policy"],
+  ["/legal/terms", "Terms of Service"],
+  ["/legal/subscription", "Subscription Terms"],
+  ["/legal/third-parties", "Subprocessors"],
+  ["/legal/disclaimers", "Disclaimers"],
+];
+for (const [p, heading] of LEGAL) {
   const r = await get(p);
-  r.status === 200 ? pass(`legal page ${p} 200`) : fail(`legal page ${p} 200`, `HTTP ${r.status} ${r.error ?? ""}`.trim());
+  if (r.status !== 200) fail(`legal page ${p} 200`, `HTTP ${r.status} ${r.error ?? ""}`.trim());
+  else if (!/<title>[^<]*RestPilot AI/.test(r.text) || !r.text.includes(heading)) fail(`legal page ${p} 200`, `HTTP 200 but title/heading "${heading}" not found (error page?)`);
+  else pass(`legal page ${p} 200`, `title and "${heading}" heading found`);
+}
+{
+  // New in this release: the privacy policy section about AI providers and permission.
+  const r = await get("/legal/privacy");
+  r.text.includes("AI providers and your permission")
+    ? pass("privacy policy has the AI providers and permission section")
+    : fail("privacy policy has the AI providers and permission section", "section heading not found (old policy?)");
 }
 {
   const r = await get("/settings/privacy");
-  r.status === 200
-    ? pass("/settings/privacy (AI data sharing switch) 200")
-    : fail("/settings/privacy (AI data sharing switch) 200", `HTTP ${r.status} (page ships with the consent release)`);
+  r.status === 200 && /<title>Privacy \| RestPilot AI<\/title>/.test(r.text)
+    ? pass("/settings/privacy (AI data sharing switch) 200", "title found")
+    : fail("/settings/privacy (AI data sharing switch) 200", `HTTP ${r.status}${r.status === 200 ? " but wrong page title" : ""} (page ships with the consent release)`);
 }
 
 // ------------------------------------------------------------------- report
+const http403 = [version, health, robots, sitemap, sw, ...Object.values(pages)].filter((r) => r.status === 403).length;
 const w = Math.max(...results.map((r) => r.name.length));
 const failed = results.filter((r) => r.status === "FAIL").length;
 const warned = results.filter((r) => r.status === "WARN").length;
@@ -268,6 +304,7 @@ if (AS_JSON) {
   console.log(`${"-".repeat(6)}  ${"-".repeat(w)}  ${"-".repeat(30)}`);
   for (const r of results) console.log(`${r.status.padEnd(6)}  ${r.name.padEnd(w)}  ${r.detail}`);
   console.log(`\n${results.length - failed - warned} PASS, ${warned} WARN, ${failed} FAIL`);
+  if (http403 >= 4) console.log(`\nNOTE: ${http403} requests returned HTTP 403. That is most likely a firewall (e.g. Cloudflare) blocking this machine, not a bad build. Use the manual checks instead.`);
   console.log(failed === 0 ? "OVERALL: PASS (automated checks only; do the manual checklist next)" : "OVERALL: FAIL");
 }
 process.exit(failed === 0 ? 0 : 1);

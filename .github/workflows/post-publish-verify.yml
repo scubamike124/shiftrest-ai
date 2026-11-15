@@ -4,7 +4,7 @@
 # signs in, comments or writes anything, and uses no secrets.
 # Run it from the GitHub mobile website: Actions > "Post-publish verify" >
 # Run workflow. The workflow file must be on the default branch (main) for
-# GitHub to list it there.
+# GitHub to list it there, and Actions must be enabled on the repository.
 name: Post-publish verify
 
 on:
@@ -35,7 +35,7 @@ jobs:
           BASE_URL: ${{ inputs.base_url }}
         run: |
           case "$BASE_URL" in
-            https://restpilotai.com|https://www.restpilotai.com|https://shift-rest-ai.lovable.app) ;;
+            https://restpilotai.com|https://www.restpilotai.com) ;;
             *) echo "Refusing target: $BASE_URL"; exit 2 ;;
           esac
       - name: Verify (GET only)
