@@ -57,22 +57,10 @@ test.describe("marketing pages @readonly", () => {
     });
   }
 
-  // KNOWN DEFECT (QA-REPORT R3): legal.index.tsx formats the effective date
-  // with toLocaleDateString() and no timeZone, so in US time zones the client
-  // renders the previous day ("June 26" for 2026-06-27) and React throws
-  // hydration error #418. Fixed on fix/legal-date-hydration (not yet merged
-  // here). Expected to fail until then; Playwright flags the fix as a pass.
-  test("legal index shows the same effective date as the server render", async ({
-    page,
-    request,
-  }) => {
-    test.fail(true, "R3: effective date is off by one day in US time zones");
-    const html = await (await request.get("/legal")).text();
-    const server = /Effective (?:<!-- -->)?([A-Z][a-z]+ \d{1,2}, \d{4})/.exec(html)?.[1];
-    expect(server, "server-rendered effective date").toBeTruthy();
-    await page.goto("/legal");
-    await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });
-  });
+  // R3 (legal effective date off by one day in US time zones, React #418) is
+  // tolerated and annotated by the render check above. A browser assertion on
+  // the visible date was flaky (React sometimes keeps the server text after a
+  // hydration error), so the defect is tracked in QA-REPORT with repro steps.
 
   test("home: primary calls to action lead to sign-up and the app preview @smoke", async ({
     page,

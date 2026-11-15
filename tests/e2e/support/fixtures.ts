@@ -66,15 +66,14 @@ function storageKey(baseURL: string) {
 
 export async function signInViaStorage(page: Page, baseURL: string, session: unknown) {
   const key = storageKey(baseURL);
-  await page.addInitScript(
-    ([k, v]) => {
-      // Inject once per tab, so signing out in the test really signs out.
-      if (window.sessionStorage.getItem("e2e.session-injected")) return;
-      window.sessionStorage.setItem("e2e.session-injected", "1");
-      window.localStorage.setItem(k, v);
-    },
-    [key, JSON.stringify(session)] as const,
-  );
+  // Write the session exactly once, from a same-origin page that runs no app
+  // code. (An init script would re-inject it on every load: the app clears
+  // sessionStorage on sign-out, so any once-per-tab flag there is unreliable.)
+  await page.goto("/robots.txt");
+  await page.evaluate(([k, v]) => window.localStorage.setItem(k, v), [
+    key,
+    JSON.stringify(session),
+  ] as const);
 }
 
 /** Default profile for seeded users: onboarding done, memory on, a 7 h goal. */

@@ -768,12 +768,17 @@ async function handleAi(req, res) {
 }
 
 // ------------------------------------------------------------------ proxy
+const noKeepAlive = new http.Agent({ keepAlive: false });
+
 function proxy(req, res, appUrl) {
   const target = new URL(req.url, appUrl);
   const up = http.request(
     target,
     {
       method: req.method,
+      // Node's default agent keeps sockets alive; reusing one the app server
+      // already closed surfaces as ECONNRESET. A fresh socket per request is fine here.
+      agent: noKeepAlive,
       headers: {
         ...req.headers,
         host: target.host,
