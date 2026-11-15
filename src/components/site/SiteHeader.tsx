@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Menu, X, Moon } from "lucide-react";
+import { useIsNativeApp } from "@/lib/native-app";
 
 const nav = [
   { to: "/features", label: "Features" },
@@ -9,6 +10,9 @@ const nav = [
 ];
 
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
+  // No "Pricing" link inside the iPhone app.
+  const inNativeApp = useIsNativeApp();
+  const links = inNativeApp ? nav.filter((n) => n.to !== "/pricing") : nav;
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -48,7 +52,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {nav.map((n) => (
+          {links.map((n) => (
             <Link
               key={n.to}
               to={n.to}
@@ -101,7 +105,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
       {open && (
         <div className="border-t border-border/60 bg-background/95 backdrop-blur-xl md:hidden">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-5 py-3">
-            {nav.map((n) => (
+            {links.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}

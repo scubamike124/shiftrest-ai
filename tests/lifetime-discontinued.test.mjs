@@ -27,7 +27,9 @@ function checkoutHarness(priceType = 'recurring') {
     const b = { middleware() { return b; }, inputValidator(fn) { validator = fn; return b; }, handler(fn) { return async (args) => fn({ ...args, data: validator(args.data) }); } };
     return b;
   }
-  const ctx = vm.createContext({ createServerFn, requireSupabaseAuth: {}, createStripeClient() { calls.push('stripe'); return stripe; }, getStripeErrorMessage: (e) => e.message });
+  const ctx = vm.createContext({ createServerFn, requireSupabaseAuth: {}, createStripeClient() { calls.push('stripe'); return stripe; }, getStripeErrorMessage: (e) => e.message,
+    // Website request (not the iPhone app): the native-app refusal does not apply.
+    getRequest: () => new Request('https://restpilotai.com/', { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh)' } }), isNativeAppRequest: () => false, NATIVE_PURCHASE_UNAVAILABLE: '' });
   const { createCheckoutSession } = vm.runInContext(`${source}\n({createCheckoutSession})`, ctx);
   const supabase = { auth: { async getUser() { return { data: { user: { email: 'a@example.test' } } }; } } };
   return {
