@@ -16,7 +16,8 @@ import { fetchPrefs } from "@/lib/prefs";
 import { greetingLabel } from "@/lib/time/day-part";
 import { isNativeApp } from "@/lib/native-app";
 import { aiFetch } from "@/lib/ai/consent-client";
-import { withoutCrisisTurns } from "@/lib/safety/crisis-cues";
+import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
+import { CRISIS_LOCAL_REPLY, hasCrisisCue, withoutCrisisTurns } from "@/lib/safety/crisis-cues";
 
 export const Route = createFileRoute("/pilot")({
   ssr: false,
@@ -147,6 +148,7 @@ function PilotPage() {
   const [orbState, setOrbState] = useState<OrbState>("idle");
   const [busy, setBusy] = useState(false);
   const [needsTap, setNeedsTap] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(false);
   const [lastExchange, setLastExchange] = useState<{ user: string; messages: CoachMsg[] } | null>(null);
   const mic = useMicRecorder();
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -292,6 +294,13 @@ function PilotPage() {
         return;
       }
 
+      // The server found a crisis cue: show the card, and keep this exchange out
+      // of the saved history and out of "Tell me more".
+      const serverCrisis = resp.headers.get("x-crisis-support") === "1";
+      if (serverCrisis) {
+        setCrisisCard(true);
+        setLastExchange(null);
+      }
       setMessages([...baseMessages, { role: "assistant", content: "" }]);
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -361,7 +370,7 @@ function PilotPage() {
 
       const finalText = assistant.trim();
       if (finalText) {
-        if (signedIn) saveCoachMessage("assistant", finalText).catch(() => {});
+        if (signedIn && !serverCrisis) saveCoachMessage("assistant", finalText).catch(() => {});
       } else if (!speakingRef.current) {
         setOrbState("idle");
       }
@@ -441,6 +450,17 @@ function PilotPage() {
       }
       const userMsg: CoachMsg = { role: "user", content: userText };
       const baseMessages = [...messages, userMsg];
+      // A crisis message is never sent to the AI, saved to history or offered
+      // "Tell me more": the card and a static caring reply stand in.
+      if (hasCrisisCue(userText)) {
+        streamingRef.current = false;
+        cancelAllAudio();
+        setCrisisCard(true);
+        setLastExchange(null);
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        setOrbState("idle");
+        return;
+      }
       setMessages(baseMessages);
       setLastExchange({ user: userText, messages: baseMessages });
       if (signedIn) saveCoachMessage("user", userText).catch(() => {});
@@ -633,6 +653,11 @@ function PilotPage() {
             <Button size="sm" className="mt-3" onClick={() => { setNeedsTap(false); prepareVoicePlayback(); }}>
               <Phone className="mr-1.5 h-4 w-4" /> Tap to hear reply
             </Button>
+          )}
+          {crisisCard && (
+            <div className="mt-3 w-full max-w-sm">
+              <CrisisSupportCard onClose={() => setCrisisCard(false)} />
+            </div>
           )}
           {canExpand && (
             <Button size="sm" variant="outline" className="mt-3" onClick={() => void tellMeMore()}>

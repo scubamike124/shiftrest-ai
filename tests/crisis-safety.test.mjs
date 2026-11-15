@@ -598,7 +598,7 @@ for (const [route, sendFn] of [
     // Not sent: a static caring line stands in for the reply, then return.
     assert.match(
       body,
-      /if \(!shouldSendToAI\(crisis\)\) \{\s*setMessages\(\[\.\.\.baseMessages, \{ role: "assistant", content: CRISIS_LOCAL_REPLY \}\]\);\s*return;\s*\}/,
+      /if \(!shouldSendToAI\(crisis\)\) \{\s*setMessages\(\[\.\.\.baseMessages, \{ role: "assistant", content: CRISIS_LOCAL_REPLY \}\]\);\s*(void speakIfEnabled\(CRISIS_LOCAL_REPLY\);\s*)?return;\s*\}/,
     );
     assert.match(src, /<CrisisSupportCard onClose=\{\(\) => setCrisisCard\(false\)\} \/>/);
     assert.doesNotMatch(src, /disabled=\{[^}]*crisis/i, "the composer is never disabled by it");

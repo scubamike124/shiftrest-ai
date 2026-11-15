@@ -34,6 +34,7 @@ import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai
 import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { classifyIntent } from "@/lib/ai/intent-hint.server";
 import {
+  areValidCoachTurns,
   CRISIS_SERVER_REPLY,
   lastUserTurnIsCrisis,
   withoutCrisisTurns,
@@ -281,6 +282,19 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(400, "intent required");
         }
 
+        // Crisis defence in depth. A coach message with a crisis cue is never
+        // forwarded to the AI provider: it gets the local crisis-support reply.
+        // Before sign-in, consent, rate limit and budget, so crisis support is
+        // never refused for those reasons (a signed-out or expired session still
+        // gets it) and nothing reaches the prompt builder, the provider, memory
+        // extraction, storage or logs. The reply is one small static payload, so
+        // it is no open relay. Everything else without a session still gets 401.
+        if (body.intent === "coach" && Array.isArray(body.messages)) {
+          // Only plain-string user/assistant turns can be scanned; reject the rest.
+          if (!areValidCoachTurns(body.messages)) return jsonError(400, "invalid messages");
+          if (lastUserTurnIsCrisis(body.messages)) return crisisSupportResponse();
+        }
+
         let admin;
         try {
           admin = getAdminClient();
@@ -304,19 +318,6 @@ export const Route = createFileRoute("/api/ai")({
         // able to invoke intents that skipped the AI budget gate.
         if (!userId) {
           return jsonError(401, "Sign in required");
-        }
-
-        // Crisis defence in depth. A coach message with a crisis cue is never
-        // forwarded to the AI provider: it gets the local crisis-support reply.
-        // After sign-in (anonymous callers still get 401) but before consent,
-        // rate limit and budget, so it is never refused for those reasons and
-        // never reaches the prompt builder, the provider or memory extraction.
-        if (
-          body.intent === "coach" &&
-          Array.isArray(body.messages) &&
-          lastUserTurnIsCrisis(body.messages)
-        ) {
-          return crisisSupportResponse();
         }
 
         // Explicit permission to share data with third-party AI (Guideline

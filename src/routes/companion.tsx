@@ -769,6 +769,16 @@ function CompanionPage() {
 
 
     try {
+      // A crisis message is never forwarded to an AI provider, with or without
+      // AI permission: it gets the crisis card (already shown above; keep this
+      // after showCardOnCrisis) and a static caring reply, before the session
+      // check so it works signed out or offline. No data-sharing
+      // prompt, nothing is sent; the user can keep typing.
+      if (!shouldSendToAI(crisis)) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        void speakIfEnabled(CRISIS_LOCAL_REPLY);
+        return;
+      }
       const token = session?.access_token;
       if (!token) {
         emitDebug("auth-missing", "ai-no-token");
@@ -781,14 +791,6 @@ function CompanionPage() {
           },
         ]);
         track({ event: "voice_turn_failed", stage: "auth" });
-        return;
-      }
-      // A crisis message is never forwarded to an AI provider, with or without
-      // AI permission: it gets the crisis card (already shown above; keep this
-      // after showCardOnCrisis) and a static caring reply. No data-sharing
-      // prompt, nothing is sent; the user can keep typing.
-      if (!shouldSendToAI(crisis)) {
-        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
         return;
       }
       emitDebug("ai-req");

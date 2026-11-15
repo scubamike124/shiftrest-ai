@@ -183,40 +183,47 @@ export const CRISIS_LOCAL_REPLY =
 
 /**
  * Server-side stand-in for the AI's reply when a crisis message reaches /api/ai
- * anyway (client check bypassed or missing, e.g. the voice Pilot screen). It has
- * no card under it, so it carries the numbers itself.
+ * anyway (client check bypassed or missing). Some surfaces show no card under
+ * it, so it carries the numbers itself and asks directly about safety.
  */
 export const CRISIS_SERVER_REPLY =
-  "I'm really glad you told me. You matter, and you don't have to carry this alone. If you might hurt yourself or you are in danger right now, call or text 988 (the 988 Suicide & Crisis Lifeline, US) or call 911. Outside the US, call your local emergency number or find a line at findahelpline.com. These are free, private and open any time of day or night. I'm still here too.";
+  "I'm really glad you told me. You matter, and you don't have to carry this alone. Are you safe right now? If you might hurt yourself, call or text 988 (the 988 Suicide & Crisis Lifeline, US); it is free and confidential, any time of day or night. If you are in immediate danger, call 911. Outside the US, call your local emergency number or find a line at findahelpline.com. I'm still here too.";
 
 type Turn = { role?: unknown; content?: unknown };
 
-/** The text of a chat turn as the provider would receive it (non-string content is checked as JSON). */
-function turnText(m: Turn): string {
-  if (typeof m.content === "string") return m.content;
-  if (m.content == null) return "";
-  try {
-    return JSON.stringify(m.content) ?? "";
-  } catch {
-    return "";
-  }
+/**
+ * Shape the server accepts for coach messages: every turn is an object with
+ * role "user" or "assistant" and plain string content. The real clients only
+ * send that. Anything else (system turns from the client, unknown or missing
+ * roles, array/object content parts such as split text or images) cannot be
+ * scanned reliably and is rejected rather than forwarded.
+ */
+export function areValidCoachTurns(messages: readonly unknown[]): boolean {
+  return messages.every((m) => {
+    if (!m || typeof m !== "object") return false;
+    const t = m as Turn;
+    return (t.role === "user" || t.role === "assistant") && typeof t.content === "string";
+  });
 }
 
 /** True when the latest user turn is a crisis message. */
 export function lastUserTurnIsCrisis(messages: readonly Turn[]): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "user") return hasCrisisCue(turnText(messages[i]));
+    if (messages[i]?.role === "user") {
+      const c = messages[i].content;
+      return typeof c === "string" && hasCrisisCue(c);
+    }
   }
   return false;
 }
 
 /**
- * The turns that may be sent to the AI as history: drops earlier user (and
- * system) turns that are crisis messages, so a crisis message that stayed on
- * screen is not forwarded with the next, normal message. Assistant turns stay.
+ * The turns that may be sent to the AI as history: drops every turn (any role,
+ * so a forged assistant turn too) that carries a crisis cue, so a crisis message
+ * that stayed on screen is not forwarded with the next, normal message.
  */
 export function withoutCrisisTurns<T extends Turn>(messages: readonly T[]): T[] {
-  return messages.filter((m) => m?.role === "assistant" || !hasCrisisCue(turnText(m)));
+  return messages.filter((m) => !(typeof m?.content === "string" && hasCrisisCue(m.content)));
 }
 
 /** Static resources shown by <CrisisSupportCard />. No network needed to read them. */

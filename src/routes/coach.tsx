@@ -239,7 +239,8 @@ function Coach() {
         return;
       }
       // The server found a crisis cue the device check did not: show the card too.
-      if (resp.headers.get("x-crisis-support") === "1") setCrisisCard(true);
+      const serverCrisis = resp.headers.get("x-crisis-support") === "1";
+      if (serverCrisis) setCrisisCard(true);
       if (!resp.ok || !resp.body) {
         const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
         if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
@@ -315,8 +316,11 @@ function Coach() {
         toast.error("Empty response from coach");
       } else {
         // Persist both turns after a successful exchange. No-op for guests.
-        void saveCoachMessage("user", trimmed);
-        void saveCoachMessage("assistant", assistant);
+        // A crisis exchange found by the server is not stored.
+        if (!serverCrisis) {
+          void saveCoachMessage("user", trimmed);
+          void saveCoachMessage("assistant", assistant);
+        }
         if (voiceOn && assistant !== lastSpokenRef.current) {
           lastSpokenRef.current = assistant;
           speak(assistant);
