@@ -17,7 +17,7 @@
 // check is defence in depth only; the real control is that the app never shows
 // a purchase button.
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 export const NATIVE_APP_UA_TOKEN = "RestPilotApp/";
 export const NATIVE_APP_HEADER = "x-restpilot-native-app";
@@ -40,20 +40,16 @@ export function isNativeApp(): boolean {
   }
 }
 
-// Set after the first client effect. Until then the app renders exactly what
-// the server rendered (hydration-safe); afterwards components that mount later
-// (client navigation) start from the real value, so they never flash web-only UI.
-let hydrated = false;
+// No subscription: whether this page runs inside the app shell never changes.
+const noopSubscribe = () => () => {};
 
-/** React hook: false during server render and the first client render (so
- *  hydration matches the website), then true inside the app shell. */
+/** React hook. During server render and hydration it returns false (the
+ *  server snapshot), so hydration always matches the server HTML, including
+ *  for code-split routes that hydrate after the layout; React then re-renders
+ *  with the real value. Components mounted later (client navigation) read the
+ *  real value on their first render, so they never flash web-only UI. */
 export function useIsNativeApp(): boolean {
-  const [native, setNative] = useState(() => (hydrated ? isNativeApp() : false));
-  useEffect(() => {
-    hydrated = true;
-    setNative(isNativeApp());
-  }, []);
-  return native;
+  return useSyncExternalStore(noopSubscribe, isNativeApp, () => false);
 }
 
 /** Server: does this request come from the app shell? (Spoofable; see above.) */
