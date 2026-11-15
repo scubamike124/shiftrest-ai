@@ -35,6 +35,46 @@ owner authorization, and the decision belongs to the cutover owner. The server-s
 handler is still in source and is now regression-locked, so a restore would send Stripe exactly
 what it sent before.
 
+### Which code the iOS app actually runs (November 15, 2026)
+
+The app shell (`ios-app/capacitor.config.json`, bundle `com.restpilotai.app`) loads
+**`https://restpilotai.com/`**. Today that is production on Lovable, built from `main`, not this
+branch.
+
+- **Production `main`, served in the app today.** `/paywall` embeds **Stripe Embedded Checkout**,
+  and `/pricing` links to it. `main` has no native-app gating, so **inside the app a user can open
+  Stripe checkout and pay.** Everything in this document (the app-aware paywall, IAP, the
+  entitlement merge) is on `codex/restpilot-railway-migration`. That code reaches the app only when
+  restpilotai.com is cut over to Railway, or when the shell points at a Railway host.
+- **Railway branch (staging).** Stripe is disabled. `/pricing` and `/paywall` show the "App
+  preview" screen with no purchase UI. With the IAP flags off (the default), the app shows the
+  same screen.
+
+What this means for the White Glove test:
+1. **Private White Glove test with the shell pointing at production.** Testers can reach a working
+   Stripe checkout inside the app. Payments would be real (live mode) and would bypass Apple. That
+   is acceptable only if testers are told not to buy. Owner and native-agent decision.
+2. **Safer for the test.** Point the shell's `server.url` at the Railway staging host for the test
+   build: no purchase UI anywhere, and the App Review 3.1.1 rules are met by having no purchase at
+   all. This is a native-agent change; the cutover agent must then add that origin to Supabase
+   redirect URLs.
+3. **App Store submission (TestFlight external, or review).** Do not submit a build whose
+   `server.url` serves production `main` as it is: an in-app Stripe checkout for a digital
+   subscription violates Guideline 3.1.1 outside the US-link exception. Submit only once the
+   served host runs this branch: the preview screen with IAP off, or IAP with the flags on after
+   the owner setup in section 7.
+4. **Production `main` is unchanged on purpose.** The owner said the existing Lovable Stripe
+   checkout must not be modified or replaced. No gating is ported to `main`.
+
+**Existing lifetime purchasers.** The `status = 'lifetime'` rows are active premium:
+- in the merged entitlement;
+- on every paywall surface (status shown, no buy button);
+- in the voice gate;
+- in the SQL `has_active_subscription` (the AI budget).
+
+These are covered by the `lifetime:` tests in `tests/subscription-lifecycle.test.mjs` and by the
+PGlite check.
+
 ---
 
 ## 2. Apple's current rules, researched November 14, 2026
@@ -504,7 +544,7 @@ Stripe identity.
    [App Store Small Business Program](https://developer.apple.com/app-store/small-business-program/)
    to pay a 15% commission instead of 30%.
 6. **Create the subscriptions.** App Store Connect, then the RestPilot app (bundle
-   `com.wrapper.restpilot`), then Monetization, then Subscriptions:
+   `com.restpilotai.app`), then Monetization, then Subscriptions:
    - Create **one subscription group**, for example "RestPilot Premium".
    - Add **`restpilot_monthly`**: 1 month, price **$7.99** (USD base; let Apple set the other
      storefronts or review them).
@@ -517,7 +557,7 @@ Stripe identity.
    - Product IDs are permanent and can never be reused. Use exactly these two, because the code
      matches them.
 7. **RevenueCat account.** Free tier, owner's account:
-   - Create a project with an Apple App Store app for `com.wrapper.restpilot`.
+   - Create a project with an Apple App Store app for `com.restpilotai.app`.
    - Upload an **In-App Purchase key** (`.p8`, from App Store Connect, then Users and Access, then
      Integrations). Give its key ID and issuer ID to RevenueCat.
    - Import the two products. Create entitlement `premium` with both products attached, and an
