@@ -25,6 +25,7 @@ import {
   Lock,
 } from "lucide-react";
 import { OrbBadge } from "@/components/PilotOrb";
+import { WebOnly } from "@/components/native/WebOnly";
 import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
 
 export const Route = createFileRoute("/")({
@@ -109,8 +110,11 @@ function Landing() {
           <DayInLifeSection />
           <DashboardSection />
           <Testimonials />
-          <PricingPreview ctaHref={ctaHref} />
-          <CtaBand ctaHref={ctaHref} />
+          {/* Prices and trial calls to action are website-only (not in the iPhone app). */}
+          <WebOnly>
+            <PricingPreview ctaHref={ctaHref} />
+            <CtaBand ctaHref={ctaHref} />
+          </WebOnly>
         </>
       )}
     </div>
@@ -173,13 +177,15 @@ function Hero({ ctaHref }: { ctaHref: string }) {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                to={ctaHref}
-                className="group inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition hover:opacity-90"
-              >
-                Start free — 14 days
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </Link>
+              <WebOnly>
+                <Link
+                  to={ctaHref}
+                  className="group inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition hover:opacity-90"
+                >
+                  Start free — 14 days
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </WebOnly>
               <Link
                 to="/companion"
                 search={{ intro: 1, greet: 1 }}
