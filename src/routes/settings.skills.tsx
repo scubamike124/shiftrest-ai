@@ -51,7 +51,7 @@ export const Route = createFileRoute("/settings/skills")({
       {
         name: "description",
         content:
-          "Enable the Reelo Companion's skills — weather alerts, calendar, travel, smart home, comms, and learned routines.",
+          "Enable the RestPilot Companion's skills — weather alerts, calendar, travel, smart home, comms, and learned routines.",
       },
     ],
   }),
@@ -170,7 +170,7 @@ function SkillsSettings() {
         <div>
           <h1 className="text-lg font-semibold">Companion Skills</h1>
           <p className="text-xs text-muted-foreground">
-            Choose what Reelo can do for you. Every action still asks before it runs.
+            Choose what RestPilot can do for you. Every action still asks before it runs.
           </p>
         </div>
       </header>
@@ -183,7 +183,7 @@ function SkillsSettings() {
               <p className="text-sm font-semibold">Enable Skills (beta)</p>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Master switch for Reelo's new skill catalog. Off by default while we roll out each
+              Master switch for RestPilot's new skill catalog. Off by default while we roll out each
               skill. Stored on this device.
             </p>
           </div>
@@ -263,8 +263,8 @@ function SkillsSettings() {
 
       <Separator className="my-2" />
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        Reelo never executes a skill silently. Every destructive action shows a confirmation with
-        the full payload, respects quiet hours, and is recorded in your Action History.
+        RestPilot never executes a skill silently. Every destructive action shows a confirmation
+        with the full payload, respects quiet hours, and is recorded in your Action History.
       </p>
     </main>
   );

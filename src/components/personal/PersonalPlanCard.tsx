@@ -152,7 +152,7 @@ export function PersonalPlanCard({
 
       <div className="mt-3 flex items-center justify-between">
         <p className="text-[10px] text-muted-foreground">
-          Suggestions only — Reelo never sends or deletes anything.
+          Suggestions only — RestPilot never sends or deletes anything.
         </p>
         <Link
           to="/inbox"
