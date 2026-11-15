@@ -97,6 +97,9 @@ final class ShellE2ETests: XCTestCase {
     }
 
     private func allowOnHealthSheet(_ turnOn: XCUIElement, in app: XCUIApplication) {
+        // Found through the Health privacy service, the controls can carry frames
+        // from the remote scene that XCUITest cannot tap ("not hittable").
+        guard turnOn.isHittable else { return allowOnHealthSheetByPosition(app) }
         turnOn.tap()
         snapshot("Health sheet, all turned on", app)
         var allow: XCUIElement?
@@ -108,17 +111,22 @@ final class ShellE2ETests: XCTestCase {
             if allow != nil { break }
         }
         guard let allow else { return XCTFail("no Allow button on the Health sheet") }
-        allow.tap()
+        if allow.isHittable {
+            allow.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.859)).tap()
+        }
     }
 
-    /// Fallback when the sheet is on screen but its controls are missing from the
+    /// Fallback when the sheet is on screen but its controls are missing from, or
+    /// not hittable in, the
     /// accessibility tree (seen on CI: the screenshot shows the sheet, queries
     /// find nothing). Taps "Turn On All", then "Allow", at their positions on
     /// the sheet as laid out on the CI iPhone simulator. If the taps miss, the
     /// page never reports HEALTH PASS and the test fails.
     private func allowOnHealthSheetByPosition(_ app: XCUIApplication) {
         snapshot("Health sheet controls not in the accessibility tree; tapping by position", app)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.507)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.507)).tap()
         sleep(2)
         snapshot("Health sheet after Turn On All (by position)", app)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.859)).tap()
