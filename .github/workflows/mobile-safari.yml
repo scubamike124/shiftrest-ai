@@ -127,6 +127,12 @@ jobs:
           PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs AUDIT_FAKE_SESSION=1 \
             AUDIT_OUT="$OUT/webkit-audit-local-app.json" AUDIT_SHOTS="$OUT/webkit-local-app" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
             node scripts/qa/mobile-layout-audit.mjs "$LOCAL" | tee "$OUT/webkit-audit-local-app.txt"
+          for THEME in midnight light; do
+            echo "=== local Home and Profile, $THEME theme, sample rotation"
+            PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs AUDIT_FAKE_SESSION=1 AUDIT_SAMPLE_SHIFTS=1 \
+              AUDIT_THEME=$THEME AUDIT_SHOTS="$OUT/webkit-local-$THEME" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
+              node scripts/qa/mobile-layout-audit.mjs "$LOCAL" /dashboard /profile /plan | tee "$OUT/webkit-audit-local-$THEME.txt"
+          done
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

@@ -31,6 +31,8 @@ import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
 import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
+import { ThemeController } from "@/components/ThemeController";
+import { themeBootScript } from "@/lib/appearance";
 
 const LOVABLE_PUBLISH_MARKER = "publish-verify-marker-2026-07-06-alpha7q3";
 if (typeof window !== "undefined") (window as unknown as Record<string, string>).__LOVABLE_PUBLISH_MARKER = LOVABLE_PUBLISH_MARKER;
@@ -145,9 +147,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Applies the saved Appearance theme before first paint (no dark flash for Soft Light). */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
       </head>
       <body>
         {children}
@@ -162,7 +166,7 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const surface = surfaceFor(pathname);
-  const { ready: authReady, hasSession, hasAccessToken } = useSession();
+  const { ready: authReady, hasSession, hasAccessToken, session } = useSession();
   const signedIn = authReady && hasSession && hasAccessToken;
 
   installDebugNetworkProbe();
@@ -232,6 +236,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeController pathname={pathname} userId={session?.user?.id ?? null} />
       <PreviewWarningBanner />
       <NativeAppBridge signedIn={signedIn} />
       {surface === "marketing" && (

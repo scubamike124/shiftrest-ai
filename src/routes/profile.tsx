@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { requireSession } from "@/lib/require-session";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -108,6 +109,7 @@ function Profile() {
   });
   // perm state removed — NotificationsSection owns its own permission UI now.
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
   useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
@@ -152,9 +154,11 @@ function Profile() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserEmail(data.session?.user.email ?? null);
+      setUserId(data.session?.user.id ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user.email ?? null);
+      setUserId(session?.user.id ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, [refetchSub]);
@@ -440,6 +444,8 @@ function Profile() {
           </Link>
         )}
       </section>
+
+      <AppearanceSettings userId={userId} />
 
       {userEmail ? (
         <PasswordChangeCard />

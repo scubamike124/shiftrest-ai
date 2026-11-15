@@ -210,6 +210,251 @@
     0 24px 60px -28px oklch(0.78 0.16 75 / 0.45);
 }
 
+/* ===== Appearance themes (Settings → Appearance). Midnight Purple is :root. ===== */
+/* Ocean Blue — dark theme (Appearance setting). */
+:root[data-theme="ocean"] {
+  --background: oklch(0.14 0.03 245);
+  --foreground: oklch(0.97 0.01 245);
+  --card: oklch(0.19 0.045 245);
+  --card-foreground: oklch(0.97 0.01 245);
+  --popover: oklch(0.19 0.045 245);
+  --popover-foreground: oklch(0.97 0.01 245);
+  --primary: oklch(0.53 0.19 258);
+  --primary-foreground: oklch(0.99 0.005 245);
+  --secondary: oklch(0.27 0.07 245);
+  --secondary-foreground: oklch(0.97 0.01 245);
+  --muted: oklch(0.23 0.05 245);
+  --muted-foreground: oklch(0.75 0.04 245);
+  --accent-foreground: oklch(0.18 0.05 245);
+  --border: oklch(0.33 0.07 245 / 50%);
+  --input: oklch(0.23 0.05 245);
+  --ring: oklch(0.68 0.14 245);
+  --indigo: oklch(0.53 0.19 258);
+  --indigo-glow: oklch(0.85 0.11 245);
+  --mint-foreground: oklch(0.18 0.05 245);
+  --amber-foreground: oklch(0.18 0.05 245);
+  --shift: oklch(0.53 0.19 258);
+  --sleep: oklch(0.72 0.13 245 / 70%);
+  --gradient-hero: radial-gradient(
+    ellipse at top right,
+    oklch(0.55 0.15 245 / 0.35) 0%,
+    oklch(0.19 0.045 245) 55%,
+    oklch(0.14 0.03 245) 100%
+  );
+  --gradient-cta: linear-gradient(135deg, oklch(0.53 0.19 258), oklch(0.42 0.13 245));
+  --shadow-glow: 0 20px 50px -20px oklch(0.55 0.15 245 / 0.5);
+  --shadow-card: 0 8px 24px -12px oklch(0.05 0.02 245 / 0.6);
+  --glass-bg: linear-gradient(
+    155deg,
+    oklch(0.23 0.06 245 / 0.72) 0%,
+    oklch(0.19 0.045 245 / 0.55) 60%,
+    oklch(0.16 0.035 245 / 0.7) 100%
+  );
+  --glass-border: oklch(0.65 0.13 245 / 0.24);
+  --glass-highlight: oklch(0.95 0.03 245 / 0.08);
+  --glow-primary: 0 0 0 1px oklch(0.65 0.13 245 / 0.18),
+    0 24px 60px -28px oklch(0.45 0.15 245 / 0.55),
+    0 6px 18px -10px oklch(0.05 0.02 245 / 0.6);
+}
+
+/* Forest Green — dark theme (Appearance setting). */
+:root[data-theme="forest"] {
+  --background: oklch(0.14 0.03 165);
+  --foreground: oklch(0.97 0.01 165);
+  --card: oklch(0.19 0.045 165);
+  --card-foreground: oklch(0.97 0.01 165);
+  --popover: oklch(0.19 0.045 165);
+  --popover-foreground: oklch(0.97 0.01 165);
+  --primary: oklch(0.52 0.11 165);
+  --primary-foreground: oklch(0.99 0.005 165);
+  --secondary: oklch(0.27 0.07 165);
+  --secondary-foreground: oklch(0.97 0.01 165);
+  --muted: oklch(0.23 0.05 165);
+  --muted-foreground: oklch(0.75 0.04 165);
+  --accent-foreground: oklch(0.18 0.05 165);
+  --border: oklch(0.33 0.07 165 / 50%);
+  --input: oklch(0.23 0.05 165);
+  --ring: oklch(0.68 0.12 165);
+  --indigo: oklch(0.52 0.11 165);
+  --indigo-glow: oklch(0.85 0.1 165);
+  --mint-foreground: oklch(0.18 0.05 165);
+  --amber-foreground: oklch(0.18 0.05 165);
+  --shift: oklch(0.52 0.11 165);
+  --sleep: oklch(0.72 0.13 165 / 70%);
+  --gradient-hero: radial-gradient(
+    ellipse at top right,
+    oklch(0.55 0.15 165 / 0.35) 0%,
+    oklch(0.19 0.045 165) 55%,
+    oklch(0.14 0.03 165) 100%
+  );
+  --gradient-cta: linear-gradient(135deg, oklch(0.52 0.11 165), oklch(0.42 0.13 165));
+  --shadow-glow: 0 20px 50px -20px oklch(0.55 0.15 165 / 0.5);
+  --shadow-card: 0 8px 24px -12px oklch(0.05 0.02 165 / 0.6);
+  --glass-bg: linear-gradient(
+    155deg,
+    oklch(0.23 0.06 165 / 0.72) 0%,
+    oklch(0.19 0.045 165 / 0.55) 60%,
+    oklch(0.16 0.035 165 / 0.7) 100%
+  );
+  --glass-border: oklch(0.65 0.13 165 / 0.24);
+  --glass-highlight: oklch(0.95 0.03 165 / 0.08);
+  --glow-primary: 0 0 0 1px oklch(0.65 0.13 165 / 0.18),
+    0 24px 60px -28px oklch(0.45 0.15 165 / 0.55),
+    0 6px 18px -10px oklch(0.05 0.02 165 / 0.6);
+}
+
+/* Warm Sunset — dark theme (Appearance setting). */
+:root[data-theme="sunset"] {
+  --background: oklch(0.14 0.03 40);
+  --foreground: oklch(0.97 0.01 40);
+  --card: oklch(0.19 0.045 40);
+  --card-foreground: oklch(0.97 0.01 40);
+  --popover: oklch(0.19 0.045 40);
+  --popover-foreground: oklch(0.97 0.01 40);
+  --primary: oklch(0.55 0.17 42);
+  --primary-foreground: oklch(0.99 0.005 40);
+  --secondary: oklch(0.27 0.07 40);
+  --secondary-foreground: oklch(0.97 0.01 40);
+  --muted: oklch(0.23 0.05 40);
+  --muted-foreground: oklch(0.75 0.04 40);
+  --accent-foreground: oklch(0.18 0.05 40);
+  --border: oklch(0.33 0.07 40 / 50%);
+  --input: oklch(0.23 0.05 40);
+  --ring: oklch(0.68 0.13 40);
+  --indigo: oklch(0.55 0.17 42);
+  --indigo-glow: oklch(0.85 0.09 40);
+  --mint-foreground: oklch(0.18 0.05 40);
+  --amber-foreground: oklch(0.18 0.05 40);
+  --shift: oklch(0.55 0.17 42);
+  --sleep: oklch(0.72 0.13 40 / 70%);
+  --gradient-hero: radial-gradient(
+    ellipse at top right,
+    oklch(0.55 0.15 40 / 0.35) 0%,
+    oklch(0.19 0.045 40) 55%,
+    oklch(0.14 0.03 40) 100%
+  );
+  --gradient-cta: linear-gradient(135deg, oklch(0.55 0.17 42), oklch(0.42 0.13 40));
+  --shadow-glow: 0 20px 50px -20px oklch(0.55 0.15 40 / 0.5);
+  --shadow-card: 0 8px 24px -12px oklch(0.05 0.02 40 / 0.6);
+  --glass-bg: linear-gradient(
+    155deg,
+    oklch(0.23 0.06 40 / 0.72) 0%,
+    oklch(0.19 0.045 40 / 0.55) 60%,
+    oklch(0.16 0.035 40 / 0.7) 100%
+  );
+  --glass-border: oklch(0.65 0.13 40 / 0.24);
+  --glass-highlight: oklch(0.95 0.03 40 / 0.08);
+  --glow-primary: 0 0 0 1px oklch(0.65 0.13 40 / 0.18),
+    0 24px 60px -28px oklch(0.45 0.15 40 / 0.55),
+    0 6px 18px -10px oklch(0.05 0.02 40 / 0.6);
+}
+
+/* Soft Light — light theme (Appearance setting, and daytime when matching
+   the phone). Tailwind's white and light palette shades used for text on the
+   dark themes are remapped to ink tones so every label stays readable. */
+:root[data-theme="light"] {
+  --background: oklch(0.985 0.004 275);
+  --foreground: oklch(0.21 0.03 275);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 275);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 275);
+  --primary: oklch(0.51 0.21 275);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.945 0.02 275);
+  --secondary-foreground: oklch(0.27 0.05 275);
+  --muted: oklch(0.955 0.012 275);
+  --muted-foreground: oklch(0.46 0.03 270);
+  --accent: oklch(0.56 0.13 65);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.53 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.87 0.02 275);
+  --input: oklch(0.93 0.012 275);
+  --ring: oklch(0.55 0.2 275);
+  --indigo: oklch(0.51 0.21 275);
+  --indigo-glow: oklch(0.47 0.2 275);
+  --mint: oklch(0.5 0.11 170);
+  --mint-foreground: oklch(0.99 0 0);
+  --amber: oklch(0.55 0.13 65);
+  --amber-foreground: oklch(0.99 0 0);
+  --shift: oklch(0.51 0.21 275);
+  --winddown: oklch(0.62 0.14 70 / 85%);
+  --sleep: oklch(0.55 0.16 275 / 70%);
+  --gradient-hero: radial-gradient(
+    ellipse at top right,
+    oklch(0.86 0.07 275 / 0.6) 0%,
+    oklch(0.97 0.01 275) 55%,
+    oklch(0.985 0.004 275) 100%
+  );
+  --gradient-cta: linear-gradient(135deg, oklch(0.51 0.21 275), oklch(0.44 0.18 280));
+  --shadow-glow: 0 18px 40px -24px oklch(0.51 0.21 275 / 0.35);
+  --shadow-card: 0 8px 24px -14px oklch(0.3 0.05 275 / 0.22);
+  --glass-bg: linear-gradient(
+    155deg,
+    oklch(1 0 0 / 0.95) 0%,
+    oklch(0.985 0.008 275 / 0.92) 60%,
+    oklch(0.975 0.012 275 / 0.95) 100%
+  );
+  --glass-border: oklch(0.5 0.12 275 / 0.16);
+  --glass-highlight: oklch(1 0 0 / 0.5);
+  --glow-primary: 0 0 0 1px oklch(0.5 0.12 275 / 0.1), 0 16px 36px -24px oklch(0.4 0.12 275 / 0.28);
+  --glow-accent: 0 0 0 1px oklch(0.6 0.13 65 / 0.25), 0 16px 36px -24px oklch(0.6 0.13 65 / 0.3);
+  --color-rose-100: oklch(0.47 0.17 15);
+  --color-rose-200: oklch(0.47 0.17 15);
+  --color-rose-300: oklch(0.5 0.18 15);
+  --color-red-300: oklch(0.5 0.19 25);
+  --color-amber-100: oklch(0.47 0.11 60);
+  --color-amber-200: oklch(0.47 0.11 60);
+  --color-amber-300: oklch(0.5 0.12 62);
+  --color-emerald-50: oklch(0.45 0.1 160);
+  --color-emerald-100: oklch(0.45 0.1 160);
+  --color-emerald-200: oklch(0.47 0.1 160);
+  --color-emerald-300: oklch(0.48 0.11 160);
+  --color-sky-50: oklch(0.45 0.12 240);
+  --color-sky-100: oklch(0.45 0.12 240);
+  --color-sky-300: oklch(0.48 0.12 240);
+  --color-slate-300: oklch(0.45 0.03 265);
+  --color-indigo-200: oklch(0.47 0.18 275);
+  --color-indigo-300: oklch(0.48 0.18 275);
+}
+
+/* Soft Light: Tailwind's white overlays, borders and rings (bg-white/5,
+   border-white/10, ...) become soft ink tints, so cards and dividers stay
+   visible on a light background. Scoped to those utilities and their content,
+   not the global token, so white text on dark scrims, photos and solid colour
+   buttons stays white (restored by the second rule, which wins on ties). A
+   solid `bg-white` pill stays white too, even when it also carries a
+   `hover:bg-white/90` class that matches the first rule. */
+:root[data-theme="light"]
+  :is(
+    [class*="bg-white/"],
+    [class*="border-white/"],
+    [class*="ring-white/"],
+    [class*="divide-white/"],
+    [class*="from-white/"],
+    [class*="via-white/"],
+    [class*="to-white/"]
+  ) {
+  --color-white: oklch(0.21 0.03 275);
+}
+:root[data-theme="light"]
+  :is(
+    [class*="bg-black"],
+    [class*="from-black"],
+    [class*="bg-[#"],
+    [class*="bg-rose-5"],
+    [class*="bg-red-5"],
+    [class*="bg-emerald-5"],
+    [class*="bg-sky-5"],
+    [class*="bg-indigo-5"],
+    [class~="bg-primary"],
+    [class~="bg-destructive"],
+    [class~="bg-white"]
+  ) {
+  --color-white: oklch(1 0 0);
+}
+
 @utility glass-card {
   position: relative;
   border-radius: 28px;

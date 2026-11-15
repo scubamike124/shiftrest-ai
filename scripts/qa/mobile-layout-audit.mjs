@@ -111,6 +111,22 @@ const FAKE_PREFS = {
   assistant_name: "RestPilot",
   assistant_mode: "coach",
 };
+const SAMPLE_SHIFTS = [
+  [0, 19 * 60, 7 * 60, "ICU nights"],
+  [1, 19 * 60, 7 * 60, "ICU nights"],
+  [2, 19 * 60, 7 * 60, "ICU nights"],
+  [4, 7 * 60, 19 * 60, "Day shift"],
+  [6, 7 * 60, 19 * 60, "Day shift"],
+].map(([day, start, end, title], i) => ({
+  id: `00000000-0000-4000-8000-00000000010${i}`,
+  day,
+  week_index: 0,
+  start_min: start,
+  end_min: end,
+  employer_id: null,
+  title,
+  notes: null,
+}));
 async function installFakeBackend(context) {
   const key = `sb-${PLACEHOLDER_HOST.split(".")[0]}-auth-token`;
   await context.addInitScript(
@@ -145,6 +161,13 @@ async function installFakeBackend(context) {
     if (url.pathname.startsWith("/auth/v1/logout")) return route.fulfill({ status: 204, body: "" });
     if (url.pathname === "/rest/v1/user_prefs" && req.method() === "GET")
       return json(200, [FAKE_PREFS]);
+    // AUDIT_SAMPLE_SHIFTS=1: a typical nurse rotation, so schedule screens show real content.
+    if (
+      url.pathname === "/rest/v1/shifts" &&
+      req.method() === "GET" &&
+      process.env.AUDIT_SAMPLE_SHIFTS === "1"
+    )
+      return json(200, SAMPLE_SHIFTS);
     if (url.pathname.startsWith("/rest/v1/")) {
       if (req.method() === "HEAD")
         return route.fulfill({ status: 200, headers: { "content-range": "0-0/0" }, body: "" });
@@ -177,6 +200,19 @@ for (const vp of VIEWPORTS) {
       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
   });
   if (FAKE) await installFakeBackend(context);
+  // AUDIT_THEME=<id> (and AUDIT_MATCH_SYSTEM=1) picks the Appearance theme first.
+  if (process.env.AUDIT_THEME)
+    await context.addInitScript(
+      ([theme, match]) => {
+        try {
+          localStorage.setItem(
+            "restpilot.appearance.v1",
+            JSON.stringify({ theme, matchSystem: match }),
+          );
+        } catch {}
+      },
+      [process.env.AUDIT_THEME, process.env.AUDIT_MATCH_SYSTEM === "1"],
+    );
   for (const route of routes) {
     const page = await context.newPage();
     const consoleErrors = [];
