@@ -57,7 +57,7 @@ The fixes reach users only after the owner presses **Publish** in Lovable. The i
 - **Mutation check:** removing the gate from one route makes its tests fail.
 - **Railway (#62):** a refusal also never consumes the user's AI allowance (`consume_ai_request`).
 
-On `main` with #56: `bun run test` passes 94/94, plus `tsc` and `vite build` (output pasted in #56).
+On `main` with #56 (merged with main `5190b8a`): `bun run test` passes 107/107, plus `tsc` and `vite build` (output pasted in #56).
 
 ---
 
@@ -80,7 +80,7 @@ On `main` with #56: `bun run test` passes 94/94, plus `tsc` and `vite build` (ou
 |---|---|---|
 | **Website** | shown, unchanged | shown once `/auth/v1/settings` reports Apple enabled; hidden while unknown or on any error |
 | **App, every build so far** | hidden | hidden |
-| **App build with the `RestPilotWebOAuth/1` UA token (#64)** | hidden | shown |
+| **App build with the `RestPilotWebOAuth/1` UA token (#64, after a rebuild)** | hidden | shown |
 
 So every app build offers either no third-party login, where 4.8 doesn't apply, or Sign in with Apple. A reviewer never meets a broken button.
 
@@ -90,10 +90,14 @@ So every app build offers either no third-party login, where 4.8 doesn't apply, 
 - **Tests.** `tests/apple-signin.test.mjs` covers the provider matrix, the strict settings parsing, the fail-closed probe and the page wiring.
 
 ### What #64 adds on the Railway branch
-- **The same `/auth` rules.** That branch uses Supabase's own OAuth, so Apple appears only after Apple is enabled in **its** Supabase project.
+- **The same `/auth` rules.** That branch uses Supabase's own OAuth (`<ref>.supabase.co/auth/v1/authorize`), so on that hosting Apple appears only when two things are true:
+  - Apple is enabled in **its** Supabase project;
+  - the shell sends `RestPilotWebOAuth/2`.
 - **`ios-app/capacitor.config.json`:**
-  - `server.allowNavigation`: `oauth.lovable.app`, `*.supabase.co`, `appleid.apple.com`, `idmsa.apple.com`. This keeps the Apple flow inside the web view. No Google host is added.
+  - `server.allowNavigation`: **exactly** `oauth.lovable.app`, `appleid.apple.com` and `idmsa.apple.com`. No wildcards, and a test enforces this. No Google host is added.
   - `appendUserAgent`: `RestPilotWebOAuth/1 RestPilotApp/1.0.0`. `RestPilotApp/<version>` stays last for the native E2E check.
+  - This covers the Lovable-hosted flow the app loads today.
+- **At the Railway cutover:** add the project's exact `<ref>.supabase.co` to `allowNavigation` and append `RestPilotWebOAuth/2`. The test allows `/2` only with exactly one pinned host. **Never** add `*.supabase.co`: every Supabase customer's pages would then get the app's native bridge.
 
 ---
 
@@ -126,7 +130,7 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
 5. **Reminder.** Apple client secrets expire after **6 months**. Set a calendar reminder to generate a new one, or Apple sign-in stops working.
 
 ### C. Apple inside the iPhone app (needs a Mac with Xcode)
-1. After #64 merges: `cd ios-app && npm ci && npx cap sync ios`, then build and upload to TestFlight as usual.
+1. After #64 merges: `cd ios-app && npm ci && npx cap sync ios`, then build and upload to TestFlight as usual. This build lets Apple sign-in work in the app while restpilotai.com is served by Lovable (`main`).
 2. On a real iPhone: Sign in → **Continue with Apple** → finish → confirm you are signed in **inside the app**. If any step jumps to Safari, note the host in Safari's address bar and add it to `server.allowNavigation`.
 3. If it can't be made reliable, skip it. The shipped app is compliant without it: it shows no third-party login, so 4.8 doesn't apply.
 
@@ -150,7 +154,11 @@ In Lovable-managed mode, Apple's sheet shows Lovable's managed client, not "Rest
 3. **Live voice** already running on *another* device continues until it ends after a withdrawal. The browser talks to OpenAI directly with a short-lived key. The policy says so.
 4. **Self-written consent.** RLS lets users write their own `user_prefs`, so a user could set `consent_json` without the dialog. That is still the user's own consent, and the audit row is best effort. A dedicated RPC would make the audit trail strict.
 5. **Unknown status.** If the client can't load consent, the request goes to RestPilot's own server, which refuses without permission. No data reaches a provider either way.
-6. **Bridge exposure (#64).** Capacitor injects its JS bridge into pages loaded in the web view. With `allowNavigation`, Apple's, Lovable's broker and Supabase pages could reach the app's plugins (including read-only Health) while they are on screen during sign-in. These are trusted auth vendors and the window is short. The long-term alternative is a native `ASAuthorizationController` / `ASWebAuthenticationSession` plugin with a custom-scheme redirect (Lovable docs: add `myapp://callback` to Redirect URLs).
+6. **Bridge exposure (#64). This is permanent, not only during sign-in.**
+   - Capacitor injects its JS bridge into every main-frame page loaded from an `allowNavigation` host, and does not check the message origin.
+   - So any page on `oauth.lovable.app`, `appleid.apple.com` or `idmsa.apple.com` that the web view navigates to could call the app's plugins: HealthKit reads, RevenueCat, Preferences, LocalNotifications.
+   - These hosts are run by Apple and Lovable, not shared tenants, and the app reaches them only through sign-in. A Supabase host must always be pinned exactly.
+   - The more robust long-term option is a native `ASAuthorizationController` / `ASWebAuthenticationSession` plugin with a custom-scheme redirect, which needs no `allowNavigation`. Lovable's docs suggest adding `myapp://callback` to Redirect URLs for this.
 7. **Managed-mode branding and relay mail**: see 3.B.
 8. **Google users in the app** must use Forgot Password once to set a password. The in-app hint says so.
 9. **One-render flash.** On a cold load of `/auth` inside the app, the server-rendered Google button shows for one render before hydration hides it. This is the same pattern as the existing purchase gates.
