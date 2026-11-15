@@ -16,7 +16,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { hasCrisisCue } from "@/lib/safety/crisis-cues";
+import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 export const Route = createFileRoute("/coach")({
   ssr: false,
@@ -121,6 +123,7 @@ function Coach() {
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Voice settings — voice/personality/speed/name are configured on /profile.
@@ -180,6 +183,10 @@ function Coach() {
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
+    // Local crisis-cue check first: before the AI consent gate and any AI or
+    // network call, so the crisis line shows with or without AI permission.
+    const crisis = hasCrisisCue(trimmed);
+    if (crisis) setCrisisCard(true);
     const userMsg: Msg = { role: "user", content: trimmed };
     const baseMessages = [...messages, userMsg];
     setMessages(baseMessages);
@@ -191,6 +198,9 @@ function Coach() {
     scrollToBottom();
 
     try {
+      // Without AI permission, a crisis message gets the card above rather
+      // than a data-sharing prompt. Nothing is sent; the user can keep typing.
+      if (crisis && (await aiConsentWouldAsk())) return;
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       const resp = await aiFetch("/api/ai", {
@@ -347,6 +357,11 @@ function Coach() {
           })}
         </div>
 
+        {crisisCard && (
+          <div className="mt-3">
+            <CrisisSupportCard onClose={() => setCrisisCard(false)} />
+          </div>
+        )}
 
         {messages.length <= 1 && (
           <div className="mt-5 flex flex-col gap-2">
