@@ -30,8 +30,17 @@ function mondayOf(date: Date): Date {
   return d;
 }
 
-/** Parse a YYYY-MM-DD anchor into a local Date (Monday). Falls back to this week's Monday. */
-function resolveAnchorMonday(anchor: string | null | undefined, now: Date): Date {
+/**
+ * Parse a YYYY-MM-DD anchor into a local Date (Monday).
+ *
+ * With no anchor saved, Week A is the CURRENT calendar week (the Monday of
+ * today, not of the date being asked about). The old fallback used the
+ * Monday of the target date itself, so every date was 0 weeks from its own
+ * anchor and a 2-6 week rotation never advanced: Week B+ shifts were never
+ * scheduled. The dashboard now saves an anchor the first time it sees a
+ * rotation without one, so this fallback only covers that first render.
+ */
+function resolveAnchorMonday(anchor: string | null | undefined, today: Date = new Date()): Date {
   if (anchor) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(anchor);
     if (m) {
@@ -39,7 +48,16 @@ function resolveAnchorMonday(anchor: string | null | undefined, now: Date): Date
       if (!Number.isNaN(d.getTime())) return mondayOf(d);
     }
   }
-  return mondayOf(now);
+  return mondayOf(today);
+}
+
+/** YYYY-MM-DD of the Monday of the week containing `date` (local time). */
+export function mondayIso(date: Date = new Date()): string {
+  const mon = mondayOf(date);
+  const y = mon.getFullYear();
+  const m = String(mon.getMonth() + 1).padStart(2, "0");
+  const d = String(mon.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /** Which week of the rotation does `date` belong to? 0..cycleWeeks-1. */
@@ -50,7 +68,7 @@ export function weekIndexFor(
 ): number {
   const cw = Math.max(1, Math.min(6, Math.round(cycleWeeks || 1)));
   if (cw === 1) return 0;
-  const anchorMon = resolveAnchorMonday(anchor, date);
+  const anchorMon = resolveAnchorMonday(anchor);
   const targetMon = mondayOf(date);
   const weeks = Math.round((targetMon.getTime() - anchorMon.getTime()) / (7 * MS_PER_DAY));
   return ((weeks % cw) + cw) % cw;

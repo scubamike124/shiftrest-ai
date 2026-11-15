@@ -38,7 +38,7 @@ export const Route = createFileRoute("/inbox")({
   head: () => ({
     meta: [
       { title: "Inbox | RestPilot AI" },
-      { name: "description", content: "Capture tasks, reminders, and email follow-ups Reelo can plan around." },
+      { name: "description", content: "Capture tasks, reminders, and email follow-ups RestPilot can plan around." },
     ],
   }),
   component: InboxPage,
@@ -154,7 +154,7 @@ function InboxPage() {
             <Inbox className="h-4 w-4 text-primary" aria-hidden /> Inbox
           </h1>
           <p className="text-xs text-muted-foreground">
-            Capture anything — Reelo plans around it. Nothing leaves this device unless you ask.
+            Capture anything — RestPilot plans around it. Nothing leaves this device unless you ask.
           </p>
         </div>
       </header>
