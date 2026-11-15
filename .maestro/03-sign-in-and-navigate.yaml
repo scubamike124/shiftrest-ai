@@ -1,0 +1,45 @@
+appId: com.restpilotai.app
+name: Sign in with the seeded QA account and use the bottom navigation
+tags: [core]
+# QA_EMAIL / QA_PASSWORD come from `maestro test -e` (a user seeded in the E2E stack).
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 45000
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 20000
+- tapOn: "Email address"
+- inputText: ${QA_EMAIL}
+- tapOn: "Password"
+- inputText: ${QA_PASSWORD}
+- hideKeyboard
+- tapOn:
+    text: "Sign In"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      text: "Good (morning|afternoon|evening).*"
+    timeout: 30000
+- takeScreenshot: maestro-03-dashboard
+- tapOn: "Plan"
+- extendedWaitUntil:
+    visible: "Today's light plan."
+    timeout: 20000
+- takeScreenshot: maestro-03-plan
+- tapOn: "Events"
+- extendedWaitUntil:
+    visible: "Add event"
+    timeout: 20000
+- tapOn: "Profile"
+- extendedWaitUntil:
+    visible: "Your preferences"
+    timeout: 20000
+- takeScreenshot: maestro-03-profile
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible:
+      text: "Good (morning|afternoon|evening).*"
+    timeout: 20000

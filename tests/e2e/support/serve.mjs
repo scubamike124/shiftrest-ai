@@ -35,7 +35,12 @@ if (!fs.existsSync(entry)) {
   process.exit(1);
 }
 const certDir = path.join(root, "tests/e2e/.results/certs");
-const { cert } = ensureCert(certDir);
+let cert = "";
+try {
+  cert = ensureCert(certDir).cert;
+} catch (e) {
+  console.warn(`[e2e] openssl unavailable (${e.message}); AI chat journeys will fail`);
+}
 
 startFakeBackend({ port: FRONT, appUrl: `http://127.0.0.1:${APP}`, aiPort: AI, certDir });
 
@@ -55,7 +60,7 @@ const app = spawn(process.execPath, [entry], {
     AI_BASE_URL: `https://127.0.0.1:${AI}/v1`,
     AI_CHAT_MODEL: "e2e-fake-model",
     AI_FAST_MODEL: "e2e-fake-model",
-    NODE_EXTRA_CA_CERTS: cert,
+    ...(cert ? { NODE_EXTRA_CA_CERTS: cert } : {}),
     // Never reach real providers from an E2E run.
     RESEND_API_KEY: "",
     OPENAI_API_KEY: "",

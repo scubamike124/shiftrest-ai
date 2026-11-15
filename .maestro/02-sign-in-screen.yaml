@@ -1,0 +1,18 @@
+appId: com.restpilotai.app
+name: Sign-in screen in the app shell (no Google button, no Safari install prompt)
+tags: [core]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Sign in"
+    timeout: 45000
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Welcome back"
+    timeout: 20000
+- assertVisible: "Email address"
+- assertVisible: "Forgot Password?"
+# PR #6: Google sign-in is hidden inside the iPhone app (blocked in WebViews).
+- assertNotVisible: "Continue with Google"
+- assertNotVisible: "Add to Home Screen"
+- takeScreenshot: maestro-02-sign-in

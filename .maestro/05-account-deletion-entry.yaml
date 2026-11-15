@@ -1,0 +1,22 @@
+appId: com.restpilotai.app
+name: Account deletion is reachable in the app and needs typed confirmation (cancelled here)
+tags: [core]
+---
+# Apple guideline 5.1.1(v): apps with account creation must offer deletion in-app.
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 45000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element: "Delete Account"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Delete Account"
+- extendedWaitUntil:
+    visible: "Delete your account?"
+    timeout: 15000
+- assertVisible: "Type DELETE to confirm"
+- takeScreenshot: maestro-05-delete-dialog
+- tapOn: "Keep account"
+- assertNotVisible: "Delete your account?"

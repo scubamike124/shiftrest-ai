@@ -1,0 +1,13 @@
+appId: com.restpilotai.app
+name: A restpilotai.com universal link opens the matching screen in the app (BLOCKED)
+tags: [blocked, deeplink]
+---
+# BLOCKED in CI: universal links need the Associated Domains entitlement on a
+# signed build plus apple-app-site-association served by restpilotai.com; an
+# unsigned simulator build cannot verify them. Notification-tap deep links are
+# covered by .github/workflows/ios-native-e2e.yml (XCUITest), and link
+# filtering by tests/native-*.test.mjs. Run this on a signed TestFlight build.
+- openLink: https://restpilotai.com/plan
+- extendedWaitUntil:
+    visible: "Today's light plan."
+    timeout: 30000

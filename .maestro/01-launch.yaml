@@ -1,0 +1,11 @@
+appId: com.restpilotai.app
+name: App launches to the RestPilot home screen
+tags: [core]
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Meet the AI companion that helps you sleep better."
+    timeout: 45000
+- assertVisible: "Sign in"
+- takeScreenshot: maestro-01-launch

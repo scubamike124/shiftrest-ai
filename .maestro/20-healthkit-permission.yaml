@@ -1,0 +1,29 @@
+appId: com.restpilotai.app
+name: Connect Apple Health shows the HealthKit permission sheet (read-only), declined here
+tags: [healthkit]
+---
+# Runs only when the build declares HealthKit (PR #17). The sheet is the system
+# "Health Access" screen; the flow declines so nothing is shared.
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 45000
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element:
+      text: "(Connect )?Apple Health"
+    direction: DOWN
+    timeout: 30000
+- tapOn:
+    text: "(Connect )?Apple Health"
+- extendedWaitUntil:
+    visible:
+      text: "(Health Access|Turn On All|Allow .* to read)"
+    timeout: 20000
+- takeScreenshot: maestro-20-healthkit-sheet
+- tapOn:
+    text: "Don.t Allow"
+    optional: true
+- tapOn:
+    text: "Cancel"
+    optional: true

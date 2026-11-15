@@ -844,8 +844,18 @@ export function startFakeBackend({
   });
   server.listen(port, "127.0.0.1");
   let aiServer = null;
+  let tls = null;
   if (aiPort && certDir) {
-    const { key, cert } = ensureCert(certDir);
+    try {
+      tls = ensureCert(certDir);
+    } catch (e) {
+      console.warn(
+        `[fake-backend] no TLS certificate (openssl failed: ${e.message}); fake model disabled`,
+      );
+    }
+  }
+  if (tls) {
+    const { key, cert } = tls;
     aiServer = https.createServer(
       { key: fs.readFileSync(key), cert: fs.readFileSync(cert) },
       async (req, res) => {
