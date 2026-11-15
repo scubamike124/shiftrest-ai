@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Moon, Sparkles, ShieldCheck, ChevronRight } from "lucide-react";
+import { Moon, Sparkles, ShieldCheck, ChevronRight, ChevronLeft } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,16 +34,39 @@ const ACK_ITEMS = [
 
 const ONBOARDING_DOCS = ["terms", "privacy", "disclaimers", "safety", "electronic-consent"];
 
+// The step survives a reload (per tab) so a half-finished walk resumes where it
+// was left instead of replaying the intro slides.
+const STEP_KEY = "restpilot.onboarding.step.v1";
+function readStep(): number {
+  try {
+    const n = Number(sessionStorage.getItem(STEP_KEY));
+    return Number.isInteger(n) && n >= 0 && n <= INTRO_SLIDES.length + 1 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+function writeStep(n: number) {
+  try {
+    sessionStorage.setItem(STEP_KEY, String(n));
+  } catch {
+    /* storage unavailable: resume is a convenience only */
+  }
+}
+
 export function Onboarding() {
   const queryClient = useQueryClient();
   const { ready: sessionReady, hasSession, hasAccessToken } = useSession();
-  const { data: prefs, isSuccess } = useQuery({
+  const { data: prefs, isSuccess, isFetched } = useQuery({
     queryKey: ["prefs"],
     queryFn: fetchPrefs,
     initialData: DEFAULT_PREFS,
     enabled: sessionReady && hasSession && hasAccessToken,
   });
-  const [step, setStep] = useState(0);
+  const [step, setStepState] = useState(0);
+  const setStep = (n: number) => {
+    setStepState(n);
+    writeStep(n);
+  };
   const [dismissed, setDismissed] = useState(false);
   const [acks, setAcks] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
@@ -53,11 +77,15 @@ export function Onboarding() {
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    setStepState(readStep());
     setReady(true);
   }, []);
 
   const authOk = sessionReady && hasSession && hasAccessToken;
-  const open = ready && authOk && isSuccess && !prefs.onboarded && !dismissed;
+  // `initialData` makes isSuccess true before any real fetch, which flashed the
+  // consent step at already-onboarded users on a slow connection. Wait for a
+  // real response (isFetched) before deciding.
+  const open = ready && authOk && isSuccess && isFetched && !prefs.onboarded && !dismissed;
   if (!open) return null;
 
   const NAME_STEP_INDEX = INTRO_SLIDES.length; // after intro slides
@@ -87,6 +115,7 @@ export function Onboarding() {
       await markOnboarded();
       await queryClient.invalidateQueries({ queryKey: ["prefs"] });
       setDismissed(true);
+      writeStep(0);
     } catch (err) {
       console.error("onboarding finish failed", err);
       const msg = err instanceof Error && err.message ? err.message : "Couldn't save. Please try again.";
@@ -121,7 +150,15 @@ export function Onboarding() {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-background/95 backdrop-blur-2xl">
+    <DialogPrimitive.Root open>
+    <DialogPrimitive.Portal>
+    <DialogPrimitive.Content
+      aria-describedby={undefined}
+      onEscapeKeyDown={(e) => e.preventDefault()}
+      onPointerDownOutside={(e) => e.preventDefault()}
+      onInteractOutside={(e) => e.preventDefault()}
+      className="fixed inset-0 z-[60] flex flex-col bg-background/95 backdrop-blur-2xl"
+    >
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
         {!isNameStep && !isConsentStep ? (
           (() => {
@@ -132,7 +169,7 @@ export function Onboarding() {
                 <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[var(--shadow-glow)]">
                   <Icon className="h-9 w-9" />
                 </span>
-                <h2 className="mt-8 text-2xl font-bold leading-tight">{slide.title}</h2>
+                <DialogPrimitive.Title className="mt-8 text-2xl font-bold leading-tight">{slide.title}</DialogPrimitive.Title>
                 <p className="mt-4 max-w-sm text-sm text-muted-foreground">{slide.body}</p>
               </>
             );
@@ -141,7 +178,7 @@ export function Onboarding() {
           <div className="w-full max-w-sm text-left">
             <div className="flex items-center gap-2 text-primary">
               <Sparkles className="h-6 w-6" />
-              <h2 className="text-xl font-semibold">What should I call you?</h2>
+              <DialogPrimitive.Title className="text-xl font-semibold">What should I call you?</DialogPrimitive.Title>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               This is the name RestPilot uses in briefings, voice, and notifications.
@@ -153,6 +190,15 @@ export function Onboarding() {
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value)}
               placeholder="Your first name"
+              aria-label="Your first name"
+              autoComplete="given-name"
+              enterKeyHint="next"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void advance();
+                }
+              }}
               className="mt-4 h-12 w-full rounded-xl border border-border bg-input px-3 text-base"
               maxLength={60}
             />
@@ -161,7 +207,7 @@ export function Onboarding() {
           <div className="w-full max-w-md text-left">
             <div className="flex items-center gap-2 text-primary">
               <ShieldCheck className="h-6 w-6" />
-              <h2 className="text-xl font-semibold">Before we start</h2>
+              <DialogPrimitive.Title className="text-xl font-semibold">Before we start</DialogPrimitive.Title>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               Please confirm each item. These are required so we can give you accurate, safe guidance.
@@ -203,6 +249,17 @@ export function Onboarding() {
             />
           ))}
         </div>
+        {step > 0 && (
+          <button
+            type="button"
+            onClick={() => !busy && setStep(step - 1)}
+            disabled={busy}
+            className="flex h-10 items-center justify-center gap-1 self-center rounded-xl px-4 text-sm text-muted-foreground disabled:opacity-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </button>
+        )}
         <button
           onClick={advance}
           disabled={busy || (isConsentStep && !allAcked) || (isNameStep && !nameOk)}
@@ -227,6 +284,8 @@ export function Onboarding() {
         orbState="onboarding"
         greetShown={false}
       />
-    </div>
+    </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
