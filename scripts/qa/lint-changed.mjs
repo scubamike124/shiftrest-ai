@@ -19,6 +19,7 @@ const git = (...args) =>
 const files = git(
   "diff",
   "--name-only",
+  "-M",
   "--diff-filter=ACMR",
   `${base}...HEAD`,
   "--",
@@ -37,7 +38,9 @@ if (files.length === 0) {
 // Added/modified line numbers per file, from a zero-context diff.
 const changed = new Map();
 let current = null;
-for (const line of git("diff", "-U0", `${base}...HEAD`, "--", ...files).split("\n")) {
+// No pathspec here: with rename detection a renamed file only shows its edited
+// lines, and the "+++ b/<new path>" headers name the files we lint.
+for (const line of git("diff", "-U0", "-M", `${base}...HEAD`).split("\n")) {
   if (line.startsWith("+++ ")) {
     current = line.slice(4).replace(/^b\//, "");
     changed.set(current, new Set());
