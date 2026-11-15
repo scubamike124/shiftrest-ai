@@ -17,10 +17,30 @@ tags: [healthkit]
     speed: 80
     timeout: 120000
 - tapOn: "Connect Apple Health"
+# On a fresh hosted simulator the system Health privacy service can take ~30 s
+# to start, and HealthKit fails the first request after ~10 s (CI run
+# 43691170744: "FAILED prompting authorization", then the service starts).
+# Tap once more if the sheet is not up yet; the service is warm by then.
 - extendedWaitUntil:
     visible:
       text: "(Health Access|Turn On All|Allow .* to read)"
-    timeout: 20000
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        text: "(Health Access|Turn On All|Allow .* to read)"
+    commands:
+      - scrollUntilVisible:
+          element:
+            text: "Connect Apple Health"
+          direction: DOWN
+          timeout: 30000
+      - tapOn: "Connect Apple Health"
+- extendedWaitUntil:
+    visible:
+      text: "(Health Access|Turn On All|Allow .* to read)"
+    timeout: 60000
 - takeScreenshot: maestro-20-healthkit-sheet
 - tapOn:
     text: "Don.t Allow"
