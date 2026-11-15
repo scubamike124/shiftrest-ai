@@ -59,7 +59,9 @@ function withMorphTargets(raw: string): string {
 export function modelUrlFor(_id: string | null | undefined): string | null {
   const custom = getCustomModelUrl();
   if (custom) return withMorphTargets(custom);
-  return DEFAULT_MODEL_URL;
+  // models.readyplayer.me no longer resolves (Nov 2026), so there is no default
+  // 3D model: callers fall back to the 2D portrait instead of fetching a dead host.
+  return null;
 }
 
 // Kept for backwards compat with the earlier import site.
