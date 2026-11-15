@@ -15,13 +15,29 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
-// ---- (1) legal page, rendered for real -------------------------------------
-function renderLegal(inApp) {
-  const js = ts.transpileModule(read('src/routes/legal.subscription.tsx'), {
+// ---- (1) legal pages, rendered for real --------------------------------------
+// mode 'mounted-web' / 'mounted-app': the hook's value after mount.
+// mode 'first-app' / 'first-web': the REAL hook, first render only (what the
+// server HTML and hydration produce; effects do not run), in the app or not.
+function loadRealNativeApp(inApp) {
+  const js = ts.transpileModule(read('src/lib/native-app.ts'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const module = { exports: {} };
+  const win = inApp ? { Capacitor: { isNativePlatform: () => true } } : {};
+  vm.compileFunction(js, ['module', 'exports', 'require', 'window', 'navigator'])(
+    module, module.exports, (n) => { if (n === 'react') return React; throw new Error('unexpected ' + n); }, win, { userAgent: inApp ? 'RestPilotApp/1.0' : 'Safari' });
+  return module.exports;
+}
+function renderPage(file, mode) {
+  const js = ts.transpileModule(read(file), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const module = { exports: {} };
   let captured;
+  const nativeApp = mode.startsWith('first')
+    ? loadRealNativeApp(mode === 'first-app')
+    : { useWebOnlyAfterMount: () => mode === 'mounted-web' };
   const mods = {
     'react/jsx-runtime': require('react/jsx-runtime'),
     '@tanstack/react-router': {
@@ -29,22 +45,24 @@ function renderLegal(inApp) {
       Link: ({ to, children }) => React.createElement('a', { href: to }, children),
     },
     '@/components/legal/LegalLayout': { LegalLayout: ({ children }) => React.createElement('div', null, children) },
-    '@/lib/legal/meta': { findLegalDoc: () => ({ title: 'Subscription Terms', summary: 's', path: '/legal/subscription' }) },
-    '@/lib/native-app': { useIsNativeApp: () => inApp },
+    '@/lib/legal/meta': { findLegalDoc: () => ({ title: 'Legal', summary: 's', path: '/legal/x' }) },
+    '@/lib/native-app': nativeApp,
   };
   vm.compileFunction(js, ['module', 'exports', 'require'])(module, module.exports, (n) => { if (n in mods) return mods[n]; throw new Error('unexpected ' + n); });
   return renderToStaticMarkup(React.createElement(captured.component));
 }
+const renderLegal = (mode) => renderPage('src/routes/legal.subscription.tsx', mode);
+const renderTerms = (mode) => renderPage('src/routes/legal.terms.tsx', mode);
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-for (const inApp of [false, true]) {
-  test(`/legal/subscription (${inApp ? 'in the app' : 'website'}) covers App Store and website billing`, () => {
-    const t = text(renderLegal(inApp));
+for (const mode of ['mounted-web', 'mounted-app', 'first-app', 'first-web']) {
+  test(`/legal/subscription (${mode}) covers App Store and website billing`, () => {
+    const t = text(renderLegal(mode));
     assert.match(t, /billed by Apple through the App Store/);
     assert.match(t, /Settings → your name → Subscriptions/);
     assert.match(t, /reportaproblem\.apple\.com/);
     assert.match(t, /cancelled at least 24 hours before the end of the current period/);
-    assert.match(t, /Charged to your Apple Account at confirmation of purchase|Payment is charged to your Apple Account at confirmation of purchase/);
+    assert.match(t, /Payment is charged to your Apple Account at confirmation of purchase/);
     assert.match(t, /Stripe/); // existing website subscribers
     assert.match(t, /USD 7\.99\/month/);
     assert.match(t, /USD 49\.99\/year/);
@@ -52,21 +70,44 @@ for (const inApp of [false, true]) {
   });
 }
 
-test('/legal/subscription: website shows the pricing link; the app shows no website purchase link or wording', () => {
-  const web = renderLegal(false);
+test('/legal/subscription: after mount the website shows the pricing link and account-settings wording', () => {
+  const web = renderLegal('mounted-web');
   assert.match(web, /href="\/pricing"/);
   assert.match(web, /cancel any time from your account settings/);
-  const app = renderLegal(true);
-  assert.doesNotMatch(app, /href="\/(pricing|paywall|checkout)/);
-  assert.doesNotMatch(app, /href="https?:\/\/(?!reportaproblem\.apple\.com)/);
-  assert.doesNotMatch(text(app), /pricing page|buy on our website|subscribe on our website|account settings/i);
-  assert.match(text(app), /shown in the app before you subscribe/);
 });
 
-test('/legal/subscription source: gated by useIsNativeApp, no stale Stripe-only wording', () => {
-  const src = read('src/routes/legal.subscription.tsx');
-  assert.match(src, /useIsNativeApp\(\)/);
-  assert.doesNotMatch(src, /Subscriptions are processed by our payment provider \(currently\s+Stripe\)\. By subscribing/);
+// Includes the first render: that is what the server HTML and hydration show,
+// and an app user must never see website purchase wording, even briefly.
+for (const mode of ['mounted-app', 'first-app', 'first-web']) {
+  test(`/legal/subscription (${mode}): no website pricing/purchase link or website-only cancel wording`, () => {
+    const app = renderLegal(mode);
+    assert.doesNotMatch(app, /href="\/(pricing|paywall|checkout)/);
+    assert.doesNotMatch(app, /href="https?:\/\/(?!reportaproblem\.apple\.com)/);
+    assert.doesNotMatch(text(app), /pricing page|buy on our website|subscribe on our website|account settings/i);
+    assert.match(text(app), /The price is shown before you subscribe/);
+  });
+}
+
+for (const mode of ['mounted-app', 'first-app', 'first-web']) {
+  test(`/legal/terms (${mode}): no link to /pricing`, () => {
+    const t = renderTerms(mode);
+    assert.doesNotMatch(t, /href="\/(pricing|paywall)"/);
+    assert.doesNotMatch(text(t), /pricing page/);
+    assert.match(text(t), /as described in our Subscription Terms/);
+  });
+}
+test('/legal/terms: after mount the website keeps its pricing page link', () => {
+  const t = renderTerms('mounted-web');
+  assert.match(t, /href="\/pricing"/);
+  assert.match(text(t), /as described on our pricing page and in our Subscription Terms/);
+});
+
+test('/legal pages source: use the first-render-safe hook, not useIsNativeApp', () => {
+  for (const f of ['src/routes/legal.subscription.tsx', 'src/routes/legal.terms.tsx']) {
+    assert.match(read(f), /useWebOnlyAfterMount\(\)/);
+    assert.doesNotMatch(read(f), /useIsNativeApp/);
+  }
+  assert.doesNotMatch(read('src/routes/legal.subscription.tsx'), /Subscriptions are processed by our payment provider \(currently\s+Stripe\)\. By subscribing/);
 });
 
 // ---- (2) foreground re-sync -------------------------------------------------
@@ -140,6 +181,17 @@ test('resync: client throttle, failures swallowed, never throws', async () => {
   assert.equal(await resync.resyncStoreEntitlement(err.deps), 'failed');
   const statusThrows = harness({ getStatus: async () => { throw new Error('net'); } });
   assert.equal(await resync.resyncStoreEntitlement(statusThrows.deps), 'failed');
+});
+
+test('resync: Apple access ending within 3 days is NOT re-asked within the 30 minute minimum gap', async () => {
+  const h = harness({ getStatus: async () => ok(ent([apple(NOW + 1 * DAY)])) });
+  assert.equal(await resync.resyncStoreEntitlement(h.deps), 'synced');
+  h.deps.now = () => NOW + 29 * 60 * 1000;
+  assert.equal(await resync.resyncStoreEntitlement(h.deps), 'skipped-recent');
+  assert.equal(h.calls.sync, 1);
+  h.deps.now = () => NOW + 31 * 60 * 1000;
+  assert.equal(await resync.resyncStoreEntitlement(h.deps), 'synced');
+  assert.equal(h.calls.sync, 2);
 });
 
 test('resync is wired: root mounts it for signed-in users; it renders nothing and has no purchase UI', () => {

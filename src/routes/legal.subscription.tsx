@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
-import { useIsNativeApp } from "@/lib/native-app";
+import { useWebOnlyAfterMount } from "@/lib/native-app";
 
 export const DOC = findLegalDoc("subscription")!;
 
@@ -21,8 +21,11 @@ export const Route = createFileRoute("/legal/subscription")({
 
 function SubscriptionTerms() {
   // Inside the iPhone app no website purchase link or wording may appear
-  // (App Store Guideline 3.1.1); the website shows the same terms with links.
-  const inApp = useIsNativeApp();
+  // (App Store Guideline 3.1.1), not even before hydration. The first render
+  // (server HTML and hydration) is therefore the neutral wording; website
+  // visitors get the pricing link and "account settings" wording right after
+  // mount. The neutral text is accurate and complete for everyone.
+  const web = useWebOnlyAfterMount();
   return (
     <LegalLayout doc={DOC}>
       <p>
@@ -48,12 +51,12 @@ function SubscriptionTerms() {
         Lifetime keep their access as described in "Lifetime access" below.
       </p>
       <p>
-        {inApp ? (
-          <>The price is shown in the app before you subscribe. </>
-        ) : (
+        {web ? (
           <>
             Current pricing is shown on the <Link to="/pricing">pricing page</Link>.{" "}
           </>
+        ) : (
+          <>The price is shown before you subscribe. </>
         )}
         Taxes, where applicable, are added at checkout or by Apple.
       </p>
@@ -91,9 +94,9 @@ function SubscriptionTerms() {
       </p>
       <p>
         <strong>Website subscriptions:</strong>{" "}
-        {inApp
-          ? "these are managed from your RestPilot account on the web, or by contacting support."
-          : "you can cancel any time from your account settings."}
+        {web
+          ? "you can cancel any time from your account settings."
+          : "these are managed from your RestPilot account on the web, or by contacting support."}
       </p>
       <p>
         Cancellation stops future renewals; you retain access through the end
