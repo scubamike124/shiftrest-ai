@@ -56,6 +56,7 @@ import { CompanionQuickGrid, type CompanionQuickActionId } from "@/components/co
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
+import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
 
 
 
@@ -787,13 +788,26 @@ function CompanionPage() {
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
         const fallback =
           resp.status === 429
-            ? "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
+            ? isNativeApp()
+              ? "You've reached today's AI limit. I saved what you said here, and you can keep typing."
+              : "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
             : "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
         if (resp.status === 429) {
-          toast.error("Daily AI limit reached.", {
-            description: "Upgrade for unlimited conversations.",
-            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
-          });
+          // No upgrade prompt inside the iPhone app (Guideline 3.1.1).
+          toast.error(
+            "Daily AI limit reached.",
+            isNativeApp()
+              ? {}
+              : {
+                  description: "Upgrade for unlimited conversations.",
+                  action: {
+                    label: "Upgrade",
+                    onClick: () => {
+                      window.location.href = "/paywall";
+                    },
+                  },
+                },
+          );
         } else {
           toast.error(errJson.error || "Companion is unavailable");
         }
@@ -1543,12 +1557,7 @@ function CompanionPage() {
       {rt.trial?.isTrial && (
         <div className="mt-2 flex items-center justify-center">
           {rt.trial.limitReached ? (
-            <Link
-              to="/paywall"
-              className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
-            >
-              Trial voice minutes used up · Upgrade →
-            </Link>
+            <VoiceTrialUsedUp />
           ) : (
             <span className="rounded-full border border-border bg-card px-3 py-1 text-[10px] font-medium text-muted-foreground">
               Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of {Math.round(rt.trial.capSeconds / 60)} min left
@@ -1575,5 +1584,24 @@ function CompanionPage() {
       />
 
     </main>
+  );
+}
+
+/** Trial voice cap reached. The upgrade link is website-only (not in the iPhone app). */
+function VoiceTrialUsedUp() {
+  if (useIsNativeApp()) {
+    return (
+      <span className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium text-muted-foreground">
+        Trial voice minutes used up
+      </span>
+    );
+  }
+  return (
+    <Link
+      to="/paywall"
+      className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
+    >
+      Trial voice minutes used up · Upgrade →
+    </Link>
   );
 }

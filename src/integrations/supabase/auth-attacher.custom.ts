@@ -15,6 +15,7 @@
 
 import { createMiddleware } from "@tanstack/react-start";
 import { supabase } from "./client";
+import { isNativeApp, NATIVE_APP_HEADER } from "@/lib/native-app";
 
 type AuthStatusDetail = {
   hasSession: boolean;
@@ -100,8 +101,10 @@ export const attachSupabaseAuth = createMiddleware({ type: "function" }).client(
       source,
     });
 
-    return next({
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    // Tell the server this call comes from the iPhone app shell, so purchase
+    // server functions can refuse (defence in depth; see native-app.ts).
+    if (isNativeApp()) headers[NATIVE_APP_HEADER] = "1";
+    return next({ headers });
   },
 );

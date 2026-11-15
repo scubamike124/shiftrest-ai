@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Moon } from "lucide-react";
 import { LEGAL_DOCS } from "@/lib/legal/meta";
+import { useIsNativeApp } from "@/lib/native-app";
 
 export function SiteFooter() {
+  // No "Pricing" link inside the iPhone app.
+  const inNativeApp = useIsNativeApp();
   const legalLinks = LEGAL_DOCS.map((d) => ({ to: d.path, label: d.title }));
 
   return (
@@ -27,7 +30,7 @@ export function SiteFooter() {
           title="Product"
           links={[
             { to: "/features", label: "Features" },
-            { to: "/pricing", label: "Pricing" },
+            ...(inNativeApp ? [] : [{ to: "/pricing", label: "Pricing" }]),
             { to: "/science", label: "The Science" },
             { to: "/dashboard", label: "Dashboard" },
             { to: "/safety", label: "Safety Center" },

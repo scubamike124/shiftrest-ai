@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useIsNativeApp } from "@/lib/native-app";
 import {
   LayoutDashboard,
   Sun,
@@ -39,6 +40,8 @@ const footerNav = [
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // No "Upgrade" (website purchase) entry inside the iPhone app.
+  const inNativeApp = useIsNativeApp();
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border/60 bg-background/40 px-4 py-6 lg:flex">
@@ -77,25 +80,27 @@ export function AppSidebar() {
       </nav>
 
       <div className="flex flex-col gap-0.5 border-t border-border/60 pt-4">
-        {footerNav.map((n) => {
-          const active = pathname === n.to;
-          const Icon = n.icon;
-          return (
-            <Link
-              key={n.to}
-              to={n.to}
-              aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                active
-                  ? "bg-secondary/80 text-foreground"
-                  : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {n.label}
-            </Link>
-          );
-        })}
+        {footerNav
+          .filter((n) => !(inNativeApp && n.to === "/paywall"))
+          .map((n) => {
+            const active = pathname === n.to;
+            const Icon = n.icon;
+            return (
+              <Link
+                key={n.to}
+                to={n.to}
+                aria-current={active ? "page" : undefined}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? "bg-secondary/80 text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {n.label}
+              </Link>
+            );
+          })}
       </div>
     </aside>
   );

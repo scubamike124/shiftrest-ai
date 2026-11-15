@@ -42,6 +42,7 @@ import {
 import { scheduleNextWindDown } from "@/lib/notify";
 import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
+import { useIsNativeApp } from "@/lib/native-app";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
@@ -120,6 +121,8 @@ function Profile() {
     queryFn: getSubscriptionState,
   });
   const [portalLoading, setPortalLoading] = useState(false);
+  // Inside the iPhone app: no upgrade card and no Stripe portal (Guideline 3.1.1).
+  const inNativeApp = useIsNativeApp();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -369,7 +372,13 @@ function Profile() {
               </p>
             </div>
           </div>
-          {subState.tier !== "lifetime" && (
+          {subState.tier !== "lifetime" && inNativeApp && (
+            // The Stripe portal can switch or renew plans, so it stays on the website.
+            <p className="mt-3 text-xs text-muted-foreground">
+              Billing changes aren&apos;t available in the app.
+            </p>
+          )}
+          {subState.tier !== "lifetime" && !inNativeApp && (
             <button
               type="button"
               onClick={handleManageSubscription}
@@ -380,7 +389,7 @@ function Profile() {
             </button>
           )}
         </section>
-      ) : (
+      ) : inNativeApp ? null : (
         <Link
           to="/paywall"
           className="group relative flex items-center justify-between overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4 transition hover:border-primary/60 hover:bg-primary/15 active:scale-[0.99]"

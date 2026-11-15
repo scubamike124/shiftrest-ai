@@ -1,4 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { isNativeAppRequest, NATIVE_PURCHASE_UNAVAILABLE } from "@/lib/native-app";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   type StripeEnv,
@@ -60,6 +62,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }): Promise<CheckoutResult> => {
+    // Defence in depth: never start a website purchase for the iPhone app shell
+    // (App Store Guideline 3.1.1). The app hides every purchase button; this
+    // also refuses a request that still arrives, before any Stripe call.
+    // The signals can be spoofed, so this is not the only control.
+    if (isNativeAppRequest(getRequest()?.headers)) return { error: NATIVE_PURCHASE_UNAVAILABLE };
     try {
       const { supabase, userId } = context;
       const { data: userRes } = await supabase.auth.getUser();
@@ -125,6 +132,8 @@ export const createPortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { returnUrl?: string; environment: StripeEnv }) => data)
   .handler(async ({ data, context }): Promise<PortalResult> => {
+    // The Stripe portal can switch or renew plans; keep it out of the app too.
+    if (isNativeAppRequest(getRequest()?.headers)) return { error: NATIVE_PURCHASE_UNAVAILABLE };
     try {
       const { supabase, userId } = context;
       const { data: sub } = await supabase
