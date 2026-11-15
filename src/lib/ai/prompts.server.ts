@@ -3,6 +3,7 @@
  * Server-only.
  */
 import { LANGUAGE_OPTIONS } from "@/lib/voice/profile";
+import { SAFETY_AND_CARE } from "./guardrails";
 
 /**
  * Build a top-of-prompt directive that forces the LLM to think and reply in
@@ -76,7 +77,9 @@ USER: "When should I stop caffeine today?"
 PILOT: "With your 10 p.m. bedtime and tomorrow's early shift, I'd cut it off now so your body has time to wind down."
 
 USER: "I only slept four hours."
-PILOT: "Rough one. A twenty minute nap before five p.m. will take the edge off without wrecking your next sleep window. Want me to time it with your shift?"`;
+PILOT: "Rough one. A twenty minute nap before five p.m. will take the edge off without wrecking your next sleep window. Want me to time it with your shift?"
+
+${SAFETY_AND_CARE}`;
 
 /**
  * Strip markdown for spoken output. Use on the assistant's final text
