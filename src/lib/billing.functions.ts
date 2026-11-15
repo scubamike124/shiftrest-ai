@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { isNativeAppRequest, NATIVE_PURCHASE_UNAVAILABLE } from "@/lib/native-app";
+import { webCheckoutEnabled, WEB_CHECKOUT_DISABLED_MESSAGE } from "@/lib/billing-flags";
+import { appleSubscriptionBlocksCheckout } from "@/lib/entitlements/checkout-guard";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   type StripeEnv,
@@ -67,8 +69,20 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     // also refuses a request that still arrives, before any Stripe call.
     // The signals can be spoofed, so this is not the only control.
     if (isNativeAppRequest(getRequest()?.headers)) return { error: NATIVE_PURCHASE_UNAVAILABLE };
+    // New purchases moved to the App Store (owner decision, Nov 15 2026).
+    // While VITE_WEB_CHECKOUT_ENABLED is off, refuse every new website
+    // purchase here, before any Stripe or database call. Existing Stripe
+    // subscribers are unaffected (portal, webhook and renewals are separate).
+    if (!webCheckoutEnabled()) return { error: WEB_CHECKOUT_DISABLED_MESSAGE };
     try {
       const { supabase, userId } = context;
+      // Duplicate-billing guard: never sell a Stripe subscription to someone
+      // already subscribed through the App Store. Inert unless IAP_ENABLED=true,
+      // so with IAP off the requests sent to Stripe are unchanged.
+      if (process.env.IAP_ENABLED === "true") {
+        const refusal = await appleSubscriptionBlocksCheckout(supabase, userId, process.env);
+        if (refusal) return { error: refusal };
+      }
       const { data: userRes } = await supabase.auth.getUser();
       const email = userRes.user?.email ?? undefined;
 

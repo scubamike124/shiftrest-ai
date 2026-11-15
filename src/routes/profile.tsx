@@ -44,6 +44,7 @@ import { mondayIso } from "@/lib/schedule";
 import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { useIsNativeApp } from "@/lib/native-app";
+import { APPLE_SUBSCRIPTIONS_URL, iapAvailable } from "@/lib/entitlements/iap-bridge";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
@@ -373,13 +374,24 @@ function Profile() {
               </p>
             </div>
           </div>
-          {subState.tier !== "lifetime" && inNativeApp && (
+          {subState.source === "apple" && (
+            // Billed by Apple: only Apple can change or cancel it (app or website).
+            <a
+              href={APPLE_SUBSCRIPTIONS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-primary/40 bg-card text-xs font-semibold text-primary"
+            >
+              Manage in App Store subscriptions
+            </a>
+          )}
+          {subState.source !== "apple" && subState.tier !== "lifetime" && inNativeApp && (
             // The Stripe portal can switch or renew plans, so it stays on the website.
             <p className="mt-3 text-xs text-muted-foreground">
               Billing changes aren&apos;t available in the app.
             </p>
           )}
-          {subState.tier !== "lifetime" && !inNativeApp && (
+          {subState.source !== "apple" && subState.tier !== "lifetime" && !inNativeApp && (
             <button
               type="button"
               onClick={handleManageSubscription}
@@ -390,7 +402,39 @@ function Profile() {
             </button>
           )}
         </section>
-      ) : inNativeApp ? null : (
+      ) : subState?.billingIssue ? (
+        // past_due / unpaid: still a Stripe customer who can be charged again.
+        // Never offer "Upgrade" (a second subscription); let them fix the card
+        // or cancel in the Stripe portal.
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20 text-destructive">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold capitalize">
+                {subState.tier === "free" ? "Your plan" : `Premium · ${subState.tier}`} · Payment
+                problem
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {inNativeApp
+                  ? "We couldn't charge your card. Billing changes aren't available in the app."
+                  : "We couldn't charge your card. Update your payment method to keep Premium, or cancel."}
+              </p>
+            </div>
+          </div>
+          {!inNativeApp && (
+            <button
+              type="button"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="mt-3 h-10 w-full rounded-xl border border-destructive/40 bg-card text-xs font-semibold text-destructive disabled:opacity-60"
+            >
+              {portalLoading ? "Opening…" : "Manage billing"}
+            </button>
+          )}
+        </section>
+      ) : inNativeApp && !iapAvailable() ? null : (
         <Link
           to="/paywall"
           className="group relative flex items-center justify-between overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4 transition hover:border-primary/60 hover:bg-primary/15 active:scale-[0.99]"
@@ -737,7 +781,7 @@ function Profile() {
           disabled={deleting}
           onClick={async () => {
             const ok = window.confirm(
-              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.",
+              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.\n\nSubscribed through the App Store? Deleting your account does not cancel it: cancel in iPhone Settings → your name → Subscriptions.",
             );
             if (!ok) return;
             const sure = window.confirm("Are you absolutely sure? This is final.");

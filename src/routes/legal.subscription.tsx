@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
+import { useWebOnlyAfterMount } from "@/lib/native-app";
 
 export const DOC = findLegalDoc("subscription")!;
 
@@ -15,7 +16,17 @@ export const Route = createFileRoute("/legal/subscription")({
     ],
     links: [{ rel: "canonical", href: DOC.path }],
   }),
-  component: () => (
+  component: SubscriptionTerms,
+});
+
+function SubscriptionTerms() {
+  // Inside the iPhone app no website purchase link or wording may appear
+  // (App Store Guideline 3.1.1), not even before hydration. The first render
+  // (server HTML and hydration) is therefore the neutral wording; website
+  // visitors get the pricing link and "account settings" wording right after
+  // mount. The neutral text is accurate and complete for everyone.
+  const web = useWebOnlyAfterMount();
+  return (
     <LegalLayout doc={DOC}>
       <p>
         These Subscription Terms describe how billing, renewals, cancellation,
@@ -40,39 +51,73 @@ export const Route = createFileRoute("/legal/subscription")({
         Lifetime keep their access as described in "Lifetime access" below.
       </p>
       <p>
-        Current pricing is shown on the{" "}
-        <Link to="/pricing">pricing page</Link>. Taxes, where applicable, are
-        added at checkout.
+        {web ? (
+          <>
+            Current pricing is shown on the <Link to="/pricing">pricing page</Link>.{" "}
+          </>
+        ) : (
+          <>The price is shown before you subscribe. </>
+        )}
+        Taxes, where applicable, are added at checkout or by Apple.
       </p>
 
       <h2>2. Billing and payment processor</h2>
       <p>
-        Subscriptions are processed by our payment provider (currently
-        Stripe). By subscribing, you authorize us and our payment processor
-        to charge your selected payment method.
+        <strong>Subscriptions bought in the RestPilot iPhone app</strong> are
+        billed by Apple through the App Store. Payment is charged to your
+        Apple Account at confirmation of purchase, or when an eligible free
+        trial ends. We do not receive or store your payment details for these
+        subscriptions.
+      </p>
+      <p>
+        <strong>Subscriptions started earlier on our website</strong> are
+        processed by our payment provider (currently Stripe). By subscribing,
+        you authorized us and our payment processor to charge your selected
+        payment method.
       </p>
 
       <h2>3. Automatic renewal</h2>
       <p>
-        Monthly and annual plans renew automatically at the then-current
-        price until you cancel. We will email a renewal reminder for annual
+        Monthly and annual plans renew automatically at the price shown
+        unless cancelled. For App Store subscriptions, the subscription
+        renews unless it is cancelled at least 24 hours before the end of the
+        current period. For website subscriptions, we will email a renewal reminder for annual
         plans in advance of the renewal date where required by law.
       </p>
 
       <h2>4. Cancellation</h2>
       <p>
-        You can cancel any time from your account settings. Cancellation
-        stops future renewals; you retain access through the end of the
-        period you already paid for. No partial-month refunds for monthly
-        plans.
+        <strong>App Store subscriptions:</strong> manage or cancel any time on
+        your iPhone in Settings → your name → Subscriptions. We cannot cancel
+        an App Store subscription for you. Deleting the app or your RestPilot
+        account does not cancel it.
+      </p>
+      <p>
+        <strong>Website subscriptions:</strong>{" "}
+        {web
+          ? "you can cancel any time from your account settings."
+          : "these are managed from your RestPilot account on the web, or by contacting support."}
+      </p>
+      <p>
+        Cancellation stops future renewals; you retain access through the end
+        of the period you already paid for. No partial-month refunds for
+        monthly plans.
       </p>
 
       <h2>5. Refunds</h2>
       <p>
-        Except where required by law (for example, the EU 14-day right of
-        withdrawal for digital services where you have not waived it),
-        subscription fees are non-refundable. If you believe you were charged
-        in error, contact{" "}
+        <strong>App Store subscriptions:</strong> Apple handles payment, so
+        refunds are requested from Apple at{" "}
+        <a href="https://reportaproblem.apple.com" target="_blank" rel="noopener noreferrer">
+          reportaproblem.apple.com
+        </a>
+        . We cannot issue refunds for App Store purchases.
+      </p>
+      <p>
+        <strong>Website subscriptions:</strong> except where required by law
+        (for example, the EU 14-day right of withdrawal for digital services
+        where you have not waived it), subscription fees are non-refundable.
+        If you believe you were charged in error, contact{" "}
         <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> within
         30 days.
       </p>
@@ -113,7 +158,9 @@ export const Route = createFileRoute("/legal/subscription")({
       <h2>10. Failed payments</h2>
       <p>
         If a payment fails, we may retry, suspend premium features, or
-        downgrade your account until payment succeeds.
+        downgrade your account until payment succeeds. For App Store
+        subscriptions, Apple controls payment retries and any billing grace
+        period.
       </p>
 
       <h2>11. Taxes</h2>
@@ -128,5 +175,5 @@ export const Route = createFileRoute("/legal/subscription")({
         for billing questions.
       </p>
     </LegalLayout>
-  ),
-});
+  );
+}

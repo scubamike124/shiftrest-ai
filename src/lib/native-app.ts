@@ -17,7 +17,7 @@
 // check is defence in depth only; the real control is that the app never shows
 // a purchase button.
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 export const NATIVE_APP_UA_TOKEN = "RestPilotApp/";
 export const NATIVE_APP_HEADER = "x-restpilot-native-app";
@@ -50,6 +50,19 @@ const noopSubscribe = () => () => {};
  *  real value on their first render, so they never flash web-only UI. */
 export function useIsNativeApp(): boolean {
   return useSyncExternalStore(noopSubscribe, isNativeApp, () => false);
+}
+
+/** True only after mount, and only outside the app shell. Use for website-only
+ *  wording or links that must never appear in the app, not even for the
+ *  server-rendered / hydration first render: that render is always false
+ *  (neutral), so an app user never sees the website version. Website visitors
+ *  get it right after hydration. */
+export function useWebOnlyAfterMount(): boolean {
+  const [web, setWeb] = useState(false);
+  useEffect(() => {
+    setWeb(!isNativeApp());
+  }, []);
+  return web;
 }
 
 /** Server: does this request come from the app shell? (Spoofable; see above.) */

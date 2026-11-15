@@ -1,6 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
+import { useWebOnlyAfterMount } from "@/lib/native-app";
+
+// "our pricing page" is a website purchase entry point: never rendered in the
+// app, not even on the first (server/hydration) render.
+function PricingMention() {
+  const web = useWebOnlyAfterMount();
+  return web ? (
+    <>
+      on our <Link to="/pricing">pricing page</Link> and{" "}
+    </>
+  ) : null;
+}
 
 export const DOC = findLegalDoc("terms")!;
 
@@ -68,7 +80,7 @@ export const Route = createFileRoute("/legal/terms")({
       <h2>6. Subscriptions and payment</h2>
       <p>
         Paid features are offered through monthly and annual plans
-        as described on our <Link to="/pricing">pricing page</Link> and in our{" "}
+        as described <PricingMention />in our{" "}
         <Link to="/legal/subscription">Subscription Terms</Link>, which are
         incorporated by reference. Recurring subscriptions automatically renew
         at the listed price until cancelled.

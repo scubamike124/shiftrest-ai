@@ -1,5 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useIsNativeApp } from "@/lib/native-app";
+import { iapAvailable } from "@/lib/entitlements/iap-bridge";
 import {
   LayoutDashboard,
   Sun,
@@ -81,7 +82,8 @@ export function AppSidebar() {
 
       <div className="flex flex-col gap-0.5 border-t border-border/60 pt-4">
         {footerNav
-          .filter((n) => !(inNativeApp && n.to === "/paywall"))
+          // In the app, "Upgrade" appears only once App Store purchases are set up.
+          .filter((n) => !(inNativeApp && n.to === "/paywall" && !iapAvailable()))
           .map((n) => {
             const active = pathname === n.to;
             const Icon = n.icon;
