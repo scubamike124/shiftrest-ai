@@ -316,7 +316,8 @@ export function parseIntent(input: string): ParsedIntent {
   if (
     mTimer &&
     !question &&
-    (commandAt(mTimer.index) || /^(?:start|set|turn\s+on|i\s+need|i\s+want)\b/.test(text.slice(lead))) &&
+    (commandAt(mTimer.index) ||
+      /^(?:start|set|turn\s+on|i\s+need|i\s+want)\b/.test(text.slice(lead))) &&
     tailOk(mTimer)
   ) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
@@ -345,7 +346,8 @@ export function parseIntent(input: string): ParsedIntent {
     const after = text.slice((mWake.index ?? 0) + mWake[0].length);
     if (!ampm && hour < 12 && /\b(?:afternoon|evening)\b/.test(after)) hour += 12;
     // "9 tonight" is 21:00, but "2 tonight" (after midnight) and "12 tonight" are early morning.
-    if (!ampm && /\btonight\b/.test(after)) hour = hour === 12 ? 0 : hour >= 6 && hour < 12 ? hour + 12 : hour;
+    if (!ampm && /\btonight\b/.test(after))
+      hour = hour === 12 ? 0 : hour >= 6 && hour < 12 ? hour + 12 : hour;
     hour = clamp(hour, 0, 23);
     return { intent: { kind: "wake_at", hour, minute }, confidence: 0.9, raw };
   }
