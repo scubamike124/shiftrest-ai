@@ -758,7 +758,7 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Permanently delete your account and data.
+                    Permanently delete your account and data.
               </p>
             </div>
           </div>
