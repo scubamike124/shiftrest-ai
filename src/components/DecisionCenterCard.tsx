@@ -42,7 +42,7 @@ export function DecisionCenterCard({ signedIn }: { signedIn: boolean }) {
         </div>
         <Link
           to="/decisions"
-          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-indigo-glow/30 px-3 py-1.5 text-[11px] font-semibold text-indigo-glow hover:bg-indigo-glow/10"
+          className="hit-area inline-flex shrink-0 items-center gap-1 rounded-full border border-indigo-glow/30 px-3 py-1.5 text-[11px] font-semibold text-indigo-glow hover:bg-indigo-glow/10"
         >
           View all <ArrowRight className="h-3 w-3" />
         </Link>
