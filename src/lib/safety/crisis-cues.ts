@@ -5,6 +5,10 @@
 // call, so someone who has not allowed AI features (or is offline) still gets
 // the crisis line. Pure and synchronous: no fetch, no storage, no AI.
 //
+// Owner rule: a message detected here is NOT forwarded to an external AI
+// provider. The client shows the local card instead of sending, and /api/ai
+// runs this same function as defence in depth (src/routes/api/ai.ts).
+//
 // Deliberately small and conservative: clear first-person statements about
 // suicide, self-harm, overdose or wanting to die. Everyday tiredness slang
 // ("dead tired", "killing it", "I could die for coffee", "dying for a nap",
@@ -163,27 +167,57 @@ export function showCardOnCrisis(text: string, showCard: () => void): boolean {
 }
 
 /**
- * Whether the message should go on to the AI. Only a crisis message from a user
- * who hasn't allowed AI sharing stops here: they already have the card, so they
- * get no data-sharing prompt and nothing is sent. Everything else carries on
- * (the AI has the SAFETY_AND_CARE rules). If the consent check itself fails,
- * the message carries on and the normal consent gate decides.
+ * Whether the message may go on to the AI. A crisis message is never forwarded
+ * to an AI provider, whether or not the user has allowed AI sharing: they get
+ * the local card and a static caring reply instead, and can keep typing (a
+ * normal message afterwards is sent as usual). Pure and synchronous, so it adds
+ * no await between the card and the decision.
  */
-export async function shouldSendToAI(
-  crisis: boolean,
-  consentWouldAsk: () => Promise<boolean>,
-): Promise<boolean> {
-  if (!crisis) return true;
+export function shouldSendToAI(crisis: boolean): boolean {
+  return !crisis;
+}
+
+/** Shown as the assistant's turn when a crisis message is not sent to the AI. */
+export const CRISIS_LOCAL_REPLY =
+  "I'm really glad you told me. You matter, and you don't have to carry this alone. The support options just below are there for you right now, any time of day or night.";
+
+/**
+ * Server-side stand-in for the AI's reply when a crisis message reaches /api/ai
+ * anyway (client check bypassed or missing, e.g. the voice Pilot screen). It has
+ * no card under it, so it carries the numbers itself.
+ */
+export const CRISIS_SERVER_REPLY =
+  "I'm really glad you told me. You matter, and you don't have to carry this alone. If you might hurt yourself or you are in danger right now, call or text 988 (the 988 Suicide & Crisis Lifeline, US) or call 911. Outside the US, call your local emergency number or find a line at findahelpline.com. These are free, private and open any time of day or night. I'm still here too.";
+
+type Turn = { role?: unknown; content?: unknown };
+
+/** The text of a chat turn as the provider would receive it (non-string content is checked as JSON). */
+function turnText(m: Turn): string {
+  if (typeof m.content === "string") return m.content;
+  if (m.content == null) return "";
   try {
-    return !(await consentWouldAsk());
+    return JSON.stringify(m.content) ?? "";
   } catch {
-    return true;
+    return "";
   }
 }
 
-/** Shown as the assistant's turn when a crisis message is not sent to the AI (no AI permission). */
-export const CRISIS_LOCAL_REPLY =
-  "I'm really glad you told me. You matter, and you don't have to carry this alone. The support options just below are there for you right now, any time of day or night.";
+/** True when the latest user turn is a crisis message. */
+export function lastUserTurnIsCrisis(messages: readonly Turn[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return hasCrisisCue(turnText(messages[i]));
+  }
+  return false;
+}
+
+/**
+ * The turns that may be sent to the AI as history: drops earlier user (and
+ * system) turns that are crisis messages, so a crisis message that stayed on
+ * screen is not forwarded with the next, normal message. Assistant turns stay.
+ */
+export function withoutCrisisTurns<T extends Turn>(messages: readonly T[]): T[] {
+  return messages.filter((m) => m?.role === "assistant" || !hasCrisisCue(turnText(m)));
+}
 
 /** Static resources shown by <CrisisSupportCard />. No network needed to read them. */
 export const CRISIS_RESOURCES = {

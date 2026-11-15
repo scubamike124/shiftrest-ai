@@ -57,12 +57,13 @@ import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
-import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
 import {
   CRISIS_LOCAL_REPLY,
   hasCrisisCue,
   shouldSendToAI,
   showCardOnCrisis,
+  withoutCrisisTurns,
 } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
@@ -782,10 +783,11 @@ function CompanionPage() {
         track({ event: "voice_turn_failed", stage: "auth" });
         return;
       }
-      // Without AI permission, a crisis message gets the crisis card (already
-      // shown above; keep this after showCardOnCrisis) rather than a
-      // data-sharing prompt. Nothing is sent; the user can keep typing.
-      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+      // A crisis message is never forwarded to an AI provider, with or without
+      // AI permission: it gets the crisis card (already shown above; keep this
+      // after showCardOnCrisis) and a static caring reply. No data-sharing
+      // prompt, nothing is sent; the user can keep typing.
+      if (!shouldSendToAI(crisis)) {
         setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
         return;
       }
@@ -799,7 +801,8 @@ function CompanionPage() {
         signal: ac.signal,
         body: JSON.stringify({
           intent: "coach",
-          messages: baseMessages,
+          // Earlier crisis messages stay on screen but are not sent as history.
+          messages: withoutCrisisTurns(baseMessages),
           surface: "voice",
           localTime: new Date().toISOString(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -807,6 +810,8 @@ function CompanionPage() {
         }),
       });
 
+      // The server found a crisis cue the device check did not: show the card too.
+      if (resp.headers.get("x-crisis-support") === "1") setCrisisCard(true);
       if (!resp.ok || !resp.body) {
         emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);

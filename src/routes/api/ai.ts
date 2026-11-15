@@ -33,6 +33,11 @@ import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { classifyIntent } from "@/lib/ai/intent-hint.server";
+import {
+  CRISIS_SERVER_REPLY,
+  lastUserTurnIsCrisis,
+  withoutCrisisTurns,
+} from "@/lib/safety/crisis-cues";
 
 
 type Body =
@@ -220,6 +225,26 @@ function jsonError(status: number, message: string) {
   });
 }
 
+/**
+ * Crisis-support answer for a coach message with a crisis cue: an SSE stream in
+ * the same shape as the provider's, so every client shows it as the reply with
+ * no special handling. No provider call, no memory extraction, no logging of
+ * the message. `x-crisis-support` lets a client that missed the cue show its card.
+ */
+function crisisSupportResponse() {
+  const frame = (o: unknown) => `data: ${JSON.stringify(o)}\n\n`;
+  const body =
+    frame({ choices: [{ delta: { content: CRISIS_SERVER_REPLY } }] }) + "data: [DONE]\n\n";
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "x-crisis-support": "1",
+    },
+  });
+}
+
 function getAdminClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -281,6 +306,19 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(401, "Sign in required");
         }
 
+        // Crisis defence in depth. A coach message with a crisis cue is never
+        // forwarded to the AI provider: it gets the local crisis-support reply.
+        // After sign-in (anonymous callers still get 401) but before consent,
+        // rate limit and budget, so it is never refused for those reasons and
+        // never reaches the prompt builder, the provider or memory extraction.
+        if (
+          body.intent === "coach" &&
+          Array.isArray(body.messages) &&
+          lastUserTurnIsCrisis(body.messages)
+        ) {
+          return crisisSupportResponse();
+        }
+
         // Explicit permission to share data with third-party AI (Guideline
         // 5.1.2(i)). Checked before any prompt is built or sent.
         {
@@ -319,7 +357,10 @@ export const Route = createFileRoute("/api/ai")({
               timezone: body.timezone,
             }).directive;
 
-            const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user");
+            // Earlier crisis messages in the history are not forwarded either.
+            const history = withoutCrisisTurns(body.messages);
+            if (history.length === 0) return jsonError(400, "messages required");
+            const lastUserMsg = [...history].reverse().find((m) => m.role === "user");
             const intentHint = classifyIntent(lastUserMsg?.content);
 
             const system = await buildSystemPrompt({
@@ -334,7 +375,7 @@ export const Route = createFileRoute("/api/ai")({
             });
             const systemWithTime = system + timeDirective;
 
-            const trimmed = body.messages.slice(-20);
+            const trimmed = history.slice(-20);
             const isVoice = (body.surface ?? "text") === "voice";
             const upstream = await chatStream({
               model: DEFAULT_CHAT_MODEL,

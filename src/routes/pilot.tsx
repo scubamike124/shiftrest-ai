@@ -16,6 +16,7 @@ import { fetchPrefs } from "@/lib/prefs";
 import { greetingLabel } from "@/lib/time/day-part";
 import { isNativeApp } from "@/lib/native-app";
 import { aiFetch } from "@/lib/ai/consent-client";
+import { withoutCrisisTurns } from "@/lib/safety/crisis-cues";
 
 export const Route = createFileRoute("/pilot")({
   ssr: false,
@@ -251,7 +252,7 @@ function PilotPage() {
           },
           body: JSON.stringify({
             intent: "coach",
-            messages: baseMessages,
+            messages: withoutCrisisTurns(baseMessages),
             surface: "voice",
             localTime: new Date().toISOString(),
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
