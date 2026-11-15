@@ -1,0 +1,13 @@
+[
+ {
+  "theme": "midnight",
+  "w": 1280,
+  "route": "/dashboard",
+  "scrollWidth": 1280
+ },
+ {
+  "theme": "midnight",
+  "w": 1280,
+  "pageErrors": []
+ }
+]
