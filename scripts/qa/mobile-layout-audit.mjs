@@ -104,6 +104,22 @@ const FAKE_PREFS = {
   assistant_name: "RestPilot",
   assistant_mode: "coach",
 };
+const SAMPLE_SHIFTS = [
+  [0, 19 * 60, 7 * 60, "ICU nights"],
+  [1, 19 * 60, 7 * 60, "ICU nights"],
+  [2, 19 * 60, 7 * 60, "ICU nights"],
+  [4, 7 * 60, 19 * 60, "Day shift"],
+  [6, 7 * 60, 19 * 60, "Day shift"],
+].map(([day, start, end, title], i) => ({
+  id: `00000000-0000-4000-8000-00000000010${i}`,
+  day,
+  week_index: 0,
+  start_min: start,
+  end_min: end,
+  employer_id: null,
+  title,
+  notes: null,
+}));
 async function installFakeBackend(context) {
   const key = `sb-${PLACEHOLDER_HOST.split(".")[0]}-auth-token`;
   await context.addInitScript(
@@ -138,6 +154,9 @@ async function installFakeBackend(context) {
     if (url.pathname.startsWith("/auth/v1/logout")) return route.fulfill({ status: 204, body: "" });
     if (url.pathname === "/rest/v1/user_prefs" && req.method() === "GET")
       return json(200, [FAKE_PREFS]);
+    // AUDIT_SAMPLE_SHIFTS=1: a typical nurse rotation, so schedule screens show real content.
+    if (url.pathname === "/rest/v1/shifts" && req.method() === "GET" && process.env.AUDIT_SAMPLE_SHIFTS === "1")
+      return json(200, SAMPLE_SHIFTS);
     if (url.pathname.startsWith("/rest/v1/")) {
       if (req.method() === "HEAD")
         return route.fulfill({ status: 200, headers: { "content-range": "0-0/0" }, body: "" });
