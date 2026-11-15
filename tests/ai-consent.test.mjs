@@ -13,6 +13,9 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { createRequire } from "node:module";
+
+const nodeRequire = createRequire(import.meta.url);
 
 const ROOT = new URL("../", import.meta.url);
 const read = (p) => readFileSync(new URL(p, ROOT), "utf8");
@@ -48,7 +51,11 @@ function makeLoader(stubs, globals) {
     const req = (spec) => {
       if (spec in stubs) return stubs[spec];
       const target = resolve(spec, rel);
-      if (!target) throw new Error(`unexpected import "${spec}" in ${rel}`);
+      if (!target) {
+        // Plain npm packages with no network or database side effects.
+        if (["zod"].includes(spec)) return nodeRequire(spec);
+        throw new Error(`unexpected import "${spec}" in ${rel}`);
+      }
       return load(target);
     };
     vm.runInNewContext(js, {
@@ -73,7 +80,10 @@ function fakeDb({ consent, readError = false } = {}) {
         return { data: { user: { id: USER } }, error: null };
       },
     },
-    async rpc() {
+    rpcs: [],
+    async rpc(name) {
+      db.rpcs.push(name);
+      if (name === "consume_ai_request") return { data: { allowed: true }, error: null };
       return { data: true, error: null };
     },
     from(table) {
@@ -111,6 +121,30 @@ function fakeDb({ consent, readError = false } = {}) {
   return db;
 }
 
+// One JSON object that satisfies every intent's output check (chat intents,
+// insights, swap), so "permission given" exercises the real happy path.
+const SAMPLE_OUTPUT = {
+  ok: true,
+  tip: "Rest before your shift.",
+  generatedAt: "2026-11-15T10:00:00.000Z",
+  greeting: "Good morning",
+  headline: "Protect your sleep window",
+  fatigue_note: "Two night shifts in a row.",
+  top_actions: [
+    { icon: "moon", title: "Sleep at 9", detail: "Blackout the room." },
+    { icon: "coffee", title: "Caffeine cutoff", detail: "None after 3 am." },
+    { icon: "sun", title: "Morning light", detail: "Avoid it on the way home." },
+  ],
+  coach_note: "You've got this.",
+  verdict: "take_with_caveats",
+  verdict_label: "Take it — with caveats",
+  cost: "medium",
+  cost_reason: "Short recovery before the next block.",
+  risks: ["Short sleep"],
+  naps: [{ time: "15:00", duration_min: 20, why: "Bank sleep." }],
+  summary: "You can take it if you nap first.",
+};
+
 function upstreamSpy() {
   const calls = [];
   const fetch = async (url, init) => {
@@ -124,7 +158,7 @@ function upstreamSpy() {
     }
     if (u.includes("/audio/transcriptions")) return Response.json({ text: "hello there" });
     return Response.json({
-      choices: [{ message: { content: JSON.stringify({ ok: true, tip: "Rest." }) } }],
+      choices: [{ message: { content: JSON.stringify(SAMPLE_OUTPUT) } }],
       usage: { prompt_tokens: 1, completion_tokens: 1 },
     });
   };
@@ -154,7 +188,14 @@ function loadRoute(file, db, spy) {
   const env = {
     SUPABASE_URL: "https://example.supabase.test",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-example",
-    LOVABLE_API_KEY: "lovable-example",
+    AI_API_KEY: "ai-example",
+    AI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai",
+    AI_CHAT_MODEL: "gemini-3-flash-preview",
+    AI_FAST_MODEL: "gemini-3.1-flash-lite",
+    AI_AUDIO_API_KEY: "audio-example",
+    AI_AUDIO_BASE_URL: "https://api.openai.com/v1",
+    AI_TTS_MODEL: "gpt-4o-mini-tts",
+    AI_STT_MODEL: "gpt-4o-mini-transcribe",
     ELEVENLABS_API_KEY: "eleven-example",
     SIMLI_API_KEY: "simli-example",
   };
@@ -256,17 +297,20 @@ test("hasAIConsent: only a grant for the current version counts", () => {
 
 test("the consent screen names every provider and links the privacy policy", () => {
   const c = consentLoad();
-  const names = c.AI_CONSENT_PROVIDERS.map((p) => p.name).join(" | ");
-  for (const n of ["Google Gemini", "Lovable AI Gateway", "OpenAI", "ElevenLabs"])
-    assert.match(names, new RegExp(n));
+  const names = c.AI_CONSENT_PROVIDERS.map((p) => `${p.name} ${p.what}`).join(" | ");
+  for (const n of ["Google Gemini", "OpenAI", "ElevenLabs"]) assert.match(names, new RegExp(n));
+  assert.match(names, /Never Apple Health/);
   const dialog = read("src/components/ai/AIConsentDialog.tsx");
   assert.match(dialog, /to="\/legal\/privacy"/);
   assert.match(dialog, />\s*Allow\s*|"Allow"/);
   assert.match(dialog, /Not now/);
   const policy = read("src/routes/legal.privacy.tsx");
   assert.match(policy, /id="ai-providers"/);
-  for (const n of ["Google Gemini", "Lovable AI Gateway", "OpenAI", "ElevenLabs"])
-    assert.match(policy, new RegExp(n));
+  for (const n of ["Google Gemini", "OpenAI", "ElevenLabs"]) assert.match(policy, new RegExp(n));
+  assert.match(
+    policy,
+    /Apple Health data stays\s+on your iPhone and is never sent to AI providers/,
+  );
   const subprocessors = read("src/routes/legal.third-parties.tsx");
   assert.match(subprocessors, /ElevenLabs/);
 });
@@ -290,6 +334,10 @@ for (const [label, file, makeReq] of ROUTES) {
       assert.equal(body.code, "ai_consent_required");
       assert.equal(body.error, c.AI_CONSENT_REQUIRED_MESSAGE);
       assert.deepEqual(spy.calls, [], "nothing was sent to any provider");
+      assert.ok(
+        !db.rpcs.includes("consume_ai_request"),
+        "a refusal does not use up the AI allowance",
+      );
     }
   });
 
@@ -303,7 +351,8 @@ for (const [label, file, makeReq] of ROUTES) {
     assert.ok(
       spy.calls.every(
         (u) =>
-          u.startsWith("https://ai.gateway.lovable.dev/") ||
+          u.startsWith("https://generativelanguage.googleapis.com/") ||
+          u.startsWith("https://api.openai.com/") ||
           u.startsWith("https://api.elevenlabs.io/") ||
           u.startsWith("https://api.simli.ai/"),
       ),
@@ -348,12 +397,7 @@ test("the gate runs before any prompt is built or provider is called in every AI
     const src = read(`src/routes/api/${file}.ts`);
     const gate = src.indexOf("requireAIConsent(");
     assert.ok(gate > 0, `${file} calls requireAIConsent`);
-    for (const upstream of [
-      "ai.gateway.lovable.dev",
-      "api.elevenlabs.io",
-      "chatJSON(",
-      "chatStream(",
-    ]) {
+    for (const upstream of ["aiEndpoint(", "api.elevenlabs.io", "chatJSON(", "chatStream("]) {
       const at = src.indexOf(upstream, src.indexOf("handlers:"));
       if (at > 0) assert.ok(gate < at, `${file}: gate precedes ${upstream}`);
     }
@@ -392,6 +436,7 @@ function loadRealtime(db, spy) {
     },
     "@/integrations/supabase/client.server": { supabaseAdmin: db },
     "@/lib/user/display-name.server": { loadPreferredNameServer: async () => "" },
+    "./access.server": { realtimeEnvironment: () => "sandbox" },
     "@supabase/supabase-js": { createClient: () => db },
   };
   const globals = {
@@ -414,6 +459,10 @@ function loadRealtime(db, spy) {
     Math,
     JSON,
     Intl,
+    AbortSignal,
+    AbortController,
+    setTimeout,
+    clearTimeout,
   };
   return makeLoader(stubs, globals)("src/lib/realtime/openai.functions.ts").mintRealtimeSession;
 }
@@ -478,7 +527,7 @@ test("every client call to an AI endpoint goes through aiFetch / ensureAIConsent
   const ai = read("src/routes/api/ai.ts");
   assert.ok(
     ai.indexOf('(await checkAIConsent(userId, admin)) === "granted"') <
-      ai.indexOf("await extractAndStoreMemories("),
+      ai.indexOf("await proposeMemoriesFromChat("),
     "memory extraction re-checks permission",
   );
   // consent-client stays free of server-function imports (type-only import).

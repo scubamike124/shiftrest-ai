@@ -25,15 +25,15 @@ const ACTIVE: Row[] = [
     policy: "https://stripe.com/privacy",
   },
   {
-    name: "Lovable AI Gateway (Google Gemini)",
+    name: "Google (Gemini API)",
     purpose:
       "AI text generation for the coach, briefings, plans, insights and shift-swap advice. Only after you allow AI features.",
     shared:
-      "Your coach messages and the context added to them: shifts and schedule, sleep and fatigue estimates, preferences, preferred name, AI memories (if on), wearable summaries (if connected)",
-    policy: "https://lovable.dev/privacy",
+      "Your coach messages and the context added to them: shifts and schedule, sleep and fatigue estimates, preferences, preferred name, AI memories (if on), wearable summaries (if connected). Never Apple Health data",
+    policy: "https://policies.google.com/privacy",
   },
   {
-    name: "OpenAI (directly and via the Lovable AI Gateway)",
+    name: "OpenAI",
     purpose:
       "Speech-to-text, text-to-speech and live voice conversations. Only after you allow AI features.",
     shared: "Your voice recordings, the text read aloud to you, your voice settings",

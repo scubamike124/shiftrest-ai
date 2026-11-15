@@ -40,14 +40,18 @@ export type AIConsentProvider = {
 
 /** What the consent screen and Profile → Privacy tell the user. Keep in sync
  *  with /legal/privacy ("AI providers") and /legal/third-parties. */
+// Railway hosting: text AI goes to a direct OpenAI-compatible endpoint
+// (AI_BASE_URL; planned: Google's Gemini API) and audio to AI_AUDIO_BASE_URL
+// (OpenAI). If either is pointed at a different company, update this list,
+// /legal/privacy and /legal/third-parties, and bump AI_CONSENT_VERSION.
 export const AI_CONSENT_PROVIDERS: AIConsentProvider[] = [
   {
-    name: "Google Gemini, through the Lovable AI Gateway",
-    what: "Your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, AI memories (only if you turned AI memory on), and summaries from a wearable you connect (Fitbit or Oura).",
+    name: "Google Gemini (Google's Gemini API)",
+    what: "Your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, AI memories (only if you turned AI memory on), and summaries from a wearable you connect (Fitbit or Oura). Never Apple Health data.",
     why: "To write coach replies, briefings, plans, insights and shift-swap advice.",
   },
   {
-    name: "OpenAI, directly and through the Lovable AI Gateway",
+    name: "OpenAI",
     what: "Your voice recordings, the text read aloud to you, your preferred name and voice settings.",
     why: "To turn speech into text, read replies and briefings aloud, and run live voice conversations.",
   },

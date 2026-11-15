@@ -130,16 +130,16 @@ export const Route = createFileRoute("/legal/privacy")({
       </p>
       <ul>
         <li>
-          <strong>Google Gemini, through the Lovable AI Gateway:</strong> your
-          coach messages and the context RestPilot adds to them, such as your
-          shifts and schedule, sleep and fatigue estimates, preferences,
-          preferred name, AI memories (only if you turned AI memory on), and
-          summaries from a wearable you connect (Fitbit or Oura). Used to write
-          coach replies, briefings, plans, insights and shift-swap advice.
+          <strong>Google Gemini (Google's Gemini API):</strong> your coach
+          messages and the context RestPilot adds to them, such as your shifts
+          and schedule, sleep and fatigue estimates, preferences, preferred
+          name, AI memories (only if you turned AI memory on), and summaries
+          from a wearable you connect (Fitbit or Oura). Apple Health data stays
+          on your iPhone and is never sent to AI providers. Used to write coach
+          replies, briefings, plans, insights and shift-swap advice.
         </li>
         <li>
-          <strong>OpenAI</strong> (directly, and through the Lovable AI
-          Gateway): your voice recordings, the text read aloud to you, and your
+          <strong>OpenAI:</strong> your voice recordings, the text read aloud to you, and your
           voice settings. Used for speech-to-text, spoken replies and briefings,
           and live voice conversations.
         </li>
