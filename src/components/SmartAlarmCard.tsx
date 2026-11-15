@@ -145,33 +145,33 @@ export function SmartAlarmCard({ signedIn }: { signedIn: boolean }) {
 
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              testAlarm(10);
-              toast.message("Test alarm in 10s", { description: "Keep this tab open." });
-            }}
-            className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background text-xs font-semibold hit-area"
-          >
-            <BellRing className="h-3.5 w-3.5" /> Test 10s
-          </button>
-          <button
-            type="button"
-            onClick={stopRinging}
-            className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hit-area"
-            aria-label="Stop ringing"
-          >
-            <Square className="h-3.5 w-3.5" /> Stop
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                testAlarm(10);
+                toast.message("Test alarm in 10s", { description: "Keep this tab open." });
+              }}
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-background text-xs font-semibold hit-area"
+            >
+              <BellRing className="h-3.5 w-3.5" /> Test 10s
+            </button>
+            <button
+              type="button"
+              onClick={stopRinging}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hit-area"
+              aria-label="Stop ringing"
+            >
+              <Square className="h-3.5 w-3.5" /> Stop
+            </button>
           <Sheet>
             <SheetTrigger asChild>
-              <button
-                type="button"
-                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hit-area"
-                aria-label="Alarm settings"
-              >
-                <Settings2 className="h-3.5 w-3.5" /> Settings
-              </button>
+                <button
+                  type="button"
+                  className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hit-area"
+                  aria-label="Alarm settings"
+                >
+                  <Settings2 className="h-3.5 w-3.5" /> Settings
+                </button>
             </SheetTrigger>
             <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
               <SheetHeader className="text-left">

@@ -215,7 +215,9 @@ function SleepPage() {
               className="h-auto min-h-11 max-w-full whitespace-normal rounded-full py-2 text-left sm:h-8 sm:min-h-0 sm:whitespace-nowrap sm:py-0 sm:text-center"
             >
               {p.name}
-              <span className="ml-2 text-xs text-muted-foreground sm:text-[10px]">{p.description}</span>
+              <span className="ml-2 text-xs text-muted-foreground sm:text-[10px]">
+                {p.description}
+              </span>
             </Button>
           ))}
           {activeCount > 0 && (
@@ -257,7 +259,11 @@ function SleepPage() {
               </span>
             </div>
             {/* Six equal 44pt chips on phones (they overflowed the card in one row). */}
-            <div className="grid grid-cols-6 gap-1.5 sm:flex sm:gap-1.5" role="group" aria-label="Sleep timer">
+            <div
+              className="grid grid-cols-6 gap-1.5 sm:flex sm:gap-1.5"
+              role="group"
+              aria-label="Sleep timer"
+            >
               <Button
                 size="sm"
                 variant={timer === null ? "default" : "outline"}

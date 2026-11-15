@@ -1355,7 +1355,9 @@ function CompanionShowcaseSection({ ctaHref }: { ctaHref: string }) {
                   <s.icon className="h-4 w-4 text-indigo-glow" />
                 </span>
                 <p className="mt-3 text-sm font-semibold text-foreground">{s.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground sm:text-xs">{s.body}</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground sm:text-xs">
+                  {s.body}
+                </p>
               </div>
             ))}
           </div>

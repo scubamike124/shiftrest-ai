@@ -235,7 +235,11 @@ function PlanPage() {
         </Link>
       )}
 
-      <div className="grid grid-cols-7 gap-1 sm:flex sm:gap-2 sm:overflow-x-auto sm:pb-1" role="group" aria-label="Choose a day">
+      <div
+        className="grid grid-cols-7 gap-1 sm:flex sm:gap-2 sm:overflow-x-auto sm:pb-1"
+        role="group"
+        aria-label="Choose a day"
+      >
         {DAYS.map((d, i) => {
           const dayDate = new Date(today);
           dayDate.setDate(today.getDate() + (i - weekday));
