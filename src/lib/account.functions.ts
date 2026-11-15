@@ -29,6 +29,32 @@ const USER_TABLES = [
   "profiles",
 ] as const;
 
+/**
+ * Other tables holding the user's own data. Deleting the auth user removes
+ * their rows (user_id REFERENCES auth.users ON DELETE CASCADE), so they are
+ * not in USER_TABLES, but a data export must still include them.
+ */
+const EXPORT_ONLY_TABLES = [
+  "ai_memory_proposals",
+  "automations",
+  "automation_runs",
+  "calendar_feeds",
+  "companion_routines",
+  "companion_skills",
+  "personal_items",
+  "partner_shares",
+  "routine_suggestions",
+  "smart_devices",
+  "sound_mixes",
+  "traffic_destinations",
+  "trial_usage",
+] as const;
+
+/** profiles is keyed by id (= auth user id), every other table by user_id. */
+function ownerColumn(table: string): "id" | "user_id" {
+  return table === "profiles" ? "id" : "user_id";
+}
+
 async function attemptStripeCancel(userId: string): Promise<{ canceled: boolean; reason?: string }> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -83,7 +109,7 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
       const client = supabaseAdmin as unknown as {
         from: (t: string) => { delete: () => { eq: (c: string, v: string) => Promise<{ error: { message: string } | null }> } };
       };
-      const { error } = await client.from(table).delete().eq("user_id", uid);
+      const { error } = await client.from(table).delete().eq(ownerColumn(table), uid);
       if (error) failed.push(`${table}: ${error.message}`);
       else deleted.push(table);
     }
@@ -160,6 +186,7 @@ export const exportAccountFn = createServerFn({ method: "POST" })
     const uid = context.userId;
     const tables = [
       ...USER_TABLES,
+      ...EXPORT_ONLY_TABLES,
       "subscriptions",
       "legal_acceptances",
     ] as const;
@@ -171,7 +198,7 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       };
     };
     for (const t of tables) {
-      const { data: rows, error } = await client.from(t).select("*").eq("user_id", uid);
+      const { data: rows, error } = await client.from(t).select("*").eq(ownerColumn(t), uid);
       if (!error) data[t] = rows ?? [];
     }
     const { data: userInfo } = await supabaseAdmin.auth.admin.getUserById(uid);
