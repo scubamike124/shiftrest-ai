@@ -185,7 +185,7 @@ function Profile() {
 
   async function handleManageSubscription() {
     if (!isPaymentsConfigured()) {
-      toast.error("Purchases are unavailable during the app test.");
+      toast.error("Subscription management is unavailable in this build.");
       return;
     }
     setPortalLoading(true);
@@ -758,7 +758,7 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Cancel active subscriptions and permanently delete your account.
+                Permanently delete your account and data.
               </p>
             </div>
           </div>

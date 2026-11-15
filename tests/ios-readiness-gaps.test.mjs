@@ -27,6 +27,9 @@ test("the guard token matches the one the app shell sends", () => {
   assert.ok(config.appendUserAgent.includes(guard.NATIVE_APP_UA_TOKEN));
   assert.equal(guard.isNativeAppUserAgent(APP_UA), true);
   assert.equal(guard.isNativeAppUserAgent(SAFARI_UA), false);
+  assert.equal(guard.isNativeAppUserAgent("Mozilla/5.0 restpilotapp/2.0"), true);
+  assert.equal(guard.isNativeAppUserAgent("X RESTPILOTAPP/1"), true);
+  assert.equal(guard.isNativeAppUserAgent("RestPilotApp"), false);
   assert.equal(guard.isNativeAppUserAgent(null), false);
   assert.equal(guard.isNativeAppUserAgent(undefined), false);
 });
