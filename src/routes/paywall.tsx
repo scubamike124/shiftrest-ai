@@ -8,6 +8,8 @@ import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/str
 import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
 import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
+import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
+import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
 
 // Stripe's React wrappers ship ~50–70 kB min+gz. Split them into an async
 // chunk so the paywall's plan-selection UI paints without paying that cost.
@@ -63,8 +65,11 @@ function Paywall() {
   const [loading, setLoading] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const autoResumedRef = useRef(false);
+  const inNativeApp = useIsNativeApp();
 
   async function startCheckout(tier: PurchasableTier) {
+    // Never start a website purchase inside the iPhone app (Guideline 3.1.1).
+    if (isNativeApp()) return;
     if (!isPaymentsConfigured()) {
       toast.error("Payments aren't configured for this build yet.");
       return;
@@ -108,6 +113,7 @@ function Paywall() {
     if (!stored) return;
     autoResumedRef.current = true;
     sessionStorage.removeItem("restpilot_pending_checkout");
+    if (isNativeApp()) return; // drop a saved checkout intent inside the app
     // Ignore a stale "lifetime" (or any unknown) intent saved before Nov 14.
     if (stored !== "monthly" && stored !== "annual") return;
     const pending: PurchasableTier = stored;
@@ -135,6 +141,8 @@ function Paywall() {
       setLoading(false);
     }
   }
+
+  if (inNativeApp) return <NativeSubscriptionNotice />;
 
   if (clientSecret) {
     return (

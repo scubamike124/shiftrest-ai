@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check } from "lucide-react";
+import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
+import { useIsNativeApp } from "@/lib/native-app";
 
 export const Route = createFileRoute("/pricing")({
   head: () => ({
@@ -71,6 +73,8 @@ const matrix = [
 ];
 
 function Pricing() {
+  // Inside the iPhone app: no prices or purchase links (Guideline 3.1.1).
+  if (useIsNativeApp()) return <NativeSubscriptionNotice />;
   return (
     <div>
       <section className="relative isolate py-20 lg:py-28">

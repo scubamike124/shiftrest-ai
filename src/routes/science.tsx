@@ -9,6 +9,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
+import { WebOnly } from "@/components/native/WebOnly";
 
 export const Route = createFileRoute("/science")({
   head: () => ({
@@ -364,12 +365,14 @@ function SciencePage() {
         >
           See the features
         </Link>
-        <Link
-          to="/auth"
-          className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90"
-        >
-          Start free — 14 days
-        </Link>
+        <WebOnly>
+          <Link
+            to="/auth"
+            className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90"
+          >
+            Start free — 14 days
+          </Link>
+        </WebOnly>
       </div>
     </main>
   );
