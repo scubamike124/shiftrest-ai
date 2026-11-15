@@ -22,13 +22,16 @@ tags: [healthkit]
 # (it is re-probed for ~10 s after the page loads). CI run 43763803447 swiped 48 times
 # past a card that was not on the page yet. So: a short scroll down, then back up and
 # down again as needed, and finally a non-optional wait that fails the flow if the
-# card is never there.
+# card is never there. centerElement keeps the card away from the fixed bottom nav:
+# CI run 43769115779 found it at y=828 (the nav starts at y=793), tapped there and hit
+# the Plan tab instead.
 - scrollUntilVisible:
     element:
       text: "Connect Apple Health"
     direction: DOWN
     speed: 80
     timeout: 20000
+    centerElement: true
     optional: true
 - retry:
     maxRetries: 3
@@ -43,6 +46,7 @@ tags: [healthkit]
                 direction: UP
                 speed: 80
                 timeout: 15000
+                centerElement: true
                 optional: true
             - scrollUntilVisible:
                 element:
@@ -50,6 +54,7 @@ tags: [healthkit]
                 direction: DOWN
                 speed: 80
                 timeout: 30000
+                centerElement: true
                 optional: true
       - extendedWaitUntil:
           visible: "Connect Apple Health"
@@ -74,6 +79,7 @@ tags: [healthkit]
                   text: "Connect Apple Health"
                 direction: DOWN
                 timeout: 30000
+                centerElement: true
             - tapOn: "Connect Apple Health"
       - extendedWaitUntil:
           visible:
