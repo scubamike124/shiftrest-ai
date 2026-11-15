@@ -173,10 +173,7 @@ function exactTrack(phrase: string): { slug: string; label: string } | null {
     const d = TRACKS.find((x) => x.slug === direct);
     if (d) return { slug: d.slug, label: d.label };
   }
-  const c = whole
-    .replace(FILLER, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const c = whole.replace(FILLER, " ").replace(/\s+/g, " ").trim();
   if (!c) return null;
   const alias = TRACK_ALIASES[c];
   const t = alias
@@ -239,7 +236,11 @@ export function parseIntent(input: string): ParsedIntent {
   const lead = (text.match(RE_LEAD)?.[0] ?? "").length;
   const commandAt = (i: number | undefined) => i === 0 || i === lead;
   const tailOk = (m: RegExpMatchArray) =>
-    text.slice((m.index ?? 0) + m[0].length).trim().split(" ").filter(Boolean).length <= 2;
+    text
+      .slice((m.index ?? 0) + m[0].length)
+      .trim()
+      .split(" ")
+      .filter(Boolean).length <= 2;
   const question =
     (/\?\s*$/.test(raw) && !RE_COMMAND_VERB.test(text.slice(lead))) || RE_QUESTION_START.test(text);
 
@@ -272,7 +273,12 @@ export function parseIntent(input: string): ParsedIntent {
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
   // A command, and nothing much after it ("the sleep timer 30 minutes is too short" is not one).
-  if (mTimer && !question && (commandAt(mTimer.index) || /^(?:start|set)\b/.test(text.slice(lead))) && tailOk(mTimer)) {
+  if (
+    mTimer &&
+    !question &&
+    (commandAt(mTimer.index) || /^(?:start|set)\b/.test(text.slice(lead))) &&
+    tailOk(mTimer)
+  ) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
     return { intent: { kind: "set_timer", minutes }, confidence: 0.95, raw };
   }
@@ -284,7 +290,12 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   const mWake = text.match(RE_WAKE);
-  if (mWake && !question && (commandAt(mWake.index) || RE_WAKE_INTENT.test(text)) && tailOk(mWake)) {
+  if (
+    mWake &&
+    !question &&
+    (commandAt(mWake.index) || RE_WAKE_INTENT.test(text)) &&
+    tailOk(mWake)
+  ) {
     let hour = parseInt(mWake[1], 10);
     const minute = mWake[2] ? clamp(parseInt(mWake[2], 10), 0, 59) : 0;
     const ampm = mWake[3]?.toLowerCase();
