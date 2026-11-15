@@ -242,75 +242,133 @@ test("only our own https links and same-site paths open inside the app", () => {
   }
 });
 
-test('nothing fires inside a planned sleep window: moved to wake-up when still useful, else dropped', async () => {
-  const S = await load('src/lib/schedule.ts');
+test("nothing fires inside a planned sleep window: moved to wake-up when still useful, else dropped", async () => {
+  const S = await load("src/lib/schedule.ts");
   // Nights Mon–Wed 23:00–07:00 (sleep 08:00–15:00), then a day shift Thu 15:30–23:00.
   const nightsThenDay = [
-    { id: 'n0', day: 0, weekIndex: 0, start: hm(23), end: hm(7) },
-    { id: 'n1', day: 1, weekIndex: 0, start: hm(23), end: hm(7) },
-    { id: 'n2', day: 2, weekIndex: 0, start: hm(23), end: hm(7) },
-    { id: 'd3', day: 3, weekIndex: 0, start: hm(15, 30), end: hm(23) },
+    { id: "n0", day: 0, weekIndex: 0, start: hm(23), end: hm(7) },
+    { id: "n1", day: 1, weekIndex: 0, start: hm(23), end: hm(7) },
+    { id: "n2", day: 2, weekIndex: 0, start: hm(23), end: hm(7) },
+    { id: "d3", day: 3, weekIndex: 0, start: hm(15, 30), end: hm(23) },
   ];
-  const plan = R.planNativeReminders({ shifts: nightsThenDay, prefs, settings: on({ dailyCap: 8 }), now: sunday });
-  const change = plan.filter((r) => r.kind === 'shift-change');
+  const plan = R.planNativeReminders({
+    shifts: nightsThenDay,
+    prefs,
+    settings: on({ dailyCap: 8 }),
+    now: sunday,
+  });
+  const change = plan.filter((r) => r.kind === "shift-change");
   assert.equal(change.length, 1);
-  assert.equal(fmt(change[0].at), '18 15:00', 'Wed noon is inside 08:00–15:00 sleep: moved to wake-up');
-  const thu = plan.find((r) => r.kind === 'upcoming-shift' && r.at.getDate() === 19);
-  assert.equal(fmt(thu.at), '19 15:00', '14:30 would be inside Thu sleep (after Wed night): moved to 15:00');
+  assert.equal(
+    fmt(change[0].at),
+    "18 15:00",
+    "Wed noon is inside 08:00–15:00 sleep: moved to wake-up",
+  );
+  const thu = plan.find((r) => r.kind === "upcoming-shift" && r.at.getDate() === 19);
+  assert.equal(
+    fmt(thu.at),
+    "19 15:00",
+    "14:30 would be inside Thu sleep (after Wed night): moved to 15:00",
+  );
 
-  const from = new Date(sunday); from.setDate(from.getDate() - 1);
-  const windows = S.buildMultiDayPlan(nightsThenDay, prefs, from, 10).flatMap((d) => (d.sleep ? [d.sleep] : []));
+  const from = new Date(sunday);
+  from.setDate(from.getDate() - 1);
+  const windows = S.buildMultiDayPlan(nightsThenDay, prefs, from, 10).flatMap((d) =>
+    d.sleep ? [d.sleep] : [],
+  );
   for (const r of plan) {
-    assert.ok(!windows.some((w) => r.at > w.start && r.at < w.end), `${r.kind} ${fmt(r.at)} is inside a sleep window`);
+    assert.ok(
+      !windows.some((w) => r.at > w.start && r.at < w.end),
+      `${r.kind} ${fmt(r.at)} is inside a sleep window`,
+    );
   }
-  assert.ok(plan.every((r) => !('deadline' in r)), 'internal fields do not reach the plugin');
+  assert.ok(
+    plan.every((r) => !("deadline" in r)),
+    "internal fields do not reach the plugin",
+  );
 });
 
-test('a reminder that cannot move before its shift is dropped', () => {
+test("a reminder that cannot move before its shift is dropped", () => {
   const w = { start: new Date(2026, 10, 16, 8), end: new Date(2026, 10, 16, 15) };
-  const c = { kind: 'upcoming-shift', at: new Date(2026, 10, 16, 12), title: '', body: '', path: '/', deadline: new Date(2026, 10, 16, 14) };
+  const c = {
+    kind: "upcoming-shift",
+    at: new Date(2026, 10, 16, 12),
+    title: "",
+    body: "",
+    path: "/",
+    deadline: new Date(2026, 10, 16, 14),
+  };
   assert.deepEqual(R.avoidSleep(c, [w]), []);
-  assert.deepEqual(R.avoidSleep({ ...c, kind: 'wind-down', deadline: undefined }, [w]), []);
-  assert.equal(R.avoidSleep({ ...c, deadline: new Date(2026, 10, 16, 16) }, [w])[0].at.getHours(), 15);
-  assert.equal(R.avoidSleep({ ...c, at: new Date(2026, 10, 16, 8) }, [w]).length, 1, 'the window start (bedtime) is not inside');
+  assert.deepEqual(R.avoidSleep({ ...c, kind: "wind-down", deadline: undefined }, [w]), []);
+  assert.equal(
+    R.avoidSleep({ ...c, deadline: new Date(2026, 10, 16, 16) }, [w])[0].at.getHours(),
+    15,
+  );
+  assert.equal(
+    R.avoidSleep({ ...c, at: new Date(2026, 10, 16, 8) }, [w]).length,
+    1,
+    "the window start (bedtime) is not inside",
+  );
 });
 
-test('quiet hours move a shift reminder to their end when that is still before clock-in', () => {
-  const q = { enabled: true, start: '22:00', end: '06:00' };
-  const plan = R.planNativeReminders({ shifts, prefs, now: sunday, settings: on({ dailyCap: 8, quietHours: q, upcomingShiftLeadMin: 90 }) });
-  const mon = plan.find((r) => r.kind === 'upcoming-shift' && r.at.getDate() === 16);
-  assert.equal(fmt(mon.at), '16 06:00', '05:30 is quiet: moved to 06:00, before the 07:00 shift');
+test("quiet hours move a shift reminder to their end when that is still before clock-in", () => {
+  const q = { enabled: true, start: "22:00", end: "06:00" };
+  const plan = R.planNativeReminders({
+    shifts,
+    prefs,
+    now: sunday,
+    settings: on({ dailyCap: 8, quietHours: q, upcomingShiftLeadMin: 90 }),
+  });
+  const mon = plan.find((r) => r.kind === "upcoming-shift" && r.at.getDate() === 16);
+  assert.equal(fmt(mon.at), "16 06:00", "05:30 is quiet: moved to 06:00, before the 07:00 shift");
   assert.ok(plan.every((r) => !R.inQuietHours(r.at, q)));
 });
 
-test('a sync still running when the person signs out leaves nothing behind', async () => {
-  const S = await load('src/lib/native/sync.ts');
+test("a sync still running when the person signs out leaves nothing behind", async () => {
+  const S = await load("src/lib/native/sync.ts");
   const pending = new Map();
   let release;
-  const gate = new Promise((r) => { release = r; });
+  const gate = new Promise((r) => {
+    release = r;
+  });
   const ln = {
-    checkPermissions: async () => ({ display: 'granted' }),
+    checkPermissions: async () => ({ display: "granted" }),
     getPending: async () => ({ notifications: [...pending.values()] }),
-    cancel: async ({ notifications }) => { for (const n of notifications) pending.delete(n.id); },
-    schedule: async ({ notifications }) => { await gate; for (const n of notifications) pending.set(n.id, n); },
+    cancel: async ({ notifications }) => {
+      for (const n of notifications) pending.delete(n.id);
+    },
+    schedule: async ({ notifications }) => {
+      await gate;
+      for (const n of notifications) pending.set(n.id, n);
+    },
   };
   const prefsStore = new Map();
   const pref = {
-    set: async ({ key, value }) => { prefsStore.set(key, value); },
-    remove: async ({ key }) => { prefsStore.delete(key); },
+    set: async ({ key, value }) => {
+      prefsStore.set(key, value);
+    },
+    remove: async ({ key }) => {
+      prefsStore.delete(key);
+    },
     get: async ({ key }) => ({ value: prefsStore.get(key) ?? null }),
   };
-  globalThis.window = { Capacitor: { isNativePlatform: () => true, isPluginAvailable: () => true, Plugins: { LocalNotifications: ln, Preferences: pref } } };
+  globalThis.window = {
+    Capacitor: {
+      isNativePlatform: () => true,
+      isPluginAvailable: () => true,
+      Plugins: { LocalNotifications: ln, Preferences: pref },
+    },
+  };
   try {
     const planned = R.planNativeReminders({ shifts, prefs, settings: on(), now: sunday });
     const sync = S.syncNativeReminders(planned); // blocks inside schedule()
     await new Promise((r) => setTimeout(r, 10));
     await S.clearNativeUserData(); // sign-out while scheduling
     release();
-    assert.deepEqual(await sync, { status: 'cleared' });
-    assert.equal(pending.size, 0, 'reminders from before sign-out were taken back');
+    assert.deepEqual(await sync, { status: "cleared" });
+    assert.equal(pending.size, 0, "reminders from before sign-out were taken back");
     const result = await S.syncNativeReminders(planned);
-    assert.equal(result.status, 'scheduled', 'a later sync for the next account works normally');
+    assert.equal(result.status, "scheduled", "a later sync for the next account works normally");
     assert.equal(pending.size, planned.length);
   } finally {
     delete globalThis.window;

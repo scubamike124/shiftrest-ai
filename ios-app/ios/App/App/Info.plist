@@ -49,5 +49,7 @@
 	<string>DRAFT - owner to approve: RestPilot uses the microphone only while you talk to your AI sleep coach.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>DRAFT - owner to approve: RestPilot uses your location to show local weather and commute times for your shift plan.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>DRAFT - owner to approve: RestPilot reads your sleep, heart rate variability and resting heart rate from Apple Health to tailor your sleep plan around your shifts. It never writes to Apple Health, and this data stays on your iPhone.</string>
 </dict>
 </plist>
