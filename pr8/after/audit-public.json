@@ -1,0 +1,164 @@
+[
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 36,
+    "smallTextSamples": [
+      "10px \"Live · Tap to talk to Aura\"",
+      "10px \"Sleep sounds\"",
+      "10px \"Coach chat\"",
+      "10px \"Wind-down\"",
+      "9px \"Tonight · Tue\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5.active \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  },
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/features",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 8,
+    "smallTextSamples": [
+      "11px \"Features\"",
+      "11px \"Intelligence\"",
+      "11px \"Scheduling\"",
+      "11px \"Environment\"",
+      "11px \"Trust\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5 \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 36,
+    "smallTextSamples": [
+      "10px \"Live · Tap to talk to Aura\"",
+      "10px \"Sleep sounds\"",
+      "10px \"Coach chat\"",
+      "10px \"Wind-down\"",
+      "9px \"Tonight · Tue\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5.active \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/features",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 8,
+    "smallTextSamples": [
+      "11px \"Features\"",
+      "11px \"Intelligence\"",
+      "11px \"Scheduling\"",
+      "11px \"Environment\"",
+      "11px \"Trust\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5 \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 36,
+    "smallTextSamples": [
+      "10px \"Live · Tap to talk to Aura\"",
+      "10px \"Sleep sounds\"",
+      "10px \"Coach chat\"",
+      "10px \"Wind-down\"",
+      "9px \"Tonight · Tue\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5.active \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/features",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 8,
+    "smallTextSamples": [
+      "11px \"Features\"",
+      "11px \"Intelligence\"",
+      "11px \"Scheduling\"",
+      "11px \"Environment\"",
+      "11px \"Trust\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "133x36 a.flex.items-center.gap-2.5 \"RestPilot AI\"",
+      "46x16 a.underline.hover:text-foreground \"For sale\""
+    ]
+  }
+]
