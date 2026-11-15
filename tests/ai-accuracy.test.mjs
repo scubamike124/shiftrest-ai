@@ -100,3 +100,18 @@ test('a night with efficiency/HRV but no duration is labelled as used wearable d
   const brief = read('src/components/AIBriefCard.tsx');
   assert.match(brief, /d\.wearableNights > 0/);
 });
+
+test('a resting-HR-only night is not claimed as adjusting the estimates', () => {
+  const r = { provider: 'oura', date: '2026-11-16', sleepDurationMin: null, sleepEfficiency: null, hrvMs: null, restingHr: 52 };
+  const i = computeInsights(shifts, prefs, now, [], r);
+  assert.equal(i.dataSources.wearableNights, 0);
+  assert.match(i.contextString, /contains no recent wearable readings/);
+});
+
+test('fresh history with a stale newest night is labelled from the history, without a contradiction', () => {
+  const hist = [night('2026-11-14', 360), night('2026-11-15', 400)];
+  const i = computeInsights(shifts, prefs, now, [], night('2026-11-01', 200), hist);
+  assert.equal(i.dataSources.wearableNights, 2);
+  assert.match(i.contextString, /oura wearable readings for 2 nights/);
+  assert.doesNotMatch(i.contextString, /contains no recent wearable readings/);
+});

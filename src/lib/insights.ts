@@ -62,7 +62,7 @@ export type InsightDataSources = {
   wearableProvider: "fitbit" | "oura" | null;
   /** Nights of measured sleep duration used for sleep debt (0 = sleep debt unknown). */
   sleepNights: number;
-  /** Nights of ANY wearable reading used (duration, efficiency, HRV or RHR). */
+  /** Nights whose readings feed a score (sleep duration, efficiency or HRV). */
   wearableNights: number;
   /** True when the newest wearable night was too old to count as "last night". */
   wearableStale: boolean;
@@ -311,8 +311,10 @@ export function computeInsights(
   const history: WearableHistory =
     wearableHistory.length || !lastNight ? wearableHistory : [lastNight];
   const sleepNights = history.filter((r) => r.sleepDurationMin != null).slice(0, 7).length;
+  // Only fields that actually adjust a score count as "used" (resting HR
+  // feeds none, so an RHR-only night is not claimed as an adjustment).
   const wearableNights = history.filter(
-    (r) => r.sleepDurationMin != null || r.sleepEfficiency != null || r.hrvMs != null || r.restingHr != null,
+    (r) => r.sleepDurationMin != null || r.sleepEfficiency != null || r.hrvMs != null,
   ).slice(0, 7).length;
   const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
   const hrvTrend = computeHrvTrend(history);
@@ -500,8 +502,10 @@ export function computeInsights(
       : "",
     // Provenance for the AI: it must not present estimates as measurements
     // or invent wearable readings that are not listed here.
-    lastNight
-      ? `Data sources: shifts entered by the user; ${lastNight.provider} wearable readings for ${wearableNights} night${wearableNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
+    // "No recent readings" only when no reading feeds anything (history can
+    // be fresh even if the newest single night is not).
+    wearableNights > 0 && (lastNight ?? history[0])
+      ? `Data sources: shifts entered by the user; ${(lastNight ?? history[0]).provider} wearable readings for ${wearableNights} night${wearableNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
       : `Data sources for this summary: shifts entered by the user; it contains no recent wearable readings${wearableStale ? " (the newest one is more than 3 days old)" : ""}. Fatigue and recovery scores are schedule-based estimates. Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one.`,
   ]
     .filter(Boolean)
