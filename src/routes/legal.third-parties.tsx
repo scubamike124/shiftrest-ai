@@ -89,14 +89,14 @@ const ACTIVE: Row[] = [
     name: "BigDataCloud",
     purpose: "Reverse geocoding (turning coordinates into a city name)",
     shared:
-      "The latitude/longitude your device reports when you tap Detect, sent from your device",
+      "Latitude/longitude, sent from your device: when you tap Detect, and also automatically when we need a city name for a saved location whose name is empty or just coordinates",
     policy: "https://www.bigdatacloud.com/privacy-and-cookie-policy",
   },
   {
     name: "OSRM (public routing service)",
     purpose: "Driving route and travel-time estimates between your places",
     shared:
-      "Start and destination coordinates (your current location or saved places), sent from our servers; no name or account details",
+      "Start and destination coordinates (your saved location and your saved destinations), sent from our servers; no name or account details",
     policy: "https://project-osrm.org/",
   },
   {

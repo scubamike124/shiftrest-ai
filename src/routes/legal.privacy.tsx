@@ -2,6 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { LegalLayout } from "@/components/legal/LegalLayout";
 import { findLegalDoc } from "@/lib/legal/meta";
 
+// PUBLISHING NOTE: several statements here describe the iPhone app only
+// (Apple Health in section 5, "Purchases (iPhone app)" in sections 1/2/9, the
+// iPhone paragraph in section 4 and the web-view storage sentence in section
+// 1, the Apple Health retention row, and the Apple Health mention in section
+// 3). They are false on the website alone: publish this page only when the
+// iOS app ships. The matching Apple and RevenueCat rows are in
+// legal.third-parties.tsx. Also WearableCard.tsx says "Coming in a future
+// update - Apple Health ..." on main; that copy contradicts section 5.
 export const DOC = findLegalDoc("privacy")!;
 
 export const Route = createFileRoute("/legal/privacy")({
@@ -51,7 +59,14 @@ export const Route = createFileRoute("/legal/privacy")({
           <strong>Coach messages &amp; voice:</strong> the messages you send to
           the AI coach and, if you use voice, your voice recordings. See{" "}
           <a href="#ai-providers">AI providers and your permission</a> for
-          who processes them.
+          who processes them. Any health or sleep details you choose to
+          share in a message are stored with your coach conversation and
+          processed like your other messages, including by the AI providers
+          listed there.
+        </li>
+        <li>
+          <strong>Contact form:</strong> if you write to us through the contact
+          form, the name, email address and message you enter.
         </li>
         <li>
           <strong>Shifts &amp; planning data:</strong> shifts you log, trips,
@@ -139,7 +154,7 @@ export const Route = createFileRoute("/legal/privacy")({
         Where the GDPR applies, we process personal data under the following
         bases: performance of a contract (operating the Service), legitimate
         interests (security, product improvement, fraud prevention), consent
-        (location, Apple Health, push notifications, wearables, optional AI
+        (location, Apple Health in the iPhone app, push notifications, wearables, optional AI
         memory, and sharing your data with AI providers), and
         compliance with legal obligations.
       </p>
@@ -213,7 +228,9 @@ export const Route = createFileRoute("/legal/privacy")({
         personalize recommendations. You can view, edit, delete, export, and
         disable AI memory entirely from the{" "}
         <Link to="/memory">Memory page</Link>. The AI does not generate
-        memories about your health or other sensitive categories.
+        AI memories about your health or other sensitive categories (this
+        concerns AI memories only; messages you send to the coach are handled
+        as described in section 1).
       </p>
 
       <h2 id="ai-providers">7. AI providers and your permission</h2>

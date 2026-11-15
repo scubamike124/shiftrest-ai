@@ -36,6 +36,16 @@ test("location text says coordinates are stored and names every recipient", () =
     assert.match(policy, new RegExp(w));
 });
 
+test("review fixes: BigDataCloud auto lookup, OSRM origin, coach health details, contact form", () => {
+  assert.match(third, /also automatically when we need a city name for a saved location/);
+  assert.match(third, /your saved location and your saved destinations/);
+  assert.doesNotMatch(third, /your current location or saved places/);
+  assert.match(policy, /health or sleep details you choose to share in a message are stored/);
+  assert.match(policy, /AI memories about your health/);
+  assert.match(policy, /Contact form: if you write to us through the contact form, the name, email address and message/);
+  assert.match(policyRaw, /PUBLISHING NOTE/);
+});
+
 test("local storage section covers the iPhone web view and Apple Health", () => {
   assert.match(policy, /iPhone app this storage is the app's own web view/);
 });
