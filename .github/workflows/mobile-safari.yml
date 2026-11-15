@@ -1,0 +1,138 @@
+# Real Mobile Safari check of the RestPilot web pages on iPhone simulators.
+#
+# Boots iPhone SE (375 pt), a 6.1" iPhone (390/393 pt) and a Pro Max (430 pt)
+# simulator on a free GitHub macOS runner, opens each page in Mobile Safari with
+# `simctl openurl` and saves a screenshot. Pages are checked on production
+# (restpilotai.com), Railway staging and this commit's own build served from the
+# runner. A Playwright WebKit pass then measures horizontal overflow per route.
+#
+# No secrets, no signing, no Apple account. The local build uses placeholder
+# Supabase values, so it shows layout only; sign-in does not work in it.
+# GitHub-hosted macOS runners are free for public repositories only; if this
+# repository is ever made private, disable this workflow first.
+name: Mobile Safari layout check
+on:
+  workflow_dispatch:
+  pull_request:
+    # Layout-level files only, so ordinary feature PRs do not each queue a long
+    # macOS job. Run it by hand (workflow_dispatch) for anything else.
+    paths:
+      - "src/styles.css"
+      - "src/routes/__root.tsx"
+      - "src/components/BottomNav.tsx"
+      - "src/components/site/**"
+      - "src/components/legal/CookieBanner.tsx"
+      - "scripts/qa/mobile-layout-audit.mjs"
+      - ".github/workflows/mobile-safari.yml"
+permissions:
+  contents: read
+concurrency:
+  group: mobile-safari-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  safari:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 80
+    env:
+      OUT: ${{ github.workspace }}/mobile-safari-evidence
+      PROD: https://restpilotai.com
+      STAGING: https://restpilot-web-staging.up.railway.app
+      LOCAL: http://localhost:4173
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build this commit (placeholder backend values, layout only)
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+          VITE_SUPABASE_PROJECT_ID: placeholder
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: npm run build
+      - name: Serve the build on localhost
+        env:
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: placeholder-publishable-key
+        run: |
+          PORT=4173 HOST=127.0.0.1 nohup node .output/server/index.mjs > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:4173/api/public/health >/dev/null && break; sleep 1; done
+          curl -fsS -o /dev/null -w 'local / -> %{http_code}\n' http://127.0.0.1:4173/
+      - name: Mobile Safari screenshots on iPhone simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT"
+          # Newest iOS runtime, and for each size class the first iPhone model that runtime supports.
+          xcrun simctl list runtimes -j > runtimes.json
+          python3 - > devices.txt <<'PY'
+          import json
+          rs = [r for r in json.load(open("runtimes.json"))["runtimes"] if r["isAvailable"] and r["name"].startswith("iOS")]
+          r = rs[-1]
+          names = {d["name"]: d["identifier"] for d in (r.get("supportedDeviceTypes") or [])}
+          wanted = [
+              ("se", ["iPhone SE (3rd generation)", "iPhone SE (2nd generation)"]),
+              ("std", ["iPhone 15", "iPhone 16", "iPhone 14", "iPhone 17"]),
+              ("max", ["iPhone 15 Pro Max", "iPhone 16 Pro Max", "iPhone 17 Pro Max", "iPhone 16 Plus"]),
+          ]
+          for key, options in wanted:
+              for o in options:
+                  if o in names:
+                      print(key, r["identifier"], names[o], o.replace(" ", "_"))
+                      break
+          PY
+          cat devices.txt
+          [ -s devices.txt ] || { echo "No iPhone simulator types found"; exit 1; }
+          ROUTES="/ /pricing /auth /paywall /features /#meet-aura"
+          while read -r KEY RUNTIME TYPE LABEL; do
+            DEV=$(xcrun simctl create "RP-$KEY" "$TYPE" "$RUNTIME")
+            xcrun simctl boot "$DEV"
+            xcrun simctl bootstatus "$DEV" -b
+            # Warm up Safari once so first-run sheets do not cover the first page.
+            xcrun simctl openurl "$DEV" "https://example.com/" || true
+            sleep 15
+            xcrun simctl io "$DEV" screenshot "$OUT/${LABEL}__warmup.png" || true
+            for SITE in prod staging local; do
+              case $SITE in prod) BASE=$PROD;; staging) BASE=$STAGING;; local) BASE=$LOCAL;; esac
+              for R in $ROUTES; do
+                SAFE=$(echo "$R" | tr '/#' '_-')
+                xcrun simctl openurl "$DEV" "$BASE$R" || echo "openurl failed for $BASE$R"
+                sleep 12
+                xcrun simctl io "$DEV" screenshot "$OUT/${LABEL}__${SITE}${SAFE}.png" || true
+              done
+            done
+            xcrun simctl shutdown "$DEV" || true
+            xcrun simctl delete "$DEV" || true
+          done < devices.txt
+          ls -1 "$OUT" | head -100
+      - name: WebKit overflow audit (Playwright WebKit, iPhone viewports)
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/pw && cd /tmp/pw && npm init -y >/dev/null && npm i --no-audit --no-fund playwright@1.56.1 >/dev/null
+          npx playwright install webkit >/dev/null
+          cd "$GITHUB_WORKSPACE"
+          for SITE in prod staging local; do
+            case $SITE in prod) BASE=$PROD;; staging) BASE=$STAGING;; local) BASE=$LOCAL;; esac
+            echo "=== $SITE $BASE"
+            PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs \
+              AUDIT_OUT="$OUT/webkit-audit-$SITE.json" AUDIT_SHOTS="$OUT/webkit-$SITE" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
+              node scripts/qa/mobile-layout-audit.mjs "$BASE" | tee "$OUT/webkit-audit-$SITE.txt"
+          done
+          echo "=== local signed-in app screens (fake session, placeholder backend)"
+          PW_BROWSER=webkit PLAYWRIGHT_MODULE=/tmp/pw/node_modules/playwright/index.mjs AUDIT_FAKE_SESSION=1 \
+            AUDIT_OUT="$OUT/webkit-audit-local-app.json" AUDIT_SHOTS="$OUT/webkit-local-app" AUDIT_SLICES=2 AUDIT_NO_FAIL=1 \
+            node scripts/qa/mobile-layout-audit.mjs "$LOCAL" | tee "$OUT/webkit-audit-local-app.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: restpilot-mobile-safari-evidence
+          path: |
+            mobile-safari-evidence
+            server.log
+          retention-days: 14
+          if-no-files-found: warn

@@ -208,7 +208,7 @@ function PlanPage() {
   }
 
   return (
-    <main className="flex flex-col gap-6 px-5 pt-12">
+    <main className="flex flex-col gap-6 pt-12 sm:px-5">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Smart Light Plan
@@ -237,7 +237,11 @@ function PlanPage() {
         </Link>
       )}
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div
+        className="grid grid-cols-7 gap-1 sm:flex sm:gap-2 sm:overflow-x-auto sm:pb-1"
+        role="group"
+        aria-label="Choose a day"
+      >
         {DAYS.map((d, i) => {
           const dayDate = new Date(today);
           dayDate.setDate(today.getDate() + (i - weekday));
@@ -248,7 +252,9 @@ function PlanPage() {
             <button
               key={d}
               onClick={() => setActiveDay(i)}
-              className={`flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border text-xs font-semibold transition ${
+              aria-label={d}
+              aria-pressed={active}
+              className={`flex h-14 min-w-0 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition sm:w-12 sm:shrink-0 sm:text-xs ${
                 active
                   ? "border-primary bg-primary/15 text-primary"
                   : "border-border bg-card text-muted-foreground"
@@ -300,7 +306,7 @@ function PlanPage() {
             <Link
               to="/dashboard"
               hash="schedule"
-              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
+              className="hit-area mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
             >
               Open Schedule
             </Link>

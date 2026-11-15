@@ -155,14 +155,14 @@ function MorningSettings() {
                 </button>
               </div>
               <span className="flex-1 text-sm">{LABELS[id]}</span>
-              <button
-                type="button"
-                onClick={() => toggleHidden(id)}
-                aria-label={hidden.has(id) ? `Show ${LABELS[id]}` : `Hide ${LABELS[id]}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted"
-              >
-                {hidden.has(id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleHidden(id)}
+                  aria-label={hidden.has(id) ? `Show ${LABELS[id]}` : `Hide ${LABELS[id]}`}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted hit-area"
+                >
+                  {hidden.has(id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
             </li>
           ))}
         </ul>

@@ -238,7 +238,7 @@ function LayoutEditor<T extends string>({
             type="button"
             onClick={() => onToggle(id)}
             aria-label={hidden.has(id) ? `Show ${labels[id]}` : `Hide ${labels[id]}`}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted hit-area"
           >
             {hidden.has(id) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>

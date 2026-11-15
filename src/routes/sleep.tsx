@@ -212,10 +212,12 @@ function SleepPage() {
               size="sm"
               variant="outline"
               onClick={() => void mixer.applyMix(p.tracks)}
-              className="rounded-full"
+              className="h-auto min-h-11 max-w-full whitespace-normal rounded-full py-2 text-left sm:h-8 sm:min-h-0 sm:whitespace-nowrap sm:py-0 sm:text-center"
             >
               {p.name}
-              <span className="ml-2 text-[10px] text-muted-foreground">{p.description}</span>
+              <span className="ml-2 text-xs text-muted-foreground sm:text-[10px]">
+                {p.description}
+              </span>
             </Button>
           ))}
           {activeCount > 0 && (
@@ -249,30 +251,41 @@ function SleepPage() {
               />
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Timer className="h-4 w-4 text-muted-foreground" />
-            <span className="mr-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              Timer
-            </span>
-            <Button
-              size="sm"
-              variant={timer === null ? "default" : "outline"}
-              onClick={() => setTimerFor(null)}
-              className="h-7 rounded-full px-3 text-[11px]"
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Timer className="h-4 w-4 text-muted-foreground" />
+              <span className="mr-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                Timer
+              </span>
+            </div>
+            {/* Six equal 44pt chips on phones (they overflowed the card in one row). */}
+            <div
+              className="grid grid-cols-6 gap-1.5 sm:flex sm:gap-1.5"
+              role="group"
+              aria-label="Sleep timer"
             >
-              Off
-            </Button>
-            {TIMERS.map((m) => (
               <Button
-                key={m}
                 size="sm"
-                variant={timer === m ? "default" : "outline"}
-                onClick={() => setTimerFor(m)}
-                className="h-7 rounded-full px-3 text-[11px]"
+                variant={timer === null ? "default" : "outline"}
+                aria-pressed={timer === null}
+                onClick={() => setTimerFor(null)}
+                className="h-11 min-w-0 rounded-full px-0 text-sm sm:h-7 sm:px-3 sm:text-[11px]"
               >
-                {m}m
+                Off
               </Button>
-            ))}
+              {TIMERS.map((m) => (
+                <Button
+                  key={m}
+                  size="sm"
+                  variant={timer === m ? "default" : "outline"}
+                  aria-pressed={timer === m}
+                  onClick={() => setTimerFor(m)}
+                  className="h-11 min-w-0 rounded-full px-0 text-sm sm:h-7 sm:px-3 sm:text-[11px]"
+                >
+                  {m}m
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       </Card>
