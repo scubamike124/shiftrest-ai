@@ -86,6 +86,13 @@ export const Route = createFileRoute("/api/brief")({
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
 
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
+
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.ai);

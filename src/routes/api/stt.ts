@@ -46,6 +46,13 @@ export const Route = createFileRoute("/api/stt")({
         const admission = await requireAIAdmission(authed.userId);
         if (admission) return admission;
 
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(authed.userId);
+          if (refused) return refused;
+        }
+
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(authed.userId, RATE_LIMITS.stt);

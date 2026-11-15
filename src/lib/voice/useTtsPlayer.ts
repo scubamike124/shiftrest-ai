@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VoiceId } from "@/lib/voice-rewriter";
 import { supabase } from "@/integrations/supabase/client";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 export type TtsState = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
@@ -115,7 +116,7 @@ export function useTtsPlayer(opts: Options = {}) {
         let speakText = text;
 
         if (rewrite) {
-          const briefRes = await fetch("/api/brief", {
+          const briefRes = await aiFetch("/api/brief", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -142,7 +143,7 @@ export function useTtsPlayer(opts: Options = {}) {
         const token = sess.session?.access_token;
         const ttsBody: Record<string, unknown> = { text: speakText.slice(0, 4000) };
         if (voice) ttsBody.voice = voice;
-        const ttsRes = await fetch("/api/tts", {
+        const ttsRes = await aiFetch("/api/tts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
