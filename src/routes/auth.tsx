@@ -48,6 +48,7 @@ const SAFE_RETURNS = new Set([
   "/smart-home",
   "/settings/avatar",
   "/settings/companion",
+  "/settings/privacy",
   "/settings/morning",
   "/settings/skills",
 ]);

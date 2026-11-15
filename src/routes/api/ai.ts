@@ -288,6 +288,14 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(401, "Sign in required");
         }
 
+        // Explicit permission to share data with third-party AI (Guideline
+        // 5.1.2(i)). Checked before any prompt is built or sent.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(userId, admin);
+          if (refused) return refused;
+        }
+
         // Per-user rate limit (server-side, cannot be bypassed by client).
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -401,7 +409,15 @@ export const Route = createFileRoute("/api/ai")({
                       status: "ok",
                     });
 
-                    if (profile.memoryEnabled && userTurn && assistant) {
+                    // Re-check: a revoke during the stream stops this extra
+                    // AI call too.
+                    const { checkAIConsent } = await import("@/lib/ai/consent.server");
+                    if (
+                      profile.memoryEnabled &&
+                      userTurn &&
+                      assistant &&
+                      (await checkAIConsent(userId, admin)) === "granted"
+                    ) {
                       // Proposals only: the user accepts them on /memory before anything is saved.
                       await proposeMemoriesFromChat({
                         admin,

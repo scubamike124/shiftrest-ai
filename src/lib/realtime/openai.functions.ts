@@ -158,6 +158,10 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
   .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
+    // Explicit permission to share data with third-party AI (Guideline
+    // 5.1.2(i)): no OpenAI session is minted without it.
+    const { assertAIConsent } = await import("@/lib/ai/consent.server");
+    await assertAIConsent(context.userId);
 
 
     // Trial gate: hard-block minting once the trial voice cap is exhausted.

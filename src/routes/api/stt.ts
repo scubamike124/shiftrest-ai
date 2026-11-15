@@ -43,6 +43,13 @@ export const Route = createFileRoute("/api/stt")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const authed = await requireUser(request);
         if ("response" in authed) return authed.response;
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        // Before admission, so a refusal never uses up the user's AI allowance.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(authed.userId);
+          if (refused) return refused;
+        }
         const admission = await requireAIAdmission(authed.userId);
         if (admission) return admission;
 
