@@ -10,6 +10,8 @@ import {
   refreshAppleHealth,
   type AppleHealthState,
 } from "@/lib/health/apple-health-store";
+import { watchAppleHealthAvailability } from "@/lib/health/availability-watch";
+import { isNativeApp } from "@/lib/native-app";
 
 // Shared by every view using this hook, so they do not each start a read.
 let lastAutoAttempt = 0;
@@ -21,7 +23,18 @@ export function useAppleHealth() {
 
   useEffect(() => {
     let active = true;
-    void appleHealthAvailable().then((a) => active && setAvailable(a));
+    // Inside the app the plugin can answer "not available" before it is ready, so
+    // re-probe a few times (bounded, cancelled on unmount). Probing only: no
+    // authorization is requested. The shell's user agent marks the app even if the
+    // Capacitor global is late.
+    const inApp =
+      isNativeApp() ||
+      (typeof navigator !== "undefined" && navigator.userAgent.includes("RestPilotApp/"));
+    const stopProbing = watchAppleHealthAvailability({
+      probe: appleHealthAvailable,
+      native: inApp,
+      onChange: (a) => active && setAvailable(a),
+    });
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       const id = data.session?.user.id ?? null;
@@ -36,6 +49,7 @@ export function useAppleHealth() {
     });
     return () => {
       active = false;
+      stopProbing();
       sub.subscription.unsubscribe();
     };
   }, []);
