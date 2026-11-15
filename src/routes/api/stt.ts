@@ -108,7 +108,7 @@ export const Route = createFileRoute("/api/stt")({
           });
           const msg =
             upstream.status === 402
-              ? "AI credits are exhausted."
+              ? "Voice is temporarily unavailable. Try again later."
               : upstream.status === 429
                 ? "Voice is busy. Try again."
                 : "Couldn't transcribe that — try again.";

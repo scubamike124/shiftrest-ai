@@ -34,7 +34,7 @@ function reasonFromStatus(status: number): Fallback["reason"] {
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
     case "credits":
-      return "Voice briefing is paused — AI credits are exhausted. Try again later.";
+      return "Voice briefing is paused for now. Try again later.";
     case "rate_limit":
       return "Voice briefing is busy right now. Give it a moment and try again.";
     case "config":
@@ -90,6 +90,12 @@ export const Route = createFileRoute("/api/brief")({
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.ai);
           if (limited) return limited;
+        }
+
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
         }
 
 

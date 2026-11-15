@@ -49,6 +49,12 @@ export const Route = createFileRoute("/api/insights")({
             if (limited) return limited;
           }
 
+          {
+            const { requireAIBudget } = await import("@/lib/ai/log.server");
+            const overBudget = await requireAIBudget(auth.userId);
+            if (overBudget) return overBudget;
+          }
+
           const { context } = (await request.json()) as { context?: string };
           if (!context || typeof context !== "string") {
             return new Response(JSON.stringify({ error: "context required" }), {
@@ -101,7 +107,7 @@ export const Route = createFileRoute("/api/insights")({
                   upstream.status === 429
                     ? "Rate limit reached."
                     : upstream.status === 402
-                    ? "AI credits exhausted."
+                    ? "AI is temporarily unavailable."
                     : "Insights unavailable.",
               }),
               { status: upstream.status, headers: { "Content-Type": "application/json" } },

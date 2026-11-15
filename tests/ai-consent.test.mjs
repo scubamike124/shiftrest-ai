@@ -607,3 +607,97 @@ test("client: 'Not now' -> the request is never sent; 'Allow' -> sent; revoke in
   assert.equal(res.status, 403);
   assert.deepEqual(h.sent, ["/api/ai", "/api/insights"], "nothing new sent after revoke");
 });
+
+// ---- daily budget gate: fails closed, after consent and rate limit ----------
+function budgetDb(rpcResult) {
+  const db = fakeDb({ consent: consentLoad().aiConsentGrantPatch("2026-11-15T10:00:00.000Z") });
+  db.rpc = async () => rpcResult;
+  return db;
+}
+const coachReq = () =>
+  json({ intent: "coach", messages: [{ role: "user", content: "I slept 4 hours" }] });
+
+test("budget RPC error -> retryable 503 JSON and zero provider calls (fails closed)", async () => {
+  const spy = upstreamSpy();
+  const res = await loadRoute("ai", budgetDb({ data: null, error: { message: "rpc down" } }), spy)({
+    request: coachReq(),
+  });
+  assert.equal(res.status, 503);
+  assert.equal(res.headers.get("retry-after"), "10");
+  const body = await res.json();
+  assert.equal(body.code, "ai_budget_unavailable");
+  assert.equal(body.retryable, true);
+  assert.deepEqual(spy.calls, []);
+});
+
+test("budget under cap -> works; over cap -> 429, no provider call", async () => {
+  const spy = upstreamSpy();
+  const ok = await loadRoute("ai", budgetDb({ data: true, error: null }), spy)({ request: coachReq() });
+  assert.equal(ok.status, 200);
+  assert.ok(spy.calls.length >= 1);
+  if (ok.body) await ok.body.cancel().catch(() => {});
+
+  const spy2 = upstreamSpy();
+  const over = await loadRoute("ai", budgetDb({ data: false, error: null }), spy2)({ request: coachReq() });
+  assert.equal(over.status, 429);
+  assert.deepEqual(spy2.calls, []);
+});
+
+test("consent is still checked before the budget (no consent + RPC error -> 403)", async () => {
+  const db = fakeDb({ consent: undefined });
+  db.rpc = async () => ({ data: null, error: { message: "rpc down" } });
+  const spy = upstreamSpy();
+  const res = await loadRoute("ai", db, spy)({ request: coachReq() });
+  assert.equal(res.status, 403);
+  assert.deepEqual(spy.calls, []);
+});
+
+test("the budget gate stays after consent and rate limit in api/ai.ts", () => {
+  const src = read("src/routes/api/ai.ts");
+  const consent = src.indexOf("requireAIConsent(");
+  const limit = src.indexOf("enforceRateLimit(");
+  const budget = src.indexOf("requireAIBudget(userId");
+  assert.ok(consent > 0 && consent < limit && limit < budget);
+});
+
+test("upstream 402 is mapped to a user-safe message (no operator wording)", () => {
+  const gw = makeLoader({}, {})("src/lib/ai/gateway.server.ts");
+  assert.equal(gw.mapUpstreamError(402), "AI is temporarily unavailable. Please try again later.");
+  for (const file of ["ai", "brief", "insights", "swap", "stt", "tts", "tts-elevenlabs"]) {
+    const src = read(`src/routes/api/${file}.ts`) ;
+    assert.ok(!/Settings > Workspace|credits (are )?exhausted|Add funds/i.test(src.replace(/"credits_exhausted"|STT upstream 402[^"]*/g, "")), `${file} leaks operator wording`);
+  }
+});
+
+// ---- budget gate on the other AI routes (previously rate-limit only) --------
+for (const [label, file, makeReq] of ROUTES.filter(([, f]) => ["brief", "insights", "swap"].includes(f))) {
+  test(`${label}: budget RPC error -> retryable 503, zero provider calls`, async () => {
+    const spy = upstreamSpy();
+    const res = await loadRoute(file, budgetDb({ data: null, error: { message: "down" } }), spy)({
+      request: makeReq(),
+    });
+    assert.equal(res.status, 503);
+    assert.equal((await res.json()).code, "ai_budget_unavailable");
+    assert.deepEqual(spy.calls, []);
+  });
+  test(`${label}: over daily cap -> 429, zero provider calls`, async () => {
+    const spy = upstreamSpy();
+    const res = await loadRoute(file, budgetDb({ data: false, error: null }), spy)({ request: makeReq() });
+    assert.equal(res.status, 429);
+    assert.deepEqual(spy.calls, []);
+  });
+  test(`${label}: no consent + budget RPC error -> consent refusal first (403)`, async () => {
+    const db = fakeDb({ consent: undefined });
+    db.rpc = async () => ({ data: null, error: { message: "down" } });
+    const spy = upstreamSpy();
+    const res = await loadRoute(file, db, spy)({ request: makeReq() });
+    assert.equal(res.status, 403);
+    assert.deepEqual(spy.calls, []);
+  });
+  test(`${label}: gate order is consent, rate limit, budget, provider`, () => {
+    const src = read(`src/routes/api/${file}.ts`);
+    const at = (n) => src.indexOf(n);
+    assert.ok(at("requireAIConsent(") < at("enforceRateLimit(") && at("enforceRateLimit(") < at("requireAIBudget("));
+    assert.ok(at("requireAIBudget(") < src.indexOf(file === "brief" ? "chatJSON({" : "ai.gateway.lovable.dev", src.indexOf("handlers:")));
+  });
+}
