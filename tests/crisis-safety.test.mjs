@@ -304,6 +304,11 @@ const POSITIVE = [
   "I just want it all to end",
   "I'm saving my pills to end it",
   "what's the point of life?",
+  "I'm thinking about taking all my pills",
+  "I might take all my sleeping pills tonight",
+  "I'm considering taking a whole bottle of melatonin",
+  "I'll take all my pills.",
+  "I want to end things.",
   "I want it to end.",
 ];
 
@@ -386,6 +391,16 @@ const NEGATIVE = [
   "stashing my meds away in my locker",
   "i'm stockpiling meds before my vacation",
   "my meds are stored away in my locker",
+  "I have my meds stockpiled for the trip",
+  "pills saved up for my holiday",
+  "I'm stockpiling my meds, the pharmacy closes over christmas",
+  "I want it to end, this shift is endless",
+  "I want it to end now, 3 more hours",
+  "no point going on, the meeting got cancelled",
+  "I'm cutting again, carbs that is",
+  "I'll take all my pills with breakfast",
+  "I will take all my tablets before my shift",
+  "I want to end things with my boyfriend",
   "",
 ];
 
