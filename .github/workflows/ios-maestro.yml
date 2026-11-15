@@ -143,9 +143,18 @@ jobs:
           set -o pipefail
           TAGS="core"
           [ "${HEALTHKIT:-0}" = "1" ] && TAGS="core,healthkit"
-          maestro --device "$DEVICE" test .maestro --include-tags "$TAGS" --exclude-tags blocked \
-            -e QA_EMAIL="$QA_EMAIL" -e QA_PASSWORD="$QA_PASSWORD" \
-            --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
+          run_core() {
+            maestro --device "$DEVICE" test .maestro --include-tags "$TAGS" --exclude-tags blocked \
+              -e QA_EMAIL="$QA_EMAIL" -e QA_PASSWORD="$QA_PASSWORD" \
+              --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
+          }
+          # The XCTest driver sometimes misses its start window on hosted runners
+          # (no flow has run yet). Retry once in that case only; flow failures are not retried.
+          run_core && exit 0
+          grep -q "iOS driver not ready in time" "$EV/maestro-core.log" || exit 1
+          echo "::warning::Maestro's iOS driver did not start in time; retrying the core flows once."
+          mv "$EV/maestro-core.log" "$EV/maestro-core-driver-timeout.log"
+          run_core
       - name: Stop the stack, then the offline flow
         if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
         run: |
