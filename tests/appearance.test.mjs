@@ -183,7 +183,8 @@ test("Soft Light keeps white text white on scrims (the white remap is scoped, no
 // restore rule (later in the file) wins when an element matches both.
 function softLightRules() {
   const rules = [];
-  const re = /:root\[data-theme="light"\]\s*:is\(([\s\S]*?)\)\s*\{\s*--color-white:\s*(oklch\([^)]*\))/g;
+  const re =
+    /:root\[data-theme="light"\]\s*:is\(([\s\S]*?)\)\s*\{\s*--color-white:\s*(oklch\([^)]*\))/g;
   for (const m of css.matchAll(re)) {
     const attrs = [...m[1].matchAll(/\[class([*~])="([^"]+)"\]/g)].map(([, op, v]) => ({ op, v }));
     rules.push({ attrs, white: m[2] });
@@ -194,7 +195,9 @@ function softLightWhite(classes) {
   const tokens = classes.split(/\s+/);
   let white = null; // null: inherited from the parent
   for (const r of softLightRules()) {
-    const hit = r.attrs.some(({ op, v }) => (op === "*" ? classes.includes(v) : tokens.includes(v)));
+    const hit = r.attrs.some(({ op, v }) =>
+      op === "*" ? classes.includes(v) : tokens.includes(v),
+    );
     if (hit) white = r.white;
   }
   return white;
