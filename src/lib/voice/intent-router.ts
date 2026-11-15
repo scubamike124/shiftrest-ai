@@ -182,6 +182,15 @@ const COMMAND_TAIL_WORDS = new Set([
   "you",
   "o'clock",
   "oclock",
+  "in",
+  "the",
+  "on",
+  "at",
+  "night",
+  "evening",
+  "afternoon",
+  "early",
+  "day",
 ]);
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
@@ -323,6 +332,9 @@ export function parseIntent(input: string): ParsedIntent {
     const ampm = mWake[3]?.toLowerCase();
     if (ampm?.startsWith("p") && hour < 12) hour += 12;
     if (ampm?.startsWith("a") && hour === 12) hour = 0;
+    // "6 in the evening", "5 in the afternoon", "9 tonight" without a.m./p.m.
+    const after = text.slice((mWake.index ?? 0) + mWake[0].length);
+    if (!ampm && hour < 12 && /\b(?:afternoon|evening|tonight)\b/.test(after)) hour += 12;
     hour = clamp(hour, 0, 23);
     return { intent: { kind: "wake_at", hour, minute }, confidence: 0.9, raw };
   }
