@@ -152,10 +152,34 @@ const TEXT_PAIRS = [
   ["indigo-glow", "background"],
   ["indigo-glow", "card"],
   ["popover-foreground", "popover"],
+  ["destructive", "card"],
 ];
 
+// Scope note: these are the opaque token pairs. Translucent glass surfaces and
+// one-off component colours are covered by visual QA, not by this test.
+test("Soft Light: remapped palette text shades meet WCAG AA on cards and the page", () => {
+  const t = themes.light;
+  const shades = Object.keys(t).filter((k) =>
+    /^color-(rose|red|amber|emerald|sky|slate|indigo)-\d+$/.test(k),
+  );
+  assert.ok(shades.length >= 10, "expected the palette remaps");
+  for (const k of shades) {
+    for (const bg of ["card", "background"]) {
+      const c = contrast(t[k], t[bg]);
+      assert.ok(c >= 4.5, `light ${k} on ${bg} = ${c.toFixed(2)}:1`);
+    }
+  }
+});
+
+test("Soft Light keeps white text white on scrims (the white remap is scoped, not global)", () => {
+  const light = css.slice(css.indexOf(':root[data-theme="light"] {'));
+  const tokenBlock = light.slice(0, light.indexOf("\n}"));
+  assert.doesNotMatch(tokenBlock, /--color-white:/);
+  assert.match(css, /\[class\*="bg-black"\][\s\S]*?--color-white: oklch\(1 0 0\)/);
+});
+
 for (const [name, t] of Object.entries(themes)) {
-  test(`${name}: text tokens meet WCAG AA (4.5:1)`, () => {
+  test(`${name}: core text token pairs meet WCAG AA (4.5:1)`, () => {
     for (const [fg, bg] of TEXT_PAIRS) {
       const c = contrast(t[fg], t[bg]);
       assert.ok(c >= 4.5, `${name} ${fg} on ${bg} = ${c.toFixed(2)}:1`);

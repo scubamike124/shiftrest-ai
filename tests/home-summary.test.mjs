@@ -114,3 +114,48 @@ test("stored overrides are validated and expire", () => {
   assert.deepEqual(parseOverrides("{", now), []);
   assert.deepEqual(parseOverrides('{"a":1}', now), []);
 });
+
+test("back-to-back rotation: the shift about to start comes first, yesterday's is offered second", () => {
+  // 07:00-19:00 every day; at 06:30 the previous shift ended 11.5 h ago.
+  const daily = [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+    id: `s${day}`,
+    day,
+    weekIndex: 0,
+    start: 7 * 60,
+    end: 19 * 60,
+  }));
+  const s = computeHomeSummary({
+    shifts: daily,
+    prefs,
+    tz: "UTC",
+    now: new Date("2026-11-16T06:30:00Z"),
+  });
+  assert.equal(s.changeTarget.id, "s0@2026-11-16");
+  assert.deepEqual(
+    s.changeCandidates.map((c) => c.id),
+    ["s0@2026-11-16", "s6@2026-11-15"],
+  );
+  // An hour after clock-out, the shift that just ended is the likelier one.
+  const later = computeHomeSummary({
+    shifts: daily,
+    prefs,
+    tz: "UTC",
+    now: new Date("2026-11-16T20:00:00Z"),
+  });
+  assert.equal(later.changeTarget.id, "s0@2026-11-16");
+});
+
+test("a cancelled shift stays listed in appliedChanges (so Undo remains available)", () => {
+  const now = at("2026-11-16T15:00:00Z");
+  const s = computeHomeSummary({
+    shifts,
+    prefs,
+    tz,
+    now,
+    overrides: [{ kind: "cancel", shiftId: "mon-night@2026-11-16", savedAt: now.toISOString() }],
+  });
+  assert.equal(s.appliedChanges.length, 1);
+  assert.equal(s.appliedChanges[0].override.kind, "cancel");
+  assert.equal(s.appliedChanges[0].original.startsAt.toISOString(), "2026-11-17T00:00:00.000Z");
+  assert.notEqual(s.changeTarget.id, "mon-night@2026-11-16");
+});

@@ -9,7 +9,7 @@ import { SleepStreakCard } from "@/components/home/SleepStreakCard";
 import { QuickActionsCard } from "@/components/home/QuickActionsCard";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X, Sparkles, Moon, ChevronDown } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, ChevronDown } from "lucide-react";
 import { TodayCard } from "@/components/home/TodayCard";
 
 import {
@@ -250,8 +250,22 @@ function Dashboard() {
   useEffect(() => {
     if (window.matchMedia?.("(min-width: 1024px)").matches) setMoreOpen(true);
   }, []);
+  // Keep "now" fresh: every minute, and when the app comes back to the foreground,
+  // so the Today card's countdowns and next shift never go stale.
   useEffect(() => {
-    setToday(new Date());
+    const tick = () => setToday(new Date());
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
   }, []);
   const weekday = (today.getDay() + 6) % 7;
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;

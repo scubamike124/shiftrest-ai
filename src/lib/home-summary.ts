@@ -38,10 +38,19 @@ export type HomeSummary = {
   sleep: SleepOpportunity | null;
   /** Next reminder on the plan. */
   reminder: { kind: PlannedReminderKind; at: Date; label: string } | null;
-  /** The shift "My shift changed" applies to: the current one, one that just ended, or the next. */
+  /**
+   * Shifts "My shift changed" can apply to, most likely first: the shift in
+   * progress; otherwise the next shift and a shift that just ended (ordered by
+   * which is closer in time), so a back-to-back rotation never silently
+   * targets yesterday's finished shift.
+   */
+  changeCandidates: ScheduledShift[];
+  /** Kept for callers: the first change candidate. */
   changeTarget: ScheduledShift | null;
   /** Ids of shifts changed by a saved one-off override. */
   changedShiftIds: string[];
+  /** Every applied one-off change, with the shift as originally scheduled (for Undo). */
+  appliedChanges: { override: StoredOverride; original: ScheduledShift }[];
 };
 
 export const REMINDER_SHORT: Record<PlannedReminderKind, string> = {
@@ -64,6 +73,7 @@ export const RECENT_END_MS = 12 * HOUR;
 export function scheduleWithOverrides(input: HomeSummaryInput): {
   schedule: Schedule;
   changed: string[];
+  applied: { override: StoredOverride; original: ScheduledShift }[];
 } {
   let schedule = buildSchedule({
     shifts: input.shifts,
@@ -74,7 +84,9 @@ export function scheduleWithOverrides(input: HomeSummaryInput): {
     cycleWeeks: input.prefs.cycleWeeks ?? 1,
   });
   const changed: string[] = [];
+  const applied: { override: StoredOverride; original: ScheduledShift }[] = [];
   for (const o of input.overrides ?? []) {
+    const original = schedule.shifts.find((x) => x.id === o.shiftId);
     const change: ShiftChange =
       o.kind === "extend"
         ? { kind: "extend", shiftId: o.shiftId, endsAt: new Date(o.endsAt) }
@@ -85,17 +97,18 @@ export function scheduleWithOverrides(input: HomeSummaryInput): {
         now: input.now,
       }).schedule;
       changed.push(o.shiftId);
+      if (original) applied.push({ override: o, original });
     } catch (e) {
       // A stale override (shift no longer in range, or already later) is ignored.
       if (!(e instanceof ShiftChangeError)) throw e;
     }
   }
-  return { schedule, changed };
+  return { schedule, changed, applied };
 }
 
 export function computeHomeSummary(input: HomeSummaryInput): HomeSummary {
   const now = input.now.getTime();
-  const { schedule, changed } = scheduleWithOverrides(input);
+  const { schedule, changed, applied } = scheduleWithOverrides(input);
   const shifts = schedule.shifts;
   const onShift =
     shifts.find((s) => s.startsAt.getTime() <= now && s.endsAt.getTime() > now) ?? null;
@@ -108,13 +121,22 @@ export function computeHomeSummary(input: HomeSummaryInput): HomeSummary {
     buildSleepPlan(schedule, input.prefs, input.now).find((p) => p.sleepEnd.getTime() > now) ??
     null;
   const r = buildReminders(schedule, input.prefs, input.now)[0];
+  let changeCandidates: ScheduledShift[];
+  if (onShift) changeCandidates = [onShift];
+  else if (nextShift && justEnded) {
+    const sinceEnd = now - justEnded.endsAt.getTime();
+    const untilStart = nextShift.startsAt.getTime() - now;
+    changeCandidates = untilStart <= sinceEnd ? [nextShift, justEnded] : [justEnded, nextShift];
+  } else changeCandidates = [justEnded ?? nextShift].filter((x): x is ScheduledShift => !!x);
   return {
     onShift,
     nextShift,
     sleep,
     reminder: r ? { kind: r.kind, at: r.at, label: REMINDER_SHORT[r.kind] } : null,
-    changeTarget: onShift ?? justEnded ?? nextShift,
+    changeCandidates,
+    changeTarget: changeCandidates[0] ?? null,
     changedShiftIds: changed,
+    appliedChanges: applied,
   };
 }
 

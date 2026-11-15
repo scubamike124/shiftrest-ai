@@ -116,6 +116,7 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
   const [open, setOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [customEnd, setCustomEnd] = useState("");
+  const [pickedId, setPickedId] = useState<string | null>(null);
 
   useEffect(() => {
     setOverrides(readOverrides(userId));
@@ -144,9 +145,16 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
     [shifts, prefs, now, tz, overrides],
   );
 
-  const target: ScheduledShift | null = summary.changeTarget;
-  const targetChanged = target ? summary.changedShiftIds.includes(target.id) : false;
+  // The sheet acts on the picked candidate (defaults to the most likely one).
+  const candidates = summary.changeCandidates;
+  const target: ScheduledShift | null =
+    candidates.find((c) => c.id === pickedId) ?? summary.changeTarget;
   const hasShifts = shifts.length > 0;
+  const hasChanges = summary.appliedChanges.length > 0;
+  function candidateLabel(c: ScheduledShift) {
+    if (summary.onShift && c.id === summary.onShift.id) return "Current shift";
+    return c.startsAt.getTime() > now.getTime() ? "Next shift" : "Last shift";
+  }
 
   function extendTo(endsAt: Date) {
     if (!target) return;
@@ -250,34 +258,48 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
         ) : null}
         <Row
           icon={<BellRing className="h-5 w-5" />}
-          label="Next reminder"
+          label="Next on your plan"
           value={summary.reminder ? summary.reminder.label : "Nothing scheduled"}
           detail={
             summary.reminder
-              ? `${dayTime(summary.reminder.at, now)} · ${until(summary.reminder.at, now)}`
+              ? `${dayTime(summary.reminder.at, now)} · ${until(summary.reminder.at, now)}${
+                  hasChanges ? " · phone reminders follow your weekly schedule" : ""
+                }`
               : undefined
           }
         />
       </div>
 
-      {targetChanged && target ? (
-        <div className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-primary/10 px-3 py-2 text-sm">
-          <span className="text-foreground">Today&apos;s plan includes your shift change.</span>
+      {summary.appliedChanges.map(({ override, original }) => (
+        <div
+          key={override.shiftId}
+          className="mt-3 flex min-h-11 items-center justify-between gap-3 rounded-xl bg-primary/10 px-3 py-2 text-sm"
+        >
+          <span className="min-w-0 text-foreground">
+            {override.kind === "cancel"
+              ? `Called off: ${dayTime(original.startsAt, now)}`
+              : `Extended: ends ${time(new Date(override.endsAt))} (was ${time(original.endsAt)})`}
+          </span>
           <button
             type="button"
-            onClick={() => undo(target.id)}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 font-semibold text-primary"
+            onClick={() => undo(override.shiftId)}
+            aria-label={`Undo change to the ${dayTime(original.startsAt, now)} shift`}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 font-semibold text-indigo-glow"
           >
             <RotateCcw className="h-4 w-4" aria-hidden /> Undo
           </button>
         </div>
-      ) : null}
+      ))}
 
       {hasShifts ? (
         <button
           type="button"
-          onClick={() => setOpen(true)}
-          disabled={!target}
+          onClick={() => {
+            setPickedId(null);
+            setOpen(true);
+          }}
+          // Wait for the signed-in user, so the change is saved under their key.
+          disabled={!target || !userId}
           className="mt-4 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition active:scale-[0.99] disabled:opacity-50"
         >
           <CalendarClock className="h-5 w-5" aria-hidden />
@@ -312,6 +334,39 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
           </DrawerHeader>
           {target ? (
             <div className="space-y-5 px-4">
+              {candidates.length > 1 ? (
+                <div
+                  role="radiogroup"
+                  aria-label="Which shift changed?"
+                  className="grid grid-cols-2 gap-2"
+                >
+                  {candidates.map((c) => {
+                    const selected = c.id === target.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          setPickedId(c.id);
+                          setConfirmCancel(false);
+                        }}
+                        className={`min-h-14 rounded-xl border px-3 py-2 text-left ${
+                          selected ? "border-primary bg-primary/15" : "border-border bg-card"
+                        }`}
+                      >
+                        <span className="block text-xs text-muted-foreground">
+                          {candidateLabel(c)}
+                        </span>
+                        <span className="block text-sm font-semibold">
+                          {dayTime(c.startsAt, now)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
               <div>
                 <p className="flex items-center gap-2 text-sm font-semibold">
                   <AlarmClock className="h-4 w-4 text-primary" aria-hidden /> Running late or
@@ -363,7 +418,7 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
                     <button
                       type="button"
                       onClick={cancelShift}
-                      className="min-h-12 rounded-xl bg-destructive px-3 text-sm font-semibold text-destructive-foreground"
+                      className="min-h-12 rounded-xl border border-destructive bg-destructive/10 px-3 text-sm font-semibold text-destructive"
                     >
                       Yes, called off
                     </button>

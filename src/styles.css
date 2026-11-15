@@ -400,8 +400,6 @@
   --glass-highlight: oklch(1 0 0 / 0.5);
   --glow-primary: 0 0 0 1px oklch(0.5 0.12 275 / 0.1), 0 16px 36px -24px oklch(0.4 0.12 275 / 0.28);
   --glow-accent: 0 0 0 1px oklch(0.6 0.13 65 / 0.25), 0 16px 36px -24px oklch(0.6 0.13 65 / 0.3);
-  /* White overlays/borders become soft ink tints on a light background. */
-  --color-white: oklch(0.21 0.03 275);
   --color-rose-100: oklch(0.47 0.17 15);
   --color-rose-200: oklch(0.47 0.17 15);
   --color-rose-300: oklch(0.5 0.18 15);
@@ -419,6 +417,39 @@
   --color-slate-300: oklch(0.45 0.03 265);
   --color-indigo-200: oklch(0.47 0.18 275);
   --color-indigo-300: oklch(0.48 0.18 275);
+}
+
+/* Soft Light: Tailwind's white overlays, borders and rings (bg-white/5,
+   border-white/10, ...) become soft ink tints, so cards and dividers stay
+   visible on a light background. Scoped to those utilities and their content,
+   not the global token, so white text on dark scrims, photos and solid colour
+   buttons stays white (restored by the second rule, which wins on ties). */
+:root[data-theme="light"]
+  :is(
+    [class*="bg-white/"],
+    [class*="border-white/"],
+    [class*="ring-white/"],
+    [class*="divide-white/"],
+    [class*="from-white/"],
+    [class*="via-white/"],
+    [class*="to-white/"]
+  ) {
+  --color-white: oklch(0.21 0.03 275);
+}
+:root[data-theme="light"]
+  :is(
+    [class*="bg-black"],
+    [class*="from-black"],
+    [class*="bg-[#"],
+    [class*="bg-rose-5"],
+    [class*="bg-red-5"],
+    [class*="bg-emerald-5"],
+    [class*="bg-sky-5"],
+    [class*="bg-indigo-5"],
+    [class~="bg-primary"],
+    [class~="bg-destructive"]
+  ) {
+  --color-white: oklch(1 0 0);
 }
 
 @utility glass-card {
