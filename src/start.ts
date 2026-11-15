@@ -37,8 +37,6 @@ const CSP = [
     // Lovable AI + connector gateways
     "https://ai.gateway.lovable.dev",
     "https://connector-gateway.lovable.dev",
-    // ReadyPlayerMe avatar model host
-    "https://models.readyplayer.me",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
