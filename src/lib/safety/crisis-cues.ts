@@ -24,17 +24,24 @@ function normalize(text: string): string {
 // Sleep aids and common over-the-counter or prescription drugs people name
 // instead of saying "pills".
 const DRUGS =
-  "(sleeping |sleep )?(pills|meds|medications?|tablets|melatonin|ambien|zolpidem|benadryl|diphenhydramine|zzzquil|unisom|doxylamine|trazodone|tylenol|acetaminophen|paracetamol|ibuprofen|advil|motrin|aspirin|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|oxycontin|percocet|vicodin|opioids|insulin|antidepressants)";
+  "(sleeping |sleep )?(pills|meds|medications?|tablets|melatonin|ambien|zolpidem|benadryl|diphenhydramine|zzzquil|unisom|doxylamine|trazodone|nyquil|zquil|tylenol|acetaminophen|paracetamol|ibuprofen|advil|motrin|aspirin|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|oxycontin|percocet|vicodin|opioids|insulin|antidepressants)";
 // "All my ..." without the daily-routine words ("I took all my meds this morning").
 const DRUGS_ALL =
-  "(sleeping |sleep )?(pills|tablets|melatonin|ambien|zolpidem|benadryl|zzzquil|unisom|trazodone|tylenol|acetaminophen|paracetamol|ibuprofen|advil|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|percocet|vicodin|opioids|insulin|antidepressants)";
-const TOOK =
-  "(took|swallowed|downed|have taken|i've taken|just took|(going to|gonna|want to|wanna|about to|i'll) (take|swallow))";
+  "(sleeping |sleep )?(pills|tablets|melatonin|ambien|zolpidem|benadryl|zzzquil|unisom|trazodone|nyquil|zquil|tylenol|acetaminophen|paracetamol|ibuprofen|advil|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|percocet|vicodin|opioids|insulin|antidepressants)";
+const TOOK_PAST = "(took|swallowed|downed|have taken|i've taken|just took)";
+const TOOK_INTENT = "((going to|gonna|want to|wanna|about to|i'll|planning to) (take|swallow))";
+const TOOK = `(${TOOK_PAST}|${TOOK_INTENT})`;
+const CONTAINER = "((a|the|my) )?(whole |entire )?(bottle|pack|packet|box|strip|blister pack)";
 const END = "\\s*([.!?,;]|$)";
 
 export const CRISIS_PATTERNS: readonly RegExp[] = [
   // Suicide
-  /\bsuicid(?!e (doors?|squad)\b)/i,
+  // Not "career suicide", "suicide prevention training" or "my patient
+  // attempted suicide" (clinicians talking about work).
+  /(?<!(career|social|political|patient attempted|patient committed|patient tried|patients attempting|someone attempted|someone committed) )\bsuicid(?!e (doors?|squad|prevention|rates?|awareness|risk assessments?)\b)/i,
+  /\b(want to|wanna|going to|gonna|thinking of|thinking about|ready to|about to) end it( all| tonight| now| today)?\s*([.!?,;]|$)/i,
+  /\b(thinking of|thinking about|considering) ending it( all| tonight)?\s*([.!?,;]|$)/i,
+  /\b(slit|slitting|slice|slicing|cut|cutting|slash|slashing) (open )?(my|both) wrists?\b/i,
   /\bkill myself\b/i,
   // "killing myself with these doubles / working nights" is overwork talk;
   // "killing myself with pills" or "on purpose" is not.
@@ -66,6 +73,7 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bwish i('d| could| would)? ?(just )?(not|never) wake up( again| ever again)?\s*([.!?,;]|$)/i,
   /\b(sleep|asleep) (and|&) never wake (up|back up)\b/i,
   /\b(sleep|asleep) (and|&) not wake (up|back up)( again| ever again)?\s*([.!?,;]|$)/i,
+  /\b(hope|wish|want to|wanna|pray|praying)( that)? (i )?(would |could |just |will |'d )?(die|pass away) in my sleep\b/i,
   /\bhope i (never|don'?t|do not|won'?t) wake up( again| ever again)?( tomorrow( morning)?)?\s*([.!?,;]|$)/i,
   /\bwish i (wasn't|weren't|wasnt|werent) alive\b/i,
   /\bwish i'?d never been born\b/i,
@@ -74,23 +82,29 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bdon'?t (want to|wanna) live\b(?! (in|near|with|on|at|by|there|here|so|too|close|far|together|without)\b)/i,
   // Self-harm ("I hurt myself at the gym", "I cut myself shaving" are injuries)
   /\bself[-\s]?harm/i,
-  /\bharm(ing)? myself\b/i,
+  /\bharm(ing)? myself\b(?! by (sleeping|staying|drinking|skipping|working|not|having|taking)\b)/i,
   /\b(want|wanna|going|gonna|urge|tempted|thinking about|think about|thought about|feel like)( to)? (hurt|hurting) myself\b/i,
   /\b(been|keep|keeps|kept|started|start) (hurting|cutting|burning|harming) myself\b/i,
   /\b(hurt|hurting|cut|cutting|burn|burning|burned|burnt) myself on purpose\b/i,
-  /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the)\b)/i,
+  /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the|some slack|a break|off|short|loose|free|out|in on|a deal|a piece|a slice|back)\b)/i,
   // Overdose ("overdosing on coffee" is tiredness slang; "my patient
   // overdosed" / "treating overdoses" is clinicians talking about work).
   /(?<!(patient|patients|someone|somebody|client|resident|we had an|we had a|treating|treated|treat) )\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
+  // Past "took all my ..." skips daily-routine words; a stated plan never does.
   new RegExp(
-    `\\b${TOOK} all (of )?(my |the )?${DRUGS_ALL}\\b(?! (this|today|tonight|every|each|at|in the|for|on time|as prescribed)\\b)`,
+    `\\b${TOOK_PAST} all (of )?(my |the )?${DRUGS_ALL}\\b(?! (this|today|tonight|every|each|at|in the|for|on time|as prescribed)\\b)`,
     "i",
   ),
-  new RegExp(`\\b${TOOK} ((a|the|my) )?(whole |entire )?bottle of (my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(`\\b${TOOK_INTENT} all (of )?(my |the )?${DRUGS_ALL}\\b`, "i"),
+  new RegExp(`\\b${TOOK} ${CONTAINER} of (my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(`\\b${TOOK} (my|the) (whole|entire) (prescription|supply|stash)\\b`, "i"),
   new RegExp(`\\b${TOOK} a bunch of (my |the )?${DRUGS}\\b`, "i"),
-  new RegExp(`\\b${TOOK} (the|a|my) (whole|entire) bottle${END}`, "i"),
+  new RegExp(`\\b${TOOK} (the|a|my) (whole|entire) (bottle|pack|packet|box)${END}`, "i"),
   // Two or more digits, so "took 2 pills" stays quiet.
-  new RegExp(`\\b${TOOK} \\d{2,} (of )?(my |the )?${DRUGS}\\b`, "i"),
+  new RegExp(
+    `\\b${TOOK} (like |about |around |maybe |over |almost )?\\d{2,} (of )?(my |the )?${DRUGS}\\b`,
+    "i",
+  ),
   new RegExp(
     `\\b${TOOK} (way )?(too many|a handful of|a lot of|loads of) (of )?(my |the )?${DRUGS}\\b`,
     "i",
