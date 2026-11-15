@@ -55,6 +55,17 @@ await apply(snap({ user_id: C, snapshot_at: '2026-11-23T00:00:00Z', expires_at: 
 assert.equal(await has(C), false, 'empty snapshot: not premium');
 await db.query("insert into public.subscriptions(user_id, stripe_subscription_id, stripe_customer_id, product_id, price_id, status, current_period_end, environment) values ($1, 'sub_c', 'cus_c', 'p', 'restpilot_monthly', 'active', now() + interval '1 day', 'live')", [C]);
 assert.equal(await has(C), true, 'Stripe rule unchanged');
+// Stripe branches unchanged: lifetime and canceled-but-paid-through are premium; expired canceled is not.
+const L = '55555555-5555-4555-8555-555555555555';
+await db.query('insert into auth.users values ($1)', [L]);
+await db.query("insert into public.subscriptions(user_id, stripe_subscription_id, stripe_customer_id, product_id, price_id, status, current_period_end, environment) values ($1, 'lifetime_cs_1', 'cus_l', 'p', 'restpilot_lifetime', 'lifetime', null, 'live')", [L]);
+assert.equal(await has(L), true, 'existing lifetime purchaser is premium');
+const P = '66666666-6666-4666-8666-666666666666';
+await db.query('insert into auth.users values ($1)', [P]);
+await db.query("insert into public.subscriptions(user_id, stripe_subscription_id, stripe_customer_id, product_id, price_id, status, current_period_end, environment) values ($1, 'sub_p', 'cus_p', 'p', 'restpilot_annual', 'canceled', now() + interval '2 days', 'live')", [P]);
+assert.equal(await has(P), true, 'canceled but paid through is premium');
+await db.query("update public.subscriptions set current_period_end = now() - interval '1 second' where stripe_subscription_id = 'sub_p'");
+assert.equal(await has(P), false, 'canceled and past period end is not premium');
 
 // Privileges: clients can read only their own row and cannot write or call the function.
 await db.exec(`set test.uid = '${A}'`);
