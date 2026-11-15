@@ -157,14 +157,21 @@ const RE_QUESTION_START =
   /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
 const RE_POLITE = /^(?:please\s+|(?:can|could|would|will)\s+you\s+(?:please\s+)?)/;
 const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
-const FILLER = /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
+const FILLER =
+  /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
 
 /** A phrase that is nothing but a sound name ("rain", "the ocean sounds", "rain for 20 minutes"). */
 function exactTrack(phrase: string): { slug: string; label: string } | null {
-  const c = normalize(phrase).replace(RE_DURATION_TAIL, "").replace(FILLER, " ").replace(/\s+/g, " ").trim();
+  const c = normalize(phrase)
+    .replace(RE_DURATION_TAIL, "")
+    .replace(FILLER, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!c) return null;
   const alias = TRACK_ALIASES[c];
-  const t = alias ? TRACKS.find((x) => x.slug === alias) : TRACKS.find((x) => x.label.toLowerCase() === c);
+  const t = alias
+    ? TRACKS.find((x) => x.slug === alias)
+    : TRACKS.find((x) => x.label.toLowerCase() === c);
   return t ? { slug: t.slug, label: t.label } : null;
 }
 
