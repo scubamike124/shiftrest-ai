@@ -11,7 +11,9 @@ tags: [core]
 - scrollUntilVisible:
     element: "Reminders on this iPhone"
     direction: DOWN
-    timeout: 30000
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
 - takeScreenshot: maestro-04-reminders-card
 - tapOn:
     text: "Reminders on this iPhone"

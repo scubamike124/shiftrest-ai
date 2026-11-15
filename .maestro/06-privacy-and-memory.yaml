@@ -10,6 +10,8 @@ tags: [core]
 - scrollUntilVisible:
     element: "Export my data"
     direction: DOWN
-    timeout: 30000
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
 - assertVisible: "Erase AI memory"
 - takeScreenshot: maestro-06-privacy

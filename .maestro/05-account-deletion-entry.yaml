@@ -11,7 +11,9 @@ tags: [core]
 - scrollUntilVisible:
     element: "Delete Account"
     direction: DOWN
-    timeout: 30000
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
 - tapOn: "Delete Account"
 - extendedWaitUntil:
     visible: "Delete your account?"

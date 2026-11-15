@@ -106,7 +106,8 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PL" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PL" 2>/dev/null \
             || /usr/libexec/PlistBuddy -c "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true" "$PL"
-          if /usr/libexec/PlistBuddy -c "Print :NSHealthShareUsageDescription" "$PL" >/dev/null 2>&1; then
+          # grep, not PlistBuddy: on the runner PlistBuddy exits 0 for a missing key.
+          if grep -q "<key>NSHealthShareUsageDescription</key>" "$PL"; then
             echo "HEALTHKIT=1" >> "$GITHUB_ENV"
           fi
           set -o pipefail
