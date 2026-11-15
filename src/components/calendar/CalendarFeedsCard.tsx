@@ -117,7 +117,7 @@ export function CalendarFeedsCard({
           <div>
             <p className="text-sm font-semibold">Calendar feeds</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Paste a read-only ICS link (Apple, Google "secret address", Outlook). Reelo never
+              Paste a read-only ICS link (Apple, Google "secret address", Outlook). RestPilot never
               creates, moves, or deletes events.
             </p>
           </div>
