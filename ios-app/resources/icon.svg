@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    RestPilot app icon (source). Full-bleed square: iOS applies the rounded mask,
+    so nothing important sits in the outer ~10%. Colours follow the site tokens:
+    background #0a0a1a, card #141432, indigo #4f46e5, indigo-glow (light lavender).
+    Render with ios-app/resources/render.mjs (resvg, free) to an opaque 1024px PNG.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d1b5e"/>
+      <stop offset="0.55" stop-color="#0f0e33"/>
+      <stop offset="1" stop-color="#07071a"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6d63ff" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="#4f46e5" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#4f46e5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="moon" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0" stop-color="#f4f3ff"/>
+      <stop offset="0.5" stop-color="#cfcbff"/>
+      <stop offset="1" stop-color="#8f86ff"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8f86ff" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#a9a3ff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#e9e7ff" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="crescent">
+      <rect width="1024" height="1024" fill="black"/>
+      <circle cx="488" cy="536" r="268" fill="white"/>
+      <circle cx="620" cy="430" r="232" fill="black"/>
+    </mask>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="500" cy="530" r="420" fill="url(#halo)"/>
+
+  <!-- soft glow behind the crescent -->
+  <g mask="url(#crescent)" filter="url(#glow)" opacity="0.7">
+    <rect width="1024" height="1024" fill="#8f86ff"/>
+  </g>
+  <!-- crescent moon -->
+  <rect width="1024" height="1024" fill="url(#moon)" mask="url(#crescent)"/>
+
+  <!-- flight path: an arc rising past the moon's open side, ending in a bright point -->
+  <path d="M 572 646 C 660 596 730 480 760 330" fill="none" stroke="url(#orbit)" stroke-width="18" stroke-linecap="round"/>
+  <circle cx="760" cy="330" r="30" fill="#ffffff"/>
+  <circle cx="760" cy="330" r="62" fill="#c9c4ff" opacity="0.22"/>
+
+  <!-- stars -->
+  <circle cx="300" cy="250" r="10" fill="#e9e7ff" opacity="0.9"/>
+  <circle cx="820" cy="640" r="7" fill="#e9e7ff" opacity="0.7"/>
+  <circle cx="230" cy="470" r="6" fill="#e9e7ff" opacity="0.55"/>
+</svg>

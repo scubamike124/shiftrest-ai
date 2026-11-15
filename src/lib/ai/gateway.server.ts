@@ -5,6 +5,7 @@
  */
 
 import { aiApiKey, aiEndpoint } from "./provider.server";
+import { buildChatBody, modelForTask, reasoningForTask, type AITask } from "./models.server";
 export const DEFAULT_CHAT_MODEL = process.env.AI_CHAT_MODEL || "not-configured";
 export const FAST_MODEL = process.env.AI_FAST_MODEL || DEFAULT_CHAT_MODEL;
 
@@ -49,18 +50,23 @@ function validateMessages(messages: ChatMsg[]) {
 /** Non-streaming JSON completion. Returns the assistant text. */
 export async function chatJSON(opts: {
   model?: string;
+  /** Routes the call through models.server.ts; defaults to "structured". */
+  task?: AITask;
   messages: ChatMsg[];
   temperature?: number;
   jsonMode?: boolean;
-}): Promise<{ text: string; promptTokens: number; completionTokens: number }> {
+}): Promise<{ text: string; promptTokens: number; completionTokens: number; model: string; finishReason: string | null }> {
   validateMessages(opts.messages);
-  const body: Record<string, unknown> = {
-    max_tokens: 2048,
-    model: opts.model ?? DEFAULT_CHAT_MODEL,
+  const task = opts.task ?? "structured";
+  const model = opts.model ?? modelForTask(task) ?? DEFAULT_CHAT_MODEL;
+  const body = buildChatBody({
+    model,
     messages: opts.messages,
-  };
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
-  if (opts.jsonMode) body.response_format = { type: "json_object" };
+    maxTokens: 2048,
+    temperature: opts.temperature,
+    jsonMode: opts.jsonMode,
+    reasoningEffort: reasoningForTask(task),
+  });
 
   const res = await fetch(aiEndpoint("chat/completions"), {
     method: "POST",
@@ -74,19 +80,23 @@ export async function chatJSON(opts: {
   if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
 
   const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string | null }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   return {
     text: data.choices?.[0]?.message?.content?.trim() ?? "",
     promptTokens: data.usage?.prompt_tokens ?? 0,
     completionTokens: data.usage?.completion_tokens ?? 0,
+    model,
+    finishReason: data.choices?.[0]?.finish_reason ?? null,
   };
 }
 
 /** Streaming SSE passthrough. Returns the upstream Response for piping. */
 export async function chatStream(opts: {
   model?: string;
+  /** Routes the call through models.server.ts; defaults to "coach". */
+  task?: AITask;
   messages: ChatMsg[];
   temperature?: number;
   maxTokens?: number;
@@ -94,19 +104,21 @@ export async function chatStream(opts: {
   validateMessages(opts.messages);
   const maxTokens = opts.maxTokens === undefined ? 2048 : opts.maxTokens;
   if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 2048) throw new AIError(400, "Invalid output limit");
+  const task = opts.task ?? "coach";
   const res = await fetch(aiEndpoint("chat/completions"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey()}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: opts.model ?? DEFAULT_CHAT_MODEL,
+    body: JSON.stringify(buildChatBody({
+      model: opts.model ?? modelForTask(task) ?? DEFAULT_CHAT_MODEL,
       messages: opts.messages,
       temperature: opts.temperature,
-      max_tokens: maxTokens,
+      maxTokens,
       stream: true,
-    }),
+      reasoningEffort: reasoningForTask(task),
+    })),
   });
   if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
   return res;

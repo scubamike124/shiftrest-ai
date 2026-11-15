@@ -24,6 +24,7 @@ import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
 import { UpdateBanner } from "../components/pwa/UpdateBanner";
 import { PreviewWarningBanner } from "../components/pwa/PreviewWarningBanner";
+import { NativeAppBridge } from "../components/native/NativeAppBridge";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
@@ -232,6 +233,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PreviewWarningBanner />
+      <NativeAppBridge signedIn={signedIn} />
       {surface === "marketing" && (
         <div className="flex min-h-dvh flex-col">
           <SiteHeader signedIn={signedIn} />

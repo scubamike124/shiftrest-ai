@@ -117,15 +117,26 @@ export function utcFromLocal(
   minuteOfDay: number,
   tz: string,
 ): Date {
-  const naiveUtcMs = Date.UTC(
-    y,
-    m - 1,
-    d,
-    Math.floor(minuteOfDay / 60),
-    minuteOfDay % 60,
-  );
-  const offsetMin = tzOffsetMinutes(new Date(naiveUtcMs), tz);
-  return new Date(naiveUtcMs - offsetMin * 60_000);
+  // Date.UTC normalizes minute overflow in both directions, so -30 is 23:30
+  // on the previous day and 1500 is 01:00 on the next day. (Splitting into
+  // floor(h) + (m % 60) produced 22:30 for -30.)
+  const naiveUtcMs = Date.UTC(y, m - 1, d, 0, minuteOfDay);
+  // Try the offsets in force a day either side (offsets reach +/-14h). An offset is valid when the
+  // instant it produces really has that offset. Every zone, either
+  // hemisphere, resolves the same way:
+  //   - ordinary time: both agree;
+  //   - fall-back (the wall time happens twice): the EARLIER instant;
+  //   - spring-forward gap (the wall time never happens): the pre-change
+  //     offset, which moves the time forward by the gap (02:30 -> 03:30).
+  const before = tzOffsetMinutes(new Date(naiveUtcMs - 24 * 3_600_000), tz);
+  const after = tzOffsetMinutes(new Date(naiveUtcMs + 24 * 3_600_000), tz);
+  const valid: number[] = [];
+  for (const offset of before === after ? [before] : [before, after]) {
+    const t = naiveUtcMs - offset * 60_000;
+    if (tzOffsetMinutes(new Date(t), tz) === offset) valid.push(t);
+  }
+  if (valid.length) return new Date(Math.min(...valid));
+  return new Date(naiveUtcMs - before * 60_000);
 }
 
 /** Y/M/D + minute-of-day in `tz` for a given UTC instant. */
