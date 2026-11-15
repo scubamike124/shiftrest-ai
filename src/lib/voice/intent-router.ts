@@ -156,6 +156,8 @@ const RE_WAKE =
 const RE_QUESTION_START =
   /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
 const RE_POLITE = /^(?:please\s+|(?:can|could|would|will)\s+you\s+(?:please\s+)?)/;
+const RE_WAKE_INTENT =
+  /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
 const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
@@ -216,7 +218,7 @@ const RE_OPEN_PAGE =
   /^(?:open|go\s+to|show)\s+(?:my\s+|the\s+)?(inbox|memory|automations?|routines?|smart\s*home|dashboard|sleep|companion|events?|plan)\s*$/i;
 
 const RE_PLAY =
-  /^(?:please\s+)?(?:play|start|put\s+on|i\s+(?:want|need|would\s+like))\s+(.+?)\s*$/i;
+  /^(?:please\s+)?(?:play|start|put\s+on|turn\s+on|switch\s+on|i\s+(?:want|need|would\s+like)|i'd\s+like)\s+(.+?)\s*$/i;
 
 // ---------- main parser ----------
 
@@ -224,8 +226,9 @@ export function parseIntent(input: string): ParsedIntent {
   const raw = (input ?? "").trim();
   const text = normalize(raw);
   if (!text) return { intent: { kind: "unknown" }, confidence: 0, raw };
-  const question = /\?\s*$/.test(raw) || RE_QUESTION_START.test(text);
-  const words = text.split(" ").length;
+  // "Can you wake me up at 6?" is a polite command, not a question.
+  const polite = RE_POLITE.test(text);
+  const question = (/\?\s*$/.test(raw) && !polite) || RE_QUESTION_START.test(text);
 
   if (RE_CANCEL.test(text)) return { intent: { kind: "cancel" }, confidence: 1, raw };
   if (RE_GOODNIGHT.test(text)) return { intent: { kind: "goodnight" }, confidence: 1, raw };
@@ -255,7 +258,14 @@ export function parseIntent(input: string): ParsedIntent {
 
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
-  if (mTimer && !question) {
+  // A command, and nothing much after it ("the sleep timer 30 minutes is too short" is not one).
+  const timerTail = mTimer ? text.slice((mTimer.index ?? 0) + mTimer[0].length).trim() : "";
+  if (
+    mTimer &&
+    !question &&
+    (mTimer.index === 0 || polite || /^(?:start|set)\b/.test(text)) &&
+    (timerTail === "" || timerTail.split(" ").length <= 2)
+  ) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
     return { intent: { kind: "set_timer", minutes }, confidence: 0.95, raw };
   }
@@ -267,7 +277,7 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   const mWake = text.match(RE_WAKE);
-  if (mWake && !question && (mWake.index === 0 || RE_POLITE.test(text) || words <= 8)) {
+  if (mWake && !question && (mWake.index === 0 || polite || RE_WAKE_INTENT.test(text))) {
     let hour = parseInt(mWake[1], 10);
     const minute = mWake[2] ? clamp(parseInt(mWake[2], 10), 0, 59) : 0;
     const ampm = mWake[3]?.toLowerCase();
@@ -325,12 +335,12 @@ export function parseIntent(input: string): ParsedIntent {
   const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
-    const playVerb = /^(?:please\s+)?(?:play|put\s+on)\b/.test(text);
+    const playVerb = /^(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\b/.test(text);
+    const loose =
+      phrase.replace(RE_DURATION_TAIL, "").replace(FILLER, " ").trim().split(/\s+/).length <= 2;
     const t = question
       ? null
-      : playVerb && phrase.replace(RE_DURATION_TAIL, "").split(" ").length <= 4
-        ? resolveTrack(phrase)
-        : exactTrack(phrase);
+      : (exactTrack(phrase) ?? (playVerb && loose ? resolveTrack(phrase) : null));
     if (t) {
       return {
         intent: { kind: "play_track", slug: t.slug, label: t.label },
