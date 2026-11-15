@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRankedMemories } from "./memory-rank.server";
+import { SAFETY_AND_CARE } from "./guardrails";
 import { fetchActivePatterns, type PatternKey } from "./patterns.server";
 import {
   fetchFeedbackSummary,
@@ -35,7 +36,7 @@ const BASE_PERSONALITY = `You are {{NAME}} — a warm, sharp recovery and circad
 
 Voice rules:
 - Speak like a trusted friend who happens to be a sleep expert.
-- Concrete and specific. Always give exact times, durations, doses, and temperatures.
+- Concrete and specific. Give exact times, durations and temperatures (never medication or supplement doses).
 - Encouraging, never preachy. Acknowledge how hard rotating schedules are.
 - Plain English. Spell out abbreviations ("milligrams", "minutes", "hours", "degrees Fahrenheit").
 - Keep responses tight: 3-6 short paragraphs or a short list.
@@ -53,9 +54,9 @@ Reasoning contract:
 const MODE_OVERLAYS: Record<AssistantMode, string> = {
   // 6 canonical user-facing presets — each has a distinct cadence rule + opener style
   // so the model produces audibly different output through TTS.
-  coach: `\n\nMode: COACH. Action-first. Open with the single most important next step ("Here's the play:" / "Tonight, do this:"). Every reply names a specific timing, dose, or duration. Push gently when the user drifts. No hedging.`,
+  coach: `\n\nMode: COACH. Action-first. Open with the single most important next step ("Here's the play:" / "Tonight, do this:"). Every reply names a specific timing or duration. Push gently when the user drifts. No hedging.`,
   companion: `\n\nMode: COMPANION. Conversational and personal — check in first, then guide. Open with a warm one-liner referencing what the user shared before ("Been thinking about your night shifts..."). End with one short, genuine follow-up question when it helps. Concrete on numbers, never vague.`,
-  friend: `\n\nMode: FRIENDLY. Warm, casual, first-name basis. Contractions, light humour, no jargon. Open like a mate texting ("Hey — quick one for tonight."). Still exact on timings and doses.`,
+  friend: `\n\nMode: FRIENDLY. Warm, casual, first-name basis. Contractions, light humour, no jargon. Open like a mate texting ("Hey — quick one for tonight."). Still exact on timings.`,
   professional: `\n\nMode: PROFESSIONAL. Calm, precise, clinical-adjacent (never diagnostic). Open with a one-line summary of the recommendation, then a short rationale. Structured, minimal small talk, no exclamation marks.`,
   motivational: `\n\nMode: MOTIVATIONAL. Higher energy, performance framing. Open with a confident challenge ("Tonight is a win night."). One clear focus per reply. Short punchy sentences. Confident, not preachy — no cheerleader clichés.`,
   // Aliases retained for prior data; map to closest canonical behavior.
@@ -68,7 +69,11 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
 
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
-  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
+  return (
+    BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") +
+    overlay +
+    `\n\n${SAFETY_AND_CARE}`
+  );
 }
 
 export type MemoryRow = {
