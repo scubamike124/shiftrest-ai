@@ -39,7 +39,29 @@ export function normalizeTomorrowPreview<T extends { blocks?: unknown }>(raw: T)
   return { ...raw, blocks: arr(raw?.blocks) } as T & { blocks: never[] };
 }
 
-/** Ensures list fields the Daily Review card reads are arrays. */
-export function normalizeDailyReview<T extends { wins?: unknown; drains?: unknown }>(raw: T): T {
-  return { ...raw, wins: arr(raw?.wins), drains: arr(raw?.drains) };
+const TRENDS = ["up", "flat", "down", "unknown"] as const;
+const numOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/**
+ * Ensures the fields the Daily Review card reads exist: list fields are arrays and
+ * `metrics` is always an object with a known `recoveryTrend` (the card indexes
+ * icon/tone tables with it and reads `metrics.*` directly).
+ */
+export function normalizeDailyReview<T extends { wins?: unknown; drains?: unknown; metrics?: unknown }>(
+  raw: T,
+): T & {
+  metrics: { sleepRecoveredMin: number | null; readinessDelta: number | null; recoveryTrend: (typeof TRENDS)[number] };
+} {
+  const m = (raw?.metrics && typeof raw.metrics === "object" ? raw.metrics : {}) as Record<string, unknown>;
+  const trend = TRENDS.find((t) => t === m.recoveryTrend) ?? "unknown";
+  return {
+    ...raw,
+    wins: arr(raw?.wins),
+    drains: arr(raw?.drains),
+    metrics: {
+      sleepRecoveredMin: numOrNull(m.sleepRecoveredMin),
+      readinessDelta: numOrNull(m.readinessDelta),
+      recoveryTrend: trend,
+    },
+  };
 }

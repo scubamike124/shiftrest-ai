@@ -53,3 +53,29 @@ test("tomorrow preview and daily review lists are always arrays", () => {
   assert.equal(d.wins.length, 0);
   assert.equal(d.drains.length, 0);
 });
+
+test("daily review always has metrics with a known recoveryTrend", () => {
+  const { normalizeDailyReview } = load();
+  const missing = normalizeDailyReview({ headline: "x" });
+  assert.equal(missing.metrics.recoveryTrend, "unknown");
+  assert.equal(missing.metrics.sleepRecoveredMin, null);
+  assert.equal(missing.metrics.readinessDelta, null);
+  assert.equal(normalizeDailyReview({ metrics: "bad" }).metrics.recoveryTrend, "unknown");
+  assert.equal(normalizeDailyReview({ metrics: { recoveryTrend: "sideways" } }).metrics.recoveryTrend, "unknown");
+  const ok = normalizeDailyReview({ metrics: { recoveryTrend: "up", sleepRecoveredMin: 30, readinessDelta: "x" } });
+  assert.equal(ok.metrics.recoveryTrend, "up");
+  assert.equal(ok.metrics.sleepRecoveredMin, 30);
+  assert.equal(ok.metrics.readinessDelta, null);
+});
+
+test("companion intro sheet waits for onboarding to finish", () => {
+  const src = readFileSync(new URL("../src/components/companion/CompanionIntroSheet.tsx", import.meta.url), "utf8");
+  assert.match(src, /queryKey: \["prefs"\]/);
+  assert.match(src, /const onboarded = isSuccess && isFetched && prefs\.onboarded/);
+  assert.match(src, /if \(!onboarded \|\| hasSeenCompanionIntro\(\)\) return;/);
+});
+
+test("dashboard has an h1", () => {
+  const src = readFileSync(new URL("../src/routes/dashboard.tsx", import.meta.url), "utf8");
+  assert.match(src, /<h1 className="sr-only">Dashboard<\/h1>/);
+});
