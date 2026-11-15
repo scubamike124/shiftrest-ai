@@ -474,3 +474,55 @@ test("background re-read: due after an hour, at most once per 15 minutes", async
   assert.equal(store.autoRefreshDue(stale, now - 1 * min, now), false, "no tight retry loop");
   assert.equal(store.autoRefreshDue(stale, now - 16 * min, now), true, "retries after 15 minutes");
 });
+
+test("a refresh that finishes after another account connected leaves that copy alone", async () => {
+  const store = await load("src/lib/health/apple-health-store.ts");
+  const mem = new Map();
+  const bob = JSON.stringify({
+    v: 1,
+    ownerUserId: "bob",
+    connectedAt: "x",
+    lastReadAt: "now",
+    nights: [],
+  });
+  globalThis.window = {
+    Capacitor: {
+      isNativePlatform: () => true,
+      getPlatform: () => "ios",
+      isPluginAvailable: () => true,
+      Plugins: {
+        RestPilotHealth: {
+          // Bob connects on this phone while Alice's read is still running.
+          readSamples: async () => (mem.set("rp:apple-health:v1", bob), { sleep: night }),
+        },
+      },
+    },
+    localStorage: {
+      getItem: (k) => mem.get(k) ?? null,
+      setItem: (k, v) => mem.set(k, String(v)),
+      removeItem: (k) => mem.delete(k),
+    },
+    dispatchEvent: () => true,
+  };
+  globalThis.CustomEvent ??= class {
+    constructor(n) {
+      this.type = n;
+    }
+  };
+  try {
+    mem.set(
+      "rp:apple-health:v1",
+      JSON.stringify({
+        v: 1,
+        ownerUserId: "alice",
+        connectedAt: "x",
+        lastReadAt: "then",
+        nights: shortNights,
+      }),
+    );
+    assert.equal(await store.refreshAppleHealth("alice"), null);
+    assert.equal(mem.get("rp:apple-health:v1"), bob, "Bob's copy is kept and Alice's is not saved");
+  } finally {
+    delete globalThis.window;
+  }
+});

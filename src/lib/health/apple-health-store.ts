@@ -45,6 +45,16 @@ export async function appleHealthAvailable(): Promise<boolean> {
   }
 }
 
+/** Owner of the stored copy, read without clearing anything. */
+function storedOwner(): string | null {
+  try {
+    const raw = window.localStorage.getItem(KEY);
+    return raw ? ((JSON.parse(raw) as AppleHealthState)?.ownerUserId ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function loadAppleHealth(userId: string | null): AppleHealthState | null {
   if (typeof window === "undefined" || !userId) return null;
   try {
@@ -157,8 +167,9 @@ export async function refreshAppleHealth(userId: string): Promise<AppleHealthSta
   const next: AppleHealthState = result.partial
     ? { ...current, nights: mergePartial(current.nights, result.nights) }
     : { ...current, lastReadAt: new Date().toISOString(), nights: result.nights };
-  // Disconnected while the read was running: do not bring the data back.
-  if (!loadAppleHealth(userId)) return null;
+  // Disconnected, or another account connected, while the read was running:
+  // do not bring the data back, and leave the other account's copy alone.
+  if (storedOwner() !== userId) return null;
   save(next);
   return next;
 }
