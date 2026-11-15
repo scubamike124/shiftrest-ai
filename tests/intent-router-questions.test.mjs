@@ -16,6 +16,10 @@ test("questions that merely mention a sound or a wake time go to the AI", () => 
   for (const q of [
     "I'm cabin crew on the London to New York flight this week. Should I take a sleeping pill on the flight?",
     "Can you help me write my resignation letter to my fire captain?",
+    "Can you start by explaining why rain sounds help some people fall asleep?",
+    "Could you start a list of reasons the fan keeps me awake?",
+    "Would you start my morning brief and tell me if rain is expected?",
+    "Can you play a role in helping me with the noise from my fan?",
     "I'm switching from day shifts to nights. My first 7 PM to 7 AM night shift is tomorrow, and I usually wake at 6 AM. How should I prepare?",
     "Is it bad that I fall asleep to the fan running all day?",
     "I wake at 5 every day, is that enough sleep?",

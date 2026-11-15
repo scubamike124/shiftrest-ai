@@ -284,8 +284,22 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   // Play <track> — explicit play verb is high-confidence regardless of phrasing.
-  // "can you play rain", "could you put on ocean" are polite commands.
-  const mPlay = text.replace(/^(?:can|could|would|will)\s+you\s+(?:please\s+)?/, "").match(RE_PLAY);
+  // Polite commands: "can you play rain", "could you put on ocean sounds".
+  // Only play / put on, and only a short phrase, so questions that start
+  // "can you play a role..." still reach the AI.
+  const mPolite = text.match(
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on)\s+(.+?)(?:\s+please)?\s*$/,
+  );
+  if (mPolite) {
+    const words = mPolite[1]
+      .replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ")
+      .trim()
+      .split(/\s+/);
+    const t = words.length <= 3 ? resolveTrack(mPolite[1]) : null;
+    if (t) return { intent: { kind: "play_track", slug: t.slug, label: t.label }, confidence: 0.95, raw };
+  }
+
+  const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
     const t = resolveTrack(phrase);
