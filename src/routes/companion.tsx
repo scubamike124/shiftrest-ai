@@ -58,7 +58,12 @@ import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
-import { hasCrisisCue, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
+import {
+  CRISIS_LOCAL_REPLY,
+  hasCrisisCue,
+  shouldSendToAI,
+  showCardOnCrisis,
+} from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 
@@ -780,7 +785,10 @@ function CompanionPage() {
       // Without AI permission, a crisis message gets the crisis card (already
       // shown above; keep this after showCardOnCrisis) rather than a
       // data-sharing prompt. Nothing is sent; the user can keep typing.
-      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) return;
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        return;
+      }
       emitDebug("ai-req");
       const resp = await aiFetch("/api/ai", {
         method: "POST",

@@ -4,12 +4,23 @@
 // in, so it works offline. It never blocks the conversation; the user can
 // close it and keep typing.
 
+import { useEffect, useRef } from "react";
 import { Heart, X } from "lucide-react";
 import { CRISIS_RESOURCES as R } from "@/lib/safety/crisis-cues";
 
 export function CrisisSupportCard({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLElement | null>(null);
+  // Bring the card into view when it opens, even at the end of a long chat.
+  useEffect(() => {
+    try {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch {
+      /* older webviews: the card is still rendered in place */
+    }
+  }, []);
   return (
     <section
+      ref={ref}
       role="status"
       aria-live="polite"
       aria-label="Support is available"
