@@ -65,7 +65,9 @@ jobs:
           mkdir -p "$EV"
           npm ci --no-audit --no-fund
           eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
-          npm run build > "$EV/web-build.log" 2>&1 || { tail -50 "$EV/web-build.log"; exit 1; }
+          # The default V8 heap aborts the Vite/Nitro build on the macOS runner.
+          NODE_OPTIONS=--max-old-space-size=6144 npm run build > "$EV/web-build.log" 2>&1 \
+            || { grep -m5 -iE "fatal|error" "$EV/web-build.log"; tail -80 "$EV/web-build.log"; exit 1; }
       - name: Start the E2E stack and seed the QA account
         if: steps.guard.outputs.ok == 'true'
         run: |
@@ -139,7 +141,7 @@ jobs:
             -e QA_EMAIL="$QA_EMAIL" -e QA_PASSWORD="$QA_PASSWORD" \
             --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
       - name: Stop the stack, then the offline flow
-        if: steps.guard.outputs.ok == 'true' && always()
+        if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
         run: |
           set -o pipefail
           kill "$(cat "$RUNNER_TEMP/stack.pid")" 2>/dev/null || true

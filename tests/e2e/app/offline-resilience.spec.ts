@@ -83,20 +83,15 @@ test.describe("AI provider resilience", () => {
   test.describe("schema drift", () => {
     test.use({ seedTables: { user_prefs: [{ assistant_name: "E2EMalformedJson" }] } });
 
-    // KNOWN REGRESSION RISK (QA-REPORT R1): /api/ai returns model JSON to the UI
-    // unvalidated. Valid JSON that omits fields or uses an unknown enum (e.g.
-    // urgency "critical") crashes the whole dashboard ("Something went wrong").
-    // test.fail() keeps CI green while documenting it; once the AI routes
-    // validate their JSON this starts passing, and Playwright flags it so the
-    // marker can be removed.
-    test.fail();
+    // R1 regression guard: valid model JSON that omits fields or uses an unknown
+    // enum (urgency "critical") used to crash the whole dashboard. Fixed by #36
+    // (server-side intent schema validation + per-card error boundaries).
     test("dashboard survives model JSON that omits fields", async ({ authedPage: page }) => {
-      // Wait until the AI JSON cards have actually received the drifted JSON.
+      // Wait until the AI JSON card request has completed (the server may now
+      // reject the drifted JSON with an error status; either way: no crash).
       const aiJson = page.waitForResponse(
         (r) =>
-          r.url().endsWith("/api/ai") &&
-          r.request().postData()?.includes('"right_now"') === true &&
-          r.status() === 200,
+          r.url().endsWith("/api/ai") && r.request().postData()?.includes('"right_now"') === true,
       );
       await page.goto("/dashboard");
       await aiJson;
