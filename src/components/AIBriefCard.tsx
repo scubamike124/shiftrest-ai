@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
+import { estimateSourceLabel } from "@/lib/insight-labels";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
@@ -252,7 +253,7 @@ export function AIBriefCard({
         <p className="mt-1 text-[10px] text-muted-foreground">
           14-day fatigue horizon (estimate) ·{" "}
           {insights.dataSources.sleepNights > 0
-            ? `measured sleep debt ${insights.sleepDebtHours.toFixed(1)}h over ${insights.dataSources.sleepNights} night${insights.dataSources.sleepNights === 1 ? "" : "s"}`
+            ? `estimated sleep debt ${insights.sleepDebtHours.toFixed(1)}h from ${insights.dataSources.sleepNights} measured night${insights.dataSources.sleepNights === 1 ? "" : "s"}`
             : "sleep debt unknown (no recent wearable sleep data)"}
           {insights.hrvTrend != null
             ? ` · HRV ${insights.hrvTrend > 0 ? "+" : ""}${Math.round(insights.hrvTrend * 100)}%`
@@ -369,25 +370,4 @@ export function AIBriefCard({
     </section>
 
   );
-}
-
-const PROVIDER_NAME: Record<NonNullable<Insights["dataSources"]["wearableProvider"]>, string> = {
-  fitbit: "Fitbit",
-  oura: "Oura",
-  "apple-health": "Apple Health",
-};
-
-/** Plain-language source line for the fatigue/recovery estimates. */
-export function estimateSourceLabel(insights: Insights): string {
-  const d = insights.dataSources;
-  const base = d.schedule
-    ? "Calculated from your shift schedule"
-    : "No shifts entered yet, so these are defaults";
-  if (d.wearableProvider && d.wearableNights > 0) {
-    const n = d.wearableNights;
-    return `${base}, adjusted with ${n} night${n === 1 ? "" : "s"} of ${PROVIDER_NAME[d.wearableProvider]} data.`;
-  }
-  if (d.wearableStale)
-    return `${base}. Your newest wearable reading is more than 3 days old, so it isn't used.`;
-  return `${base}. No wearable sleep data is used.`;
 }

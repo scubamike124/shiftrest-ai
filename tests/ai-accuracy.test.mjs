@@ -32,6 +32,27 @@ const { computeInsights } = vm.runInContext(
   `${strip("src/lib/insights.ts")}\n({computeInsights})`,
   ctx,
 );
+// Each module in its own context (top-level names would clash in one).
+const load = (file, names, globals = {}) =>
+  vm.runInContext(
+    `${strip(file)}\n({${names.join(",")}})`,
+    vm.createContext({ Date, Math, Number, String, ...globals }),
+  );
+const { estimateSourceLabel } = load("src/lib/insight-labels.ts", ["estimateSourceLabel"]);
+const { lastNightFrom, recentNights } = load("src/lib/health/apple-health.ts", [
+  "lastNightFrom",
+  "recentNights",
+]);
+const { computeDeviceInsights } = load(
+  "src/lib/health/device-insights.ts",
+  ["computeDeviceInsights"],
+  {
+    computeInsights,
+    lastNightFrom,
+    recentNights,
+  },
+);
+const providers = (i) => [...i.dataSources.wearableProviders];
 
 const prefs = { sleepHours: 8, windDownMin: 60, cycleWeeks: 1, cycleAnchor: null };
 const shifts = [{ id: "n", day: 0, weekIndex: 0, start: 23 * 60, end: 7 * 60 }];
@@ -48,7 +69,11 @@ const night = (date, min) => ({
 test("without wearable data, sleep debt is unknown and the AI is told not to invent readings", () => {
   const i = computeInsights(shifts, prefs, now);
   assert.equal(i.dataSources.sleepNights, 0);
-  assert.equal(i.dataSources.wearableProvider, null);
+  assert.deepEqual(providers(i), []);
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule. No wearable sleep data is used.",
+  );
   assert.equal(i.sleepDebtHours, 0);
   assert.match(
     i.contextString,
@@ -69,12 +94,22 @@ test("without wearable data, sleep debt is unknown and the AI is told not to inv
 
 test("a recent night is used and labelled with its provider and night count", () => {
   const i = computeInsights(shifts, prefs, now, [], night("2026-11-16", 300));
-  assert.equal(i.dataSources.wearableProvider, "oura");
+  assert.deepEqual(providers(i), ["oura"]);
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule, adjusted with 1 night of Oura data.",
+  );
   assert.equal(i.dataSources.sleepNights, 1);
   assert.equal(i.sleepDebtHours, 3);
   assert.match(i.contextString, /Last night \(oura, 2026-11-16\)/);
-  assert.match(i.contextString, /over 1 night of wearable data/);
-  assert.ok(i.signals.some((s) => /over the last 1 night of wearable data/.test(s)));
+  // Sleep debt is a calculation against the sleep target, never a measurement
+  // (same rule as DATA_HONESTY's [estimate] values).
+  assert.match(
+    i.contextString,
+    /Estimated sleep debt: 3\.0h, calculated from 1 night of measured wearable sleep/,
+  );
+  assert.doesNotMatch(i.contextString, /Measured sleep debt/i);
+  assert.ok(i.signals.some((s) => /from the last 1 night of measured wearable sleep/.test(s)));
   assert.ok(
     !i.signals.some((s) => /last 7 nights/.test(s)),
     "one night must not be called 7 nights",
@@ -128,7 +163,7 @@ test("AI recap never shows an invented readiness number and gates sleep numbers 
   // (computeDeviceInsights pins it to baseInsights), so the gate must too.
   assert.match(
     read("src/routes/dashboard.tsx"),
-    /hasWearableSleep=\{\(device\?\.baseInsights\.dataSources\.sleepNights \?\? 0\) > 0\}/,
+    /hasWearableSleep=\{[^}]*device\?\.baseInsights\.dataSources\.sleepNights/,
   );
 });
 
@@ -142,9 +177,12 @@ test("Apple Health nights are named as Apple Health, never as an undefined provi
     restingHr: 54,
   };
   const i = computeInsights(shifts, prefs, now, [], r, [r]);
-  assert.equal(i.dataSources.wearableProvider, "apple-health");
+  assert.deepEqual(providers(i), ["apple-health"]);
   assert.equal(i.dataSources.wearableNights, 1);
-  assert.match(read("src/components/AIBriefCard.tsx"), /"apple-health": "Apple Health"/);
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule, adjusted with 1 night of Apple Health data.",
+  );
 });
 
 test("freshness: a 3-day-old night is used, a 4-day-old night is not", () => {
@@ -174,8 +212,10 @@ test("a night with efficiency/HRV but no duration is labelled as used wearable d
     i.fatigueToday.score > computeInsights(shifts, prefs, now).fatigueToday.score,
     "efficiency still adjusts the estimate",
   );
-  const brief = read("src/components/AIBriefCard.tsx");
-  assert.match(brief, /d\.wearableNights > 0/);
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule, adjusted with 1 night of Fitbit data.",
+  );
 });
 
 test("a resting-HR-only night is not claimed as adjusting the estimates", () => {
@@ -190,6 +230,10 @@ test("a resting-HR-only night is not claimed as adjusting the estimates", () => 
   const i = computeInsights(shifts, prefs, now, [], r);
   assert.equal(i.dataSources.wearableNights, 0);
   assert.match(i.contextString, /contains no recent wearable readings/);
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule. No wearable sleep data is used.",
+  );
 });
 
 test("fresh history with a stale newest night is labelled from the history, without a contradiction", () => {
@@ -198,4 +242,68 @@ test("fresh history with a stale newest night is labelled from the history, with
   assert.equal(i.dataSources.wearableNights, 2);
   assert.match(i.contextString, /oura wearable readings for 2 nights/);
   assert.doesNotMatch(i.contextString, /contains no recent wearable readings/);
+});
+
+test("stale only: the label says the reading is too old instead of claiming it", () => {
+  const i = computeInsights(shifts, prefs, now, [], night("2026-11-01", 300));
+  assert.equal(
+    estimateSourceLabel(i),
+    "Calculated from your shift schedule. Your newest wearable reading is more than 3 days old, so it isn't used.",
+  );
+  assert.equal(
+    estimateSourceLabel(computeInsights([], prefs, now)),
+    "No shifts entered yet, so these are defaults. No wearable sleep data is used.",
+  );
+});
+
+// Apple Health nights as useAppleHealth() returns them (oldest first).
+const ahNight = (date, min) => ({
+  provider: "apple-health",
+  date,
+  sleepStart: `${date}T00:00:00`,
+  sleepEnd: `${date}T07:00:00`,
+  sleepDurationMin: min,
+  sleepEfficiency: 0.9,
+  deepMin: null,
+  remMin: null,
+  lightMin: null,
+  hrvMs: 42,
+  restingHr: 56,
+});
+
+test("Oura last night plus older Apple Health nights names both sources", () => {
+  const d = computeDeviceInsights({
+    shifts,
+    prefs,
+    now,
+    serverLastNight: night("2026-11-15", 420),
+    appleHealthNights: [
+      ahNight("2026-11-11", 400),
+      ahNight("2026-11-12", 380),
+      ahNight("2026-11-13", 410),
+    ],
+  });
+  assert.equal(d.source, "apple-health");
+  assert.equal(d.appleHealthLastNight, null, "no Apple Health night since yesterday");
+  assert.deepEqual(providers(d.insights), ["oura", "apple-health"]);
+  assert.equal(d.insights.dataSources.wearableNights, 4);
+  assert.equal(
+    estimateSourceLabel(d.insights),
+    "Calculated from your shift schedule, adjusted with 4 nights of Oura and Apple Health data.",
+  );
+});
+
+test("privacy: nothing from Apple Health reaches the AI-bound context string", () => {
+  const d = computeDeviceInsights({
+    shifts,
+    prefs,
+    now,
+    serverLastNight: null,
+    appleHealthNights: [ahNight("2026-11-15", 333), ahNight("2026-11-16", 347)],
+  });
+  assert.equal(d.source, "apple-health");
+  assert.deepEqual(providers(d.insights), ["apple-health"]);
+  assert.equal(d.insights.contextString, d.baseInsights.contextString);
+  assert.doesNotMatch(d.insights.contextString, /apple|5\.8h|333|347/i);
+  assert.match(d.insights.contextString, /contains no recent wearable readings/);
 });
