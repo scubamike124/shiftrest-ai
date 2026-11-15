@@ -1,6 +1,7 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
 import { DATA_HONESTY } from "@/lib/ai/guardrails";
+import { normalizeSwap } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -122,7 +123,15 @@ export const Route = createFileRoute("/api/swap")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          return Response.json(parsed);
+          const normalized = normalizeSwap(parsed);
+          if (!normalized.ok) {
+            console.error("swap output rejected", normalized.reason);
+            return new Response(JSON.stringify({ error: "Bad AI response" }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return Response.json(normalized.value);
         } catch (e) {
           console.error("swap route error:", e);
           const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
