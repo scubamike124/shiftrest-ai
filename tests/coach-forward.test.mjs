@@ -19,6 +19,15 @@ test("forwards over loopback to the same Node server when PORT is known", () => 
   );
 });
 
+test("NITRO_PORT wins over PORT; out-of-range ports are ignored", () => {
+  assert.equal(
+    mod.aiForwardUrl("http://h/api/coach", { NITRO_PORT: "4000", PORT: "3000" }),
+    "http://127.0.0.1:4000/api/ai",
+  );
+  assert.equal(mod.aiForwardUrl("http://h:8/api/coach", { PORT: "0" }), "http://h:8/api/ai");
+  assert.equal(mod.aiForwardUrl("http://h:8/api/coach", { PORT: "70000" }), "http://h:8/api/ai");
+});
+
 test("without PORT (dev), forwards to the same origin, dropping the query", () => {
   assert.equal(
     mod.aiForwardUrl("http://localhost:8080/api/coach?x=1", {}),
@@ -34,5 +43,9 @@ test("route never follows redirects and drops stale encoding headers", () => {
   const route = readFileSync(new URL("../src/routes/api/coach.ts", import.meta.url), "utf8");
   assert.match(route, /fetch\(aiForwardUrl\(request\.url\), \{[\s\S]*?redirect: "manual"/);
   assert.match(route, /forward\.status >= 300 && forward\.status < 400/);
+  assert.match(
+    route,
+    /\} catch \{\n\s*return Response\.json\(\{ error: "AI service unavailable" \}, \{ status: 502 \}\);/,
+  );
   assert.deepEqual(mod.DROP_FORWARD_HEADERS.includes("content-encoding"), true);
 });
