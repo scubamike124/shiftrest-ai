@@ -130,6 +130,9 @@
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
 						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
 							com.apple.InAppPurchase = {
 								enabled = 1;
 							};

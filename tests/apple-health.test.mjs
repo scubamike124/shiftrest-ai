@@ -449,3 +449,13 @@ test('with no recent Apple Health night, the server wearable keeps "last night"'
     "the server night still counts",
   );
 });
+
+test("a partly failed read keeps earlier HRV and resting HR, and retries", async () => {
+  const store = await load("src/lib/health/apple-health-store.ts");
+  const prev = [{ ...shortNights[6], date: "2026-11-15", hrvMs: 44, restingHr: 58 }];
+  const next = [
+    { ...shortNights[6], date: "2026-11-15", hrvMs: null, restingHr: null, sleepDurationMin: 333 },
+  ];
+  const [m] = store.mergePartial(prev, next);
+  assert.deepEqual([m.sleepDurationMin, m.hrvMs, m.restingHr], [333, 44, 58]);
+});

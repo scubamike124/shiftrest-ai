@@ -83,11 +83,29 @@ export function clearAppleHealth(): void {
   window.dispatchEvent(new CustomEvent("rp:apple-health-changed"));
 }
 
-/** null when HealthKit reported an error and returned nothing (for example while the phone is locked). */
-async function read(p: RestPilotHealthPlugin): Promise<AppleHealthNight[] | null> {
+type ReadResult = { nights: AppleHealthNight[]; partial: boolean };
+
+/**
+ * null when HealthKit reported an error and returned nothing (for example
+ * while the phone is locked); `partial` when some query failed.
+ */
+async function read(p: RestPilotHealthPlugin): Promise<ReadResult | null> {
   const raw = await p.readSamples({ days: READ_DAYS });
   const nights = mapAppleHealthNights(raw);
-  return raw.partialError && nights.length === 0 ? null : nights;
+  if (raw.partialError && nights.length === 0) return null;
+  return { nights, partial: Boolean(raw.partialError) };
+}
+
+/** After a partly failed read, keep earlier HRV / resting heart rate for the same night. */
+export function mergePartial(
+  prev: AppleHealthNight[],
+  next: AppleHealthNight[],
+): AppleHealthNight[] {
+  const old = new Map(prev.map((n) => [n.date, n]));
+  return next.map((n) => {
+    const o = old.get(n.date);
+    return o ? { ...n, hrvMs: n.hrvMs ?? o.hrvMs, restingHr: n.restingHr ?? o.restingHr } : n;
+  });
 }
 
 /** Call only from the person's tap on Connect: it can show Apple's permission sheet. */
@@ -101,7 +119,7 @@ export async function connectAppleHealth(userId: string): Promise<AppleHealthSta
     ownerUserId: userId,
     connectedAt: now,
     lastReadAt: now,
-    nights: (await read(p)) ?? [],
+    nights: (await read(p))?.nights ?? [],
   };
   save(state);
   return state;
@@ -112,10 +130,14 @@ export async function refreshAppleHealth(userId: string): Promise<AppleHealthSta
   const current = loadAppleHealth(userId);
   const p = plugin();
   if (!current || !p) return current;
-  const nights = await read(p);
+  const result = await read(p);
   // A failed read keeps the last good nights and does not count as a read.
-  if (nights === null) return current;
-  const next: AppleHealthState = { ...current, lastReadAt: new Date().toISOString(), nights };
+  if (result === null) return current;
+  // A partly failed read keeps earlier values it could not refresh, and is
+  // not counted as a read either, so the next refresh tries again.
+  const next: AppleHealthState = result.partial
+    ? { ...current, nights: mergePartial(current.nights, result.nights) }
+    : { ...current, lastReadAt: new Date().toISOString(), nights: result.nights };
   // Disconnected while the read was running: do not bring the data back.
   if (!loadAppleHealth(userId)) return null;
   save(next);
