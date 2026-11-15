@@ -3,6 +3,10 @@
 # hermetic E2E stack (tests/e2e/support/serve.mjs on the macOS runner), so
 # signed-in flows never touch staging or production data.
 #
+# Waits after launchApp are 90 s. On the hosted simulator WebKit sometimes takes
+# ~45 s to start a web process, and the first navigation starts two of them
+# (the site's Cross-Origin-Opener-Policy header forces a process swap).
+#
 # Tags:
 #   core      every run
 #   offline   run after the stack is stopped (the workflow does that)

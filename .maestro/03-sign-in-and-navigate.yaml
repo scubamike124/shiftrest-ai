@@ -6,7 +6,7 @@ tags: [core]
 - launchApp
 - extendedWaitUntil:
     visible: "Open menu"
-    timeout: 45000
+    timeout: 90000
 # On iPhone widths "Sign in" sits in the header menu. A tap that lands before the
 # page hydrates does nothing, so retry until the menu reports it is open.
 - retry:

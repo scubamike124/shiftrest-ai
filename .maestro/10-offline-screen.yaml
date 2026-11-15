@@ -7,6 +7,6 @@ tags: [offline]
     stopApp: true
 - extendedWaitUntil:
     visible: "You're offline"
-    timeout: 45000
+    timeout: 90000
 - assertVisible: "Try again"
 - takeScreenshot: maestro-10-offline

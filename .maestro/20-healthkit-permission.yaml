@@ -7,7 +7,7 @@ tags: [healthkit]
 - launchApp
 - extendedWaitUntil:
     visible: "Profile"
-    timeout: 45000
+    timeout: 90000
 - tapOn: "Profile"
 - scrollUntilVisible:
     element:

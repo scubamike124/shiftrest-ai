@@ -13,7 +13,7 @@ tags: [blocked, iap]
 - launchApp
 - extendedWaitUntil:
     visible: "Profile"
-    timeout: 45000
+    timeout: 90000
 - tapOn: "App preview"
 - tapOn:
     text: "(Monthly|\\$7\\.99).*"
