@@ -89,3 +89,25 @@ test("short and polite commands still act", () => {
   ])
     assert.equal(parseIntent(c).intent.kind, "wake_at", c);
 });
+
+test("polite commands with a question mark act; statements about waking or timers do not", () => {
+  for (const [c, kind] of [
+    ["Can you wake me up at 6:30?", "wake_at"],
+    ["Could you set an alarm for 6?", "wake_at"],
+    ["Can you set a timer for 30 minutes?", "set_timer"],
+    ["can you play rain?", "play_track"],
+    ["turn on the fan", "play_track"],
+    ["i'd like rain", "play_track"],
+  ])
+    assert.equal(parseIntent(c).intent.kind, kind, c);
+  for (const s of [
+    "I usually wake at 6",
+    "My kids wake me up at 5",
+    "Never wake me up at 5",
+    "I don't want to wake up at 5",
+    "my timer for 20 minutes didn't work",
+    "the sleep timer 30 minutes is too short",
+    "play fire safety tips",
+  ])
+    assert.equal(fires(s), false, s);
+});
