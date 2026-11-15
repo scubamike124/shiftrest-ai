@@ -99,6 +99,7 @@ const TRACK_ALIASES: Record<string, string> = {
 function normalize(s: string): string {
   return s
     .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
     .normalize("NFKD")
     .replace(/[^\p{Letter}\p{Number}\s:']/gu, " ")
     .replace(/\s+/g, " ")
