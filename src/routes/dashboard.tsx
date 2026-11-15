@@ -9,7 +9,8 @@ import { SleepStreakCard } from "@/components/home/SleepStreakCard";
 import { QuickActionsCard } from "@/components/home/QuickActionsCard";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X, Sparkles, Moon } from "lucide-react";
+import { Plus, Trash2, X, Sparkles, ChevronDown } from "lucide-react";
+import { TodayCard } from "@/components/home/TodayCard";
 
 import {
   DAYS,
@@ -25,7 +26,6 @@ import {
 } from "@/lib/shifts";
 import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
-import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
 import { AIBriefCard } from "@/components/AIBriefCard";
 import { ArrivalHero } from "@/components/ArrivalHero";
@@ -45,6 +45,8 @@ import {
 } from "@/lib/schedule";
 
 import { LastNightStrip } from "@/components/LastNightStrip";
+import { useAppleHealth } from "@/hooks/use-apple-health";
+import { computeDeviceInsights, labelRecommendations } from "@/lib/health/device-insights";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
@@ -59,7 +61,6 @@ import {
   reconcileOnReconnect,
 } from "@/lib/offline/snapshot";
 import { getCachedUserIdSync } from "@/lib/offline/cache";
-
 
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
@@ -167,7 +168,6 @@ function Dashboard() {
     })();
   });
 
-
   // Travel/tz auto-detect: when prefs.tzAuto is on, keep currentTz in sync
   // with the device's IANA zone. Seeds homeTz on first run so body-clock
   // math has an anchor. Silent — never overwrites a manual override.
@@ -246,7 +246,28 @@ function Dashboard() {
   }
 
   const [today, setToday] = useState<Date>(() => new Date(0));
-  useEffect(() => { setToday(new Date()); }, []);
+  // "More insights" starts closed on phones (short, focused Home) and open on desktop.
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia?.("(min-width: 1024px)").matches) setMoreOpen(true);
+  }, []);
+  // Keep "now" fresh: every minute, and when the app comes back to the foreground,
+  // so the Today card's countdowns and next shift never go stale.
+  useEffect(() => {
+    const tick = () => setToday(new Date());
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
   const weekday = (today.getDay() + 6) % 7;
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
@@ -273,15 +294,6 @@ function Dashboard() {
     [today, prefs.cycleAnchor, prefs.cycleWeeks],
   );
 
-  // Next sleep window
-  const nextSleep = useMemo(() => {
-    if (!todayShift) return null;
-    const end = endAbsolute(todayShift);
-    const sleepStart = end + prefs.windDownMin;
-    const sleepEnd = sleepStart + prefs.sleepHours * 60;
-    return { start: sleepStart, end: sleepEnd };
-  }, [todayShift, prefs.windDownMin, prefs.sleepHours]);
-
   // Next upcoming shift start as an absolute Date (today + up to 7 days ahead).
   // Feeds the CompanionHero contextual greeting.
   const nextShiftStart = useMemo<Date | null>(() => {
@@ -299,8 +311,6 @@ function Dashboard() {
     return null;
   }, [mounted, today, shifts, prefs.cycleAnchor, prefs.cycleWeeks]);
 
-
-
   const stability = Math.max(0, 100 - debt.score);
   const getWearableSummaryFn = useServerFn(getWearableSummary);
   const { data: wearableSummary } = useQuery({
@@ -309,35 +319,73 @@ function Dashboard() {
     enabled: signedIn === true,
     staleTime: 60_000,
   });
-  const insights = useMemo(
+  // Apple Health (iPhone app only) shapes what this phone shows; the AI context
+  // string stays the one computed without it (see computeDeviceInsights).
+  const appleHealth = useAppleHealth();
+  const device = useMemo(
     () =>
       mounted
-        ? computeInsights(shifts, prefs, today, employers, wearableSummary?.latest ?? null)
+        ? computeDeviceInsights({
+            shifts,
+            prefs,
+            now: today,
+            employers,
+            serverLastNight: wearableSummary?.latest ?? null,
+            appleHealthNights: appleHealth.nights,
+          })
         : null,
-    [shifts, prefs, today, mounted, employers, wearableSummary],
+    [shifts, prefs, today, mounted, employers, wearableSummary, appleHealth.nights],
   );
+  const insights = device?.insights ?? null;
   const recommendations = useMemo(
     () =>
       insights
-        ? buildRecommendations(insights, prefs, today, {
-            lat: prefs.lat ?? null,
-            lon: prefs.lon ?? null,
-          })
+        ? labelRecommendations(
+            buildRecommendations(insights, prefs, today, {
+              lat: prefs.lat ?? null,
+              lon: prefs.lon ?? null,
+            }),
+            device?.source ?? null,
+          )
         : [],
-    [insights, prefs, today],
+    [insights, prefs, today, device?.source],
   );
-
 
   const hour = mounted ? today.getHours() : 12;
   void hour; // greeting now lives inside <ArrivalHero />
   const dateLabel = mounted ? `${DAYS[weekday]}, ${monthDate}` : "";
 
   return (
-    <main className="relative mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-4 px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-12 [padding-left:max(1.25rem,env(safe-area-inset-left))] [padding-right:max(1.25rem,env(safe-area-inset-right))] lg:px-10 lg:pt-12">
+    <main className="relative mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-4 pt-4 pb-12 [padding-left:env(safe-area-inset-left)] [padding-right:env(safe-area-inset-right)] sm:[padding-left:max(1.25rem,env(safe-area-inset-left))] sm:[padding-right:max(1.25rem,env(safe-area-inset-right))] lg:px-10 lg:pt-12">
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-20 top-0 h-[40vh] w-[40vh] rounded-full bg-primary/20 blur-[120px]" />
         <div className="absolute right-0 top-1/3 h-[30vh] w-[30vh] rounded-full bg-sky-500/10 blur-[120px]" />
       </div>
+
+      {/* 1. The four answers a tired shift worker needs first. */}
+      {mounted && (
+        <TodayCard
+          shifts={shifts}
+          prefs={{
+            sleepHours: prefs.sleepHours,
+            windDownMin: prefs.windDownMin,
+            cycleAnchor: prefs.cycleAnchor ?? null,
+            cycleWeeks: prefs.cycleWeeks ?? 1,
+          }}
+          userId={userId}
+          now={today}
+          onEditSchedule={() => {
+            if (signedIn === false) {
+              handleAuthError(new AuthRequiredError("Sign in to save your shifts."), "");
+              return;
+            }
+            setEditing({ day: weekday, weekIndex: currentWeekIdx });
+          }}
+        />
+      )}
+
+      <OfflineBanner userId={userId} />
+      <CompanionIntroSheet />
 
       <CompanionHero
         name={(prefs.preferredName ?? "").trim()}
@@ -351,87 +399,8 @@ function Dashboard() {
         }}
       />
 
-
-      <OfflineBanner userId={userId} />
-      <CompanionIntroSheet />
-
-      {insights && (
-        <HomeCard accent className="!p-0">
-          <AIBriefCard insights={insights} recommendations={recommendations} />
-        </HomeCard>
-      )}
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <HomeCard className="!p-0">
-          <LastNightStrip />
-        </HomeCard>
-        <HomeCard className="flex flex-col">
-          <HomeCardHeader
-            eyebrow="Schedule"
-            title="Schedule stability"
-            action={
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
-                <Sparkles className="h-4 w-4" />
-              </span>
-            }
-          />
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-5xl text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-              {mounted ? stability : 0}
-            </span>
-            <span className="text-sm text-muted-foreground">/ 100</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full transition-all duration-1000"
-              style={{ width: `${mounted ? stability : 0}%`, background: "var(--gradient-cta)" }}
-            />
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground/80">
-            Circadian debt: <span className="font-semibold text-foreground">{mounted ? debt.score : 0}/100</span>
-          </p>
-        </HomeCard>
-      </div>
-
       <HomeCard accent className="!p-0">
         <RightNowCard signedIn={signedIn === true} context={insights?.contextString ?? ""} />
-      </HomeCard>
-
-      {insights && (
-        <HomeCard className="!p-0">
-          <CompanionWhisper
-            insights={insights}
-            signedIn={signedIn === true}
-            context={insights.contextString}
-          />
-        </HomeCard>
-      )}
-
-      <div className="grid grid-cols-1 gap-4">
-        <SleepSoundsCard />
-      </div>
-
-      <HomeCard accent>
-        <HomeCardHeader
-          eyebrow="Tonight"
-          title={nextSleep ? `Sleep at ${fmt(nextSleep.start)}` : "Log a shift to forecast"}
-          action={
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
-              <Moon className="h-4 w-4" />
-            </span>
-          }
-        />
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Next sleep</p>
-            <p className="text-2xl text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-              {nextSleep ? `${prefs.sleepHours}h` : "—"}
-            </p>
-            <p className="text-[11px] text-muted-foreground/80">{nextSleep ? "predicted window" : "Add a shift to forecast"}</p>
-          </div>
-          <CircadianRing shift={todayShift} prefs={prefs} mounted={mounted} />
-        </div>
       </HomeCard>
 
       <div id="schedule" className="scroll-mt-20" aria-hidden />
@@ -454,7 +423,13 @@ function Dashboard() {
             return (
               <button
                 key={label}
-                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx, weekIndex: wi }); }}
+                onClick={() => {
+                  if (signedIn === false) {
+                    handleAuthError(new AuthRequiredError("Sign in to save your shifts."), "");
+                    return;
+                  }
+                  setEditing({ day: idx, weekIndex: wi });
+                }}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
                   isToday
                     ? "border border-white/20 shadow-[var(--shadow-glow)]"
@@ -462,14 +437,22 @@ function Dashboard() {
                 } ${isPast && !isToday ? "opacity-60" : ""}`}
                 style={
                   isToday
-                    ? { background: "linear-gradient(180deg, var(--indigo) 0%, var(--secondary) 100%)" }
+                    ? {
+                        background:
+                          "linear-gradient(180deg, var(--indigo) 0%, var(--secondary) 100%)",
+                      }
                     : undefined
                 }
               >
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-glow">{label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-glow">
+                  {label}
+                </span>
                 <span
                   className="text-lg leading-none"
-                  style={{ fontFamily: "var(--font-display)", fontStyle: isToday ? "italic" : "normal" }}
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontStyle: isToday ? "italic" : "normal",
+                  }}
                 >
                   {num}
                 </span>
@@ -478,52 +461,62 @@ function Dashboard() {
                     Wk {weekLabel(wi)}
                   </span>
                 )}
-                {hasShift && (() => {
-                  const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
-                  const emp = employers.find((e) => e.id === s.employerId);
-                  return (
-                    <span
-                      className="mt-1 h-1.5 w-1.5 rounded-full"
-                      style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
-                    />
-                  );
-                })()}
+                {hasShift &&
+                  (() => {
+                    const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
+                    const emp = employers.find((e) => e.id === s.employerId);
+                    return (
+                      <span
+                        className="mt-1 h-1.5 w-1.5 rounded-full"
+                        style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
+                      />
+                    );
+                  })()}
               </button>
             );
           })}
         </div>
 
-        {todayShift && (() => {
-          const emp = employers.find((e) => e.id === todayShift.employerId);
-          return (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {emp && <span className="h-2 w-2 rounded-full" style={{ background: emp.color }} />}
-                    <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
-                      {emp ? emp.name : "Today's shift"}
+        {todayShift &&
+          (() => {
+            const emp = employers.find((e) => e.id === todayShift.employerId);
+            return (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {emp && (
+                        <span className="h-2 w-2 rounded-full" style={{ background: emp.color }} />
+                      )}
+                      <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                        {emp ? emp.name : "Today's shift"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-base font-semibold">
+                      {fmt(todayShift.start)} – {fmt(todayShift.end)}
                     </p>
                   </div>
-                  <p className="mt-1 text-base font-semibold">
-                    {fmt(todayShift.start)} – {fmt(todayShift.end)}
-                  </p>
+                  <button
+                    onClick={() => removeShift(todayShift.id)}
+                    aria-label="Remove shift"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95 hit-area"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeShift(todayShift.id)}
-                  aria-label="Remove shift"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <Timeline shift={todayShift} />
               </div>
-              <Timeline shift={todayShift} />
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         <button
-          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
+          onClick={() => {
+            if (signedIn === false) {
+              handleAuthError(new AuthRequiredError("Sign in to save your shifts."), "");
+              return;
+            }
+            setEditing({ day: weekday, weekIndex: currentWeekIdx });
+          }}
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-primary-foreground active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
@@ -532,57 +525,142 @@ function Dashboard() {
         </button>
       </HomeCard>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SleepStreakCard shifts={shifts} now={mounted ? today : new Date()} />
-        <HydrationCard />
+      <div className="grid grid-cols-1 gap-4">
+        <SleepSoundsCard />
       </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <HomeCard className="!p-0">
-          <DecisionCenterCard signedIn={signedIn === true} />
-        </HomeCard>
-        {signedIn === true && (
-          <HomeCard className="!p-0">
-            <AIActivityFeed max={5} />
-          </HomeCard>
-        )}
-      </div>
-
-      {prefs.predictiveEnabled && (
-        <HomeCard className="!p-0">
-          <PatternAlerts
-            signedIn={signedIn === true}
-            context={insights?.contextString ?? ""}
-            enabled={prefs.predictiveEnabled}
-          />
-        </HomeCard>
-      )}
-
-      {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) && prefs.predictiveEnabled && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <HomeCard className="!p-0">
-            <TomorrowPreviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.tomorrowPreviewEnabled}
-            />
-          </HomeCard>
-          <HomeCard className="!p-0">
-            <DailyReviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.dailyReviewEnabled}
-            />
-          </HomeCard>
-        </div>
-      )}
-
-      <HomeCard className="!p-0">
-        <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
-      </HomeCard>
-      {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
 
       <QuickActionsCard />
+
+      {/* Secondary insights, one tap away instead of a long scroll. */}
+      <details
+        className="group"
+        open={moreOpen}
+        onToggle={(e) => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)}
+      >
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+          <span className="shrink-0">More insights</span>
+          <span className="flex min-w-0 items-center gap-2 text-xs font-normal text-muted-foreground">
+            <span className="truncate">Coach brief, last night, streaks, long clock</span>
+            <ChevronDown
+              aria-hidden
+              className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
+            />
+          </span>
+        </summary>
+        <div className="mt-4 flex flex-col gap-4">
+          {insights && (
+            <HomeCard accent className="!p-0">
+              <AIBriefCard
+                insights={insights}
+                recommendations={recommendations}
+                includesAppleHealth={device?.source === "apple-health"}
+              />
+            </HomeCard>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <HomeCard className="!p-0">
+              <LastNightStrip appleHealth={device?.appleHealthLastNight ?? null} />
+            </HomeCard>
+            <HomeCard className="flex flex-col">
+              <HomeCardHeader
+                eyebrow="Schedule"
+                title="Schedule stability"
+                action={
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                }
+              />
+              <div className="mt-3 flex items-baseline gap-1">
+                <span
+                  className="text-5xl text-foreground"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {mounted ? stability : 0}
+                </span>
+                <span className="text-sm text-muted-foreground">/ 100</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${mounted ? stability : 0}%`,
+                    background: "var(--gradient-cta)",
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-[11px] text-muted-foreground/80">
+                Circadian debt:{" "}
+                <span className="font-semibold text-foreground">
+                  {mounted ? debt.score : 0}/100
+                </span>
+              </p>
+            </HomeCard>
+          </div>
+          {insights && (
+            <HomeCard className="!p-0">
+              {/* It can send its observation to the AI ("adjust my plan"), so it
+                  gets the insights computed without Apple Health. */}
+              <CompanionWhisper
+                insights={device?.baseInsights ?? insights}
+                signedIn={signedIn === true}
+                context={insights.contextString}
+              />
+            </HomeCard>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SleepStreakCard shifts={shifts} now={mounted ? today : new Date()} />
+            <HydrationCard />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <HomeCard className="!p-0">
+              <DecisionCenterCard signedIn={signedIn === true} />
+            </HomeCard>
+            {signedIn === true && (
+              <HomeCard className="!p-0">
+                <AIActivityFeed max={5} />
+              </HomeCard>
+            )}
+          </div>
+
+          {prefs.predictiveEnabled && (
+            <HomeCard className="!p-0">
+              <PatternAlerts
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.predictiveEnabled}
+              />
+            </HomeCard>
+          )}
+
+          {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) &&
+            prefs.predictiveEnabled && (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <HomeCard className="!p-0">
+                  <TomorrowPreviewCard
+                    signedIn={signedIn === true}
+                    context={insights?.contextString ?? ""}
+                    enabled={prefs.tomorrowPreviewEnabled}
+                  />
+                </HomeCard>
+                <HomeCard className="!p-0">
+                  <DailyReviewCard
+                    signedIn={signedIn === true}
+                    context={insights?.contextString ?? ""}
+                    enabled={prefs.dailyReviewEnabled}
+                  />
+                </HomeCard>
+              </div>
+            )}
+
+          <HomeCard className="!p-0">
+            <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
+          </HomeCard>
+          {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
+        </div>
+      </details>
 
       {editing && (
         <ShiftEditor
@@ -602,73 +680,6 @@ function Dashboard() {
         />
       )}
     </main>
-  );
-}
-
-
-
-
-
-
-
-function CircadianRing({
-  shift,
-  prefs,
-  mounted,
-}: {
-  shift?: Shift;
-  prefs: Prefs;
-  mounted: boolean;
-}) {
-  const R = 58;
-  const C = 2 * Math.PI * R;
-  // base offset to make 0=midnight at top
-  const minsToOffset = (m: number) => (m / 1440) * C;
-  let shiftSeg = { len: 0, off: 0 };
-  let windSeg = { len: 0, off: 0 };
-  let sleepSeg = { len: 0, off: 0 };
-  if (shift) {
-    const start = shift.start;
-    const shiftLen = endAbsolute(shift) - start;
-    const end = endAbsolute(shift) % 1440;
-    const windLen = prefs.windDownMin;
-    const sleepLen = prefs.sleepHours * 60;
-    shiftSeg = { len: minsToOffset(shiftLen), off: minsToOffset(start) };
-    windSeg = { len: minsToOffset(windLen), off: minsToOffset(end) };
-    sleepSeg = { len: minsToOffset(sleepLen), off: minsToOffset((end + windLen) % 1440) };
-  }
-
-  return (
-    <div className="relative h-32 w-32 shrink-0">
-      <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
-        <circle cx="64" cy="64" r={R} fill="none" stroke="var(--secondary)" strokeWidth="8" />
-        {shift && mounted && (
-          <>
-            <circle
-              cx="64" cy="64" r={R} fill="none"
-              stroke="var(--indigo)" strokeWidth="8" strokeLinecap="round"
-              strokeDasharray={`${shiftSeg.len} ${C}`}
-              strokeDashoffset={-shiftSeg.off}
-            />
-            <circle
-              cx="64" cy="64" r={R} fill="none"
-              stroke="var(--amber)" strokeWidth="6" strokeLinecap="round" opacity="0.8"
-              strokeDasharray={`${windSeg.len} ${C}`}
-              strokeDashoffset={-windSeg.off}
-            />
-            <circle
-              cx="64" cy="64" r={R} fill="none"
-              stroke="var(--indigo-glow)" strokeWidth="4" strokeLinecap="round" opacity="0.7"
-              strokeDasharray={`${sleepSeg.len} ${C}`}
-              strokeDashoffset={-sleepSeg.off}
-            />
-          </>
-        )}
-      </svg>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-indigo-glow">
-        <Moon className="h-5 w-5" />
-      </div>
-    </div>
   );
 }
 
@@ -780,7 +791,7 @@ function ShiftEditor({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary hit-area"
           >
             <X className="h-5 w-5" />
           </button>
