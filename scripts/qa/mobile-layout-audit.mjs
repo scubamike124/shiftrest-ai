@@ -162,7 +162,11 @@ async function installFakeBackend(context) {
     if (url.pathname === "/rest/v1/user_prefs" && req.method() === "GET")
       return json(200, [FAKE_PREFS]);
     // AUDIT_SAMPLE_SHIFTS=1: a typical nurse rotation, so schedule screens show real content.
-    if (url.pathname === "/rest/v1/shifts" && req.method() === "GET" && process.env.AUDIT_SAMPLE_SHIFTS === "1")
+    if (
+      url.pathname === "/rest/v1/shifts" &&
+      req.method() === "GET" &&
+      process.env.AUDIT_SAMPLE_SHIFTS === "1"
+    )
       return json(200, SAMPLE_SHIFTS);
     if (url.pathname.startsWith("/rest/v1/")) {
       if (req.method() === "HEAD")

@@ -61,7 +61,6 @@ import {
 } from "@/lib/offline/snapshot";
 import { getCachedUserIdSync } from "@/lib/offline/cache";
 
-
 export const Route = createFileRoute("/dashboard")({
   ssr: false,
   beforeLoad: requireSession,
@@ -168,7 +167,6 @@ function Dashboard() {
     })();
   });
 
-
   // Travel/tz auto-detect: when prefs.tzAuto is on, keep currentTz in sync
   // with the device's IANA zone. Seeds homeTz on first run so body-clock
   // math has an anchor. Silent — never overwrites a manual override.
@@ -252,7 +250,9 @@ function Dashboard() {
   useEffect(() => {
     if (window.matchMedia?.("(min-width: 1024px)").matches) setMoreOpen(true);
   }, []);
-  useEffect(() => { setToday(new Date()); }, []);
+  useEffect(() => {
+    setToday(new Date());
+  }, []);
   const weekday = (today.getDay() + 6) % 7;
   const monthDate = `${MONTHS[today.getMonth()]} ${today.getDate()}`;
   const rotation = useMemo(() => detectRotation(shifts), [shifts]);
@@ -279,7 +279,6 @@ function Dashboard() {
     [today, prefs.cycleAnchor, prefs.cycleWeeks],
   );
 
-
   // Next upcoming shift start as an absolute Date (today + up to 7 days ahead).
   // Feeds the CompanionHero contextual greeting.
   const nextShiftStart = useMemo<Date | null>(() => {
@@ -296,8 +295,6 @@ function Dashboard() {
     }
     return null;
   }, [mounted, today, shifts, prefs.cycleAnchor, prefs.cycleWeeks]);
-
-
 
   const stability = Math.max(0, 100 - debt.score);
   const getWearableSummaryFn = useServerFn(getWearableSummary);
@@ -324,7 +321,6 @@ function Dashboard() {
         : [],
     [insights, prefs, today],
   );
-
 
   const hour = mounted ? today.getHours() : 12;
   void hour; // greeting now lives inside <ArrivalHero />
@@ -398,7 +394,13 @@ function Dashboard() {
             return (
               <button
                 key={label}
-                onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: idx, weekIndex: wi }); }}
+                onClick={() => {
+                  if (signedIn === false) {
+                    handleAuthError(new AuthRequiredError("Sign in to save your shifts."), "");
+                    return;
+                  }
+                  setEditing({ day: idx, weekIndex: wi });
+                }}
                 className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl transition active:scale-95 ${
                   isToday
                     ? "border border-white/20 shadow-[var(--shadow-glow)]"
@@ -406,14 +408,22 @@ function Dashboard() {
                 } ${isPast && !isToday ? "opacity-60" : ""}`}
                 style={
                   isToday
-                    ? { background: "linear-gradient(180deg, var(--indigo) 0%, var(--secondary) 100%)" }
+                    ? {
+                        background:
+                          "linear-gradient(180deg, var(--indigo) 0%, var(--secondary) 100%)",
+                      }
                     : undefined
                 }
               >
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-glow">{label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-glow">
+                  {label}
+                </span>
                 <span
                   className="text-lg leading-none"
-                  style={{ fontFamily: "var(--font-display)", fontStyle: isToday ? "italic" : "normal" }}
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontStyle: isToday ? "italic" : "normal",
+                  }}
                 >
                   {num}
                 </span>
@@ -422,37 +432,41 @@ function Dashboard() {
                     Wk {weekLabel(wi)}
                   </span>
                 )}
-                {hasShift && (() => {
-                  const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
-                  const emp = employers.find((e) => e.id === s.employerId);
-                  return (
-                    <span
-                      className="mt-1 h-1.5 w-1.5 rounded-full"
-                      style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
-                    />
-                  );
-                })()}
+                {hasShift &&
+                  (() => {
+                    const s = shifts.find((x) => x.day === idx && (x.weekIndex ?? 0) === wi)!;
+                    const emp = employers.find((e) => e.id === s.employerId);
+                    return (
+                      <span
+                        className="mt-1 h-1.5 w-1.5 rounded-full"
+                        style={{ background: emp?.color ?? (isToday ? "white" : "var(--indigo)") }}
+                      />
+                    );
+                  })()}
               </button>
             );
           })}
         </div>
 
-        {todayShift && (() => {
-          const emp = employers.find((e) => e.id === todayShift.employerId);
-          return (
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    {emp && <span className="h-2 w-2 rounded-full" style={{ background: emp.color }} />}
-                    <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
-                      {emp ? emp.name : "Today's shift"}
+        {todayShift &&
+          (() => {
+            const emp = employers.find((e) => e.id === todayShift.employerId);
+            return (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      {emp && (
+                        <span className="h-2 w-2 rounded-full" style={{ background: emp.color }} />
+                      )}
+                      <p className="text-[10px] font-medium uppercase tracking-widest text-indigo-glow">
+                        {emp ? emp.name : "Today's shift"}
+                      </p>
+                    </div>
+                    <p className="mt-1 text-base font-semibold">
+                      {fmt(todayShift.start)} – {fmt(todayShift.end)}
                     </p>
                   </div>
-                  <p className="mt-1 text-base font-semibold">
-                    {fmt(todayShift.start)} – {fmt(todayShift.end)}
-                  </p>
-                </div>
                   <button
                     onClick={() => removeShift(todayShift.id)}
                     aria-label="Remove shift"
@@ -460,14 +474,20 @@ function Dashboard() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
+                </div>
+                <Timeline shift={todayShift} />
               </div>
-              <Timeline shift={todayShift} />
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         <button
-          onClick={() => { if (signedIn === false) { handleAuthError(new AuthRequiredError("Sign in to save your shifts."), ""); return; } setEditing({ day: weekday, weekIndex: currentWeekIdx }); }}
+          onClick={() => {
+            if (signedIn === false) {
+              handleAuthError(new AuthRequiredError("Sign in to save your shifts."), "");
+              return;
+            }
+            setEditing({ day: weekday, weekIndex: currentWeekIdx });
+          }}
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-primary-foreground active:scale-[0.99]"
           style={{ background: "var(--gradient-cta)" }}
         >
@@ -489,122 +509,123 @@ function Dashboard() {
         onToggle={(e) => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)}
       >
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
-          <span>More insights</span>
-          <span className="flex items-center gap-2 text-right text-xs font-normal text-muted-foreground">
-            Coach brief, last night, streaks, long clock
-            <ChevronDown aria-hidden className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+          <span className="shrink-0">More insights</span>
+          <span className="flex min-w-0 items-center gap-2 text-xs font-normal text-muted-foreground">
+            <span className="truncate">Coach brief, last night, streaks, long clock</span>
+            <ChevronDown
+              aria-hidden
+              className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
+            />
           </span>
         </summary>
         <div className="mt-4 flex flex-col gap-4">
-      {insights && (
-        <HomeCard accent className="!p-0">
-          <AIBriefCard insights={insights} recommendations={recommendations} />
-        </HomeCard>
-      )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <HomeCard className="!p-0">
-          <LastNightStrip />
-        </HomeCard>
-        <HomeCard className="flex flex-col">
-          <HomeCardHeader
-            eyebrow="Schedule"
-            title="Schedule stability"
-            action={
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
-                <Sparkles className="h-4 w-4" />
-              </span>
-            }
-          />
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-5xl text-foreground" style={{ fontFamily: "var(--font-display)" }}>
-              {mounted ? stability : 0}
-            </span>
-            <span className="text-sm text-muted-foreground">/ 100</span>
+          {insights && (
+            <HomeCard accent className="!p-0">
+              <AIBriefCard insights={insights} recommendations={recommendations} />
+            </HomeCard>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <HomeCard className="!p-0">
+              <LastNightStrip />
+            </HomeCard>
+            <HomeCard className="flex flex-col">
+              <HomeCardHeader
+                eyebrow="Schedule"
+                title="Schedule stability"
+                action={
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/20 text-indigo-glow">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                }
+              />
+              <div className="mt-3 flex items-baseline gap-1">
+                <span
+                  className="text-5xl text-foreground"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {mounted ? stability : 0}
+                </span>
+                <span className="text-sm text-muted-foreground">/ 100</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${mounted ? stability : 0}%`,
+                    background: "var(--gradient-cta)",
+                  }}
+                />
+              </div>
+              <p className="mt-3 text-[11px] text-muted-foreground/80">
+                Circadian debt:{" "}
+                <span className="font-semibold text-foreground">
+                  {mounted ? debt.score : 0}/100
+                </span>
+              </p>
+            </HomeCard>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{rotation.label}</p>
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full transition-all duration-1000"
-              style={{ width: `${mounted ? stability : 0}%`, background: "var(--gradient-cta)" }}
-            />
+          {insights && (
+            <HomeCard className="!p-0">
+              <CompanionWhisper
+                insights={insights}
+                signedIn={signedIn === true}
+                context={insights.contextString}
+              />
+            </HomeCard>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SleepStreakCard shifts={shifts} now={mounted ? today : new Date()} />
+            <HydrationCard />
           </div>
-          <p className="mt-3 text-[11px] text-muted-foreground/80">
-            Circadian debt: <span className="font-semibold text-foreground">{mounted ? debt.score : 0}/100</span>
-          </p>
-        </HomeCard>
-      </div>
-      {insights && (
-        <HomeCard className="!p-0">
-          <CompanionWhisper
-            insights={insights}
-            signedIn={signedIn === true}
-            context={insights.contextString}
-          />
-        </HomeCard>
-      )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SleepStreakCard shifts={shifts} now={mounted ? today : new Date()} />
-        <HydrationCard />
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <HomeCard className="!p-0">
-          <DecisionCenterCard signedIn={signedIn === true} />
-        </HomeCard>
-        {signedIn === true && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <HomeCard className="!p-0">
+              <DecisionCenterCard signedIn={signedIn === true} />
+            </HomeCard>
+            {signedIn === true && (
+              <HomeCard className="!p-0">
+                <AIActivityFeed max={5} />
+              </HomeCard>
+            )}
+          </div>
+
+          {prefs.predictiveEnabled && (
+            <HomeCard className="!p-0">
+              <PatternAlerts
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.predictiveEnabled}
+              />
+            </HomeCard>
+          )}
+
+          {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) &&
+            prefs.predictiveEnabled && (
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <HomeCard className="!p-0">
+                  <TomorrowPreviewCard
+                    signedIn={signedIn === true}
+                    context={insights?.contextString ?? ""}
+                    enabled={prefs.tomorrowPreviewEnabled}
+                  />
+                </HomeCard>
+                <HomeCard className="!p-0">
+                  <DailyReviewCard
+                    signedIn={signedIn === true}
+                    context={insights?.contextString ?? ""}
+                    enabled={prefs.dailyReviewEnabled}
+                  />
+                </HomeCard>
+              </div>
+            )}
+
           <HomeCard className="!p-0">
-            <AIActivityFeed max={5} />
+            <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
           </HomeCard>
-        )}
-      </div>
-
-      {prefs.predictiveEnabled && (
-        <HomeCard className="!p-0">
-          <PatternAlerts
-            signedIn={signedIn === true}
-            context={insights?.contextString ?? ""}
-            enabled={prefs.predictiveEnabled}
-          />
-        </HomeCard>
-      )}
-
-      {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) && prefs.predictiveEnabled && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <HomeCard className="!p-0">
-            <TomorrowPreviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.tomorrowPreviewEnabled}
-            />
-          </HomeCard>
-          <HomeCard className="!p-0">
-            <DailyReviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.dailyReviewEnabled}
-            />
-          </HomeCard>
-        </div>
-      )}
-
-      <HomeCard className="!p-0">
-        <LongClock shift={todayShift} prefs={prefs} now={mounted ? today : new Date()} />
-      </HomeCard>
-      {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
+          {mounted && <MultiDayPlan shifts={shifts} prefs={prefs} now={today} />}
         </div>
       </details>
-
-
-
-
-
-
-
-
-
-
-
-
 
       {editing && (
         <ShiftEditor
@@ -626,13 +647,6 @@ function Dashboard() {
     </main>
   );
 }
-
-
-
-
-
-
-
 
 function Timeline({ shift }: { shift: Shift }) {
   const total = 24 * 60;
