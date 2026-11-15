@@ -30,6 +30,16 @@ async function isUserOnTrial(userId: string, env: StripeEnv): Promise<boolean> {
   const { data, error } = await supabaseAdmin.from("subscriptions")
     .select("status, current_period_end").eq("user_id", userId).eq("environment", env);
   if (error || !Array.isArray(data)) throw new Error("Voice subscription checks are unavailable");
+  // App Store subscribers (RevenueCat-synced rows) count the same way, but
+  // only once IAP is switched on; with IAP_ENABLED unset nothing changes here.
+  if (process.env.IAP_ENABLED === "true") {
+    const store = await supabaseAdmin.from("store_entitlements")
+      .select("environment, plan, period_type, expires_at, grace_expires_at, will_renew").eq("user_id", userId);
+    if (store.error || !Array.isArray(store.data)) throw new Error("Voice subscription checks are unavailable");
+    const { appleRowsAsSubscriptionRows, appleEnvironmentsFrom } = await import("@/lib/entitlements/merge");
+    const apple = appleRowsAsSubscriptionRows(store.data, appleEnvironmentsFrom(process.env));
+    return voiceEntitlement([...data, ...apple]) === "trial";
+  }
   return voiceEntitlement(data) === "trial";
 }
 

@@ -45,7 +45,11 @@ export function BottomNav() {
                     active ? "bg-primary/15 shadow-[var(--shadow-glow)]" : ""
                   }`}
                 >
-                  {Icon ? <Icon className="h-5 w-5" /> : <OrbBadge state="idle" size="sm" className="h-8 w-8" />}
+                  {Icon ? (
+                    <Icon className="h-5 w-5" />
+                  ) : (
+                    <OrbBadge state="idle" size="sm" className="h-8 w-8" />
+                  )}
                 </span>
                 {t.label}
               </Link>

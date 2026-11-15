@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppPreviewAccess } from "@/components/AppPreviewAccess";
+import { AppAwarePaywall } from "@/components/subscription/AppAwarePaywall";
 
 export const Route = createFileRoute("/paywall")({
   // Lifetime was discontinued for new customers; a stale lifetime plan link is ignored.
@@ -7,5 +7,5 @@ export const Route = createFileRoute("/paywall")({
     plan: search.plan === "monthly" || search.plan === "annual" ? search.plan : undefined,
   }),
   head: () => ({ meta: [{ title: "RestPilot — App preview" }] }),
-  component: AppPreviewAccess,
+  component: AppAwarePaywall,
 });

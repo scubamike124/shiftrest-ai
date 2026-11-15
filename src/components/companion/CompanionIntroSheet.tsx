@@ -16,6 +16,10 @@ import { HowMemoryWorks } from "@/components/memory/HowMemoryWorks";
 import { hasSeenCompanionIntro, markCompanionIntroSeen } from "@/lib/companion/intro-flag";
 import { track } from "@/lib/companion/analytics";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { companionName, customCompanionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { fetchPrefs } from "@/lib/prefs";
 
 const STEPS = [
   {
@@ -38,8 +42,28 @@ const STEPS = [
   },
 ] as const;
 
-export function CompanionIntroSheet() {
+/**
+ * Step one names the companion: Aura is the default; a name the customer chose
+ * (for example "Lisa") is theirs and is used everywhere.
+ */
+function meetStep(name: string, isCustom: boolean) {
+  return {
+    ...STEPS[0],
+    title: `Meet ${name}, your Companion`,
+    body: isCustom
+      ? `${name} is the name you chose for your companion (the default companion is ${DEFAULT_COMPANION_NAME}), and it's used in chat and voice. A calm assistant for sleep, sounds, alarms, and daily briefs.`
+      : `${name} is your companion: a calm assistant for sleep, sounds, alarms, and daily briefs. ${DEFAULT_COMPANION_NAME} is the default companion; you can give yours your own name (for example, Lisa) or a different look anytime, and that name is used in chat and voice.`,
+  };
+}
+
+export function CompanionIntroSheet(props: { name?: string; isCustom?: boolean } = {}) {
   const [open, setOpen] = useState(false);
+  // Resolve the name here too, so every call site (dashboard, companion page)
+  // shows the customer's own name; shares the app-wide ["prefs"] cache.
+  const { id: avatarId } = useAvatar();
+  const { data: prefs } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs, retry: false, staleTime: 60_000 });
+  const name = props.name ?? companionName(prefs?.assistantName, avatarId);
+  const isCustom = props.isCustom ?? customCompanionName(prefs?.assistantName) !== "";
   const [step, setStep] = useState(0);
 
   // Open once per device after mount (after onboarding has cleared the route).
@@ -71,7 +95,8 @@ export function CompanionIntroSheet() {
   };
 
   const isLast = step === STEPS.length - 1;
-  const StepIcon = STEPS[step].icon;
+  const current = step === 0 ? meetStep(name, isCustom) : STEPS[step];
+  const StepIcon = current.icon;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -83,9 +108,9 @@ export function CompanionIntroSheet() {
           <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-primary/15">
             <StepIcon className="h-6 w-6 text-primary" aria-hidden />
           </div>
-          <SheetTitle className="text-xl">{STEPS[step].title}</SheetTitle>
+          <SheetTitle className="text-xl">{current.title}</SheetTitle>
           <SheetDescription className="text-sm leading-relaxed text-muted-foreground">
-            {STEPS[step].body}
+            {current.body}
           </SheetDescription>
         </SheetHeader>
 

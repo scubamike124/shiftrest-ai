@@ -72,7 +72,8 @@ export function CookieBanner() {
     <div
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] px-3"
       style={{
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--app-bottom-nav, 0px) + 0.75rem)",
+        paddingBottom:
+          "calc(env(safe-area-inset-bottom, 0px) + var(--app-bottom-nav, 0px) + 0.75rem)",
       }}
     >
       <div className="pointer-events-auto mx-auto max-h-[calc(100dvh-1.5rem-env(safe-area-inset-bottom)-var(--app-bottom-nav,0px))] max-w-3xl overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl">

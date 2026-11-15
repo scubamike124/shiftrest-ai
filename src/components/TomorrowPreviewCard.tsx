@@ -110,7 +110,12 @@ export function TomorrowPreviewCard({
       {error && !data && (
         <div className="mt-4 text-sm text-muted-foreground">
           <p>{error}</p>
-          <button onClick={() => load(true)} className="hit-area mt-2 text-sm font-semibold text-primary">Try again</button>
+          <button
+            onClick={() => load(true)}
+            className="hit-area mt-2 text-sm font-semibold text-primary"
+          >
+            Try again
+          </button>
         </div>
       )}
 

@@ -453,13 +453,13 @@ function Dashboard() {
                     {fmt(todayShift.start)} – {fmt(todayShift.end)}
                   </p>
                 </div>
-                <button
-                  onClick={() => removeShift(todayShift.id)}
-                  aria-label="Remove shift"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95 hit-area"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  <button
+                    onClick={() => removeShift(todayShift.id)}
+                    aria-label="Remove shift"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-muted-foreground active:scale-95 hit-area"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
               </div>
               <Timeline shift={todayShift} />
             </div>

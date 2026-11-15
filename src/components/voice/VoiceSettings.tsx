@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { Mic, Loader2, Play, Square, Volume2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Prefs } from "@/lib/prefs";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { companionName, customCompanionName, defaultCompanionName, UNNAMED_SENTINEL } from "@/lib/companion/name";
 import {
   VOICE_OPTIONS,
   LANGUAGE_OPTIONS,
@@ -34,11 +36,14 @@ const SPEED_PRESETS = [
 export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
   const [genderFilter, setGenderFilter] = useState<(typeof GENDER_FILTERS)[number]["key"]>("all");
   const [previewing, setPreviewing] = useState<string | null>(null);
-  const [name, setName] = useState(prefs.assistantName);
+  const { id: avatarId } = useAvatar();
+  const defaultName = defaultCompanionName(avatarId);
+  // Only the customer's own name is shown in the field; blank means the default (Aura).
+  const [name, setName] = useState(customCompanionName(prefs.assistantName));
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
 
-  useEffect(() => setName(prefs.assistantName), [prefs.assistantName]);
+  useEffect(() => setName(customCompanionName(prefs.assistantName)), [prefs.assistantName]);
 
   useEffect(
     () => () => {
@@ -77,9 +82,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
       audioRef.current = audio;
       try { audio.load(); } catch { /* */ }
 
-      const personalizedSample = name && name.trim() && name.trim() !== "RestPilot"
-        ? language.sample.replace(/Pilot/g, name.trim())
-        : language.sample;
+      const personalizedSample = language.sample.replace(/Pilot/g, companionName(name, avatarId));
 
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
@@ -140,7 +143,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
     <section id="voice-settings" className="rounded-2xl border border-border bg-card p-4 space-y-6 scroll-mt-20">
       <div className="flex items-center gap-2">
         <Mic className="h-5 w-5 text-primary" />
-        <h2 className="text-base font-semibold">Pilot voice</h2>
+        <h2 className="text-base font-semibold">Companion voice</h2>
       </div>
       {!signedIn && (
         <p className="text-xs text-muted-foreground">
@@ -148,24 +151,25 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
         </p>
       )}
 
-      {/* Pilot name */}
+      {/* Companion name */}
       <div className="space-y-1.5">
-        <label htmlFor="pilot-name" className="text-sm font-medium">Pilot name</label>
+        <label htmlFor="pilot-name" className="text-sm font-medium">Companion name</label>
         <input
           id="pilot-name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => {
-            const trimmed = name.trim() || "RestPilot";
+            const trimmed = name.trim();
             setName(trimmed);
-            if (trimmed !== prefs.assistantName) onChange("assistantName", trimmed);
+            const stored = trimmed || UNNAMED_SENTINEL;
+            if (stored !== prefs.assistantName) onChange("assistantName", stored);
           }}
-          placeholder="Pilot, Luna, Nova, Atlas…"
+          placeholder={defaultName}
           className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
           maxLength={40}
         />
-        <p className="text-[11px] text-muted-foreground">Used everywhere Pilot speaks.</p>
+        <p className="text-[11px] text-muted-foreground">Leave blank to keep {defaultName}. A name you choose is used everywhere your companion speaks.</p>
       </div>
 
       {/* Gender filter + voice list */}
@@ -335,7 +339,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
       <div className="flex items-start gap-2 rounded-xl border border-border bg-secondary/40 p-3 text-[11px] text-muted-foreground">
         <Volume2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
         <span>
-          These settings apply everywhere Pilot speaks — voice briefings, the AI coach, and
+          These settings apply everywhere your companion speaks — voice briefings, the AI coach, and
           conversational Pilot mode. Preview a voice to hear your selection instantly.
         </span>
       </div>
