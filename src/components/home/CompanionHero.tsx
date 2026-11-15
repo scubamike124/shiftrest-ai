@@ -62,7 +62,8 @@ export function CompanionHero({
           </p>
           {context.debtScore !== null && context.recoveryScore !== null ? (
             <p className="mt-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground/80">
-              Schedule stability {Math.round(context.recoveryScore)}% · Sleep debt {Math.round(context.debtScore)}
+              Schedule stability {Math.round(context.recoveryScore)}% · Circadian debt{" "}
+              {Math.round(context.debtScore)}/100 · estimates
             </p>
           ) : null}
           <div className="mt-4">

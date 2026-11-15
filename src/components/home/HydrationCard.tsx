@@ -57,6 +57,10 @@ export function HydrationCard() {
       </div>
 
       <p className="mt-3 text-[11px] text-muted-foreground">{pct}% of today's goal</p>
+      <p className="mt-1 text-[10px] text-muted-foreground/80">
+        Logged by you on this device. The 8-glass goal is a general guide, not a personal
+        measurement.
+      </p>
 
       <div className="mt-3 flex gap-2">
         <button

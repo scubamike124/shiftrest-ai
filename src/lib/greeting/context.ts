@@ -49,14 +49,15 @@ export function buildGreetingLine(ctx: GreetingContext): string {
     }
   }
 
-  // 2. Poor recovery
+  // 2. Poor recovery. These scores are schedule-based estimates (no wearable
+  //    input), so the copy talks about the schedule, not measured sleep.
   if (typeof recoveryScore === "number" && recoveryScore < 45) {
-    return "Recovery looks low today — go gentle and protect your sleep window.";
+    return "Your schedule is demanding right now — go gentle and protect your sleep window.";
   }
 
   // 3. Sleep debt
   if (typeof debtScore === "number" && debtScore >= 55) {
-    return "You're carrying some sleep debt — one solid night makes a real dent.";
+    return "Your shift pattern is hard on sleep this week — one solid night makes a real dent.";
   }
 
   // 4. Bedtime nudge in evening/night
@@ -66,7 +67,7 @@ export function buildGreetingLine(ctx: GreetingContext): string {
 
   // 5. Positive affirmations
   if (typeof recoveryScore === "number" && recoveryScore >= 75) {
-    return "You've recovered well — good day to build a healthy habit.";
+    return "Your schedule looks steady — a good day to build a healthy habit.";
   }
 
   // 6. Neutral by day-part
