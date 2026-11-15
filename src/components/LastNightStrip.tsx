@@ -14,7 +14,9 @@ function fmtDur(min: number | null): string {
 }
 
 /** `appleHealth`: last night from Apple Health (iPhone app), shown instead of a server wearable. */
-export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHealthNight | null } = {}) {
+export function LastNightStrip({
+  appleHealth = null,
+}: { appleHealth?: AppleHealthNight | null } = {}) {
   const fn = useServerFn(getWearableSummary);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
@@ -45,7 +47,8 @@ export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHeal
           Last night
         </p>
         <p className="text-[11px] text-muted-foreground">
-          {fromAppleHealth ? "Measured · from Apple Health" : `via ${PROVIDER_LABEL[r.provider]}`} · {r.date}
+          {fromAppleHealth ? "Measured · from Apple Health" : `via ${PROVIDER_LABEL[r.provider]}`} ·{" "}
+          {r.date}
         </p>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -53,7 +56,9 @@ export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHeal
           <Moon className="mb-1 h-4 w-4 text-primary" />
           <p className="text-base font-semibold">{fmtDur(r.sleepDurationMin)}</p>
           <p className="text-[10px] text-muted-foreground">
-            {r.sleepEfficiency != null ? `${Math.round(r.sleepEfficiency * 100)}% efficient` : "sleep"}
+            {r.sleepEfficiency != null
+              ? `${Math.round(r.sleepEfficiency * 100)}% efficient`
+              : "sleep"}
           </p>
         </div>
         <div className="rounded-xl bg-secondary/40 p-3">
@@ -62,7 +67,9 @@ export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHeal
             {r.hrvMs != null ? `${Math.round(r.hrvMs)}` : "—"}
             <span className="ml-1 text-xs font-normal text-muted-foreground">ms</span>
           </p>
-          <p className="text-[11px] text-muted-foreground">{fromAppleHealth ? "HRV (SDNN)" : "HRV"}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {fromAppleHealth ? "HRV (SDNN)" : "HRV"}
+          </p>
         </div>
         <div className="rounded-xl bg-secondary/40 p-3">
           <Heart className="mb-1 h-4 w-4 text-amber" />
