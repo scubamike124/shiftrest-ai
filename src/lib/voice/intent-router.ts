@@ -147,10 +147,33 @@ const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.
 // Match the verb+object FIRST ("set my smart alarm", "create an alarm",
 // "schedule alarm", "wake me up"), then the time. This lets us catch
 // every common phrasing without false positives on bare clock mentions.
-// "wake" alone must be a command ("wake me up at 6", "wake up at 6" at the
-// start), never a statement inside a question ("I usually wake at 6 AM...").
 const RE_WAKE =
-  /(?:\bwake\s+me\s+(?:up\s+)?|^(?:please\s+)?wake\s+(?:up\s+)?|\b(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+
+// Questions and long sentences are for the AI, even when they mention a sound
+// ("is rain bad?", "my fire captain..."), a wake time ("I usually wake at 6
+// AM...") or a timer. Local actions need a command.
+const RE_QUESTION_START =
+  /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
+const RE_POLITE = /^(?:please\s+|(?:can|could|would|will)\s+you\s+(?:please\s+)?)/;
+const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
+const FILLER =
+  /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
+
+/** A phrase that is nothing but a sound name ("rain", "the ocean sounds", "rain for 20 minutes"). */
+function exactTrack(phrase: string): { slug: string; label: string } | null {
+  const c = normalize(phrase)
+    .replace(RE_DURATION_TAIL, "")
+    .replace(FILLER, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!c) return null;
+  const alias = TRACK_ALIASES[c];
+  const t = alias
+    ? TRACKS.find((x) => x.slug === alias)
+    : TRACKS.find((x) => x.label.toLowerCase() === c);
+  return t ? { slug: t.slug, label: t.label } : null;
+}
 
 const RE_SLEEP_MODE =
   /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode|bedtime(?:\s+routine)?)\s*$/i;
@@ -201,6 +224,8 @@ export function parseIntent(input: string): ParsedIntent {
   const raw = (input ?? "").trim();
   const text = normalize(raw);
   if (!text) return { intent: { kind: "unknown" }, confidence: 0, raw };
+  const question = /\?\s*$/.test(raw) || RE_QUESTION_START.test(text);
+  const words = text.split(" ").length;
 
   if (RE_CANCEL.test(text)) return { intent: { kind: "cancel" }, confidence: 1, raw };
   if (RE_GOODNIGHT.test(text)) return { intent: { kind: "goodnight" }, confidence: 1, raw };
@@ -230,7 +255,7 @@ export function parseIntent(input: string): ParsedIntent {
 
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
-  if (mTimer) {
+  if (mTimer && !question) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
     return { intent: { kind: "set_timer", minutes }, confidence: 0.95, raw };
   }
@@ -242,7 +267,7 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   const mWake = text.match(RE_WAKE);
-  if (mWake) {
+  if (mWake && !question && (mWake.index === 0 || RE_POLITE.test(text) || words <= 8)) {
     let hour = parseInt(mWake[1], 10);
     const minute = mWake[2] ? clamp(parseInt(mWake[2], 10), 0, 59) : 0;
     const ampm = mWake[3]?.toLowerCase();
@@ -285,30 +310,27 @@ export function parseIntent(input: string): ParsedIntent {
 
   // Play <track> — explicit play verb is high-confidence regardless of phrasing.
   // Polite commands: "can you play rain", "could you put on ocean sounds".
-  // Only play / put on, and only a short phrase, so questions that start
-  // "can you play a role..." still reach the AI.
   const mPolite = text.match(
-    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on)\s+(.+?)(?:\s+please)?\s*$/,
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on)\s+(.+)$/,
   );
-  if (mPolite) {
-    const words = mPolite[1]
-      .replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ")
-      .trim()
-      .split(/\s+/);
-    const t = words.length <= 3 ? resolveTrack(mPolite[1]) : null;
-    if (t) {
-      return {
-        intent: { kind: "play_track", slug: t.slug, label: t.label },
-        confidence: 0.95,
-        raw,
-      };
-    }
+  const politeTrack = mPolite ? exactTrack(mPolite[1]) : null;
+  if (politeTrack) {
+    return {
+      intent: { kind: "play_track", slug: politeTrack.slug, label: politeTrack.label },
+      confidence: 0.95,
+      raw,
+    };
   }
 
   const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
-    const t = resolveTrack(phrase);
+    const playVerb = /^(?:please\s+)?(?:play|put\s+on)\b/.test(text);
+    const t = question
+      ? null
+      : playVerb && phrase.replace(RE_DURATION_TAIL, "").split(" ").length <= 4
+        ? resolveTrack(phrase)
+        : exactTrack(phrase);
     if (t) {
       return {
         intent: { kind: "play_track", slug: t.slug, label: t.label },
@@ -326,22 +348,16 @@ export function parseIntent(input: string): ParsedIntent {
   // Bare track name ("rain", "ocean sounds") — upgrade to high confidence
   // when the whole utterance unambiguously matches a known sound noun
   // (with optional "sound(s)" / leading filler stripped by normalize()).
-  // Only a short utterance counts: a sentence that merely contains a sound
-  // word ("cabin crew", "fire captain", "rain check") is a question for the
-  // AI, not a request to play a track.
-  const bare = resolveTrack(text);
+  // Only an utterance that is just a sound name counts: a sentence that
+  // merely contains a sound word ("cabin crew", "fire captain", "is rain bad?")
+  // is a question for the AI, not a request to play a track.
+  const bare = question ? null : exactTrack(text);
   if (bare) {
-    const stripped = text
-      .replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (stripped.split(" ").length <= 3) {
-      return {
-        intent: { kind: "play_track", slug: bare.slug, label: bare.label },
-        confidence: 0.9,
-        raw,
-      };
-    }
+    return {
+      intent: { kind: "play_track", slug: bare.slug, label: bare.label },
+      confidence: 0.9,
+      raw,
+    };
   }
 
   return { intent: { kind: "unknown" }, confidence: 0, raw };
