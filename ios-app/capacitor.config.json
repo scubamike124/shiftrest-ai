@@ -2,6 +2,7 @@
   "appId": "com.restpilotai.app",
   "appName": "RestPilot",
   "webDir": "www",
+  "appendUserAgent": "RestPilotApp/1.0.0",
   "server": {
     "url": "https://restpilotai.com/",
     "androidScheme": "https",
