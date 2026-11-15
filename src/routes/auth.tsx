@@ -188,7 +188,7 @@ function AuthPage() {
         <p className="mt-8 text-center text-xs leading-relaxed text-muted-foreground">
           {providers.apple
             ? "Signed up with Google? Enter your email and tap Forgot Password to set a password for the app."
-            : "Signed up with Google or Apple? Enter the email on your account and tap Forgot Password to set a password for the app."}
+            : "Signed up with Google or Apple? Enter the email on your account and tap Forgot Password to set a password for the app. If you used Apple's Hide My Email, that's your @privaterelay.appleid.com address."}
         </p>
       )}
 

@@ -13,8 +13,9 @@
 //     (`disallowed_useragent`), and the shell sends other hosts to Safari, so
 //     the session would never come back to the app.
 //   - Apple:  only in a shell build that keeps the Apple sign-in pages inside
-//     the web view (`server.allowNavigation` for oauth.lovable.app and
-//     appleid.apple.com). Such a build adds NATIVE_WEB_OAUTH_UA_TOKEN to its
+//     the web view (`server.allowNavigation` for oauth.lovable.app,
+//     appleid.apple.com and idmsa.apple.com, which Apple uses for two-factor
+//     and account recovery). Such a build adds NATIVE_WEB_OAUTH_UA_TOKEN to its
 //     User-Agent. Older builds open those pages in Safari, where the session
 //     would be lost, so they get email and password only. With neither
 //     third-party button in the app, 4.8 does not apply there.
