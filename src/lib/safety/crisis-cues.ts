@@ -18,10 +18,16 @@
 
 /** Phone-keyboard curly apostrophes and "my self" (autocorrect) are normalised before matching. */
 function normalize(text: string): string {
-  return text
-    .replace(/[‘’ʼ]/g, "'")
-    .replace(/\s+/g, " ")
-    .replace(/\bmy self\b/gi, "myself");
+  return (
+    text
+      .replace(/[‘’ʼ]/g, "'")
+      .replace(/\s+/g, " ")
+      // Not "my self-esteem" / "my self confidence".
+      .replace(
+        /\bmy self\b(?!-| ?(esteem|confidence|care|doubt|worth|image|respect|control|belief)\b)/gi,
+        "myself",
+      )
+  );
 }
 
 // Sleep aids and common over-the-counter or prescription drugs people name
@@ -86,7 +92,7 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bwhat'?s the point (of|in) going on\s*([.!?;]|$)/i,
   /\b(want|need|wish) (it|this|everything) all to (end|stop)( now| forever)?\s*([.!?;]|$)/i,
   /\b(want|wish) (it|everything) to (end|be over)( now| forever)?\s*([.!?;]|$)/i,
-  /\b(want to|wanna|going to|gonna|ready to|about to|thinking of|thinking about) end things\s*([.!?;]|$)/i,
+  /\b(want to|wanna|going to|gonna|ready to|about to|thinking of|thinking about) end things( tonight| now| today)?\s*([.!?;]|$)/i,
   // Wanting to die
   /\b(want to|wanted to|wanna) (die|be dead|stop living|stop existing)\b/i,
   /\bready to die\b/i,

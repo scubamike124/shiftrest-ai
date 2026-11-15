@@ -322,6 +322,8 @@ const POSITIVE = [
   "I took all my pills at once",
   "I'll take all my pills today",
   "I'm so done living.",
+  "I'm going to end things tonight",
+  "I want to end things now",
   "I want it to end.",
 ];
 
@@ -426,6 +428,12 @@ const NEGATIVE = [
   "customs may take all my pills",
   "I'll take all my pills with me on nights",
   "they deserve to die in that show",
+  "this rota is killing my self-esteem",
+  "I don't want to hurt my self-esteem",
+  "I keep hurting my self-confidence",
+  "I want to kill my self-doubt",
+  "kill my self doubt",
+  "I've been cutting my self-care short",
   "",
 ];
 
