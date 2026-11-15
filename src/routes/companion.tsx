@@ -46,6 +46,8 @@ import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback 
 import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { companionName, customCompanionName, defaultCompanionName, UNNAMED_SENTINEL } from "@/lib/companion/name";
 
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
@@ -159,7 +161,10 @@ function CompanionPage() {
   const prefs = prefsQ.data;
 
   const companionOn = prefs?.assistantMode === "companion";
-  const aiName = prefs?.assistantName?.trim() || "RestPilot";
+  const { id: avatarId } = useAvatar();
+  // Aura (or the chosen look's name) by default; the customer's own name always wins.
+  const aiName = companionName(prefs?.assistantName, avatarId);
+  const aiDefaultName = defaultCompanionName(avatarId);
   const memoryOn = Boolean(prefs?.memoryEnabled);
 
   // Hydration-safe flag: time-aware greeting renders only after mount.
@@ -1008,15 +1013,20 @@ function CompanionPage() {
                 <Label htmlFor="ai-name" className="text-sm font-medium">Your AI&apos;s name</Label>
                 <Input
                   id="ai-name"
-                  defaultValue={aiName}
+                  // Remount once prefs load so a blank placeholder can never be saved over a chosen name.
+                  key={prefs?.assistantName ?? "loading"}
+                  disabled={!prefs}
+                  defaultValue={customCompanionName(prefs?.assistantName)}
                   maxLength={40}
-                  placeholder="RestPilot"
+                  placeholder={aiDefaultName}
                   onBlur={(e) => {
-                    const v = e.currentTarget.value.trim() || "RestPilot";
-                    if (v !== aiName) savePref.mutate({ assistantName: v });
+                    const v = e.currentTarget.value.trim() || UNNAMED_SENTINEL;
+                    if (v !== (prefs?.assistantName ?? UNNAMED_SENTINEL)) savePref.mutate({ assistantName: v });
                   }}
                 />
-                <p className="text-xs text-muted-foreground">Up to 40 characters. Used in greetings and replies.</p>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to keep {aiDefaultName}. A name you choose (like Lisa) is used in greetings, chat and voice. Up to 40 characters.
+                </p>
               </div>
 
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-3">
@@ -1143,7 +1153,7 @@ function CompanionPage() {
       </div>
 
       {/* First-launch Companion intro (auto-shown once per device). */}
-      <CompanionIntroSheet />
+      <CompanionIntroSheet name={aiName} isCustom={customCompanionName(prefs?.assistantName) !== ""} />
 
       {/* Mic permission blocked — clear, dismissible, never a silent failure. */}
       {micState === "denied" && !micBannerDismissed && (
@@ -1197,7 +1207,7 @@ function CompanionPage() {
             aria-pressed={micState === "listening"}
           >
             <PilotPortrait state={orbToPortrait(orbState, micState === "listening")} size="xl" eager />
-            <span className="sr-only">{`Pilot — ${avatarStateLabel(orbState)}`}</span>
+            <span className="sr-only">{`${aiName} — ${avatarStateLabel(orbState)}`}</span>
           </button>
         </div>
         {/* Reserved presence slot — fixed height prevents column reflow. */}
@@ -1234,7 +1244,7 @@ function CompanionPage() {
               if (voiceSkipped === "disabled") {
                 updateLocal({ voiceRepliesEnabled: true });
                 setVoiceSkipped(null);
-                toast.success("Aura's voice is on.");
+                toast.success(`${aiName}'s voice is on.`);
                 // Replay the last assistant message so the user immediately hears voice.
                 const last = [...messages].reverse().find((m) => m.role === "assistant");
                 if (last?.content) {
@@ -1250,13 +1260,13 @@ function CompanionPage() {
             <VolumeX className="h-4 w-4 shrink-0 text-primary" />
             <span className="flex-1">
               {voiceSkipped === "disabled" && (
-                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable Aura's voice.</span></>
+                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable {aiName}&apos;s voice.</span></>
               )}
               {voiceSkipped === "quiet_hours" && (
-                <>🌙 Quiet Hours is on — Aura is staying silent. Adjust in settings if you'd like voice back.</>
+                <>🌙 Quiet Hours is on — {aiName} is staying silent. Adjust in settings if you&apos;d like voice back.</>
               )}
               {voiceSkipped === "autoplay_blocked" && (
-                <>🔈 Your browser blocked autoplay. Tap Aura once to unlock voice playback.</>
+                <>🔈 Your browser blocked autoplay. Tap {aiName} once to unlock voice playback.</>
               )}
               {voiceSkipped === "tts_error" && (
                 <>⚠️ Voice playback hit an error. Text is still here — try again or check your connection.</>
