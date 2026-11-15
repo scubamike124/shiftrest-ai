@@ -25,9 +25,9 @@ const ACTIVE: Row[] = [
     policy: "https://stripe.com/privacy",
   },
   {
-    name: "Google (Gemini API)",
+    name: "Google (Gemini API), or OpenAI",
     purpose:
-      "AI text generation for the coach, briefings, plans, insights and shift-swap advice. Only after you allow AI features.",
+      "AI text generation for the coach, briefings, plans, insights and shift-swap advice, by one of the two depending on configuration. Only after you allow AI features.",
     shared:
       "Your coach messages and the context added to them: shifts and schedule, sleep and fatigue estimates, preferences, preferred name, AI memories (if on), wearable summaries (if connected). Never Apple Health data",
     policy: "https://policies.google.com/privacy",
@@ -36,7 +36,8 @@ const ACTIVE: Row[] = [
     name: "OpenAI",
     purpose:
       "Speech-to-text, text-to-speech and live voice conversations. Only after you allow AI features.",
-    shared: "Your voice recordings, the text read aloud to you, your preferred name, your voice settings",
+    shared:
+      "Your voice recordings, the text read aloud to you, your preferred or display name, your voice settings",
     policy: "https://openai.com/policies/privacy-policy",
   },
   {
@@ -48,15 +49,13 @@ const ACTIVE: Row[] = [
   {
     name: "Fitbit (optional)",
     purpose: "Wearable sleep & activity sync",
-    shared:
-      "OAuth tokens; sleep, readiness, activity, heart-rate readings shared by Fitbit",
+    shared: "OAuth tokens; sleep, readiness, activity, heart-rate readings shared by Fitbit",
     policy: "https://www.fitbit.com/global/us/legal/privacy-policy",
   },
   {
     name: "Oura (optional)",
     purpose: "Wearable sleep & readiness sync",
-    shared:
-      "OAuth tokens; sleep, readiness, HRV, activity readings shared by Oura",
+    shared: "OAuth tokens; sleep, readiness, HRV, activity readings shared by Oura",
     policy: "https://ouraring.com/privacy-policy",
   },
   {

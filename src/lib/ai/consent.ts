@@ -17,7 +17,10 @@
 // app asks again.
 
 export const AI_CONSENT_KEY = "ai_data_sharing";
-export const AI_CONSENT_VERSION = "2026-11-15";
+// Railway hosting names different recipients from main (direct providers, not
+// the Lovable gateway), so its grants carry their own version: a grant given
+// for main's wording doesn't count here.
+export const AI_CONSENT_VERSION = "2026-11-15-railway";
 export const AI_CONSENT_DOCUMENT_SLUG = "ai-data-sharing";
 export const AI_CONSENT_WITHDRAWN_SLUG = "ai-data-sharing-withdrawn";
 
@@ -40,19 +43,21 @@ export type AIConsentProvider = {
 
 /** What the consent screen and Profile → Privacy tell the user. Keep in sync
  *  with /legal/privacy ("AI providers") and /legal/third-parties. */
-// Railway hosting: text AI goes to a direct OpenAI-compatible endpoint
-// (AI_BASE_URL; planned: Google's Gemini API) and audio to AI_AUDIO_BASE_URL
-// (OpenAI). If either is pointed at a different company, update this list,
+// Railway hosting: text AI goes to AI_BASE_URL (planned: Google's Gemini API)
+// or, when that is unset, to OpenAI (provider.server.ts falls back to
+// api.openai.com when OPENAI_API_KEY is set). So both are named as possible
+// recipients of the text payload. Audio goes to AI_AUDIO_BASE_URL (OpenAI).
+// If either endpoint is pointed at another company, update this list,
 // /legal/privacy and /legal/third-parties, and bump AI_CONSENT_VERSION.
 export const AI_CONSENT_PROVIDERS: AIConsentProvider[] = [
   {
-    name: "Google Gemini (Google's Gemini API)",
-    what: "Your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, AI memories (only if you turned AI memory on), and summaries from a wearable you connect (Fitbit or Oura). Never Apple Health data.",
+    name: "Google Gemini (Google's Gemini API), or OpenAI",
+    what: "One of these two, depending on how RestPilot's text AI is set up: your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, AI memories (only if you turned AI memory on), and summaries from a wearable you connect (Fitbit or Oura). Never Apple Health data.",
     why: "To write coach replies, briefings, plans, insights and shift-swap advice.",
   },
   {
     name: "OpenAI",
-    what: "Your voice recordings, the text read aloud to you, your preferred name and voice settings.",
+    what: "Your voice recordings, the text read aloud to you, your preferred or display name and voice settings.",
     why: "To turn speech into text, read replies and briefings aloud, and run live voice conversations.",
   },
   {

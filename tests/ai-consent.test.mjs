@@ -300,6 +300,13 @@ test("the consent screen names every provider and links the privacy policy", () 
   const names = c.AI_CONSENT_PROVIDERS.map((p) => `${p.name} ${p.what}`).join(" | ");
   for (const n of ["Google Gemini", "OpenAI", "ElevenLabs"]) assert.match(names, new RegExp(n));
   assert.match(names, /Never Apple Health/);
+  // provider.server.ts can send text AI to OpenAI when AI_BASE_URL is unset,
+  // so the text entry must name OpenAI as well as Google.
+  const text = c.AI_CONSENT_PROVIDERS.find((p) => /coach messages/.test(p.what));
+  assert.match(text.name, /Google Gemini/);
+  assert.match(text.name, /OpenAI/);
+  assert.match(read("src/lib/ai/provider.server.ts"), /api\.openai\.com/);
+  assert.notEqual(c.AI_CONSENT_VERSION, "2026-11-15", "main's grants don't count on Railway");
   const dialog = read("src/components/ai/AIConsentDialog.tsx");
   assert.match(dialog, /to="\/legal\/privacy"/);
   assert.match(dialog, />\s*Allow\s*|"Allow"/);
@@ -311,8 +318,10 @@ test("the consent screen names every provider and links the privacy policy", () 
     policy,
     /Apple Health data stays\s+on\s+your\s+iPhone\s+and\s+is\s+never\s+sent\s+to\s+AI\s+providers/,
   );
+  assert.match(policy, /Google Gemini \(Google's Gemini API\), or OpenAI/);
   const subprocessors = read("src/routes/legal.third-parties.tsx");
   assert.match(subprocessors, /ElevenLabs/);
+  assert.match(subprocessors, /Google \(Gemini API\), or OpenAI/);
 });
 
 // ---- server enforcement, route by route ------------------------------------
@@ -382,9 +391,35 @@ for (const [label, file, makeReq] of ROUTES) {
   });
 }
 
+test("consent is checked before admission, so a refusal never uses up the AI allowance", () => {
+  for (const f of [
+    "src/routes/api/ai.ts",
+    "src/routes/api/brief.ts",
+    "src/routes/api/insights.ts",
+    "src/routes/api/swap.ts",
+    "src/routes/api/stt.ts",
+    "src/routes/api/tts.ts",
+    "src/routes/api/tts-elevenlabs.ts",
+    "src/routes/api/lab/simli/speak.ts",
+    "src/routes/api/lab/simli/session.ts",
+  ]) {
+    const src = read(f);
+    const gate = src.indexOf("requireAIConsent(");
+    const admission = src.indexOf("requireAIAdmission(", src.indexOf("handlers:"));
+    assert.ok(gate > 0 && admission > 0 && gate < admission, `${f}: consent before admission`);
+  }
+  const rt = read("src/lib/realtime/openai.functions.ts");
+  const handler = rt.indexOf(".handler(");
+  assert.ok(
+    rt.indexOf("assertAIConsent(", handler) < rt.indexOf("requireAIAdmission(", handler),
+    "mintRealtimeSession: consent before admission",
+  );
+});
+
 test("the legacy /api/coach route only forwards to the gated /api/ai", () => {
   const src = read("src/routes/api/coach.ts");
-  assert.match(src, /url\.pathname = "\/api\/ai"/);
+  assert.match(src, /fetch\(aiForwardUrl\(request\.url\)/);
+  assert.match(read("src/lib/ai/forward.server.ts"), /\/api\/ai/);
   assert.match(src, /intent: "coach"/);
   for (const upstream of [
     "ai.gateway.lovable.dev",
