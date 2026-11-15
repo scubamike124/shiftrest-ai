@@ -1,0 +1,55 @@
+# Read-only post-publish verification of the live website.
+# Manual only (workflow_dispatch). It sends HTTP GET requests to the target
+# site and prints a PASS/FAIL table. It never deploys, publishes, pushes,
+# signs in, comments or writes anything, and uses no secrets.
+# Run it from the GitHub mobile website: Actions > "Post-publish verify" >
+# Run workflow. The workflow file must be on the default branch (main) for
+# GitHub to list it there, and Actions must be enabled on the repository.
+name: Post-publish verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Site to check (default: the production site)"
+        required: false
+        default: "https://restpilotai.com"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the target is a RestPilot site
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          case "$BASE_URL" in
+            https://restpilotai.com|https://www.restpilotai.com) ;;
+            *) echo "Refusing target: $BASE_URL"; exit 2 ;;
+          esac
+      - name: Verify (GET only)
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -o pipefail
+          node scripts/post-publish-verify.mjs --base "$BASE_URL" | tee verify.txt
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### Post-publish verification'
+            echo '```'
+            cat verify.txt 2>/dev/null || echo 'no output'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
