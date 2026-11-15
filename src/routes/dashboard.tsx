@@ -27,6 +27,7 @@ import { fetchEmployers, type Employer } from "@/lib/employers";
 import { circadianDebt, detectRotation } from "@/lib/sleep-engine";
 import { computeInsights } from "@/lib/insights";
 import { buildRecommendations } from "@/lib/recommendations";
+import { CardBoundary } from "@/components/CardBoundary";
 import { AIBriefCard } from "@/components/AIBriefCard";
 import { ArrivalHero } from "@/components/ArrivalHero";
 import { MultiDayPlan } from "@/components/MultiDayPlan";
@@ -374,7 +375,9 @@ function Dashboard() {
 
       {insights && (
         <HomeCard accent className="!p-0">
-          <AIBriefCard insights={insights} recommendations={recommendations} />
+          <CardBoundary label="AI brief">
+            <AIBriefCard insights={insights} recommendations={recommendations} />
+          </CardBoundary>
         </HomeCard>
       )}
 
@@ -412,16 +415,20 @@ function Dashboard() {
       </div>
 
       <HomeCard accent className="!p-0">
-        <RightNowCard signedIn={signedIn === true} context={insights?.contextString ?? ""} />
+        <CardBoundary label="Right now">
+          <RightNowCard signedIn={signedIn === true} context={insights?.contextString ?? ""} />
+        </CardBoundary>
       </HomeCard>
 
       {insights && (
         <HomeCard className="!p-0">
-          <CompanionWhisper
-            insights={insights}
-            signedIn={signedIn === true}
-            context={insights.contextString}
-          />
+          <CardBoundary label="Companion whisper">
+            <CompanionWhisper
+              insights={insights}
+              signedIn={signedIn === true}
+              context={insights.contextString}
+            />
+          </CardBoundary>
         </HomeCard>
       )}
 
@@ -567,29 +574,35 @@ function Dashboard() {
 
       {prefs.predictiveEnabled && (
         <HomeCard className="!p-0">
-          <PatternAlerts
-            signedIn={signedIn === true}
-            context={insights?.contextString ?? ""}
-            enabled={prefs.predictiveEnabled}
-          />
+          <CardBoundary label="Pattern alerts">
+            <PatternAlerts
+              signedIn={signedIn === true}
+              context={insights?.contextString ?? ""}
+              enabled={prefs.predictiveEnabled}
+            />
+          </CardBoundary>
         </HomeCard>
       )}
 
       {(prefs.tomorrowPreviewEnabled || prefs.dailyReviewEnabled) && prefs.predictiveEnabled && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeCard className="!p-0">
-            <TomorrowPreviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.tomorrowPreviewEnabled}
-            />
+            <CardBoundary label="Tomorrow preview">
+              <TomorrowPreviewCard
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.tomorrowPreviewEnabled}
+              />
+            </CardBoundary>
           </HomeCard>
           <HomeCard className="!p-0">
-            <DailyReviewCard
-              signedIn={signedIn === true}
-              context={insights?.contextString ?? ""}
-              enabled={prefs.dailyReviewEnabled}
-            />
+            <CardBoundary label="Daily review">
+              <DailyReviewCard
+                signedIn={signedIn === true}
+                context={insights?.contextString ?? ""}
+                enabled={prefs.dailyReviewEnabled}
+              />
+            </CardBoundary>
           </HomeCard>
         </div>
       )}

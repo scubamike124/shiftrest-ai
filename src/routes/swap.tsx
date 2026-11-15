@@ -15,6 +15,7 @@ import { fetchEmployers } from "@/lib/employers";
 import { fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { aiFetch } from "@/lib/ai/consent-client";
 
 export const Route = createFileRoute("/swap")({
@@ -79,9 +80,16 @@ ${
 
 User state: ${insights.contextString}`;
 
+      // /api/swap is bearer-guarded (requireUser); without the token every
+      // signed-in request came back 401 "Missing authorization".
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
       const resp = await aiFetch("/api/swap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ context }),
       });
 
