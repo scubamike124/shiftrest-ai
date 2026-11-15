@@ -1,0 +1,86 @@
+[
+ {
+  "w": 375,
+  "route": "/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 1,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}",
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ },
+ {
+  "w": 375,
+  "route": "/settings/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 0,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ },
+ {
+  "w": 390,
+  "route": "/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 1,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}",
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ },
+ {
+  "w": 390,
+  "route": "/settings/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 0,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ },
+ {
+  "w": 430,
+  "route": "/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 1,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}",
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ },
+ {
+  "w": 430,
+  "route": "/settings/companion",
+  "canvases": 0,
+  "skeletons": 0,
+  "portraits": 0,
+  "glbRequests": [],
+  "consoleErrors": [
+   "Failed to load resource: the server responded with a status of 406 (Not Acceptable)",
+   "addEmployer {code: PGRST116, message: JSON object requested, multiple (or no) rows returned, details: 0 rows, hint: null}"
+  ],
+  "rpmUiText": 0
+ }
+]
