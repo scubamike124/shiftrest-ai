@@ -39,7 +39,7 @@ export type Recommendation = {
   priority: number;
   /** True when the recommendation comes from measured wearable data. */
   basedOnWearable?: boolean;
-  /** Where that data came from, for the label (e.g. "Measured · from Apple Health"). */
+  /** Where that data came from, for the label (e.g. "Estimate · from Apple Health data"). */
   dataSource?: string;
   /** Plain-language reason for this time ("why this time"). */
   why?: string;

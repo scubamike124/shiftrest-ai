@@ -14,7 +14,12 @@ import type { Prefs } from "@/lib/prefs";
 import type { Shift } from "@/lib/shifts";
 import { lastNightFrom, recentNights, type AppleHealthNight } from "@/lib/health/apple-health";
 
-export const APPLE_HEALTH_LABEL = "Measured · from Apple Health";
+/**
+ * Sleep debt and HRV trends are calculations from measurements, so they are
+ * labelled as estimates (same split as the AI guardrails' [wearable] vs
+ * [estimate] tags). Raw nightly values are labelled "Measured" where shown.
+ */
+export const APPLE_HEALTH_LABEL = "Estimate · from Apple Health data";
 
 export type DeviceInsights = {
   /** For what this phone SHOWS. May include Apple Health. Never send it anywhere. */

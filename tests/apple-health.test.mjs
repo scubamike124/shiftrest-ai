@@ -144,7 +144,7 @@ test('only the wearable-driven recommendations get the "from Apple Health" label
   const recs = DI.labelRecommendations(buildRecommendations(insights, prefs, now), source);
   const labelled = recs.filter((r) => r.dataSource);
   assert.ok(labelled.length >= 1, 'sleep debt / HRV recommendation present');
-  assert.ok(labelled.every((r) => r.dataSource === 'Measured · from Apple Health' && r.basedOnWearable));
+  assert.ok(labelled.every((r) => r.dataSource === 'Estimate · from Apple Health data' && r.basedOnWearable));
   assert.ok(recs.filter((r) => !r.basedOnWearable).every((r) => !r.dataSource));
   const plain = DI.labelRecommendations(buildRecommendations(insights, prefs, now), null);
   assert.ok(plain.every((r) => !r.dataSource));

@@ -185,7 +185,7 @@ export function AIBriefCard({
 
       {includesAppleHealth && (
         <p className="relative z-10 mt-2 text-[11px] font-medium text-indigo-glow">
-          Includes your sleep and HRV, measured · from Apple Health
+          Estimate · includes your sleep and HRV from Apple Health
         </p>
       )}
 
