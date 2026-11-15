@@ -196,7 +196,9 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       };
     };
     const pageSize = 500;
-    for (const t of tables) {
+    // Store purchases and trial usage are the user's records too.
+    const exportTables = [...tables, "trial_usage", "store_entitlements"] as const;
+    for (const t of exportTables) {
       const key = t === "profiles" ? "id" : "user_id";
       const order = t === "user_prefs" || t === "notification_prefs" ? "user_id"
         : t === "companion_skills" ? "skill" : "id";

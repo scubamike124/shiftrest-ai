@@ -22,6 +22,16 @@ function startOfDay(d: Date): Date {
   return out;
 }
 
+/** YYYY-MM-DD of the Monday of the week containing `date` (local time). */
+export function mondayIso(date: Date = new Date()): string {
+  const mon = startOfDay(date);
+  mon.setDate(mon.getDate() - weekdayOf(mon));
+  const y = mon.getFullYear();
+  const m = String(mon.getMonth() + 1).padStart(2, "0");
+  const d = String(mon.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** Which week of the rotation does `date` belong to? 0..cycleWeeks-1. */
 export function weekIndexFor(
   date: Date,

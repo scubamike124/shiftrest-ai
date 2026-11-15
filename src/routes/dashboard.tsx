@@ -39,6 +39,7 @@ import { LongClock } from "@/components/LongClock";
 import { DecisionCenterCard } from "@/components/DecisionCenterCard";
 import { AIActivityFeed } from "@/components/AIActivityFeed";
 import {
+  mondayIso,
   shiftsForDate,
   weekIndexFor,
   weekLabel,
@@ -198,6 +199,22 @@ function Dashboard() {
     })();
     return () => { cancelled = true; };
   }, [signedIn, prefs.tzAuto, prefs.homeTz, prefs.currentTz]);
+
+  // A 2-6 week rotation needs a fixed "Week A starts" date. Accounts that
+  // picked a rotation before the profile saved one have none, so pin Week A
+  // to the current week (what this schedule shows today) once.
+  useEffect(() => {
+    if (!signedIn || prefs.cycleWeeks <= 1 || prefs.cycleAnchor) return;
+    void (async () => {
+      try {
+        const { savePrefs } = await import("@/lib/prefs");
+        await savePrefs({ cycleAnchor: mondayIso() });
+        await queryClient.invalidateQueries({ queryKey: ["prefs"] });
+      } catch {
+        /* non-fatal: retried on the next visit */
+      }
+    })();
+  }, [signedIn, prefs.cycleWeeks, prefs.cycleAnchor, queryClient]);
 
   function handleAuthError(err: unknown, fallback: string) {
     if (err instanceof AuthRequiredError) {
