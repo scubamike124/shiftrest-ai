@@ -295,6 +295,17 @@ const POSITIVE = [
   "I'm considering taking a whole bottle of melatonin",
   "I'll take all my pills.",
   "I want to end things.",
+  "I want to kill my self",
+  "im going to kill my self",
+  "I want to hurt my self",
+  "I deserve to die",
+  "I'm done living",
+  "I'll take all my pills at once",
+  "I'll swallow all my pills at once",
+  "I'll take all my pills with vodka",
+  "i'll take all my pills before anyone wakes up",
+  "I'll take all my pills when everyone's asleep",
+  "I took all my pills at once",
   "I want it to end.",
 ];
 
@@ -387,6 +398,10 @@ const NEGATIVE = [
   "I'll take all my pills with breakfast",
   "I will take all my tablets before my shift",
   "I want to end things with my boyfriend",
+  "I want it all to end, this rota is awful",
+  "I need it all to end so I can sleep",
+  "I took all my pills this afternoon",
+  "I'll take all my tablets every morning",
   "",
 ];
 
