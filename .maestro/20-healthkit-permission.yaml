@@ -8,35 +8,77 @@ tags: [healthkit]
 - extendedWaitUntil:
     visible: "Profile"
     timeout: 90000
-- tapOn: "Profile"
+# The bottom nav is visible in the server-rendered HTML before the page hydrates,
+# and a tap that lands first does nothing (CI run 43750694354: the tap was
+# accepted, the screen stayed on Home). Retry until the Profile page is up.
+- retry:
+    maxRetries: 4
+    commands:
+      - tapOn: "Profile"
+      - extendedWaitUntil:
+          visible: "Your preferences"
+          timeout: 15000
+# Finding the card. The card renders only once the app's Apple Health probe answers
+# (it is re-probed for ~10 s after the page loads). CI run 43763803447 swiped 48 times
+# past a card that was not on the page yet. So: a short scroll down, then back up and
+# down again as needed, and finally a non-optional wait that fails the flow if the
+# card is never there.
 - scrollUntilVisible:
     element:
       text: "Connect Apple Health"
     direction: DOWN
-    # Profile is long (voices, personality, settings); scroll faster and longer.
     speed: 80
-    timeout: 120000
-- tapOn: "Connect Apple Health"
-# On a fresh hosted simulator the system Health privacy service can take ~30 s
-# to start, and HealthKit fails the first request after ~10 s (CI run
-# 43691170744: "FAILED prompting authorization", then the service starts).
-# Tap once more if the sheet is not up yet; the service is warm by then.
-- extendedWaitUntil:
-    visible:
-      text: "(Health Access|Turn On All|Allow .* to read)"
-    timeout: 30000
+    timeout: 20000
     optional: true
-- runFlow:
-    when:
-      notVisible:
-        text: "(Health Access|Turn On All|Allow .* to read)"
+- retry:
+    maxRetries: 3
     commands:
-      - scrollUntilVisible:
-          element:
-            text: "Connect Apple Health"
-          direction: DOWN
-          timeout: 30000
-      - tapOn: "Connect Apple Health"
+      - runFlow:
+          when:
+            notVisible: "Connect Apple Health"
+          commands:
+            - scrollUntilVisible:
+                element:
+                  text: "Connect Apple Health"
+                direction: UP
+                speed: 80
+                timeout: 15000
+                optional: true
+            - scrollUntilVisible:
+                element:
+                  text: "Connect Apple Health"
+                direction: DOWN
+                speed: 80
+                timeout: 30000
+                optional: true
+      - extendedWaitUntil:
+          visible: "Connect Apple Health"
+          timeout: 10000
+# The system Health privacy service starts slowly on a fresh hosted simulator, and
+# HealthKit fails each authorization request after ~10 s while it is down. CI run
+# 43691170744 needed 2 taps; run 43759122862 (attempt 2) needed more: both taps
+# logged "FAILED prompting authorization" (21:21:33 and 21:22:12) and the service
+# only came up at 21:23:05, seconds after the flow gave up. The app asked
+# correctly every time. Tap Connect again until the sheet shows; the final
+# assertion below is unchanged and still fails the flow if it never appears.
+- retry:
+    maxRetries: 5
+    commands:
+      - runFlow:
+          when:
+            notVisible:
+              text: "(Health Access|Turn On All|Allow .* to read)"
+          commands:
+            - scrollUntilVisible:
+                element:
+                  text: "Connect Apple Health"
+                direction: DOWN
+                timeout: 30000
+            - tapOn: "Connect Apple Health"
+      - extendedWaitUntil:
+          visible:
+            text: "(Health Access|Turn On All|Allow .* to read)"
+          timeout: 25000
 - extendedWaitUntil:
     visible:
       text: "(Health Access|Turn On All|Allow .* to read)"
