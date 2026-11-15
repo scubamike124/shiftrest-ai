@@ -32,21 +32,34 @@ const OUT = opt("--out");
 if (!OUT) throw new Error("--out is required");
 const PRIV = path.join(OUT, "private");
 fs.mkdirSync(PRIV, { recursive: true });
-const readJsonl = (f) => fs.readFileSync(f, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const readJsonl = (f) =>
+  fs
+    .readFileSync(f, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
 const CATS = ["professionalism", "usefulness", "accuracy", "empathy", "safety", "consistency"];
 
 function rng(seed) {
   let s = seed >>> 0 || 1;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  return () => (s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32;
 }
 
 function localClock(iso, tz) {
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(iso));
 }
 
 if (cmd === "packets") {
   if (fs.existsSync(path.join(PRIV, "mapping.json")) && !rest.includes("--force"))
-    throw new Error("packets already built here (rids are random; rebuilding would orphan reviews). Use --force.");
+    throw new Error(
+      "packets already built here (rids are random; rebuilding would orphan reviews). Use --force.",
+    );
   const rand = rng(Number(opt("--seed", String(Date.now() % 1e9))));
   const tz = opt("--tz", "America/New_York");
   const items = [];
@@ -62,7 +75,13 @@ if (cmd === "packets") {
       const history = [];
       for (const t of rec.turns) {
         if (t.intercepted) {
-          product.push({ source: label, id: rec.id, turn: t.turn, user: t.user, ui: (t.ui || "").slice(-600) });
+          product.push({
+            source: label,
+            id: rec.id,
+            turn: t.turn,
+            user: t.user,
+            ui: (t.ui || "").slice(-600),
+          });
           continue;
         }
         const rid = crypto.randomBytes(4).toString("hex");
@@ -70,7 +89,8 @@ if (cmd === "packets") {
         items.push({
           rid,
           scenario: {
-            surface: "RestPilot Companion page (spoken surface: replies are read aloud; the app asks for 1 to 3 short sentences, no markdown, no greeting)",
+            surface:
+              "RestPilot Companion page (spoken surface: replies are read aloud; the app asks for 1 to 3 short sentences, no markdown, no greeting)",
             userRole: s.persona,
             category: s.cat,
             safetyCritical: s.critical,
@@ -84,8 +104,22 @@ if (cmd === "packets") {
           references: [s.reference, ...(s.sources || [])].filter(Boolean),
           reply: reply || "(empty reply: the user saw nothing)",
         });
-        mapping[rid] = { source: label, id: rec.id, turn: t.turn, ttftMs: t.ttftMs ?? null, totalMs: t.totalMs ?? null, finish: t.finish ?? null, persona: s.persona, cat: s.cat, scenarioCritical: s.critical };
-        checks[rid] = check(s, t.turn, reply, { sleepGoalHours: goal, surface: "voice", finish: t.finish });
+        mapping[rid] = {
+          source: label,
+          id: rec.id,
+          turn: t.turn,
+          ttftMs: t.ttftMs ?? null,
+          totalMs: t.totalMs ?? null,
+          finish: t.finish ?? null,
+          persona: s.persona,
+          cat: s.cat,
+          scenarioCritical: s.critical,
+        };
+        checks[rid] = check(s, t.turn, reply, {
+          sleepGoalHours: goal,
+          surface: "voice",
+          finish: t.finish,
+        });
         history.push({ role: "user", content: t.user }, { role: "assistant", content: reply });
       }
     }
@@ -102,8 +136,12 @@ if (cmd === "packets") {
 } else if (cmd === "aggregate") {
   const mapping = JSON.parse(fs.readFileSync(path.join(PRIV, "mapping.json"), "utf8"));
   const checks = JSON.parse(fs.readFileSync(path.join(PRIV, "checks.json"), "utf8"));
-  const reviewers = opt("--scores").split(",").map((f) => Object.fromEntries(readJsonl(f).map((x) => [x.rid, x])));
-  const tiebreak = opt("--tiebreak") ? Object.fromEntries(readJsonl(opt("--tiebreak")).map((x) => [x.rid, x])) : {};
+  const reviewers = opt("--scores")
+    .split(",")
+    .map((f) => Object.fromEntries(readJsonl(f).map((x) => [x.rid, x])));
+  const tiebreak = opt("--tiebreak")
+    ? Object.fromEntries(readJsonl(opt("--tiebreak")).map((x) => [x.rid, x]))
+    : {};
   const median = (xs) => {
     const v = xs.filter((x) => typeof x === "number").sort((a, b) => a - b);
     if (!v.length) return null;
@@ -130,14 +168,27 @@ if (cmd === "packets") {
     const applicable = CATS.filter((c) => typeof scores[c] === "number");
     const item = applicable.reduce((a, c) => a + scores[c], 0) / applicable.length;
     out.push({
-      rid, ...mapping[rid], scores, item: Math.round(item * 10) / 10, critical, criticalFlags: flags,
-      criticalSections: [...rs, tb].filter((r) => r && r.critical && r.critical !== "false").map((r) => r.critical),
-      split, why: [...rs.map((r) => r.why), tb ? `[tie-break] ${tb.why}` : null].filter(Boolean),
+      rid,
+      ...mapping[rid],
+      scores,
+      item: Math.round(item * 10) / 10,
+      critical,
+      criticalFlags: flags,
+      criticalSections: [...rs, tb]
+        .filter((r) => r && r.critical && r.critical !== "false")
+        .map((r) => r.critical),
+      split,
+      why: [...rs.map((r) => r.why), tb ? `[tie-break] ${tb.why}` : null].filter(Boolean),
       failedChecks: (checks[rid] || []).filter((c) => !c.pass).map((c) => `${c.name}: ${c.reason}`),
     });
   }
-  fs.writeFileSync(path.join(PRIV, "aggregate.json"), JSON.stringify({ items: out, disagreements }, null, 1));
-  console.log(`${out.length} items aggregated; ${disagreements.length} need a fourth reviewer: ${disagreements.join(",")}`);
+  fs.writeFileSync(
+    path.join(PRIV, "aggregate.json"),
+    JSON.stringify({ items: out, disagreements }, null, 1),
+  );
+  console.log(
+    `${out.length} items aggregated; ${disagreements.length} need a fourth reviewer: ${disagreements.join(",")}`,
+  );
 } else {
   console.error("usage: review-kit.mjs packets|aggregate ...");
   process.exit(1);

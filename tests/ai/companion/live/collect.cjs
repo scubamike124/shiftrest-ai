@@ -48,7 +48,11 @@ const INIT = () => {
   window.fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input && input.url ? input.url : String(input);
     if (!/\/api\/ai(\?|$)/.test(url)) return orig(input, init);
-    const rec = { t0: performance.now(), url, reqBody: init && typeof init.body === "string" ? init.body.slice(0, 40000) : null };
+    const rec = {
+      t0: performance.now(),
+      url,
+      reqBody: init && typeof init.body === "string" ? init.body.slice(0, 40000) : null,
+    };
     window.__rp.push(rec);
     let resp;
     try {
@@ -74,7 +78,8 @@ const INIT = () => {
           const { done, value } = await reader.read();
           if (done) break;
           raw += dec.decode(value, { stream: true });
-          if (rec.tFirst == null && /"content":"(?:[^"\\]|\\.)/.test(raw)) rec.tFirst = performance.now();
+          if (rec.tFirst == null && /"content":"(?:[^"\\]|\\.)/.test(raw))
+            rec.tFirst = performance.now();
         }
       } catch (e) {
         rec.error = String(e);
@@ -82,7 +87,11 @@ const INIT = () => {
       rec.raw = raw.slice(0, 200000);
       rec.tDone = performance.now();
     })();
-    return new Response(a, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
+    return new Response(a, {
+      status: resp.status,
+      statusText: resp.statusText,
+      headers: resp.headers,
+    });
   };
 };
 
@@ -127,13 +136,21 @@ async function signIn(context, page) {
     await page.fill("input[type=email]", email);
     await page.fill("input[type=password]", password);
     await page.waitForTimeout(500);
-    const ok = await page.evaluate(() => document.querySelector("input[type=email]")?.value.length > 0 && document.querySelector("input[type=password]")?.value.length > 0);
+    const ok = await page.evaluate(
+      () =>
+        document.querySelector("input[type=email]")?.value.length > 0 &&
+        document.querySelector("input[type=password]")?.value.length > 0,
+    );
     if (ok) break;
   }
   await page.getByRole("button", { name: /^Sign In$/ }).click();
   await page.waitForTimeout(5000);
   // Clear the password field from the DOM in case the page did not navigate.
-  await page.evaluate(() => document.querySelectorAll("input[type=password]").forEach((i) => (i.value = ""))).catch(() => {});
+  await page
+    .evaluate(() =>
+      document.querySelectorAll("input[type=password]").forEach((i) => (i.value = "")),
+    )
+    .catch(() => {});
   if (/\/auth/.test(new URL(page.url()).pathname)) return false;
   await context.storageState({ path: STATE });
   fs.chmodSync(STATE, 0o600);
@@ -154,12 +171,18 @@ async function clearMemory(page) {
 }
 
 async function uiTail(page) {
-  return page.evaluate(() => (document.querySelector("main") || document.body).innerText.slice(-2500)).catch(() => "");
+  return page
+    .evaluate(() => (document.querySelector("main") || document.body).innerText.slice(-2500))
+    .catch(() => "");
 }
 
 async function runTurn(page, text) {
   const before = await page.evaluate(() => window.__rp.length);
-  const box = page.locator('textarea[placeholder="Message your Companion"], input[placeholder="Message your Companion"]').first();
+  const box = page
+    .locator(
+      'textarea[placeholder="Message your Companion"], input[placeholder="Message your Companion"]',
+    )
+    .first();
   await box.waitFor({ state: "visible", timeout: 30000 });
   await box.fill(text);
   const sendLocal = new Date();
@@ -196,7 +219,14 @@ async function runTurn(page, text) {
   let reqSummary = null;
   try {
     const b = JSON.parse(rec.reqBody);
-    reqSummary = { intent: b.intent, surface: b.surface, timezone: b.timezone, localTime: b.localTime, messages: (b.messages || []).length, context: b.context };
+    reqSummary = {
+      intent: b.intent,
+      surface: b.surface,
+      timezone: b.timezone,
+      localTime: b.localTime,
+      messages: (b.messages || []).length,
+      context: b.context,
+    };
   } catch {
     /* no body */
   }
@@ -235,7 +265,18 @@ async function runTurn(page, text) {
       try {
         const j = await r.json();
         const row = Array.isArray(j) ? j[0] : j;
-        if (row) for (const k of ["home_tz", "current_tz", "sleep_hours", "wind_down_min", "assistant_name", "assistant_mode", "memory_enabled", "voice_language"]) if (k in row) prefs[k] = row[k];
+        if (row)
+          for (const k of [
+            "home_tz",
+            "current_tz",
+            "sleep_hours",
+            "wind_down_min",
+            "assistant_name",
+            "assistant_mode",
+            "memory_enabled",
+            "voice_language",
+          ])
+            if (k in row) prefs[k] = row[k];
       } catch {
         /* ignore */
       }
@@ -257,15 +298,33 @@ async function runTurn(page, text) {
     for (const [i, text] of s.turns.entries()) {
       const r = await runTurn(page, text);
       turns.push({ turn: i, user: text, ...r });
-      log(s.id, `turn ${i}`, r.intercepted ? "INTERCEPTED by client intent router" : `status ${r.status} ttft ${r.ttftMs}ms total ${r.totalMs}ms finish ${r.finish} chars ${(r.reply || "").length}`);
+      log(
+        s.id,
+        `turn ${i}`,
+        r.intercepted
+          ? "INTERCEPTED by client intent router"
+          : `status ${r.status} ttft ${r.ttftMs}ms total ${r.totalMs}ms finish ${r.finish} chars ${(r.reply || "").length}`,
+      );
       if (r.status === 429) {
-        log("429 from /api/ai: daily AI budget or rate limit reached. Stopping.", (r.rawError || "").slice(0, 120));
+        log(
+          "429 from /api/ai: daily AI budget or rate limit reached. Stopping.",
+          (r.rawError || "").slice(0, 120),
+        );
         stop = true;
         break;
       }
       await sleep(3000);
     }
-    fs.appendFileSync(outFile, JSON.stringify({ id: s.id, memoryBefore: memory, prefs, collectedAt: new Date().toISOString(), turns }) + "\n");
+    fs.appendFileSync(
+      outFile,
+      JSON.stringify({
+        id: s.id,
+        memoryBefore: memory,
+        prefs,
+        collectedAt: new Date().toISOString(),
+        turns,
+      }) + "\n",
+    );
     if (stop) break;
   }
   fs.writeFileSync(path.join(OUT, "account-prefs.json"), JSON.stringify(prefs, null, 2));

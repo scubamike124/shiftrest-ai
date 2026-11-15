@@ -306,7 +306,11 @@ export function parseIntent(input: string): ParsedIntent {
   if (bare) {
     const stripped = text.replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim();
     if (stripped.split(" ").length <= 3) {
-      return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: 0.9, raw };
+      return {
+        intent: { kind: "play_track", slug: bare.slug, label: bare.label },
+        confidence: 0.9,
+        raw,
+      };
     }
   }
 

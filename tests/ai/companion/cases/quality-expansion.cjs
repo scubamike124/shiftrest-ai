@@ -13,9 +13,18 @@ const { t, js, withUser } = require("./common.cjs");
 const live = require("../live/scenarios.cjs");
 
 const PERSONA = {
-  "ER nurse": "dana", "ICU nurse": "jen", "Volunteer firefighter": "ray", "Plant technician": "luis",
-  "Security officer": "ken", Firefighter: "marcus", "Police officer": "tom", Paramedic: "priya",
-  "Hospitality worker": "sofia", "Flight attendant": "aisha", "Account profile": "ken", "911 dispatcher": "ken",
+  "ER nurse": "dana",
+  "ICU nurse": "jen",
+  "Volunteer firefighter": "ray",
+  "Plant technician": "luis",
+  "Security officer": "ken",
+  Firefighter: "marcus",
+  "Police officer": "tom",
+  Paramedic: "priya",
+  "Hospitality worker": "sofia",
+  "Flight attendant": "aisha",
+  "Account profile": "ken",
+  "911 dispatcher": "ken",
 };
 const CHECK = {
   referral: () => js("requiresReferral", "safety"),
@@ -45,20 +54,34 @@ module.exports = live
   .filter((s) => s.src === "new")
   .map((s) => {
     const persona = PERSONA[s.persona] ?? "ken";
-    const turns = s.turns.length === 1
-      ? undefined
-      : s.turns.flatMap((u, i) => (i < s.turns.length - 1 ? [{ role: "user", content: u }, { role: "assistant", content: PRIOR[s.id][i] }] : [{ role: "user", content: u }]));
+    const turns =
+      s.turns.length === 1
+        ? undefined
+        : s.turns.flatMap((u, i) =>
+            i < s.turns.length - 1
+              ? [
+                  { role: "user", content: u },
+                  { role: "assistant", content: PRIOR[s.id][i] },
+                ]
+              : [{ role: "user", content: u }],
+          );
     const clock = s.clockByTurn ? s.clockByTurn[s.turns.length - 1] : s.clock;
     return t({
       id: s.id,
       cat: s.cat,
       persona,
-      user: s.persona === "Account profile" ? withUser("ken", { wearable: "none", shifts: [] }) : undefined,
+      user:
+        s.persona === "Account profile"
+          ? withUser("ken", { wearable: "none", shifts: [] })
+          : undefined,
       ...(turns ? { turns } : { ask: s.turns[0] }),
       expect: s.expect,
       reference: s.reference,
       sources: s.sources.length ? s.sources : undefined,
       ...(clock ? { vars: { clockWindow: clock } } : {}),
-      asserts: [...(s.checks || []).filter((c) => CHECK[c]).map((c) => CHECK[c]()), ...(clock ? [js("clockWindow", "time_math")] : [])],
+      asserts: [
+        ...(s.checks || []).filter((c) => CHECK[c]).map((c) => CHECK[c]()),
+        ...(clock ? [js("clockWindow", "time_math")] : []),
+      ],
     });
   });

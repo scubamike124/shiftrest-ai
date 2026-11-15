@@ -70,7 +70,12 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
 
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
-  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + `\n\n${DATA_HONESTY}` + overlay + `\n\n${SAFETY_AND_CARE}`;
+  return (
+    BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") +
+    `\n\n${DATA_HONESTY}` +
+    overlay +
+    `\n\n${SAFETY_AND_CARE}`
+  );
 }
 
 export type MemoryRow = {
