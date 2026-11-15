@@ -214,6 +214,23 @@ const POSITIVE = [
   "I swallowed a whole bottle of sleeping pills",
   "I think I overdosed on melatonin",
   "how many pills would be an overdose",
+  // From the independent review of #68
+  "I've been cutting myself again",
+  "I cut myself on purpose",
+  "I took too many pills",
+  "I took too many sleeping pills",
+  "I took a handful of pills",
+  "I don't want to live",
+  "I don't want to live any more",
+  "I dont wanna live anymore",
+  "I don't want to live like this",
+  "I want to be dead",
+  "i wanna be dead",
+  "I wish I wasn't alive",
+  "I've been thinking about killing myself",
+  "I'm going to kill myself",
+  "can you overdose on melatonin?", // deliberate: any overdose mention shows the card
+  "this job makes me want to die lol", // deliberate: cautious side
 ];
 
 const NEGATIVE = [
@@ -238,6 +255,16 @@ const NEGATIVE = [
   "That movie was to die for",
   "my battery is dying",
   "Should I end my shift early?",
+  // From the independent review of #68
+  "I'm killing myself with these double shifts",
+  "I'm killing myself working nights",
+  "I accidentally cut myself chopping onions",
+  "I cut myself on a box cutter at work",
+  "I don't want to live in this city anymore",
+  "I don't want to live near the hospital",
+  "should I get suicide doors on my next car",
+  "watched Suicide Squad before bed",
+  "I take too many vitamins",
   "",
 ];
 
@@ -293,22 +320,132 @@ test("crisis card: static 988 / 911 / local emergency number / findahelpline.com
   assert.doesNotMatch(src, /consent-client|consent\.functions|aiFetch|\bfetch\(/);
 });
 
+/**
+ * Runs the same send pre-flight the Coach and Companion use, with the REAL
+ * consent client (supabase, toast stubbed) and a counting fetch:
+ *   showCardOnCrisis -> shouldSendToAI(crisis, aiConsentWouldAsk) -> aiFetch
+ */
+async function runSendFlow(text, consent) {
+  const fetched = [];
+  const fetch = async (url) => {
+    fetched.push(String(url));
+    return { status: 200, ok: true, headers: { get: () => null } };
+  };
+  const store = new Map();
+  const sessionStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: (k) => store.delete(k),
+  };
+  const { sandbox, app } = makeLoader({
+    globals: { fetch, sessionStorage, Response: globalThis.Response },
+    allowNode: ["react"],
+    stubs: {
+      "@/integrations/supabase/client": {
+        supabase: {
+          auth: {
+            getSession: async () => ({ data: { session: { user: { id: "u1" } } } }),
+            onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+          },
+        },
+      },
+      sonner: { toast: { message() {}, error() {} } },
+    },
+  });
+  sandbox.window = sandbox;
+  const client = app("@/lib/ai/consent-client");
+  client.registerAIConsentApi({
+    get: async () => {
+      if (consent === "unknown") throw new Error("offline");
+      return { granted: consent === "granted", grantedAt: null };
+    },
+    set: async () => ({ granted: true, grantedAt: null }),
+  });
+  const { showCardOnCrisis, shouldSendToAI } = app("@/lib/safety/crisis-cues");
+
+  let card = false;
+  const crisis = showCardOnCrisis(text, () => {
+    card = true;
+  });
+  const cardBeforeAnyAwait = card;
+  const send = await shouldSendToAI(crisis, client.aiConsentWouldAsk);
+  let dialogOpened = false;
+  if (send) {
+    const pending = client.aiFetch("/api/ai", { method: "POST" });
+    // Let the consent check run; answer "Not now" if the dialog opened.
+    for (let i = 0; i < 20 && !client.getAIConsentState().dialogOpen; i++) await null;
+    if (client.getAIConsentState().dialogOpen) {
+      dialogOpened = true;
+      client.resolveAIConsentDialog(false);
+    }
+    await pending;
+  }
+  return { crisis, card, cardBeforeAnyAwait, send, fetched, dialogOpened };
+}
+
+const CRISIS_TEXT = "I don't want to live anymore";
+
+test("no consent: a crisis message shows the card, opens no consent prompt and makes no fetch", async () => {
+  const r = await runSendFlow(CRISIS_TEXT, "denied");
+  assert.equal(r.card, true);
+  assert.equal(r.cardBeforeAnyAwait, true, "card is shown synchronously, before any await");
+  assert.equal(r.send, false);
+  assert.equal(r.dialogOpened, false, "no data-sharing prompt on top of the card");
+  assert.deepEqual(r.fetched, [], "nothing is sent anywhere");
+});
+
+test("consent granted: the card shows and the message still reaches the AI", async () => {
+  const r = await runSendFlow(CRISIS_TEXT, "granted");
+  assert.equal(r.cardBeforeAnyAwait, true);
+  assert.equal(r.send, true);
+  assert.deepEqual(r.fetched, ["/api/ai"]);
+});
+
+test("consent status unavailable (offline): the card still shows; the server decides on sending", async () => {
+  const r = await runSendFlow(CRISIS_TEXT, "unknown");
+  assert.equal(r.cardBeforeAnyAwait, true);
+  assert.equal(r.send, true);
+});
+
+test("non-crisis messages: no card, and the normal consent gate is unchanged", async () => {
+  const denied = await runSendFlow("what time should I nap before nights?", "denied");
+  assert.equal(denied.card, false);
+  assert.equal(denied.dialogOpened, true, "the consent dialog still asks as before");
+  assert.deepEqual(denied.fetched, [], "and nothing is sent after 'Not now'");
+  const granted = await runSendFlow("what time should I nap before nights?", "granted");
+  assert.equal(granted.card, false);
+  assert.deepEqual(granted.fetched, ["/api/ai"]);
+});
+
+test("shouldSendToAI: a failing consent check never swallows the message", async () => {
+  const { shouldSendToAI } = cues;
+  assert.equal(await shouldSendToAI(false, async () => true), true);
+  assert.equal(await shouldSendToAI(true, async () => true), false);
+  assert.equal(await shouldSendToAI(true, async () => false), true);
+  assert.equal(
+    await shouldSendToAI(true, async () => {
+      throw new Error("x");
+    }),
+    true,
+  );
+});
+
 for (const [route, sendFn] of [
   ["routes/coach.tsx", "async function send("],
   ["routes/companion.tsx", "async function handleSend("],
 ]) {
-  test(`${route}: crisis check runs before the consent gate and any AI call, and never blocks`, () => {
+  test(`${route}: wired as showCardOnCrisis -> sending guard -> shouldSendToAI -> aiFetch; never blocks`, () => {
     const src = readFileSync(path.join(SRC, route), "utf8");
     const body = src.slice(src.indexOf(sendFn));
-    const check = body.indexOf("hasCrisisCue(");
-    const show = body.indexOf("if (crisis) setCrisisCard(true)");
-    const gate = body.indexOf("aiConsentWouldAsk()");
+    const show = body.indexOf("showCardOnCrisis(");
+    const guard = body.indexOf("if (sending) return;");
+    const gate = body.indexOf("await shouldSendToAI(crisis, aiConsentWouldAsk)");
     const ai = body.indexOf('aiFetch("/api/ai"');
-    assert.ok(check > 0 && show > check, "the card is set from the local check");
-    assert.ok(show < gate && gate < ai, "before the consent check and the AI request");
-    // Without consent: the card stays up and the function just returns (no
-    // dialog, no request); with consent the message still goes to the AI.
-    assert.match(body, /if \(crisis && \(await aiConsentWouldAsk\(\)\)\) return;/);
+    const firstAwait = body.indexOf("await ");
+    assert.ok(show > 0 && show < guard, "checked before the sending guard");
+    assert.ok(show < firstAwait, "checked before the first await");
+    assert.ok(guard < gate && gate < ai, "before the consent check and the AI request");
+    assert.match(body, /if \(!\(await shouldSendToAI\(crisis, aiConsentWouldAsk\)\)\) return;/);
     assert.match(src, /<CrisisSupportCard onClose=\{\(\) => setCrisisCard\(false\)\} \/>/);
     assert.doesNotMatch(src, /disabled=\{[^}]*crisis/i, "the composer is never disabled by it");
   });

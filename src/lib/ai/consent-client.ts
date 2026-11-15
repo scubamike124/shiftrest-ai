@@ -183,7 +183,9 @@ export async function ensureAIConsent(opts: EnsureOptions = {}): Promise<boolean
 /**
  * True when an interactive AI request would first have to open the consent
  * dialog (the user hasn't allowed AI sharing). Never opens it. Lets a crisis
- * message get the local crisis card instead of a data-sharing prompt.
+ * message get the local crisis card instead of a data-sharing prompt. It may
+ * call RestPilot's own server to load the answer, so callers show the crisis
+ * card first (showCardOnCrisis) and only then await this.
  */
 export async function aiConsentWouldAsk(): Promise<boolean> {
   if (typeof window === "undefined") return false;

@@ -17,7 +17,7 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
-import { hasCrisisCue } from "@/lib/safety/crisis-cues";
+import { shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 export const Route = createFileRoute("/coach")({
@@ -182,11 +182,12 @@ function Coach() {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
-    // Local crisis-cue check first: before the AI consent gate and any AI or
-    // network call, so the crisis line shows with or without AI permission.
-    const crisis = hasCrisisCue(trimmed);
-    if (crisis) setCrisisCard(true);
+    if (!trimmed) return;
+    // Local crisis-cue check first: before the `sending` guard, the AI consent
+    // gate and any AI or network call, so the crisis line shows with or
+    // without AI permission, even while a reply is still streaming.
+    const crisis = showCardOnCrisis(trimmed, () => setCrisisCard(true));
+    if (sending) return;
     const userMsg: Msg = { role: "user", content: trimmed };
     const baseMessages = [...messages, userMsg];
     setMessages(baseMessages);
@@ -198,9 +199,10 @@ function Coach() {
     scrollToBottom();
 
     try {
-      // Without AI permission, a crisis message gets the card above rather
-      // than a data-sharing prompt. Nothing is sent; the user can keep typing.
-      if (crisis && (await aiConsentWouldAsk())) return;
+      // Without AI permission, a crisis message gets the card (already shown
+      // above; keep this after showCardOnCrisis) rather than a data-sharing
+      // prompt. Nothing is sent; the user can keep typing.
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) return;
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
       const resp = await aiFetch("/api/ai", {
