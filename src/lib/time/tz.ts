@@ -272,3 +272,26 @@ export function describeTzBasis(
     : `Local clock and body clock both ${normalizeTz(currentTz)}.`;
   return { isTraveling, offsetMin, offsetHours: hours, label };
 }
+
+/**
+ * The user's zone for server-side "today/tomorrow" math: current (travel)
+ * zone, then home zone, then `fallback`. Server functions run in UTC, so
+ * `new Date().setHours(7)` there means 07:00 UTC (2:00 AM in New York).
+ */
+export function userTz(
+  currentTz: string | null | undefined,
+  homeTz: string | null | undefined,
+  fallback = "America/New_York",
+): string {
+  for (const raw of [currentTz, homeTz]) {
+    const tz = raw ? normalizeTz(raw) : "";
+    if (tz && isValidTz(tz)) return tz;
+  }
+  return fallback;
+}
+
+/** UTC instant of `minuteOfDay` local time, `dayOffset` calendar days after `now`'s date in `tz`. */
+export function utcAtLocalDay(now: Date, tz: string, dayOffset: number, minuteOfDay = 0): Date {
+  const p = localPartsInTz(now, tz);
+  return utcFromLocal(p.year, p.month, p.day + dayOffset, minuteOfDay, tz);
+}
