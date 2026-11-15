@@ -31,7 +31,8 @@ import {
 import { logAIRequest } from "@/lib/ai/log.server";
 import { modelForTask } from "@/lib/ai/models.server";
 import { commuteTimes, normalizeLiveContext } from "@/lib/ai/intent-guards";
-import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
+import { normalizeIntentOutput } from "@/lib/ai/intent-schemas";
+import { proposeMemoriesFromChat } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
@@ -176,7 +177,7 @@ Return ONLY valid JSON:
   "headline": string (<=80 chars, warm, e.g. "Solid recovery day — small win on caffeine timing"),
   "wins": [string (<=110 chars, each)],
   "drains": [string (<=110 chars, each — frame as data not failure)],
-  "metrics": {"sleepRecoveredMin": number|null, "readinessDelta": number|null, "recoveryTrend": "up"|"flat"|"down"|"unknown"},
+  "metrics": {"sleepRecoveredMin": number|null, "recoveryTrend": "up"|"flat"|"down"|"unknown"},
   "tomorrowFocus": string (<=130 chars, one small improvement to try)
 }
 1-3 items per list. Skip a metric (null) if you don't have the data.`;
@@ -401,7 +402,8 @@ export const Route = createFileRoute("/api/ai")({
                     });
 
                     if (profile.memoryEnabled && userTurn && assistant) {
-                      await extractAndStoreMemories({
+                      // Proposals only: the user accepts them on /memory before anything is saved.
+                      await proposeMemoriesFromChat({
                         admin,
                         userId,
                         userTurn,
@@ -655,6 +657,20 @@ export const Route = createFileRoute("/api/ai")({
               const times = commuteTimes(body.shiftStartIso, body.travelMin, body.prepMin);
               if (times) Object.assign(parsed, times);
             }
+
+            // Validate before anything reaches the UI: coerce types, default unknown
+            // enum values, drop malformed items and unknown keys (this also drops any
+            // readiness figure: no readiness data reaches the model).
+            const normalized = normalizeIntentOutput(body.intent, parsed, {
+              nowIso: new Date().toISOString(),
+              targetWakeIso: body.intent === "smart_alarm" ? body.targetWakeIso : undefined,
+              phase: body.intent === "jetlag_plan" ? body.phase : undefined,
+            });
+            if (!normalized.ok) {
+              console.warn("ai intent output rejected", body.intent, normalized.reason);
+              return jsonError(502, "AI returned incomplete data");
+            }
+            parsed = normalized.value;
 
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;

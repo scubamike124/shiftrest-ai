@@ -35,7 +35,11 @@ export async function fetchRouteSnapshot(
       `?overview=false&alternatives=true&steps=false`;
     const ac = new AbortController();
     const t = setTimeout(() => ac.abort(), 4500);
-    const res = await fetch(url, { signal: ac.signal });
+    // The OSRM/FOSSGIS demo-server policy asks for an identifying User-Agent.
+    const res = await fetch(url, {
+      signal: ac.signal,
+      headers: { "User-Agent": "RestPilotAI/1.0 (+https://restpilotai.com)" },
+    });
     clearTimeout(t);
     if (!res.ok) return null;
     const json = (await res.json()) as OsrmResponse;

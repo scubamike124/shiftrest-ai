@@ -89,6 +89,16 @@ test("a newer incomplete checkout does not hide an older paid row", async () => 
   assert.equal(s.isPremium, true);
 });
 
+test("a lifetime member who later bought a plan still shows lifetime (matches the server)", async () => {
+  const s = await load({
+    rows: [
+      { price_id: "restpilot_monthly", status: "active", current_period_end: future },
+      { price_id: "restpilot_lifetime", status: "lifetime", current_period_end: null },
+    ],
+  }).getSubscriptionState();
+  assert.equal(s.tier, "lifetime");
+});
+
 test("expired rows are not premium; signed-out users are free; configured builds use their own mode", async () => {
   const exp = await load({
     rows: [{ price_id: "restpilot_monthly", status: "active", current_period_end: past }],
