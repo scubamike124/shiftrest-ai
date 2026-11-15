@@ -13,6 +13,8 @@ import { speakQueued, stopSpeaking, prepareVoicePlayback } from "@/lib/companion
 import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-history";
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import { greetingLabel } from "@/lib/time/day-part";
 
 export const Route = createFileRoute("/pilot")({
@@ -116,14 +118,15 @@ function PilotPage() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
-  const pilotName = (prefs?.assistantName?.trim() || "Pilot");
+  const { id: avatarId } = useAvatar();
+  const pilotName = companionName(prefs?.assistantName, avatarId);
 
   const dayGreeting = greetingLabel();
   const greeting: CoachMsg = {
     role: "assistant",
     content: signedIn
       ? `${dayGreeting} — I'm ${pilotName}. Tap the orb and tell me what's on your mind.`
-      : `${dayGreeting} — I'm Pilot. Tap the orb and tell me what's on your mind.`,
+      : `${dayGreeting} — I'm ${DEFAULT_COMPANION_NAME}. Tap the orb and tell me what's on your mind.`,
   };
 
   const { data: history } = useQuery({

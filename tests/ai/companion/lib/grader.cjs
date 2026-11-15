@@ -6,6 +6,7 @@
  * the judge so results can be cross-checked with a second judge.
  */
 const { costOf } = require("./app-provider.cjs");
+const { guarded, estimateTokens } = require("./guard.cjs");
 
 const VENDORS = {
   openai: { baseUrl: "https://api.openai.com/v1", key: "OPENAI_API_KEY", model: "gpt-6.1-sol" },
@@ -29,7 +30,7 @@ class Grader {
     const j = judgeConfig();
     return j ? `judge:${j.vendor}:${j.model}` : "judge:unconfigured";
   }
-  async callApi(prompt) {
+  async callApi(prompt, context) {
     const j = judgeConfig();
     if (!j) return { error: "no judge key (set OPENAI_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY, or run with BENCH_NO_JUDGE=1)" };
     let messages;
@@ -42,6 +43,15 @@ class Grader {
     // OpenAI reasoning judges spend output tokens on reasoning: keep it low and leave headroom.
     const body = j.vendor === "openai" ? { model: j.model, messages, max_completion_tokens: 2000, reasoning_effort: "low" } : { model: j.model, messages, max_tokens: 1000 };
     if (j.vendor !== "anthropic") body.response_format = { type: "json_object" };
+    return guarded({
+      parts: { judge: `${j.baseUrl}|${j.model}`, body },
+      estimate: estimateTokens(JSON.stringify(messages)) + (body.max_completion_tokens ?? body.max_tokens),
+      context,
+      call: () => this.send(j, body),
+    });
+  }
+
+  async send(j, body) {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(`${j.baseUrl}/chat/completions`, {
         method: "POST",
