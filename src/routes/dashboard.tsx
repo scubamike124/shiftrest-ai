@@ -357,6 +357,8 @@ function Dashboard() {
         <div className="absolute right-0 top-1/3 h-[30vh] w-[30vh] rounded-full bg-sky-500/10 blur-[120px]" />
       </div>
 
+      <h1 className="sr-only">Dashboard</h1>
+
       <CompanionHero
         name={(prefs.preferredName ?? "").trim()}
         now={mounted ? today : new Date(0)}
