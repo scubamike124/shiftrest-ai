@@ -97,6 +97,11 @@ async function mintAndCapture(prefsRow) {
       "@/lib/ai/consent.server": { assertAIConsent: async () => {} },
       "@/lib/ai/log.server": { requireAIBudget: async () => null, recordAIUsage: async () => {}, USAGE_ESTIMATE: { SESSION_MINT_TOKENS: 3000 } },
       "@/lib/api/ratelimit.server": { enforceRateLimit: async () => null, RATE_LIMITS: { realtime: {} } },
+      "@/lib/realtime/session-cost.server": {
+        startRealtimeSession: async () => ({ ok: true, sessionId: "s1", deadlineAt: 1, maxSessionSeconds: 300, debit: 10000 }),
+        abortRealtimeSession: async () => {},
+        REALTIME_COST: { TOKEN_TTL_SECONDS: 60, MAX_OUTPUT_TOKENS: 1000 },
+      },
       "@/lib/realtime/trial-usage.functions": {
         loadTrialUsageState: async () => ({
           isTrial: false,

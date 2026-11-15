@@ -19,6 +19,7 @@ import {
   subscribeAIConsent,
 } from "@/lib/ai/consent-client";
 import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
+import { reportRealtimeSession } from "@/lib/realtime/session-report.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
 
@@ -78,6 +79,12 @@ const OPENAI_REALTIME_CALLS_URL = "https://api.openai.com/v1/realtime/calls";
 export function useOpenAIRealtime() {
   const mint = useServerFn(mintRealtimeSession);
   const recordUsage = useServerFn(recordTrialVoiceUsage);
+  const reportSession = useServerFn(reportRealtimeSession);
+  // Server-issued voice session (cost cap): id, hard deadline timer, start.
+  const rtSessionIdRef = useRef<string | null>(null);
+  const rtDeadlineTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rtStartedAtRef = useRef<number | null>(null);
+  const endRef = useRef<(reason: string) => void>(() => {});
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -139,6 +146,29 @@ export function useOpenAIRealtime() {
       clearInterval(heartbeatIdRef.current);
       heartbeatIdRef.current = null;
     }
+    if (rtDeadlineTimerRef.current) {
+      clearTimeout(rtDeadlineTimerRef.current);
+      rtDeadlineTimerRef.current = null;
+    }
+    // Tell the server the session is over (refunds part of the unused debit
+    // and frees the one-active-session slot). Best effort.
+    if (rtSessionIdRef.current) {
+      const sid = rtSessionIdRef.current;
+      const startedAt = rtStartedAtRef.current ?? performance.now();
+      rtSessionIdRef.current = null;
+      rtStartedAtRef.current = null;
+      try {
+        await reportSession({
+          data: {
+            sessionId: sid,
+            elapsedSeconds: Math.max(0, Math.floor((performance.now() - startedAt) / 1000)),
+            final: true,
+          },
+        });
+      } catch {
+        /* best-effort */
+      }
+    }
     // Flush any remaining seconds before we forget the session start.
     if (sessionStartAtRef.current != null) {
       await flushUsage();
@@ -161,7 +191,7 @@ export function useOpenAIRealtime() {
     awaitingFirstReplyAudioRef.current = false;
     sessionStartAtRef.current = null;
     lastFlushAtRef.current = null;
-  }, [flushUsage]);
+  }, [flushUsage, reportSession]);
 
   const handleEvent = useCallback((raw: string) => {
     let evt: { type?: string; transcript?: string; delta?: string } & Record<string, unknown>;
@@ -382,8 +412,32 @@ export function useOpenAIRealtime() {
       sessionStartAtRef.current = performance.now();
       lastFlushAtRef.current = sessionStartAtRef.current;
       if (heartbeatIdRef.current) clearInterval(heartbeatIdRef.current);
+      // Voice cost cap: hard client deadline given by the server, plus a
+      // heartbeat that lets the server tell us to hang up.
+      rtSessionIdRef.current = session.sessionId;
+      rtStartedAtRef.current = performance.now();
+      if (rtDeadlineTimerRef.current) clearTimeout(rtDeadlineTimerRef.current);
+      rtDeadlineTimerRef.current = setTimeout(
+        () => endRef.current("deadline"),
+        Math.max(1000, session.deadlineAt - Date.now()),
+      );
       heartbeatIdRef.current = setInterval(() => {
         void flushUsage();
+        const sid = rtSessionIdRef.current;
+        if (!sid) return;
+        const startedAt = rtStartedAtRef.current ?? performance.now();
+        void reportSession({
+          data: {
+            sessionId: sid,
+            elapsedSeconds: Math.max(0, Math.floor((performance.now() - startedAt) / 1000)),
+          },
+        })
+          .then((r) => {
+            if (r?.endNow) endRef.current("server");
+          })
+          .catch(() => {
+            /* best-effort */
+          });
       }, TRIAL_VOICE_HEARTBEAT_MS);
 
       const tTokenEnd = performance.now();
@@ -534,6 +588,8 @@ export function useOpenAIRealtime() {
       } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");
+      } else if (msg.includes("voice_session_active")) {
+        setError("A voice session is already active. End it before starting another.");
       } else if (msg.includes("rate_limited")) {
         setError("Too many voice sessions. Try again in a moment.");
       } else if (msg.includes("ai_budget_exhausted")) {
@@ -552,6 +608,16 @@ export function useOpenAIRealtime() {
     await teardown();
     setStatus("idle");
   }, [teardown]);
+
+  // Hard stop used by the server-given deadline and by server "endNow" replies.
+  endRef.current = (reason: string) => {
+    setError(
+      reason === "deadline"
+        ? "Voice session time limit reached. Start a new session to keep talking."
+        : "Voice session ended.",
+    );
+    void disconnect();
+  };
 
   // Withdrawing AI permission (Profile → Privacy) ends a live session at once:
   // the browser talks to OpenAI directly, so the server can't stop it.

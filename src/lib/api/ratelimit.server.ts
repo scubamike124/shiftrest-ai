@@ -101,4 +101,6 @@ export const RATE_LIMITS = {
   stt: { bucket: "stt", limit: 30, windowSec: 60 } as const,
   // Live voice session mints: each one opens a paid OpenAI Realtime session.
   realtime: { bucket: "realtime", limit: 6, windowSec: 60 } as const,
+  // Heartbeat/finish reports for a live voice session (~2/min when healthy).
+  realtimeReport: { bucket: "realtime-report", limit: 12, windowSec: 60 } as const,
 } satisfies Record<string, RateLimitOptions>;

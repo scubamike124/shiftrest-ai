@@ -24,6 +24,11 @@ import {
 export type RealtimeSessionResult = {
   clientSecret: string;
   expiresAt: number; // epoch ms
+  /** Server-issued id the client echoes in heartbeat/finish reports. */
+  sessionId: string;
+  /** Epoch ms by which the client MUST end the call (hard timer). */
+  deadlineAt: number;
+  maxSessionSeconds: number;
   model: string;
   voice: string;
   /** First name / preferred name for the greeting; empty if unknown. */
@@ -194,13 +199,29 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     // the live voice surface has the same safety guardrail as text and TTS.
     const instructions = buildRealtimeInstructions(voiceProfile);
 
-    const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    // Debit the WORST-CASE session cost against the daily cap now (refused if
+    // the remaining budget cannot cover it) and enforce one active session.
+    // See src/lib/realtime/session-cost.server.ts for the cost model.
+    const costMod = await import("@/lib/realtime/session-cost.server");
+    const { supabaseAdmin: costAdmin } = await import("@/integrations/supabase/client.server");
+    const started = await costMod.startRealtimeSession(costAdmin, context.userId);
+    if (!started.ok) throw new Error(`${started.code}: ${started.message}`);
+    const refundAndThrow = async (msg: string): Promise<never> => {
+      await costMod.abortRealtimeSession(costAdmin, context.userId, started.sessionId, started.debit);
+      throw new Error(msg);
+    };
+
+    let res: Response;
+    try {
+      res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        // Short-lived token: it only has to survive the SDP handshake.
+        expires_after: { anchor: "created_at", seconds: costMod.REALTIME_COST.TOKEN_TTL_SECONDS },
         session: {
           type: "realtime",
           model: DEFAULT_MODEL,
@@ -226,31 +247,22 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
           instructions,
           // Give longer answers enough room to finish, while the system
           // prompt still keeps the model conversational and concise.
-          max_output_tokens: 2000,
+          max_output_tokens: costMod.REALTIME_COST.MAX_OUTPUT_TOKENS,
         },
       }),
-    });
+      });
+    } catch (e) {
+      return refundAndThrow(e instanceof Error ? e.message : "Failed to mint realtime client secret");
+    }
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error(
         `[realtime/openai] client_secret_mint_fail status=${res.status} body=${detail.slice(0, 240)}`,
       );
-      if (res.status === 429) throw new Error("OpenAI rate limit reached");
-      if (res.status === 401) throw new Error("OpenAI key rejected");
-      throw new Error("Failed to mint realtime client secret");
-    }
-
-    // Accrue a fixed estimate per mint against the daily cap (the live
-    // session itself is billed by OpenAI directly to the browser's token, so
-    // in-session usage is not metered here; see PR notes).
-    {
-      const { recordAIUsage, USAGE_ESTIMATE } = await import("@/lib/ai/log.server");
-      await recordAIUsage(context.userId, {
-        intent: "realtime-mint",
-        model: DEFAULT_MODEL,
-        promptTokens: USAGE_ESTIMATE.SESSION_MINT_TOKENS,
-      });
+      if (res.status === 429) return refundAndThrow("OpenAI rate limit reached");
+      if (res.status === 401) return refundAndThrow("OpenAI key rejected");
+      return refundAndThrow("Failed to mint realtime client secret");
     }
 
     // POST /v1/realtime/client_secrets returns:
@@ -261,7 +273,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       session?: { model?: string; audio?: { output?: { voice?: string } } };
     };
     const value = data.value;
-    if (!value) throw new Error("Missing client_secret value in mint response");
+    if (!value) return refundAndThrow("Missing client_secret value in mint response");
 
     const expiresAt =
       typeof data.expires_at === "number"
@@ -281,6 +293,9 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     return {
       clientSecret: value,
       expiresAt,
+      sessionId: started.sessionId,
+      deadlineAt: started.deadlineAt,
+      maxSessionSeconds: started.maxSessionSeconds,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
