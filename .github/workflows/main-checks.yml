@@ -1,0 +1,41 @@
+# Read-only checks for main. This workflow never deploys, publishes, pushes,
+# comments or writes anything: it only installs, type-checks, tests and builds.
+# Lovable keeps pushing to main as before. There is no branch protection, so a
+# red run here does not block Lovable or the Publish button. It only tells us
+# the lockfile or the code needs attention.
+name: main checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      # bun.lock is the canonical lockfile on main (Lovable maintains it).
+      # --frozen-lockfile fails if package.json and bun.lock disagree.
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
