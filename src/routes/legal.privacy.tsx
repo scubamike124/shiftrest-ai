@@ -151,6 +151,15 @@ export const Route = createFileRoute("/legal/privacy")({
         </li>
       </ul>
       <p>
+        <strong>Crisis messages and voice.</strong> If a text message you type
+        to the coach or Companion looks like it mentions suicide, self-harm or
+        an overdose, RestPilot shows crisis support on your device and does not
+        send that message to an AI provider, whether or not you have allowed AI
+        features. Voice is different: when you use speech-to-text or a live
+        voice conversation, your audio is sent to the voice provider (OpenAI)
+        when you speak or record, before any check of the words can run.
+      </p>
+      <p>
         We ask for this permission once, before your first use of an AI
         feature. If you choose "Not now", nothing is sent and the rest of
         RestPilot keeps working. You can withdraw your permission at any time
