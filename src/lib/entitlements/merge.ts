@@ -204,6 +204,7 @@ export function mergeEntitlements(
   const channels: ChannelEntitlement[] = [];
   const stripeBillingIssue = (stripeRows ?? []).some(
     (row) =>
+      options.stripeEnvironment !== null &&
       env(row.environment) === options.stripeEnvironment &&
       (row.status === "past_due" || row.status === "unpaid"),
   );

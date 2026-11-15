@@ -278,7 +278,7 @@ export function NativeSubscription() {
             ? latest.error
             : latest.entitlement.active
               ? "You already have RestPilot Premium."
-              : "A new subscription can't be started right now.",
+              : "Your RestPilot web subscription has a payment problem, so a new subscription can't be started here.",
         );
         return;
       }

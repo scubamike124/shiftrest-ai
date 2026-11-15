@@ -1,7 +1,7 @@
 // What the paywall may show, by surface and App Store storefront.
 //
 // Pure decision table, unit-tested in tests/paywall-policy.test.mjs. The UI
-// (src/components/subscription/AppAwarePaywall.tsx) renders only what this returns.
+// (src/components/subscription/NativeSubscription.tsx) renders only what this returns.
 //
 // Rules (see docs/restpilot-upgrade-2026-11/SUBSCRIPTIONS.md for sources):
 //   - Inside the native app, Stripe checkout and web purchase links are never
