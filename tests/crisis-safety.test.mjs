@@ -320,6 +320,8 @@ const POSITIVE = [
   "i'll take all my pills before anyone wakes up",
   "I'll take all my pills when everyone's asleep",
   "I took all my pills at once",
+  "I'll take all my pills today",
+  "I'm so done living.",
   "I want it to end.",
 ];
 
@@ -416,6 +418,14 @@ const NEGATIVE = [
   "I need it all to end so I can sleep",
   "I took all my pills this afternoon",
   "I'll take all my tablets every morning",
+  "I'm done living here",
+  "I'm so done living in this flat",
+  "done living with my parents",
+  "I'm done living paycheck to paycheck",
+  "the pharmacy will take all my pills back",
+  "customs may take all my pills",
+  "I'll take all my pills with me on nights",
+  "they deserve to die in that show",
   "",
 ];
 
