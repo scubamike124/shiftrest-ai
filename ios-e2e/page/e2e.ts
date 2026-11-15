@@ -22,6 +22,14 @@ import {
   syncNativeReminders,
   writeOfflinePlan,
 } from "@/lib/native/sync";
+import {
+  appleHealthAvailable,
+  clearAppleHealth,
+  connectAppleHealth,
+  loadAppleHealth,
+  refreshAppleHealth,
+} from "@/lib/health/apple-health-store";
+import { lastNightFrom } from "@/lib/health/apple-health";
 import type { Prefs } from "@/lib/prefs";
 import type { Shift } from "@/lib/shifts";
 
@@ -74,6 +82,13 @@ async function run() {
     check(nativePlugin(name), `plugin ${name} is not available`);
   }
   note("plugins", "App, LocalNotifications, Preferences, SplashScreen");
+
+  // The server and site recognise the app by this user-agent token (capacitor.config appendUserAgent).
+  note("userAgent", navigator.userAgent);
+  check(
+    / RestPilotApp\/\d+\.\d+\.\d+$/.test(navigator.userAgent),
+    "WebView user agent lacks RestPilotApp/<version>",
+  );
 
   // Permission: the UI test taps "Allow" on the iOS alert.
   const perm = await requestReminderPermission();
@@ -163,6 +178,7 @@ async function run() {
   check(planAfterClear === null, "offline plan left after clear");
 
   // rememberAppUrl only accepts https origins (this page is capacitor://localhost).
+  await prefsPlugin.remove({ key: APP_URL_KEY }); // a previous run may have left one
   await rememberAppUrl(window.location.origin);
   note("appUrlFromLocalPage", (await prefsPlugin.get({ key: APP_URL_KEY })).value);
   check(
@@ -179,11 +195,79 @@ async function run() {
   check(saved?.days?.length === 14, "offline plan was not saved");
 }
 
-run().then(
-  () => {
-    out.textContent = "E2E PASS";
-  },
-  (err) => {
-    out.textContent = `E2E FAIL: ${err instanceof Error ? err.message : String(err)}`;
-  },
-);
+// ---------------------------------------------------------------------------
+// Apple Health: the site's connector, through the real RestPilotHealth plugin,
+// against the night the E2E host app wrote into the simulator's Health store.
+// Started by the UI test tapping the button (the Health sheet needs a tap).
+const healthOut = document.getElementById("health")!;
+
+async function health() {
+  check(await appleHealthAvailable(), "Apple Health is not available in the shell");
+  const user = "e2e-user";
+  const state = await connectAppleHealth(user);
+  const last = lastNightFrom(state.nights, new Date());
+  note("appleHealthLastNight", last);
+  check(last, `no recent night read (nights: ${state.nights.length})`);
+  const want = {
+    sleepDurationMin: 390,
+    awakeMin: 30,
+    deepMin: 60,
+    remMin: 90,
+    lightMin: 240,
+    hrvMs: 45,
+    restingHr: 57,
+  };
+  for (const [k, v] of Object.entries(want)) {
+    check(
+      (last as Record<string, unknown>)[k] === v,
+      `${k} is ${(last as Record<string, unknown>)[k]}, expected ${v}`,
+    );
+  }
+  check(last.sleepEfficiency === 0.81, `efficiency ${last.sleepEfficiency}`);
+
+  const again = await refreshAppleHealth(user);
+  check(again?.nights.length === state.nights.length, "refresh changed the nights");
+
+  // Disconnect: stop reading and delete the stored copy.
+  clearAppleHealth();
+  check(loadAppleHealth(user) === null, "data left after Disconnect");
+  check((await refreshAppleHealth(user)) === null, "refresh after Disconnect brought data back");
+  check(
+    !JSON.stringify(Object.keys(window.localStorage)).includes("apple-health"),
+    "storage key left",
+  );
+}
+
+// Which check this launch runs: CI installs a copy of the app whose page has
+// <body data-mode="health"> for the Apple Health phase.
+if (document.body.dataset.mode === "health") {
+  // Like the real Connect card: Apple's sheet is requested from a tap, once the
+  // app is on screen. A failed attempt re-enables the button for a retry.
+  healthOut.textContent = "HEALTH READY";
+  const connect = document.createElement("button");
+  connect.textContent = "Connect Apple Health";
+  connect.style.cssText = "font: inherit; padding: 12px 20px; min-height: 44px;";
+  healthOut.after(connect);
+  connect.addEventListener("click", () => {
+    connect.disabled = true;
+    healthOut.textContent = "HEALTH RUNNING";
+    health().then(
+      () => {
+        healthOut.textContent = "HEALTH PASS";
+      },
+      (err) => {
+        healthOut.textContent = `HEALTH FAIL: ${err instanceof Error ? err.message : String(err)}`;
+        connect.disabled = false;
+      },
+    );
+  });
+} else {
+  run().then(
+    () => {
+      out.textContent = "E2E PASS";
+    },
+    (err) => {
+      out.textContent = `E2E FAIL: ${err instanceof Error ? err.message : String(err)}`;
+    },
+  );
+}

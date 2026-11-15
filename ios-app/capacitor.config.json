@@ -2,11 +2,17 @@
   "appId": "com.restpilotai.app",
   "appName": "RestPilot",
   "webDir": "www",
+  "appendUserAgent": "RestPilotWebOAuth/1 RestPilotApp/1.0.0",
   "server": {
     "url": "https://restpilotai.com/",
     "androidScheme": "https",
     "cleartext": false,
-    "errorPath": "offline.html"
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "oauth.lovable.app",
+      "appleid.apple.com",
+      "idmsa.apple.com"
+    ]
   },
   "plugins": {
     "SplashScreen": {

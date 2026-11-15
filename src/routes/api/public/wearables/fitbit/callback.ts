@@ -1,7 +1,9 @@
 // Fitbit OAuth callback. Public route (no auth middleware) — the state param
-// embeds the userId issued at /startWearableOAuth and PKCE verifier comes via
+// is a server-signed, provider-bound, 15-minute token from startWearableOAuth
+// (oauth-state.server.ts); the PKCE verifier comes via
 // a short-lived cookie set by the client before redirect.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyOAuthState } from "@/lib/wearables/oauth-state.server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { exchangeCode, FITBIT_SCOPES } from "@/lib/wearables/fitbit.server";
@@ -39,12 +41,16 @@ export const Route = createFileRoute("/api/public/wearables/fitbit/callback")({
           const back = new URL(`${appOrigin()}/profile`);
           back.searchParams.set(status, "fitbit");
           if (reason) back.searchParams.set("reason", reason);
-          return Response.redirect(back.toString(), 302);
+          // Not Response.redirect(): its headers are immutable, and the global
+          // security-headers middleware (src/start.ts) must add headers to every
+          // response. That threw "TypeError: immutable" and turned every OAuth
+          // return into a 500, so wearables could never finish connecting.
+          return new Response(null, { status: 302, headers: { Location: back.toString() } });
         };
         if (err) return redirectBack("error", err);
         if (!code || !state) return redirectBack("error", "missing_code");
 
-        const userId = state.split(":")[0];
+        const userId = verifyOAuthState(state, "fitbit");
         if (!userId) return redirectBack("error", "bad_state");
 
         const cookies = parseCookies(request.headers.get("cookie"));

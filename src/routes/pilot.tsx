@@ -16,6 +16,7 @@ import { fetchPrefs } from "@/lib/prefs";
 import { useAvatar } from "@/lib/companion/use-avatar";
 import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import { greetingLabel } from "@/lib/time/day-part";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 export const Route = createFileRoute("/pilot")({
   ssr: false,
@@ -244,7 +245,7 @@ function PilotPage() {
       llmAbortRef.current = ac;
       let resp: Response;
       try {
-        resp = await fetch("/api/ai", {
+        resp = await aiFetch("/api/ai", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -412,7 +413,7 @@ function PilotPage() {
       form.append("file", blob, "recording.wav");
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const sttRes = await fetch("/api/stt", {
+      const sttRes = await aiFetch("/api/stt", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
@@ -453,7 +454,7 @@ function PilotPage() {
     setOrbState("thinking");
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token;
-    const resp = await fetch("/api/ai", {
+    const resp = await aiFetch("/api/ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

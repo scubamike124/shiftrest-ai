@@ -1,0 +1,76 @@
+# Owner-requested Gemini benchmark of the RestPilot AI companion (manual only).
+#
+# Runs the companion suite (tests/ai/companion; 134 cases plus the 25-case
+# quality expansion), or with cases=live-parity the signed-in review turns,
+# for gemini-3-flash-preview (baseline), gemini-2.5-flash and the cheapest
+# Gemini flash-lite served to the key; models the key cannot use are skipped with a note (ListModels first).
+# Every call is under the hard token cap in tests/ai/companion/lib/guard.cjs.
+# The report (relevance/quality, correctness/time math, honesty, safety,
+# consistency, latency, cost per call) is uploaded as an artifact and shown in
+# the job summary.
+#
+# Needs the repository secret GEMINI_API_KEY (the existing Google AI Studio
+# key). Without it the job ends green with "blocked: needs GEMINI_API_KEY repo
+# secret". Optional OPENAI_API_KEY / ANTHROPIC_API_KEY secrets give a judge from
+# a different model family.
+name: AI companion benchmark
+on:
+  workflow_dispatch:
+    inputs:
+      repeat:
+        description: "Consistency repeats on the 12-case consistency subset (0 or 1 = skip)"
+        required: false
+        default: "2"
+      max_tokens:
+        description: "Hard token cap across all model and judge calls"
+        required: false
+        default: "3000000"
+      cases:
+        description: "all = the full suite; live-parity = the signed-in Companion review turns (blind-review comparison)"
+        required: false
+        default: "all"
+  # Runs only when this file changes, to register the workflow and prove the
+  # no-key path; it never calls a model on pull requests (no secret is passed).
+  pull_request:
+    paths:
+      - ".github/workflows/ai-benchmark.yml"
+      - "tests/ai/companion/benchmark-gemini.mjs"
+permissions:
+  contents: read
+concurrency:
+  group: ai-benchmark-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  benchmark:
+    name: AI companion benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Run the Gemini benchmark (capped)
+        env:
+          # Secrets only on manual runs; pull_request runs take the no-key path.
+          GEMINI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && secrets.GEMINI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && secrets.OPENAI_API_KEY || '' }}
+          ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && secrets.ANTHROPIC_API_KEY || '' }}
+          REPEAT: ${{ inputs.repeat || '2' }}
+          MAX_TOKENS: ${{ inputs.max_tokens || '3000000' }}
+          CASES: ${{ inputs.cases || 'all' }}
+        run: |
+          set -euo pipefail
+          [ -n "${GEMINI_API_KEY:-}" ] && echo "::add-mask::$GEMINI_API_KEY"
+          [[ "$REPEAT" =~ ^[0-9]+$ && "$MAX_TOKENS" =~ ^[0-9]+$ ]] || { echo "repeat and max_tokens must be numbers"; exit 1; }
+          [[ "$CASES" == "all" || "$CASES" == "live-parity" ]] || { echo "cases must be all or live-parity"; exit 1; }
+          node tests/ai/companion/benchmark-gemini.mjs --repeat "$REPEAT" --max-tokens "$MAX_TOKENS" --cases "$CASES"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-companion-benchmark
+          path: tests/ai/companion/results
+          retention-days: 30
+          if-no-files-found: warn

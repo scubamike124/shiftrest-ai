@@ -13,6 +13,7 @@ import {
   type PersonalityKey,
   type VoiceGender,
 } from "@/lib/voice/profile";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 type Props = {
   prefs: Prefs;
@@ -86,7 +87,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
 
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const resp = await fetch("/api/tts", {
+      const resp = await aiFetch("/api/tts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -182,7 +183,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
                 key={g.key}
                 type="button"
                 onClick={() => setGenderFilter(g.key)}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                className={`hit-area rounded-full px-2.5 py-1 text-xs font-semibold transition sm:text-[11px] ${
                   genderFilter === g.key
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground"
@@ -315,7 +316,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
                 key={s.key}
                 type="button"
                 onClick={() => onChange("voiceSpeed", s.value)}
-                className={`flex-1 rounded-xl border py-2 text-xs font-semibold ${
+                className={`min-h-11 flex-1 rounded-xl border py-2 text-sm font-semibold sm:min-h-0 sm:text-xs ${
                   selected ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"
                 }`}
               >

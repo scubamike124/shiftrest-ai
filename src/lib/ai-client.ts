@@ -5,6 +5,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Recommendation } from "@/lib/recommendations";
 import { lsGet, lsSet } from "@/lib/offline/cache";
+import { aiFetchBackground } from "@/lib/ai/consent-client";
 
 async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | null }> {
   const { data } = await supabase.auth.getSession();
@@ -68,7 +69,7 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
   }
 
   try {
-    const res = await fetch("/api/ai", {
+    const res = await aiFetchBackground("/api/ai", {
       method: "POST",
       headers,
       body: JSON.stringify({ ...localTimePayload(), ...payload }),

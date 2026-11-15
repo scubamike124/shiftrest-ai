@@ -83,7 +83,7 @@ function ageInDays(isoDate: string, now: Date): number {
 }
 
 export type LastNightSummary = {
-  provider: "fitbit" | "oura";
+  provider: "fitbit" | "oura" | "apple-health";
   date: string;
   sleepDurationMin: number | null;
   sleepEfficiency: number | null;

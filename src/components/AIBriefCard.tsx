@@ -16,6 +16,7 @@ import {
 import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
+import { aiFetchBackground } from "@/lib/ai/consent-client";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -55,7 +56,7 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Sign in to load your brief");
-  const resp = await fetch("/api/insights", {
+  const resp = await aiFetchBackground("/api/insights", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -75,9 +76,12 @@ async function fetchBrief(context: string): Promise<AIBrief> {
 export function AIBriefCard({
   insights,
   recommendations = [],
+  includesAppleHealth = false,
 }: {
   insights: Insights;
   recommendations?: Recommendation[];
+  /** Fatigue and recovery below include Apple Health measurements (on this phone only). */
+  includesAppleHealth?: boolean;
 }) {
   const context = insights.contextString;
   const [hasSession, setHasSession] = useState<boolean | null>(null);
@@ -139,7 +143,7 @@ export function AIBriefCard({
           onClick={() => refetch()}
           disabled={isFetching}
           aria-label="Refresh brief"
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50 hit-area"
         >
           {isFetching ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -183,6 +187,12 @@ export function AIBriefCard({
         <span className="font-semibold text-foreground/80">Estimates, not measurements.</span>{" "}
         {estimateSourceLabel(insights)}
       </p>
+
+      {includesAppleHealth && (
+        <p className="relative z-10 mt-2 text-[11px] font-medium text-indigo-glow">
+          Estimate · includes your sleep and HRV from Apple Health
+        </p>
+      )}
 
       {/* 3-day fatigue forecast */}
       <div className="relative z-10 mt-3 flex gap-1.5">
@@ -340,6 +350,11 @@ export function AIBriefCard({
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                       {r.detail}
                     </p>
+                    {r.dataSource && (
+                      <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-indigo-glow">
+                        {r.dataSource}
+                      </p>
+                    )}
                   </div>
                 </li>
               );

@@ -6,6 +6,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       className="toaster group"
+      // On phones, keep toasts above the app's bottom navigation.
+      mobileOffset={{ bottom: "calc(16px + var(--app-bottom-nav, 0px))" }}
+      offset={{ bottom: "calc(24px + var(--app-bottom-nav, 0px))" }}
       toastOptions={{
         classNames: {
           toast:

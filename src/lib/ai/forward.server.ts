@@ -3,10 +3,16 @@
 // fetching that public http URL gets a 301 to https, and fetch() then retries
 // the POST as a GET, which returns the app's HTML page instead of the AI
 // reply. Forward over loopback to this same Node server when its port is
-// known, and never follow redirects.
-export function aiForwardUrl(requestUrl: string, env: { PORT?: string } = process.env): string {
-  const port = env.PORT && /^\d{1,5}$/.test(env.PORT) ? env.PORT : null;
-  if (port) return `http://127.0.0.1:${port}/api/ai`;
+// known, and never follow redirects. Nitro's node server listens on
+// NITRO_PORT, else PORT. (In `vite dev` neither is the dev server's port, so
+// leave PORT unset there.)
+export function aiForwardUrl(
+  requestUrl: string,
+  env: { PORT?: string; NITRO_PORT?: string } = process.env,
+): string {
+  const raw = env.NITRO_PORT || env.PORT;
+  const n = raw && /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
+  if (n >= 1 && n <= 65535) return `http://127.0.0.1:${n}/api/ai`;
   const url = new URL(requestUrl);
   url.pathname = "/api/ai";
   url.search = "";

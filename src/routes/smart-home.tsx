@@ -47,7 +47,7 @@ export const Route = createFileRoute("/smart-home")({
       {
         name: "description",
         content:
-          "Register lights, plugs, thermostats, speakers, coffee makers, and bedroom devices so Reelo can include them in your routines.",
+          "Register lights, plugs, thermostats, speakers, coffee makers, and bedroom devices so RestPilot can include them in your routines.",
       },
     ],
   }),
@@ -271,10 +271,10 @@ function SmartHomePage() {
       </section>
 
       <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
-        Reelo never controls a device without your permission. Vendor labels are for organization —
-        actually issuing commands to Alexa, Google Home, HomeKit, or SmartThings requires connecting
-        your account in each respective app. Sensitive devices (locks, garage) always require an
-        extra confirmation tap inside RestPilot before any routine runs.
+        RestPilot never controls a device without your permission. Vendor labels are for
+        organization — actually issuing commands to Alexa, Google Home, HomeKit, or SmartThings
+        requires connecting your account in each respective app. Sensitive devices (locks, garage)
+        always require an extra confirmation tap inside RestPilot before any routine runs.
       </p>
     </main>
   );

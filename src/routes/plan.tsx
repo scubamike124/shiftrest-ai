@@ -27,8 +27,9 @@ import { DEFAULT_PREFS, fetchPrefs } from "@/lib/prefs";
 import { fetchEmployers } from "@/lib/employers";
 import { supabase } from "@/integrations/supabase/client";
 import { VoicePlayer } from "@/components/VoicePlayer";
-import { computeInsights } from "@/lib/insights";
 import { buildRecommendations, type Recommendation } from "@/lib/recommendations";
+import { useAppleHealth } from "@/hooks/use-apple-health";
+import { computeDeviceInsights, labelRecommendations } from "@/lib/health/device-insights";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 
 export const Route = createFileRoute("/plan")({
@@ -170,20 +171,25 @@ function PlanPage() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
+  const appleHealth = useAppleHealth();
   const recommendations: Recommendation[] = useMemo(() => {
     if (!mounted) return [];
-    const insights = computeInsights(
-      safeShifts,
+    const { insights, source } = computeDeviceInsights({
+      shifts: safeShifts,
       prefs,
-      today,
+      now: today,
       employers,
-      wearableSummary?.latest ?? null,
-    );
-    return buildRecommendations(insights, prefs, today, {
-      lat: prefs.lat ?? null,
-      lon: prefs.lon ?? null,
+      serverLastNight: wearableSummary?.latest ?? null,
+      appleHealthNights: appleHealth.nights,
     });
-  }, [mounted, safeShifts, prefs, today, employers, wearableSummary]);
+    return labelRecommendations(
+      buildRecommendations(insights, prefs, today, {
+        lat: prefs.lat ?? null,
+        lon: prefs.lon ?? null,
+      }),
+      source,
+    );
+  }, [mounted, safeShifts, prefs, today, employers, wearableSummary, appleHealth.nights]);
 
   function buildPlanText(): string | null {
     if (shift && events.length > 0) {
@@ -208,7 +214,7 @@ function PlanPage() {
   }
 
   return (
-    <main className="flex flex-col gap-6 px-5 pt-12">
+    <main className="flex flex-col gap-6 pt-12 sm:px-5">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
           Smart Light Plan
@@ -237,7 +243,11 @@ function PlanPage() {
         </Link>
       )}
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div
+        className="grid grid-cols-7 gap-1 sm:flex sm:gap-2 sm:overflow-x-auto sm:pb-1"
+        role="group"
+        aria-label="Choose a day"
+      >
         {DAYS.map((d, i) => {
           const dayDate = new Date(today);
           dayDate.setDate(today.getDate() + (i - weekday));
@@ -248,7 +258,9 @@ function PlanPage() {
             <button
               key={d}
               onClick={() => setActiveDay(i)}
-              className={`flex h-14 w-12 shrink-0 flex-col items-center justify-center rounded-xl border text-xs font-semibold transition ${
+              aria-label={d}
+              aria-pressed={active}
+              className={`flex h-14 min-w-0 flex-col items-center justify-center rounded-xl border text-sm font-semibold transition sm:w-12 sm:shrink-0 sm:text-xs ${
                 active
                   ? "border-primary bg-primary/15 text-primary"
                   : "border-border bg-card text-muted-foreground"
@@ -300,7 +312,7 @@ function PlanPage() {
             <Link
               to="/dashboard"
               hash="schedule"
-              className="mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
+              className="hit-area mt-4 inline-flex h-10 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground"
             >
               Open Schedule
             </Link>
@@ -334,6 +346,11 @@ function PlanPage() {
                         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                           {r.detail}
                         </p>
+                        {r.dataSource && (
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-indigo-glow">
+                            {r.dataSource}
+                          </p>
+                        )}
                         {r.why && <WhyThisTime why={r.why} />}
                       </div>
                     </li>

@@ -1,6 +1,7 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
 import { DATA_HONESTY } from "@/lib/ai/guardrails";
+import { normalizeSwap } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -36,10 +37,18 @@ export const Route = createFileRoute("/api/swap")({
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
           if ("response" in auth) return auth.response;
+          // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+          // Before admission, so a refusal never uses up the user's AI allowance.
+          {
+            const { requireAIConsent } = await import("@/lib/ai/consent.server");
+            const refused = await requireAIConsent(auth.userId);
+            if (refused) return refused;
+          }
         const admission = await requireAIAdmission(auth.userId);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
+
 
           {
             const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -122,7 +131,15 @@ export const Route = createFileRoute("/api/swap")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          return Response.json(parsed);
+          const normalized = normalizeSwap(parsed);
+          if (!normalized.ok) {
+            console.error("swap output rejected", normalized.reason);
+            return new Response(JSON.stringify({ error: "Bad AI response" }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return Response.json(normalized.value);
         } catch (e) {
           console.error("swap route error:", e);
           const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");

@@ -121,7 +121,7 @@ export function TrafficCard({
             </ul>
           )}
           <p className="mt-2 text-[10px] text-muted-foreground">
-            Read-only · Reelo never starts navigation for you.
+            Read-only · RestPilot never starts navigation for you.
           </p>
         </div>
       </div>

@@ -29,7 +29,7 @@ inferred from `main`'s code, since Lovable's secret store cannot be read.
 | Variable | Used by | Lovable production |
 | --- | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | admin DB access: AI admission, rate limits, cron hooks, email queue, webhooks, account delete/export, wearables callbacks, contact | yes, managed by Lovable; not obtainable (see CUTOVER.md) |
-| `AI_API_KEY`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_FAST_MODEL` (optional `AI_ROUTING`, `AI_MODEL_*`, `AI_REASONING_VOICE`, `AI_STREAM_USAGE`) | all text AI | no: production used `LOVABLE_API_KEY` (Lovable AI gateway) |
+| `AI_API_KEY`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_FAST_MODEL` (optional `AI_ROUTING`, `AI_MODEL_<TASK>`, `AI_REASONING_<TASK>`, `AI_STREAM_USAGE`; tasks are COACH, VOICE, STRUCTURED, BRIEF and BACKGROUND) | all text AI | no: production used `LOVABLE_API_KEY` (Lovable AI gateway) |
 | `AI_AUDIO_API_KEY`, `AI_AUDIO_BASE_URL`, `AI_TTS_MODEL`, `AI_STT_MODEL` | `/api/tts`, `/api/stt` | no: Lovable AI gateway |
 | `OPENAI_API_KEY` (fallback for both), `OPENAI_REALTIME_API_KEY` (optional `AI_REALTIME_MODEL`, `AI_REALTIME_TRANSCRIBE_MODEL`) | realtime voice, fallback AI | yes |
 | `ELEVENLABS_API_KEY` | `/api/tts-elevenlabs`, lab Simli speak | yes |
@@ -59,7 +59,7 @@ inferred from `main`'s code, since Lovable's secret store cannot be read.
 | API | Provider | Needs | Staging result | Status |
 | --- | --- | --- | --- | --- |
 | `POST /api/ai` (`coach`, `brief`, `commute`, `smart_alarm`, `daily_plan`, `daily_review`, `right_now`, `tomorrow_preview`, `jetlag_plan`, `adjust_plan`, `pattern_alert`, `coach_tip`) | OpenAI-compatible `chat/completions` | AI_* keys and models, service role (admission) | `{}` → 400 `intent required`; `{"intent":"coach"}` → `Backend not configured` | **blocked**: `SUPABASE_SERVICE_ROLE_KEY`, `AI_API_KEY` |
-| `POST /api/coach` (legacy alias) | forwards to `/api/ai` | as above | any body → **200 with the HTML app shell** instead of JSON | **broken** (repro below; fixed in this PR) |
+| `POST /api/coach` (legacy alias) | forwards to `/api/ai` | as above | before the fix: any body → 200 with the HTML app shell. After #24 and #37: JSON from `/api/ai` (`500 Backend not configured`, the same as `/api/ai` itself) | **fixed** (#24, #37; verified on staging) |
 | `POST /api/brief`, `/api/insights`, `/api/swap` | chat/completions | AI_* keys and models | 401 `Missing authorization` (auth gate first) | **blocked**: AI keys; no test account |
 | `POST /api/tts` | OpenAI-compatible `audio/speech` | `AI_AUDIO_*`, `AI_TTS_MODEL` | 401 at the auth gate | **blocked**: AI audio keys |
 | `POST /api/stt` | OpenAI-compatible `audio/transcriptions` | `AI_AUDIO_*`, `AI_STT_MODEL` | 401 at the auth gate | **blocked**: AI audio keys |
@@ -91,24 +91,27 @@ functions themselves need a session.
 | `POST /lovable/email/auth/webhook` (Send Email Hook) | Resend | `RESEND_API_KEY`, `EMAIL_FROM`, `SEND_EMAIL_HOOK_SECRET`, `PUBLIC_APP_URL` | 503 `Email service is not configured` | **blocked**: Resend keys |
 | `POST /lovable/email/queue/process`, `/transactional/send`, `/suppression`, `/auth/preview`; `GET /email/unsubscribe` | Resend; Supabase | `RESEND_*`, service role, `EMAIL_PREVIEW_SECRET` | 500 `Server configuration error` | **blocked**: Resend keys and service role |
 | `POST /api/public/contact` | Resend (owner alert); DB rate limit | `OWNER_ALERT_EMAIL`, Resend, service role | `{}` → 400 `invalid_input` (validation works) | **blocked**: a valid submission would need the service role and Resend |
-| Wearables OAuth (`startWearableOAuth`, `/api/public/wearables/{fitbit,oura}/callback`) | Fitbit, Oura | client IDs/secrets, service role | callbacks reachable | **blocked**: keys. **Defect:** OAuth `state` is not verified; see "Defects" |
+| Wearables OAuth (`startWearableOAuth`, `/api/public/wearables/{fitbit,oura}/callback`) | Fitbit, Oura | client IDs/secrets, service role | a forged `state=<uuid>:x` now gets `302 /profile?error=oura&reason=bad_state` | **blocked**: keys. The state defect is fixed in #25 |
 | `POST /api/public/payments/webhook` | Stripe | Stripe key and webhook secret | 400 without `?env`; 400 unsigned | **parked** (owner decision 2026-11-15; PR #21 open, inert) |
 | Checkout/portal (`createCheckoutSession`, `createPortalSession`) | Stripe | see PR #21 | disabled on this branch | **parked**: production's Lovable checkout is untouched |
 
 ## Defects
 
-1. **`/api/coach` returns the HTML app shell on Railway.** *Fixed in this
-   PR.*
+1. **`/api/coach` returned the HTML app shell on Railway.** *Fixed in #24
+   (loopback forward) and #37 (`NITRO_PORT`, 502 on failure); verified on
+   staging.*
    - Repro:
      `curl -X POST -H 'Content-Type: application/json' -d '{"messages":[]}' https://restpilot-web-staging.up.railway.app/api/coach`
-     returns `200 text/html`. Production returns `401 {"error":"Sign in required"}`.
+     returns `200 text/html`. Production returned `401 {"error":"Sign in required"}` when observed on 2026-11-15.
    - Cause: behind Railway's edge, the server sees `http://<host>`. Its
      self-fetch to `http://…/api/ai` gets a `301` to https, and `fetch`
      replays the POST as a GET, which serves the SPA.
    - Fix: forward over loopback (`127.0.0.1:$PORT`), use
      `redirect: "manual"`, and drop stale encoding headers.
      `tests/coach-forward.test.mjs` covers it.
-2. **Wearables OAuth `state` is not verified.** *Separate PR.*
+2. **Wearables OAuth `state` was not verified.** *Fixed in #25: an
+   HMAC-signed, provider-bound state with a 15-minute expiry. Staging
+   refuses a forged state.*
    - `/api/public/wearables/{oura,fitbit}/callback` takes the user id from
      `state` (`<userId>:<random>`) without checking it was issued by the
      server.
@@ -118,8 +121,49 @@ functions themselves need a session.
      foreign sleep data.
    - Fitbit's PKCE cookie does not prevent this, because the attacker runs the
      flow in their own browser.
+   - Follow-up, not yet done: the state is not tied to the browser that
+     started the flow. That leaves the classic OAuth login-CSRF case for
+     Oura: a victim approves an attacker-started authorization URL. The fix
+     is a short-lived HttpOnly nonce cookie checked in the callback. The
+     same unsigned-state code is still live on Lovable `main`.
 3. **Ready Player Me host is gone.** It is noted above for the AI-companion
    agent; this PR does not change it.
+
+## Account deletion and subscription status on Railway
+
+- **Subscription status:** *fixed in #32 and #37 (lifetime ranks first).*
+  - The profile and premium UI used to read the `subscriptions` table only
+    when a Stripe publishable key was configured.
+  - Railway has none, so paid and lifetime members looked free there, even
+    though the server still honoured their access.
+  - Status is now read from the database regardless. A build without a key
+    uses the `live` rows. A newer incomplete checkout no longer hides an
+    older paid or lifetime row.
+- **Account deletion fails closed on Railway for any non-canceled Stripe
+  subscription row** (active, trialing, past_due, incomplete, unpaid, or
+  expired active; one-time lifetime purchases excepted). This is *not
+  changed*.
+  - `deleteAccountFn` cancels Stripe subscriptions first. With Stripe off,
+    the user gets "We couldn't confirm all subscription cancellations…" and
+    keeps the account. That is an App Store 5.1.1(v) risk for any app build
+    pointed at Railway.
+  - Deleting anyway would lose the subscription id (rows cascade with the
+    user) and leave the customer billed. So the fix is a billing decision,
+    not a code-only one. Options for the owner:
+    - (a) **Recommended:** keep the CUTOVER hard gate. Railway does not serve
+      customers until website Stripe works there, and then deletion cancels
+      as on Lovable.
+    - (b) If Railway must serve customers before Stripe:
+      - deletion proceeds;
+      - the subscription id is written to a cancellation queue table with no
+        foreign key to the user;
+      - the owner is alerted at once;
+      - the queue is processed when the Stripe key exists;
+      - the user-facing copy is agreed by the owner.
+- **White Glove iOS test (2026-11-16):** not blocked.
+  `ios-app/capacitor.config.json` loads `https://restpilotai.com/`, which is
+  Lovable, where Stripe and deletion work. The Railway gap only applies
+  after cutover, which the Stripe gate covers.
 
 ## Licensing and cost notes for the owner
 
@@ -128,12 +172,21 @@ None of these are changed by this work.
 - **Open-Meteo:** its terms say the free API is "only" for "non-commercial
   purposes". Apps with subscriptions are listed as commercial. RestPilot
   sells subscriptions, so this needs a paid Open-Meteo plan, or another
-  provider. Free-tier limits are 10,000 calls a day and 600 a minute.
+  provider. Free-tier limits are 10,000 calls a day, 5,000 an hour and 600
+  a minute.
   Source: open-meteo.com/en/terms.
-- **OSRM demo server:** its policy forbids selling access, requires public
-  access with attribution, and can be withdrawn "at any time and without
-  giving a reason". It is not a dependable production router for a paid
-  feature. Source: github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy.
+- **OSRM demo server:** the OSRM usage-policy page lists the terms of the
+  previous demo server.
+  - Those terms forbade selling access, required public access with
+    attribution, and said access could be withdrawn "at any time and without
+    giving a reason".
+  - The page now points to FOSSGIS's terms at
+    routing.openstreetmap.de/about.html for the current server.
+  - Either way, it is not a dependable production router for a paid
+    feature.
+  - The policy also asks for an identifying `User-Agent`;
+    `src/lib/traffic.server.ts` sends Node's default.
+  - Source: github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy.
 - **AI and voice providers** bill per use. See `COST-MODEL.md`.
 
 ## How this was checked

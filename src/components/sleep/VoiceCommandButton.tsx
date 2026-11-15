@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { parseIntent, type ParsedIntent } from "@/lib/voice/intent-router";
 import { executeIntent } from "@/lib/voice/intent-executor";
+// `fetch` in this file is aiFetch: speech-to-text needs AI consent (Guideline 5.1.2(i)).
+import { aiFetch as fetch } from "@/lib/ai/consent-client";
 
 type Phase =
   | { kind: "idle" }

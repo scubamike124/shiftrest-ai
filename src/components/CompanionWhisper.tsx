@@ -30,7 +30,7 @@ function saveDismissed(set: Set<string>) {
   }
 }
 
-function pickObservation(insights: Insights | null): { id: string; text: string } | null {
+export function pickObservation(insights: Insights | null): { id: string; text: string } | null {
   if (!insights) return null;
   // Highest-leverage signal first.
   if (Math.abs(insights.sleepDebtHours) >= 2) {
@@ -114,14 +114,14 @@ export function CompanionWhisper({
               <button
                 onClick={adjust}
                 disabled={loading || !signedIn}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60 hit-area"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 {loading ? "Thinking…" : "Adjust tomorrow's plan"}
               </button>
               <button
                 onClick={dismiss}
-                className="inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                className="inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hit-area"
               >
                 Not now
               </button>
@@ -156,7 +156,7 @@ export function CompanionWhisper({
         <button
           onClick={dismiss}
           aria-label="Dismiss"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hit-area"
         >
           <X className="h-3.5 w-3.5" />
         </button>

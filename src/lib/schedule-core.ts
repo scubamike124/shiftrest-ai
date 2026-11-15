@@ -253,11 +253,25 @@ function civilFromDay(day: number): { y: number; m: number; d: number } {
   return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
 }
 
-/** Rotation week (0-based) for a civil day, given a YYYY-MM-DD anchor. */
+/** Today's civil day number in the runtime's local time zone. */
+function todayCivilDay(): number {
+  const n = new Date();
+  return civilDay(n.getFullYear(), n.getMonth() + 1, n.getDate());
+}
+
+/**
+ * Rotation week (0-based) for a civil day, given a YYYY-MM-DD anchor.
+ *
+ * With no anchor saved, Week A is the week containing `today`. (The old
+ * fallback used the Monday of `day` itself, so every day was 0 weeks from its
+ * own anchor and a 2-6 week rotation never advanced.) The dashboard saves an
+ * anchor the first time it sees a rotation without one.
+ */
 export function rotationWeekIndex(
   day: number,
   anchor: string | null | undefined,
   cycleWeeks: number,
+  today: number = todayCivilDay(),
 ): number {
   const cw = Math.max(1, Math.min(6, Math.round(cycleWeeks || 1)));
   if (cw === 1) return 0;
@@ -265,7 +279,7 @@ export function rotationWeekIndex(
   const m = anchor ? /^(\d{4})-(\d{2})-(\d{2})/.exec(anchor) : null;
   const anchorMonday = m
     ? mondayOf(civilDay(Number(m[1]), Number(m[2]), Number(m[3])))
-    : mondayOf(day);
+    : mondayOf(today);
   const weeks = Math.round((mondayOf(day) - anchorMonday) / 7);
   return ((weeks % cw) + cw) % cw;
 }

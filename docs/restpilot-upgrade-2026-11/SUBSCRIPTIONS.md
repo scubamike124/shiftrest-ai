@@ -7,6 +7,28 @@ paid plan was created or enabled.
 Fixed prices: **Monthly $7.99**, **Annual $49.99**, each with a **14-day free trial**.
 Lifetime is discontinued for new customers (PR #9). Existing lifetime members stay entitled.
 
+> **Update, November 15, 2026 (owner decision):** RestPilot uses Apple's App Store subscription
+> system instead of Stripe for **new** purchases. Existing Stripe and lifetime entitlements are
+> preserved. Nothing has been activated or published.
+>
+> **The iPhone app loads restpilotai.com, so the in-app code must live on `main`.** Proposed for
+> `main` in open PRs (not merged as of this note):
+> - **#63** ports the RevenueCat pieces from this document, adds the owner steps in
+>   `docs/restpilot-upgrade-2026-11/APPLE-IAP-SETUP.md`, and ships the `store_entitlements`
+>   migration **pending** in `supabase/pending-migrations/` (not applied; the code tolerates its
+>   absence);
+> - **#57** puts website Stripe checkout for new purchases behind `VITE_WEB_CHECKOUT_ENABLED`
+>   (default off), with a past-due "Manage billing" fix;
+> - **#52** is the read-only Stripe subscriber audit.
+>
+> **On this branch,** a `past_due` / `unpaid` Stripe subscription now blocks an App Store
+> purchase (`stripeBillingIssue`), because it can still charge once the card is fixed. #63 has
+> the same rule, and also offers an App Store purchase only once the server reports the whole
+> pipeline ready (`iapReady`: `IAP_ENABLED`, both RevenueCat secrets, migration applied). Note:
+> a Stripe subscription left `unpaid` indefinitely keeps blocking the App Store purchase until it
+> is fixed or canceled on the website (the safe direction for double billing; support can
+> cancel it in Stripe if the customer asks).
+
 ---
 
 ## 1. Summary
@@ -37,7 +59,8 @@ what it sent before.
 
 ### Which code the iOS app actually runs (November 15, 2026)
 
-The app shell (`ios-app/capacitor.config.json`, bundle `com.restpilotai.app`) loads
+The app shell (`ios-app/capacitor.config.json`, bundle `com.restpilotai.app`; its source exists
+only on the Railway branch line, not on `main`) loads
 **`https://restpilotai.com/`**. Today that is production on Lovable, built from `main`, not this
 branch.
 
@@ -52,7 +75,8 @@ branch.
 
 What this means for the White Glove test:
 1. **Private White Glove test with the shell pointing at production.** Testers can reach a working
-   Stripe checkout inside the app. Payments would be real (live mode) and would bypass Apple. That
+   Stripe checkout inside the app. Payments would be real if production uses a `pk_live_` key, as
+   it should, and would bypass Apple. That
    is acceptable only if testers are told not to buy. Owner and native-agent decision.
 2. **Safer for the test.** Point the shell's `server.url` at the Railway staging host for the test
    build: no purchase UI anywhere, and the App Review 3.1.1 rules are met by having no purchase at
@@ -68,7 +92,9 @@ What this means for the White Glove test:
 
 **Existing lifetime purchasers.** The `status = 'lifetime'` rows are active premium:
 - in the merged entitlement;
-- on every paywall surface (status shown, no buy button);
+- on every paywall surface: no buy button anywhere. Status is shown on the in-app subscription
+  screen when IAP is on, and on Profile. With IAP off, `/paywall` is the preview screen for
+  everyone;
 - in the voice gate;
 - in the SQL `has_active_subscription` (the AI budget).
 
@@ -527,6 +553,50 @@ sandbox restore or cancel, or received a real RevenueCat delivery. That is block
 completes section 7 steps 1 to 9 and 11 to 13: App Store Connect agreements and products,
 RevenueCat project and webhook, secrets, migration, sandbox testers. The native agent also has to
 install the plugin (section 6). The staging checklist in step 13 is the live verification plan.
+
+## 6b. Local StoreKit Testing (no App Store Connect products needed)
+
+`ios-app/ios/App/RestPilot.storekit` is an Xcode StoreKit configuration file containing the same
+subscription group and products as section 7 step 6:
+- `restpilot_annual`: $49.99 a year, ranked first;
+- `restpilot_monthly`: $7.99 a month;
+- each with a free 2-week introductory offer.
+
+`tests/storekit-config.test.mjs` checks the product IDs against the code's catalog, and the prices,
+periods and trial length against the fixed values documented here. The app and settings IDs in the
+file are local placeholders; Xcode's "Sync with App Store Connect" option makes a separate synced
+file instead.
+
+With this file, purchase, restore, cancel, refund, renewal speed-up and billing failure can be
+exercised in the free iOS Simulator, with no Apple account and no App Store Connect products.
+
+How to use it in Xcode:
+1. Open `ios-app/ios/App/App.xcworkspace`.
+2. Drag `ios-app/ios/App/RestPilot.storekit` into the Project navigator, with **no target
+   membership**. Xcode's picker lists only files the project references. Do not commit the
+   resulting local `project.pbxproj` change.
+3. Go to Product, then Scheme, then Edit Scheme, then Run, then Options, then **StoreKit
+   Configuration**, and select `RestPilot.storekit`.
+4. Run on a simulator.
+5. Use Debug, then StoreKit, then **Manage Transactions** to cancel, refund, expire or fail renewals.
+
+On purpose, no shared scheme is committed. The CI simulator lane builds the auto-created `App`
+scheme, and a shared scheme for the same target could stop Xcode from auto-creating it.
+
+This still needs:
+- **The native plugin** (section 6, F1).
+- **A RevenueCat project** with the two products and the `premium` entitlement, the public `appl_`
+  key, and the **StoreKit Testing certificate** uploaded. The certificate comes from Xcode, Editor,
+  then Save Public Certificate, and goes into RevenueCat, Project Settings, then Apps, then
+  "StoreKit testing framework". RevenueCat validates these local transactions against that
+  certificate, so this step is owner-only, like the rest of the RevenueCat account.
+
+Limits:
+- The configuration applies only to runs launched from Xcode, and to XCTest through
+  `SKTestSession`. A Maestro flow or a `simctl launch` does not use it, so it cannot drive purchases
+  headlessly.
+- Cancellations made in Manage Transactions are not reported to RevenueCat. Check the cancel paths
+  with the signed webhook tests (section 6a) and with Apple sandbox testers (section 7 step 12).
 
 ## 7. Owner-only setup, in order
 

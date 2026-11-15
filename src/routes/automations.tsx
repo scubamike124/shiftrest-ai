@@ -171,7 +171,7 @@ function AutomationsPage() {
         },
       });
       toast.message("Offline — routine deferred", {
-        description: "Reelo skipped this routine because the device is offline.",
+        description: "RestPilot skipped this routine because the device is offline.",
       });
       qc.invalidateQueries({ queryKey: ["automation-runs"] });
       return;

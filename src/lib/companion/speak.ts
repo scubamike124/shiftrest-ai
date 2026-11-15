@@ -21,6 +21,7 @@ import { track } from "./analytics";
 import { isQuietModeOn } from "@/lib/quiet-mode";
 import { normalizeForSpeech } from "./speech-normalize";
 import { getTtsProvider, getElevenVoice, setTtsProvider, ELEVEN_VOICES } from "./renderer-pref";
+import { aiFetchBackground, isAIConsentRefusal } from "@/lib/ai/consent-client";
 
 // Session-level kill switch — if ElevenLabs errors once, fall back to
 // OpenAI for the rest of the session so the user is never stranded silent.
@@ -504,7 +505,7 @@ async function prefetchTts(text: string, opts: SpeakOptions): Promise<void> {
     if (ttsCacheGet(cacheKey)) return;
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token;
-    const resp = await fetch(endpoint, {
+    const resp = await aiFetchBackground(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -647,7 +648,7 @@ async function playOnce(
     let resp: Response;
     let effectiveEndpoint = endpoint;
     try {
-      resp = await fetch(endpoint, {
+      resp = await aiFetchBackground(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -662,7 +663,7 @@ async function playOnce(
         elevenLabsBlocked = true;
         try { setTtsProvider("openai"); } catch { /* noop */ }
         effectiveEndpoint = "/api/tts";
-        resp = await fetch("/api/tts", {
+        resp = await aiFetchBackground("/api/tts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -682,12 +683,13 @@ async function playOnce(
     // played as corrupt audio.
     const elevenContentType = resp.headers.get("content-type") ?? "";
     const elevenAudioOk = resp.ok && elevenContentType.toLowerCase().startsWith("audio/");
-    if (provider === "elevenlabs" && !elevenAudioOk) {
+    // A consent refusal is not an ElevenLabs failure: don't fall back.
+    if (provider === "elevenlabs" && !elevenAudioOk && !isAIConsentRefusal(resp)) {
       console.warn("[speak] ElevenLabs failed, falling back to OpenAI for this session");
       elevenLabsBlocked = true;
       try { setTtsProvider("openai"); } catch { /* noop */ }
       effectiveEndpoint = "/api/tts";
-      resp = await fetch("/api/tts", {
+      resp = await aiFetchBackground("/api/tts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

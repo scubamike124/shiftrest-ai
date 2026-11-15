@@ -15,6 +15,7 @@ import { fetchEmployers } from "@/lib/employers";
 import { fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 export const Route = createFileRoute("/swap")({
   ssr: false,
@@ -78,7 +79,7 @@ ${
 
 User state: ${insights.contextString}`;
 
-      const resp = await fetch("/api/swap", {
+      const resp = await aiFetch("/api/swap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ context }),
