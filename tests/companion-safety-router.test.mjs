@@ -224,3 +224,17 @@ test("spoken alarm times with a.m./p.m. and lead-ins before play still act", () 
   for (const q of ["stop the rain", "i want the fire to stop"])
     assert.notEqual(parseIntent(q).intent.kind, "play_track", q);
 });
+
+test("alarms with a time of day after them still act", () => {
+  for (const [c, hour] of [
+    ["set an alarm for 6 in the morning", 6],
+    ["wake me up at 6 in the morning", 6],
+    ["wake me at 6 tomorrow for my night shift", 6],
+    ["wake me up at 5 in the afternoon", 17],
+    ["set an alarm for 9 tonight", 21],
+  ]) {
+    const p = parseIntent(c);
+    assert.equal(p.intent.kind, "wake_at", c);
+    assert.equal(p.intent.hour, hour, c);
+  }
+});
