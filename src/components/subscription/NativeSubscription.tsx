@@ -267,9 +267,19 @@ export function NativeSubscription() {
     try {
       // Double-billing guard: re-check right before opening the App Store sheet.
       const latest = await getEntitlementStatus();
-      if (!("entitlement" in latest) || latest.entitlement.active) {
+      if (
+        !("entitlement" in latest) ||
+        latest.entitlement.active ||
+        latest.entitlement.stripeBillingIssue
+      ) {
         setStatus(latest);
-        setMessage("error" in latest ? latest.error : "You already have RestPilot Premium.");
+        setMessage(
+          "error" in latest
+            ? latest.error
+            : latest.entitlement.active
+              ? "You already have RestPilot Premium."
+              : "Your RestPilot web subscription has a payment problem, so a new subscription can't be started here.",
+        );
         return;
       }
       await identify(userId); // no-op when already this user; never buy as someone else
@@ -348,6 +358,24 @@ export function NativeSubscription() {
               you are not charged twice.
             </p>
           )}
+          {decision.manage.map((m) => (
+            <ManageRow key={m.source} source={m.source} path={m.path} appleUrl={appleUrl} />
+          ))}
+        </>
+      )}
+
+      {decision.view === "billing_issue" && (
+        <>
+          <section
+            role="alert"
+            className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5 text-sm"
+          >
+            <p className="font-semibold">Payment problem with your RestPilot web subscription</p>
+            <p className="mt-1 text-muted-foreground">
+              It can still renew once the payment is fixed, so a second subscription can&apos;t be
+              started here.
+            </p>
+          </section>
           {decision.manage.map((m) => (
             <ManageRow key={m.source} source={m.source} path={m.path} appleUrl={appleUrl} />
           ))}
