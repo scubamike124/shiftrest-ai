@@ -161,8 +161,10 @@ const RE_LEAD =
 const RE_COMMAND_VERB = /^(?:wake|set|start|play|put\s+on|turn\s+on|switch\s+on|fade|stop)\b/;
 const RE_WAKE_INTENT =
   /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
+// Endings a sound request may have: "for 20 minutes", "for an hour", "all
+// night", "until I fall asleep", "for me", "to help me sleep", "please".
 const RE_DURATION_TAIL =
-  /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b(?:\s+please)?\s*$/;
+  /(?:\s+(?:for\s+(?:\d{1,3}|an?|one|two|three|half\s+an)\s*(?:min|mins|minute|minutes|m|hours?|h)\b|all\s+night|until\s+i\s+(?:fall\s+asleep|sleep)|for\s+me|to\s+help\s+me\s+sleep|please))+\s*$/;
 // Words that may follow a timer or alarm command ("... tomorrow morning please").
 const COMMAND_TAIL_WORDS = new Set([
   "please",
@@ -191,6 +193,13 @@ const COMMAND_TAIL_WORDS = new Set([
   "afternoon",
   "early",
   "day",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
 ]);
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
@@ -307,7 +316,8 @@ export function parseIntent(input: string): ParsedIntent {
   if (
     mTimer &&
     !question &&
-    (commandAt(mTimer.index) || /^(?:start|set)\b/.test(text.slice(lead))) &&
+    (commandAt(mTimer.index) ||
+      /^(?:start|set|turn\s+on|i\s+need|i\s+want)\b/.test(text.slice(lead))) &&
     tailOk(mTimer)
   ) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
@@ -334,7 +344,10 @@ export function parseIntent(input: string): ParsedIntent {
     if (ampm?.startsWith("a") && hour === 12) hour = 0;
     // "6 in the evening", "5 in the afternoon", "9 tonight" without a.m./p.m.
     const after = text.slice((mWake.index ?? 0) + mWake[0].length);
-    if (!ampm && hour < 12 && /\b(?:afternoon|evening|tonight)\b/.test(after)) hour += 12;
+    if (!ampm && hour < 12 && /\b(?:afternoon|evening)\b/.test(after)) hour += 12;
+    // "9 tonight" is 21:00, but "2 tonight" (after midnight) and "12 tonight" are early morning.
+    if (!ampm && /\btonight\b/.test(after))
+      hour = hour === 12 ? 0 : hour >= 6 && hour < 12 ? hour + 12 : hour;
     hour = clamp(hour, 0, 23);
     return { intent: { kind: "wake_at", hour, minute }, confidence: 0.9, raw };
   }
