@@ -302,6 +302,8 @@ const POSITIVE = [
   "I have pills saved up to end it",
   "I've been stockpiling my sleeping pills",
   "I just want it all to end",
+  "I'm saving my pills to end it",
+  "what's the point of life?",
   "I want it to end.",
 ];
 
@@ -374,6 +376,16 @@ const NEGATIVE = [
   "I'm cutting again for summer lol",
   "I want this shift to end",
   "I'm saving my pill organiser for travel",
+  "is there any point in living closer to the hospital?",
+  "is there any point in living on site?",
+  "no point in living in london on this salary",
+  "what's the point in living here",
+  "I'm saving my sleeping pills for the flight",
+  "saving my tablets for night shift",
+  "I'm saving up my meds for the trip",
+  "stashing my meds away in my locker",
+  "i'm stockpiling meds before my vacation",
+  "my meds are stored away in my locker",
   "",
 ];
 
