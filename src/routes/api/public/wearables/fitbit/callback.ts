@@ -1,7 +1,9 @@
 // Fitbit OAuth callback. Public route (no auth middleware) — the state param
-// embeds the userId issued at /startWearableOAuth and PKCE verifier comes via
+// is a server-signed, provider-bound, 15-minute token from startWearableOAuth
+// (oauth-state.server.ts); the PKCE verifier comes via
 // a short-lived cookie set by the client before redirect.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyOAuthState } from "@/lib/wearables/oauth-state.server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { exchangeCode, FITBIT_SCOPES } from "@/lib/wearables/fitbit.server";
@@ -44,7 +46,7 @@ export const Route = createFileRoute("/api/public/wearables/fitbit/callback")({
         if (err) return redirectBack("error", err);
         if (!code || !state) return redirectBack("error", "missing_code");
 
-        const userId = state.split(":")[0];
+        const userId = verifyOAuthState(state, "fitbit");
         if (!userId) return redirectBack("error", "bad_state");
 
         const cookies = parseCookies(request.headers.get("cookie"));

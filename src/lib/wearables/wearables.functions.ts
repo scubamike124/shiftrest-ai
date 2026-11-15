@@ -41,7 +41,8 @@ export const startWearableOAuth = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { provider } = data;
     const redirectUri = redirectUriFor(provider);
-    const state = `${context.userId}:${randomString(16)}`;
+    const { signOAuthState } = await import("./oauth-state.server");
+    const state = signOAuthState(context.userId, provider);
 
     if (provider === "fitbit") {
       const { buildAuthUrl } = await import("./fitbit.server");
