@@ -42,6 +42,7 @@ function harness({ existingCustomer = null } = {}) {
   const envs = [];
   const ctx = vm.createContext({ URL, process: { env: { NODE_ENV: 'production' } }, createServerFn, requireSupabaseAuth: {},
     createStripeClient(env) { envs.push(env); return stripe; }, getStripeErrorMessage: (e) => e.message });
+  Object.assign(ctx, { getRequest: () => null, isNativeAppUserAgent: () => false });
   const { createCheckoutSession } = vm.runInContext(`${source}\n({createCheckoutSession})`, ctx);
   const checkout = (priceId, environment = 'live') => createCheckoutSession({
     context: { supabase, userId: 'user-123' },

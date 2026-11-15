@@ -5,7 +5,12 @@ import {
   createStripeClient,
   getStripeErrorMessage,
 } from "@/lib/stripe.server";
+import { getRequest } from "@tanstack/react-start/server";
 import { appleSubscriptionBlocksCheckout } from "@/lib/entitlements/checkout-guard";
+import {
+  APP_PURCHASE_REFUSED_MESSAGE,
+  isNativeAppUserAgent,
+} from "@/lib/entitlements/app-request-guard";
 
 type CheckoutResult = { clientSecret: string } | { error: string };
 type PortalResult = { url: string } | { error: string };
@@ -83,6 +88,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }): Promise<CheckoutResult> => {
+    // Guideline 3.1.1: no website checkout from inside the iPhone app.
+    if (isNativeAppUserAgent(getRequest()?.headers.get("user-agent"))) {
+      return { error: APP_PURCHASE_REFUSED_MESSAGE };
+    }
     try {
       const { supabase, userId } = context;
       // Duplicate-billing guard: never sell a Stripe subscription to someone
@@ -139,6 +148,9 @@ export const createPortalSession = createServerFn({ method: "POST" })
     return { environment, ...(data.returnUrl !== undefined && { returnUrl: validateReturnUrl(data.returnUrl, environment) }) };
   })
   .handler(async ({ data, context }): Promise<PortalResult> => {
+    if (isNativeAppUserAgent(getRequest()?.headers.get("user-agent"))) {
+      return { error: APP_PURCHASE_REFUSED_MESSAGE };
+    }
     try {
       const { supabase, userId } = context;
       const { data: sub, error: lookupError } = await supabase

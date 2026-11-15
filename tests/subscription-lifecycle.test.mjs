@@ -352,6 +352,7 @@ function checkoutHarness({ env, storeRows = [], storeError = null }) {
   function createServerFn() { let v; const b = { middleware() { return b; }, inputValidator(fn) { v = fn; return b; }, handler(fn) { return (a) => fn({ ...a, data: v(a.data) }); } }; return b; }
   const ctx = vm.createContext({ URL, process: { env }, createServerFn, requireSupabaseAuth: {}, createStripeClient: () => stripe,
     getStripeErrorMessage: (e) => e.message, appleSubscriptionBlocksCheckout: guard.appleSubscriptionBlocksCheckout });
+  Object.assign(ctx, { getRequest: () => null, isNativeAppUserAgent: () => false });
   const { createCheckoutSession } = vm.runInContext(`${source}\n({createCheckoutSession})`, ctx);
   return {
     stripeCalls, get storeReads() { return storeReads; },

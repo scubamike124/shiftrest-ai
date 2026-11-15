@@ -41,6 +41,7 @@ function fixture(options = {}) {
     return builder;
   }
   const context=vm.createContext({URL,process:{env:options.env??{NODE_ENV:'production'}},createServerFn,requireSupabaseAuth:{},createStripeClient(environment){calls.push(`stripe:${environment}`);return stripe;},getStripeErrorMessage:e=>e.message});
+  Object.assign(context, { getRequest: () => null, isNativeAppUserAgent: () => false });
   const handlers=vm.runInContext(`${source}\n({createCheckoutSession,createPortalSession})`,context);
   return {calls,get checkoutPayload(){return checkoutPayload;},get portalPayload(){return portalPayload;},
     checkout:(data={})=>handlers.createCheckoutSession({context:{supabase,userId:'user-test'},data:{priceId:'restpilot_monthly',environment:'sandbox',returnUrl:'https://restpilotai.com/profile?session_id={CHECKOUT_SESSION_ID}',...data}}),
