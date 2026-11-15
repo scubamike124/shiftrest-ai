@@ -7,6 +7,24 @@ paid plan was created or enabled.
 Fixed prices: **Monthly $7.99**, **Annual $49.99**, each with a **14-day free trial**.
 Lifetime is discontinued for new customers (PR #9). Existing lifetime members stay entitled.
 
+> **Update, November 15, 2026 (owner decision):** RestPilot uses Apple's App Store subscription
+> system instead of Stripe for **new** purchases. Existing Stripe and lifetime entitlements are
+> preserved. Nothing has been activated or published.
+>
+> **The iPhone app loads restpilotai.com, so the in-app code must live on `main`:**
+> - the RevenueCat pieces from this document are ported to `main` in **#63**, which also adds
+>   the owner steps in `docs/restpilot-upgrade-2026-11/APPLE-IAP-SETUP.md` on `main`;
+> - on `main` the `store_entitlements` migration ships **pending** in
+>   `supabase/pending-migrations/`, not applied, and the code tolerates its absence;
+> - website Stripe checkout for new purchases is behind `VITE_WEB_CHECKOUT_ENABLED` (default
+>   off) in **#57**, with a past-due "Manage billing" fix;
+> - the read-only Stripe subscriber audit is in **#52**.
+>
+> **On this branch,** a `past_due` / `unpaid` Stripe subscription now blocks an App Store
+> purchase (`stripeBillingIssue`), because it can still charge once the card is fixed. `main`
+> has the same rule. `main` also offers an App Store purchase only once the server reports the
+> whole pipeline ready (`iapReady`: `IAP_ENABLED`, both RevenueCat secrets, migration applied).
+
 ---
 
 ## 1. Summary

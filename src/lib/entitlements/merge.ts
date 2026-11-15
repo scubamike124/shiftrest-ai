@@ -44,6 +44,10 @@ export interface Entitlement {
   hasApple: boolean;
   /** Two or more channels will renew: the user is (or will be) double billed. */
   duplicateBilling: boolean;
+  /** A Stripe subscription in this environment is past_due or unpaid: it
+   *  grants nothing now but can charge again once the card is fixed. Never
+   *  offer a second (App Store) subscription on top of it. */
+  stripeBillingIssue: boolean;
 }
 
 export const NO_ENTITLEMENT: Entitlement = Object.freeze({
@@ -57,6 +61,7 @@ export const NO_ENTITLEMENT: Entitlement = Object.freeze({
   hasStripe: false,
   hasApple: false,
   duplicateBilling: false,
+  stripeBillingIssue: false,
 }) as Entitlement;
 
 /** Shape of public.subscriptions columns the merge needs. */
@@ -197,6 +202,11 @@ export function mergeEntitlements(
 ): Entitlement {
   const now = options.now ?? Date.now();
   const channels: ChannelEntitlement[] = [];
+  const stripeBillingIssue = (stripeRows ?? []).some(
+    (row) =>
+      env(row.environment) === options.stripeEnvironment &&
+      (row.status === "past_due" || row.status === "unpaid"),
+  );
   for (const row of stripeRows ?? []) {
     const c = stripeChannel(row, now);
     if (c && c.environment === options.stripeEnvironment) channels.push(c);
@@ -205,7 +215,8 @@ export function mergeEntitlements(
     const c = appleChannel(row, now);
     if (c && options.appleEnvironments.includes(c.environment)) channels.push(c);
   }
-  if (channels.length === 0) return NO_ENTITLEMENT;
+  if (channels.length === 0)
+    return stripeBillingIssue ? { ...NO_ENTITLEMENT, channels: [], stripeBillingIssue } : NO_ENTITLEMENT;
   channels.sort(compareChannels);
   const top = channels[0];
   return {
@@ -219,6 +230,7 @@ export function mergeEntitlements(
     hasStripe: channels.some((c) => c.source === "stripe"),
     hasApple: channels.some((c) => c.source === "apple"),
     duplicateBilling: channels.filter((c) => c.willRenew).length >= 2,
+    stripeBillingIssue,
   };
 }
 

@@ -11,6 +11,8 @@
 //     subscriber must not be offered a second subscription.
 //   - Already entitled through any channel: show status and that channel's
 //     manage path, never a buy button (double-billing prevention).
+//   - A Stripe subscription that is past_due/unpaid can still charge again:
+//     show the billing problem and the Stripe manage path, never a buy button.
 //   - Storefront unknown is treated as non-US.
 
 import type { Entitlement, EntitlementSource } from "./merge";
@@ -39,7 +41,7 @@ export interface PaywallInput {
 export type ManagePath = "app_store" | "stripe_portal" | "stripe_text_only";
 
 export interface PaywallDecision {
-  view: "loading" | "status" | "purchase" | "unavailable";
+  view: "loading" | "status" | "billing_issue" | "purchase" | "unavailable";
   purchase: "iap" | "web_checkout" | null;
   manage: { source: EntitlementSource; path: ManagePath }[];
   restore: boolean;
@@ -88,6 +90,14 @@ export function decidePaywall(input: PaywallInput): PaywallDecision {
       view: "status",
       manage: sources.map((source) => ({ source, path: managePath(source, input) })),
       duplicateBillingWarning: ent.duplicateBilling,
+    };
+  }
+
+  if (ent.stripeBillingIssue) {
+    return {
+      ...base,
+      view: "billing_issue",
+      manage: [{ source: "stripe", path: managePath("stripe", input) }],
     };
   }
 
