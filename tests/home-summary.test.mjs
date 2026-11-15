@@ -143,6 +143,7 @@ test("back-to-back rotation: the shift about to start comes first, yesterday's i
     now: new Date("2026-11-16T20:00:00Z"),
   });
   assert.equal(later.changeTarget.id, "s0@2026-11-16");
+  assert.equal(later.changeCandidates[1].id, "s1@2026-11-17");
 });
 
 test("a cancelled shift stays listed in appliedChanges (so Undo remains available)", () => {

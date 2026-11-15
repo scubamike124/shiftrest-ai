@@ -423,7 +423,9 @@
    border-white/10, ...) become soft ink tints, so cards and dividers stay
    visible on a light background. Scoped to those utilities and their content,
    not the global token, so white text on dark scrims, photos and solid colour
-   buttons stays white (restored by the second rule, which wins on ties). */
+   buttons stays white (restored by the second rule, which wins on ties). A
+   solid `bg-white` pill stays white too, even when it also carries a
+   `hover:bg-white/90` class that matches the first rule. */
 :root[data-theme="light"]
   :is(
     [class*="bg-white/"],
@@ -447,7 +449,8 @@
     [class*="bg-sky-5"],
     [class*="bg-indigo-5"],
     [class~="bg-primary"],
-    [class~="bg-destructive"]
+    [class~="bg-destructive"],
+    [class~="bg-white"]
   ) {
   --color-white: oklch(1 0 0);
 }

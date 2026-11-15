@@ -295,7 +295,7 @@ export function TodayCard({ shifts, prefs, userId, now, onEditSchedule }: Props)
         <button
           type="button"
           onClick={() => {
-            setPickedId(null);
+            setPickedId(summary.changeTarget?.id ?? null);
             setOpen(true);
           }}
           // Wait for the signed-in user, so the change is saved under their key.

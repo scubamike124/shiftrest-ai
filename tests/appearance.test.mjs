@@ -178,6 +178,49 @@ test("Soft Light keeps white text white on scrims (the white remap is scoped, no
   assert.match(css, /\[class\*="bg-black"\][\s\S]*?--color-white: oklch\(1 0 0\)/);
 });
 
+// Resolves Soft Light's --color-white for an element from its own class list, the
+// way the two scoped rules in styles.css do: both have equal specificity, so the
+// restore rule (later in the file) wins when an element matches both.
+function softLightRules() {
+  const rules = [];
+  const re = /:root\[data-theme="light"\]\s*:is\(([\s\S]*?)\)\s*\{\s*--color-white:\s*(oklch\([^)]*\))/g;
+  for (const m of css.matchAll(re)) {
+    const attrs = [...m[1].matchAll(/\[class([*~])="([^"]+)"\]/g)].map(([, op, v]) => ({ op, v }));
+    rules.push({ attrs, white: m[2] });
+  }
+  return rules;
+}
+function softLightWhite(classes) {
+  const tokens = classes.split(/\s+/);
+  let white = null; // null: inherited from the parent
+  for (const r of softLightRules()) {
+    const hit = r.attrs.some(({ op, v }) => (op === "*" ? classes.includes(v) : tokens.includes(v)));
+    if (hit) white = r.white;
+  }
+  return white;
+}
+
+test("Soft Light selector cascade: overlays become ink, solid white and dark surfaces stay white", () => {
+  const rules = softLightRules();
+  assert.equal(rules.length, 2, "expected the remap rule and the restore rule");
+  const INK = rules[0].white;
+  const WHITE = "oklch(1 0 0)";
+  assert.equal(rules[1].white, WHITE);
+  // The new-version banner's Update pill (UpdateBanner.tsx): bg-white with
+  // text-black and hover:bg-white/90. It must stay a white pill with black text.
+  const banner = fs.readFileSync(
+    new URL("../src/components/pwa/UpdateBanner.tsx", import.meta.url),
+    "utf8",
+  );
+  const pill = banner.match(/className="([^"]*hover:bg-white\/90[^"]*)"/);
+  assert.ok(pill, "UpdateBanner Update button classes not found");
+  assert.equal(softLightWhite(pill[1]), WHITE);
+  assert.equal(softLightWhite("rounded-xl border-white/15 bg-black/85 text-white"), WHITE);
+  assert.equal(softLightWhite("rounded-full bg-rose-500 text-white"), WHITE);
+  assert.equal(softLightWhite("rounded-2xl border border-white/10 bg-white/5"), INK);
+  assert.equal(softLightWhite("text-white/70"), null);
+});
+
 for (const [name, t] of Object.entries(themes)) {
   test(`${name}: core text token pairs meet WCAG AA (4.5:1)`, () => {
     for (const [fg, bg] of TEXT_PAIRS) {
