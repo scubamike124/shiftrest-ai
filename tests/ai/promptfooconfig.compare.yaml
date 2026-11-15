@@ -1,8 +1,0 @@
-# Overlay for current-vs-candidate model benchmarks. The wrapper adds it with
-# `--compare`; it needs AI_CANDIDATE_MODEL (and the same AI_BASE_URL/AI_API_KEY,
-# or AI_CANDIDATE_* overrides are not supported: compare models on one endpoint).
-providers:
-  - id: file://providers/restpilot-coach.mjs
-    label: candidate
-    config:
-      model: "{{ env.AI_CANDIDATE_MODEL }}"

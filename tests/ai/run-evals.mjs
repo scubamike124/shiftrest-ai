@@ -1,26 +1,33 @@
 #!/usr/bin/env node
-// Cost-capped entry point for RestPilot AI evals (Promptfoo).
+// Cost-capped CI entry point for the RestPilot companion evals.
 //
-//   node tests/ai/run-evals.mjs [--smoke] [--compare] [--repeat N] [--no-cache]
-//                               [--max-tokens N] [--filter-pattern RE] [--dry-run]
-//                               [--strict]
+// The scenarios, production-prompt assembly, providers and judge live in the
+// AI companion benchmark (tests/ai/companion, PR #18). This wrapper runs that
+// same Promptfoo config for CI and the QA report, with spend controls:
 //
-// What it guarantees:
-//   - a hard token cap (default 120k for --smoke, 1.5M otherwise) that every
-//     model call, including llm-rubric grading, reserves against before it is
-//     sent; calls past the cap are refused, never made;
-//   - a preflight estimate that refuses to start an uncached run whose worst
-//     case is already over the cap;
-//   - "blocked" (exit 0, unless --strict) rather than a fake pass when no AI
-//     key is configured and the response cache cannot answer every call;
-//   - summary.json + summary.md in tests/ai/.results, appended to the GitHub
-//     job summary when running in Actions.
+//   node tests/ai/run-evals.mjs --offline      # $0: every case through the offline
+//                                              #     provider (pipeline + guardrail check)
+//   node tests/ai/run-evals.mjs --smoke        # 10 cases, current model, cached, 120k cap
+//   node tests/ai/run-evals.mjs                # all cases, current model, 1.5M cap
+//   node tests/ai/run-evals.mjs --repeat 3 --no-cache   # consistency subset
+//   (current-vs-candidate comparison: tests/ai/companion/run.mjs, also capped)
+//
+// Options: --max-tokens N, --provider LABEL (default current-gemini-3-flash-preview),
+//          --filter-pattern RE, --strict (blocked/partial exit 1), --out DIR.
+//
+// Guarantees: a hard token cap enforced per call by tests/ai/companion/lib/guard.cjs
+// (model and judge calls reserve worst case first, refused past the cap); a
+// preflight refusal for uncached runs whose worst case exceeds the cap; and
+// "blocked", never a pass, when keys are missing and the cache cannot answer.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const bench = path.join(here, "companion");
+const require = createRequire(import.meta.url);
 const PROMPTFOO_VERSION = "0.125.1";
 
 const argv = process.argv.slice(2);
@@ -30,45 +37,41 @@ const opt = (name, fallback) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : fallback;
 };
 
+const offline = flag("--offline");
 const smoke = flag("--smoke");
-const compare = flag("--compare");
 const noCache = flag("--no-cache");
-const dryRun = flag("--dry-run");
 const strict = flag("--strict");
 const repeat = Math.max(1, Number(opt("--repeat", "1")) || 1);
 const filterPattern = opt("--filter-pattern", "");
+const providerLabel = opt(
+  "--provider",
+  process.env.RESTPILOT_EVAL_PROVIDER || "current-gemini-3-flash-preview",
+);
 const maxTokens = Number(
   opt("--max-tokens", process.env.RESTPILOT_EVAL_MAX_TOKENS || (smoke ? 120_000 : 1_500_000)),
 );
 const outDir = path.resolve(opt("--out", path.join(here, ".results")));
+const dryRun = offline; // offline = assembly + deterministic checks, no model
 
-// Worst-case per call: assembled prompt (~3.5k tokens with memories/signals)
-// + output ceiling, plus one llm-rubric grading call when the test has one.
-const EST_CALL = 3_500 + 2_048;
-const EST_GRADE = 2_500 + 2_048;
+// One case per area: sleep planning, rotation, caffeine, recovery, scheduling,
+// voice, memory, wearable honesty, medical safety, structured intents.
+export const SMOKE_IDS = ["A01", "B01", "C01", "E01", "F01", "G01", "H01", "I01", "J01", "K01"];
+
+// Worst case per case: prompt (~4k tokens) + 2048 output, plus a judge call
+// (~3k prompt + 2000 output) when the case has a model-graded assertion.
+const EST_CALL = 4_000 + 2_048;
+const EST_GRADE = 3_000 + 2_000;
 
 function loadScenarios() {
-  const dir = path.join(here, "scenarios");
-  const files = fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
-  const tests = [];
-  for (const f of files) {
-    const text = fs.readFileSync(path.join(dir, f), "utf8");
-    // Count tests without a YAML dependency: top-level "- description:" items.
-    const items = text.split(/\n(?=- )/).filter((b) => /^-\s+description:/m.test(b.trimStart()));
-    for (const b of items) {
-      tests.push({
-        file: f,
-        description: (/description:\s*"?([^"\n]+)"?/.exec(b) || [])[1] || "",
-        smoke: /\n\s+smoke:\s*true\b/.test(b),
-        rubric: (
-          b.match(
-            /type:\s*(llm-rubric|g-eval|factuality|model-graded-closedqa|answer-relevance)/g,
-          ) || []
-        ).length,
-      });
-    }
-  }
-  return tests;
+  const cases = require(path.join(bench, "cases", "index.cjs"));
+  return cases.map((c) => ({
+    id: c.metadata?.id,
+    description: c.description ?? c.metadata?.id ?? "",
+    consistency: Boolean(c.metadata?.consistency),
+    rubric: (c.assert ?? []).filter((a) =>
+      /llm-rubric|g-eval|factuality|model-graded|answer-relevance/.test(a.type),
+    ).length,
+  }));
 }
 
 function promptfooCommand() {
@@ -116,11 +119,15 @@ function summarise(resultsFile, ledger, meta) {
       r.gradingResult?.reason,
       ...(r.gradingResult?.componentResults ?? []).map((c) => c?.reason),
     ].join("\n");
-    const isBlocked = /BLOCKED|COST_CAP/.test(`${err}\n${gradingText}`);
+    const isBlocked = /BLOCKED|COST_CAP|pending key|no judge key|missing [A-Z_]+_KEY/.test(
+      `${err}\n${gradingText}`,
+    );
     let verdict;
-    if (dryRun) verdict = err ? "error" : "assembled";
+    // r.error also carries assertion failure reasons; provider failures live on r.response.error.
+    const providerErr = r.response?.error || (!r.response ? r.error : "") || "";
+    if (dryRun) verdict = providerErr ? "error" : "assembled";
     else if (isBlocked) verdict = "blocked";
-    else if (err && !r.gradingResult) verdict = "error";
+    else if (providerErr && !isBlocked) verdict = "error";
     else verdict = r.success ? "pass" : "fail";
     if (verdict === "assembled") p.pass += 1;
     else p[verdict] += 1;
@@ -137,7 +144,9 @@ function summarise(resultsFile, ledger, meta) {
     }
     if (verdict === "fail" || verdict === "error" || verdict === "blocked") {
       const reason = isBlocked
-        ? (`${err}\n${gradingText}`.match(/(BLOCKED|COST_CAP)[^\n]*/)?.[0] ?? "blocked")
+        ? (`${err}\n${gradingText}`.match(
+            /(BLOCKED|COST_CAP|missing [A-Z_]+_KEY|no judge key)[^\n]*/,
+          )?.[0] ?? "blocked")
         : String(err || r.failureReason || r.gradingResult?.reason || "");
       p.failures.push({
         verdict: verdict.toUpperCase(),
@@ -182,9 +191,9 @@ function summarise(resultsFile, ledger, meta) {
 
 function toMarkdown(s) {
   const lines = [`### RestPilot AI evals (${s.mode})`, ""];
-  if (s.status === "dry-run" || (s.mode ?? "").includes("dry-run"))
+  if (s.status === "offline-ok" || (s.mode ?? "").includes("offline"))
     lines.push(
-      "Dry run: Pass = prompt assembled through the app code; no model calls, assertions not scored.",
+      "Offline self-test: Pass = production prompt assembled (with the DATA HONESTY guardrail) for the case; the reply is a fixed string, so no quality is scored and no model is called.",
       "",
     );
   if (s.status === "blocked") lines.push(`**Status: BLOCKED** - ${s.blockedReason}`, "");
@@ -232,45 +241,32 @@ function finish(summary, code) {
 
 // ---------------------------------------------------------------- preflight
 const scenarios = loadScenarios()
-  .filter((t) => (smoke ? t.smoke : true))
+  .filter((t) => (smoke ? SMOKE_IDS.includes(t.id) : true))
+  .filter((t) => (repeat > 1 ? t.consistency : true))
   .filter((t) => (filterPattern ? new RegExp(filterPattern).test(t.description) : true));
-const providerCount = compare ? 2 : 1;
-const worstCase =
-  scenarios.reduce((n, t) => n + EST_CALL + t.rubric * EST_GRADE, 0) * providerCount * repeat;
-const hasKey = Boolean(process.env.AI_API_KEY || process.env.OPENAI_API_KEY);
+const worstCase = offline
+  ? 0
+  : scenarios.reduce((n, t) => n + EST_CALL + t.rubric * EST_GRADE, 0) * repeat;
 const meta = {
   mode: [
-    smoke ? "smoke" : "full",
-    compare ? "compare" : null,
+    offline ? "offline self-test" : smoke ? "smoke" : "full",
     repeat > 1 ? `repeat x${repeat}` : null,
     noCache ? "no-cache" : "cached",
-    dryRun ? "dry-run" : null,
   ]
     .filter(Boolean)
     .join(", "),
+  provider: offline ? "offline-selftest" : providerLabel,
   repeat,
   maxTokens,
   scenarios: scenarios.length,
   worstCaseTokens: worstCase,
-  models: {
-    current: process.env.AI_CHAT_MODEL || null,
-    candidate: compare ? process.env.AI_CANDIDATE_MODEL || null : undefined,
-  },
   startedAt: new Date().toISOString(),
 };
 console.log(
-  `[evals] ${scenarios.length} scenario(s), ${providerCount} model(s), repeat ${repeat}; worst case ~${worstCase} tokens; cap ${maxTokens}.`,
+  `[evals] ${scenarios.length} case(s) on ${meta.provider}, repeat ${repeat}; worst case ~${worstCase} tokens; cap ${maxTokens}.`,
 );
-
-if (!scenarios.length)
-  finish({ ...meta, status: "error", blockedReason: "no scenarios matched" }, 1);
-if (compare && !process.env.AI_CANDIDATE_MODEL) {
-  finish(
-    { ...meta, status: "blocked", blockedReason: "needs AI_CANDIDATE_MODEL for --compare" },
-    strict ? 1 : 0,
-  );
-}
-if (noCache && !dryRun && worstCase > maxTokens) {
+if (!scenarios.length) finish({ ...meta, status: "error", blockedReason: "no cases matched" }, 1);
+if (noCache && !offline && worstCase > maxTokens) {
   finish(
     {
       ...meta,
@@ -278,11 +274,6 @@ if (noCache && !dryRun && worstCase > maxTokens) {
       blockedReason: `uncached worst case ~${worstCase} tokens exceeds the ${maxTokens}-token cap; raise --max-tokens deliberately or narrow the run`,
     },
     1,
-  );
-}
-if (!hasKey && !dryRun) {
-  console.log(
-    "[evals] No AI key: running from the response cache only; any miss is reported as BLOCKED.",
   );
 }
 
@@ -294,15 +285,18 @@ const resultsFile = path.join(outDir, "results.json");
 fs.rmSync(resultsFile, { force: true });
 
 const [cmd, pre] = promptfooCommand();
-const args = [...pre, "eval", "-c", path.join(here, "promptfooconfig.yaml")];
-if (compare) args.push("-c", path.join(here, "promptfooconfig.compare.yaml"));
-if (smoke) args.push("--filter-metadata", "smoke=true");
+const args = [...pre, "eval", "-c", path.join(bench, "benchmark.promptfooconfig.yaml")];
+args.push(
+  "--filter-providers",
+  `^${(offline ? "offline-selftest" : providerLabel).replace(/[.]/g, "\\.")}$`,
+);
+if (smoke) args.push("--filter-metadata", `id=${SMOKE_IDS.join(",")}`);
+if (repeat > 1) args.push("--filter-metadata", "consistency=true", "--repeat", String(repeat));
 if (filterPattern) args.push("--filter-pattern", filterPattern);
-if (repeat > 1) args.push("--repeat", String(repeat));
 if (noCache) args.push("--no-cache");
 args.push(
   "--max-concurrency",
-  process.env.RESTPILOT_EVAL_CONCURRENCY || "4",
+  process.env.RESTPILOT_EVAL_CONCURRENCY || "2",
   "--no-share",
   "--no-progress-bar",
   "--no-table",
@@ -316,14 +310,14 @@ const env = {
   ...process.env,
   RESTPILOT_EVAL_MAX_TOKENS: String(maxTokens),
   RESTPILOT_EVAL_LEDGER: ledger,
-  RESTPILOT_EVAL_DRY_RUN: dryRun ? "1" : process.env.RESTPILOT_EVAL_DRY_RUN || "",
   RESTPILOT_EVAL_CACHE: noCache ? "off" : process.env.RESTPILOT_EVAL_CACHE || "on",
+  BENCH_NO_JUDGE: offline ? "1" : process.env.BENCH_NO_JUDGE || "",
   PROMPTFOO_DISABLE_TELEMETRY: "1",
   PROMPTFOO_DISABLE_UPDATE: "1",
   PROMPTFOO_DISABLE_SHARING: "1",
   PROMPTFOO_CONFIG_DIR: process.env.PROMPTFOO_CONFIG_DIR || path.join(here, ".cache", "promptfoo"),
 };
-const run = spawnSync(cmd, args, { stdio: "inherit", env, cwd: here });
+const run = spawnSync(cmd, args, { stdio: "inherit", env, cwd: bench });
 
 const ledgerData = fs.existsSync(ledger)
   ? JSON.parse(fs.readFileSync(ledger, "utf8"))
@@ -350,12 +344,12 @@ const totals = Object.values(summary.providers).reduce(
   { fail: 0, error: 0, blocked: 0, total: 0 },
 );
 summary.totals = totals;
-if (dryRun) summary.status = totals.error ? "error" : "dry-run";
+if (dryRun) summary.status = totals.error ? "error" : "offline-ok";
 else if (totals.blocked === totals.total) {
   summary.status = "blocked";
   summary.blockedReason = ledgerData.refused
     ? "token cap reached"
-    : "needs AI_API_KEY (repository secret) plus AI_BASE_URL and AI_CHAT_MODEL; the response cache could not answer";
+    : "needs GEMINI_API_KEY (repository secret; Google AI Studio) for the current model and a judge key (OPENAI_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY); the response cache could not answer";
 } else if (totals.fail || totals.error) summary.status = "failed";
 else if (totals.blocked) summary.status = "partial";
 else summary.status = "passed";
