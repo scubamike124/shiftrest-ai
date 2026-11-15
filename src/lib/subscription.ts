@@ -67,7 +67,12 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
   };
   // A newer incomplete checkout must not hide an older paid or lifetime row.
   const states = rows.map(toState);
-  return states.find((s) => s.isPremium) ?? states[0];
+  // Lifetime ranks first, as in the server's entitlement merge.
+  return (
+    states.find((s) => s.isPremium && s.tier === "lifetime") ??
+    states.find((s) => s.isPremium) ??
+    states[0]
+  );
 }
 
 export async function restorePurchases(): Promise<SubscriptionState> {
