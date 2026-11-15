@@ -26,10 +26,16 @@ on:
       - ".github/workflows/ios-maestro.yml"
   workflow_dispatch:
   workflow_call:
+    inputs:
+      caller:
+        description: Calling workflow (keeps its concurrency group apart from PR runs)
+        type: string
+        default: called
 permissions:
   contents: read
 concurrency:
-  group: ios-maestro-${{ github.ref }}
+  # A called run (qa-full) and a path-triggered PR run must not cancel each other.
+  group: ios-maestro-${{ github.ref }}-${{ inputs.caller || github.event_name }}
   cancel-in-progress: true
 jobs:
   maestro:
@@ -138,7 +144,8 @@ jobs:
         if: steps.guard.outputs.ok == 'true'
         run: |
           set -euo pipefail
-          # Official installer (latest release); the version used is recorded as evidence.
+          # Official installer, pinned so runs are reproducible; bump deliberately.
+          export MAESTRO_VERSION=2.12.1
           curl -fsSL "https://get.maestro.mobile.dev" | bash
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
           "$HOME/.maestro/bin/maestro" --version | tee "$EV/maestro-version.txt"

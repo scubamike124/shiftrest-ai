@@ -35,7 +35,9 @@ export default class SummaryReporter implements Reporter {
           : outcome === "expected"
             ? result.status === "skipped"
               ? "skipped"
-              : "passed"
+              : test.expectedStatus === "failed"
+                ? "known-defect" // test.fail(): an open defect still reproduces
+                : "passed"
             : outcome === "flaky"
               ? "flaky"
               : outcome === "skipped"
@@ -59,6 +61,7 @@ export default class SummaryReporter implements Reporter {
       failed: count("failed"),
       flaky: count("flaky"),
       skipped: count("skipped"),
+      knownDefect: count("known-defect"),
       blocked: count("blocked"),
       parked: count("parked"),
       total: rows.length,
@@ -70,6 +73,7 @@ export default class SummaryReporter implements Reporter {
         failed: 0,
         flaky: 0,
         skipped: 0,
+        "known-defect": 0,
         blocked: 0,
         parked: 0,
       });
@@ -77,17 +81,22 @@ export default class SummaryReporter implements Reporter {
     }
     const blockedReasons = [...new Set(rows.filter((r) => r.blocked).map((r) => r.blocked!))];
     const failures = rows.filter((r) => r.status === "failed" || r.status === "flaky");
+    const knownDefects = [
+      ...new Set(
+        rows.filter((r) => r.status === "known-defect").map((r) => `${r.file}: ${r.title}`),
+      ),
+    ];
 
     const md = [
       `### RestPilot web regression (Playwright): ${result.status.toUpperCase()}`,
       "",
-      `**${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.blocked} blocked, ${totals.parked} parked by owner, ${totals.skipped} skipped** (${totals.total} test runs)`,
+      `**${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.knownDefect} known defects still open, ${totals.blocked} blocked, ${totals.parked} parked by owner, ${totals.skipped} skipped** (${totals.total} test runs)`,
       "",
-      "| Project | Passed | Failed | Flaky | Blocked | Parked | Skipped |",
-      "|---|---|---|---|---|---|---|",
+      "| Project | Passed | Failed | Flaky | Known defect | Blocked | Parked | Skipped |",
+      "|---|---|---|---|---|---|---|---|",
       ...Object.entries(byProject).map(
         ([p, c]) =>
-          `| ${p} | ${c.passed} | ${c.failed} | ${c.flaky} | ${c.blocked} | ${c.parked} | ${c.skipped} |`,
+          `| ${p} | ${c.passed} | ${c.failed} | ${c.flaky} | ${c["known-defect"]} | ${c.blocked} | ${c.parked} | ${c.skipped} |`,
       ),
       "",
       ...(failures.length
@@ -97,6 +106,14 @@ export default class SummaryReporter implements Reporter {
             ...failures
               .slice(0, 30)
               .map((f) => `- [${f.project}] ${f.file}: ${f.title}: ${f.error ?? f.status}`),
+            "",
+          ]
+        : []),
+      ...(knownDefects.length
+        ? [
+            "**Known defects (expected failures, still reproducing)**",
+            "",
+            ...knownDefects.map((d) => `- ${d}`),
             "",
           ]
         : []),
@@ -111,7 +128,7 @@ export default class SummaryReporter implements Reporter {
     fs.writeFileSync(
       path.join(out, "summary.json"),
       JSON.stringify(
-        { status: result.status, totals, byProject, blockedReasons, failures, rows },
+        { status: result.status, totals, byProject, blockedReasons, knownDefects, failures, rows },
         null,
         2,
       ),

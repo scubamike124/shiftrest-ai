@@ -500,6 +500,12 @@ async function handleRest(req, res, url) {
       const existing = upsert
         ? rows.find((r) => keys.every((k) => r[k] !== undefined && r[k] === row[k]))
         : undefined;
+      // A conflict with a row the caller cannot see fails like RLS does.
+      if (existing && ctx.role !== "service_role" && !rowsFor(name, ctx).includes(existing))
+        return send(res, 403, {
+          code: "42501",
+          message: "new row violates row-level security policy",
+        });
       if (existing) {
         if (prefer.includes("resolution=merge-duplicates"))
           Object.assign(existing, row, { updated_at: now });
@@ -518,6 +524,12 @@ async function handleRest(req, res, url) {
 
   if (req.method === "PATCH") {
     const body = await readBody(req);
+    // RLS WITH CHECK: a user cannot move a row to someone else.
+    if (ctx.role !== "service_role" && body && "user_id" in body && body.user_id !== ctx.uid)
+      return send(res, 403, {
+        code: "42501",
+        message: "new row violates row-level security policy",
+      });
     const target = applyFilters(rowsFor(name, ctx), url);
     const now = new Date().toISOString();
     for (const r of target) Object.assign(r, body, { updated_at: now });

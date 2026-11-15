@@ -149,10 +149,10 @@ test.describe("AI companion", () => {
     await page.goto("/decisions");
     await expect(page.getByRole("heading", { name: /What I decided today/i })).toBeVisible();
     const accept = page.getByRole("button", { name: /^Accept$/ }).first();
-    if (await accept.count()) {
-      await accept.click();
-      await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
-    }
+    // Say so instead of passing silently when there is nothing to accept.
+    test.skip((await accept.count()) === 0, "no decision to accept for this user");
+    await accept.click();
+    await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
   });
 });
 

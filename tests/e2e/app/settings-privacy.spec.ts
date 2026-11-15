@@ -60,13 +60,17 @@ test.describe("settings pages", () => {
     await page.goto("/settings/morning");
     await page.getByRole("button", { name: "Hide Weather" }).click();
     await page.getByRole("button", { name: /Save changes/i }).click();
+    // The saved layout must record the change (weather hidden), not just exist.
     await expect
       .poll(async () =>
         JSON.stringify(
           (await backend.dump(user.email)).tables.user_prefs?.[0]?.brief_layout ?? null,
         ),
       )
-      .not.toBe("null");
+      .toMatch(/"morning":\{[^}]*"hidden":\[[^\]]*"weather"/);
+    // And it survives a reload: the card now offers "Show Weather".
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Show Weather" })).toBeVisible();
   });
 
   test("appearance: theme can be switched once the redesign lands", async ({
@@ -129,8 +133,14 @@ test.describe("privacy and data", () => {
 
   test("data export downloads the user's own data as JSON @smoke", async ({
     authedPage: page,
+    backend,
     user,
   }) => {
+    // A second account with its own memory: none of it may appear in this export.
+    const other = `qa-other-${Date.now()}-${Math.random().toString(16).slice(2, 8)}@e2e.restpilot.test`;
+    await backend.seed([{ email: other, password: "Rp-other-2026!" }], {
+      ai_memory: [{ user_email: other, ...MEMORY("Other user's secret night roster") }],
+    });
     await page.goto("/profile");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: /Export my data/i }).click();
@@ -139,6 +149,8 @@ test.describe("privacy and data", () => {
     const json = JSON.parse(fs.readFileSync((await file.path())!, "utf8"));
     expect(JSON.stringify(json)).toContain(user.email);
     expect(JSON.stringify(json)).toContain("Works nights at County General");
+    expect(JSON.stringify(json)).not.toContain("Other user's secret night roster");
+    expect(JSON.stringify(json)).not.toContain(other);
     await expect(page.getByText(/Your data export was downloaded/i)).toBeVisible();
   });
 
@@ -227,6 +239,9 @@ test.describe("cookie consent", () => {
 test.describe("AI data-sharing permission (#62)", () => {
   test.use({ seedTables: { user_prefs: [{ consent_json: {} }] } });
 
+  // Requests that would carry the user's data to an AI provider.
+  const AI_ROUTES = /\/api\/(ai|brief|insights|swap|stt|tts|tts-elevenlabs)(\?|$)/;
+
   test("first AI use asks for permission; Allow is saved and AI then works", async ({
     authedPage: page,
     backend,
@@ -252,9 +267,22 @@ test.describe("AI data-sharing permission (#62)", () => {
           >,
       )
       .toHaveProperty("ai_data_sharing");
+    // After Allow, a coach message reaches /api/ai and is answered.
+    const answered = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === "/api/ai" && r.request().method() === "POST",
+      { timeout: 20_000 },
+    );
+    const box = page.getByRole("textbox").first();
+    await box.fill("When should I take caffeine before a night shift?");
+    await box.press("Enter");
+    expect((await answered).status()).toBe(200);
   });
 
   test("Not now keeps AI off and sends nothing", async ({ authedPage: page, backend, user }) => {
+    const sent: string[] = [];
+    page.on("request", (r) => {
+      if (AI_ROUTES.test(new URL(r.url()).pathname)) sent.push(`${r.method()} ${r.url()}`);
+    });
     await page.goto("/coach");
     const dialog = page.getByRole("alertdialog", { name: /Allow AI features\?/ });
     if (!(await dialog.isVisible().catch(() => false))) {
@@ -265,6 +293,8 @@ test.describe("AI data-sharing permission (#62)", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "Not now" }).click();
     await expect(dialog).toBeHidden();
+    await page.waitForLoadState("networkidle");
+    expect(sent, "no request may reach an AI route after Not now").toEqual([]);
     const prefs = (await backend.dump(user.email)).tables.user_prefs?.[0] ?? {};
     expect((prefs.consent_json ?? {}) as Record<string, unknown>).not.toHaveProperty(
       "ai_data_sharing",

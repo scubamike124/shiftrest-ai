@@ -311,6 +311,65 @@ test.describe("AI data-sharing permission (#62)", () => {
   });
 });
 
+// The hermetic backend stands in for Supabase row-level security. If it leaked
+// rows between users, every "only your data" assertion above would be hollow.
+test.describe("hermetic backend keeps users' rows apart", () => {
+  test("another user cannot read, change, delete or claim your rows @smoke", async ({
+    request,
+    backend,
+  }) => {
+    const tag = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const a = { email: `qa-iso-a-${tag}@e2e.restpilot.test`, password: "Rp-iso-a-2026!" };
+    const b = { email: `qa-iso-b-${tag}@e2e.restpilot.test`, password: "Rp-iso-b-2026!" };
+    const memory = (email: string, content: string) => ({
+      user_email: email,
+      content,
+      category: "schedule",
+      source: "user",
+      pinned: false,
+    });
+    await backend.seed([a, b], {
+      ai_memory: [memory(a.email, "A's private note"), memory(b.email, "B's own note")],
+    });
+    const aDump = await backend.dump(a.email);
+    const aRow = aDump.tables.ai_memory?.[0] as { id: string; user_id: string };
+    expect(aRow?.user_id).toBe(aDump.userId);
+    const bDump = await backend.dump(b.email);
+    const bRow = bDump.tables.ai_memory?.[0] as { id: string };
+    const s = await backend.session(b.email, b.password);
+    const headers = {
+      authorization: `Bearer ${s.access_token}`,
+      "content-type": "application/json",
+    };
+
+    const read = await request.get("/rest/v1/ai_memory?select=*", { headers });
+    expect(read.status()).toBe(200);
+    const contents = ((await read.json()) as { content: string }[]).map((r) => r.content);
+    expect(contents).toEqual(["B's own note"]);
+    const direct = await request.get(`/rest/v1/ai_memory?id=eq.${aRow.id}`, { headers });
+    expect(await direct.json()).toEqual([]);
+
+    await request.patch(`/rest/v1/ai_memory?id=eq.${aRow.id}`, {
+      headers,
+      data: { content: "overwritten by B" },
+    });
+    await request.delete(`/rest/v1/ai_memory?id=eq.${aRow.id}`, { headers });
+    const claim = await request.post("/rest/v1/ai_memory", {
+      headers,
+      data: { user_id: aRow.user_id, content: "planted by B" },
+    });
+    expect(claim.status()).toBe(403);
+    const move = await request.patch(`/rest/v1/ai_memory?id=eq.${bRow.id}`, {
+      headers,
+      data: { user_id: aRow.user_id },
+    });
+    expect(move.status()).toBe(403);
+
+    const after = (await backend.dump(a.email)).tables.ai_memory ?? [];
+    expect(after.map((r) => r.content)).toEqual(["A's private note"]);
+  });
+});
+
 test.describe("site endpoints @readonly", () => {
   test("sitemap lists public pages only", async ({ request }) => {
     const xml = await (await request.get("/sitemap.xml")).text();

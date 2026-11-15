@@ -80,8 +80,17 @@ test.describe("sign-up and sign-in", () => {
     await page.getByLabel("Email address").fill(user.email);
     await page.getByRole("button", { name: /Forgot Password/i }).click();
     await expect(page.getByText(/If that email exists, a reset link is on the way/i)).toBeVisible();
-    const dump = await backend.dump(user.email);
-    expect(dump.log.some((l) => l.type === "auth-email")).toBe(true);
+    // auth-email log entries are global, so match this user's address.
+    await expect
+      .poll(async () =>
+        (await backend.dump(user.email)).log.some(
+          (l) =>
+            l.type === "auth-email" &&
+            (l as { path?: string }).path === "/recover" &&
+            (l as { body?: { email?: string } }).body?.email === user.email,
+        ),
+      )
+      .toBe(true);
   });
 
   test("sign out ends the session", async ({ authedPage: page }) => {

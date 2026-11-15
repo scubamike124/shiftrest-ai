@@ -13,7 +13,7 @@ Started 2026-11-14, updated 2026-11-15. Source: `scubamike124/shiftrest-ai`, bra
 | Layer | Tool | Location | Runs |
 |---|---|---|---|
 | Fast PR checks | ESLint (changed lines), `tsc`, `node --test`, production build plus server smoke | `.github/workflows/qa-fast.yml`, `scripts/qa/lint-changed.mjs` | Every PR, and every push to the Railway branch |
-| Web regression | **Playwright 1.63** | `tests/e2e/` (config, specs, hermetic backend) | PR smoke: `qa-e2e.yml`. Comprehensive: label `qa:full` or `release`, PRs into `main`, or manual dispatch |
+| Web regression | **Playwright 1.63** | `tests/e2e/` (config, specs, hermetic backend) | PR smoke: `qa-e2e.yml` (never re-run by label events). Comprehensive: `qa-full.yml` on label `qa:full` or `release`, PRs into `main`, or manual dispatch |
 | AI quality | **Promptfoo 0.125.1** with the AI agent's 134-case benchmark (#18) | `tests/ai/companion/` (cases, providers, judge), `tests/ai/run-evals.mjs` (CI wrapper), `tests/ai/companion/lib/guard.cjs` (spend cap and cache) | `ai-evals.yml`: offline self-test plus smoke on PRs that touch AI paths; full and consistency runs on demand or in the comprehensive run |
 | iPhone app | **Maestro** on the free `macos-15` runner | `.maestro/*.yaml`, `.github/workflows/ios-maestro.yml` | PRs touching `ios-app/`, `.maestro/` or native code; the comprehensive run |
 | Native plugins | XCUITest, from the native agent (#13) | `ios-e2e/`, `ios-native-e2e.yml` | Native PRs |

@@ -1,0 +1,136 @@
+# COMPREHENSIVE QA run for RestPilot (heavy, advisory). Runs on the label
+# `qa:full` or `release`, on PRs into main (the release path), or on manual
+# dispatch:
+#   - full Playwright suite on Chromium AND WebKit, desktop + iPhone SE / 15 /
+#     15 Pro Max (no-horizontal-overflow on every route), API contract, offline;
+#   - Maestro iOS flows (ios-maestro.yml) and the full Promptfoo suite
+#     (ai-evals.yml, mode full);
+#   - read-only smoke of staging (and production, informational) with GET-only
+#     @readonly tests.
+# Kept apart from qa-e2e.yml so that label events never touch the every-PR
+# smoke check. Other labels start a run whose jobs all skip.
+name: QA full
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths-ignore:
+      - "docs/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-full-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PLAYWRIGHT_VERSION: "1.63.0"
+jobs:
+  full:
+    name: E2E full (${{ matrix.browser }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.base_ref == 'main' ||
+      contains(github.event.pull_request.labels.*.name, 'qa:full') ||
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Cache Playwright browsers
+        id: pw
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}-${{ matrix.browser }}
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+        if: steps.pw.outputs.cache-hit != 'true'
+      - run: npx playwright install-deps ${{ matrix.browser }}
+        if: steps.pw.outputs.cache-hit == 'true'
+      - name: Build for the hermetic backend
+        run: |
+          eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
+          npm run build
+      - name: Playwright full suite
+        env:
+          E2E_STRIPE_TEST_SECRET_KEY: ${{ secrets.E2E_STRIPE_TEST_SECRET_KEY }}
+        run: |
+          npx playwright test -c tests/e2e \
+            --project=${{ matrix.browser }}-desktop --project=${{ matrix.browser }}-iphone-se \
+            --project=${{ matrix.browser }}-iphone-15 --project=${{ matrix.browser }}-iphone-15-pro-max
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-full-${{ matrix.browser }}
+          path: tests/e2e/.results
+          retention-days: 14
+          if-no-files-found: warn
+
+  live-readonly:
+    name: Live read-only smoke (${{ matrix.site }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.base_ref == 'main' ||
+      contains(github.event.pull_request.labels.*.name, 'qa:full') ||
+      contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - site: staging
+            url: https://restpilot-web-staging.up.railway.app
+          - site: production
+            url: https://restpilotai.com
+    # Production runs main via Lovable, not this branch: informational only.
+    continue-on-error: ${{ matrix.site == 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: GET-only @readonly checks (no sign-ups, no writes)
+        env:
+          E2E_BASE_URL: ${{ matrix.url }}
+        run: npx playwright test -c tests/e2e --project=chromium-desktop --project=chromium-iphone-se
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-readonly-${{ matrix.site }}
+          path: tests/e2e/.results
+          retention-days: 14
+          if-no-files-found: warn
+
+  ios:
+    name: iOS Maestro (comprehensive)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.base_ref == 'main' ||
+      contains(github.event.pull_request.labels.*.name, 'qa:full') ||
+      contains(github.event.pull_request.labels.*.name, 'release')
+    uses: ./.github/workflows/ios-maestro.yml
+    with:
+      caller: qa-full
+
+  ai:
+    name: AI evals (comprehensive)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.base_ref == 'main' ||
+      contains(github.event.pull_request.labels.*.name, 'qa:full') ||
+      contains(github.event.pull_request.labels.*.name, 'release')
+    uses: ./.github/workflows/ai-evals.yml
+    with:
+      mode: full
+    secrets: inherit
