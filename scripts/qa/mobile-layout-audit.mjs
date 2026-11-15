@@ -170,6 +170,19 @@ for (const vp of VIEWPORTS) {
       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
   });
   if (FAKE) await installFakeBackend(context);
+  // AUDIT_THEME=<id> (and AUDIT_MATCH_SYSTEM=1) picks the Appearance theme first.
+  if (process.env.AUDIT_THEME)
+    await context.addInitScript(
+      ([theme, match]) => {
+        try {
+          localStorage.setItem(
+            "restpilot.appearance.v1",
+            JSON.stringify({ theme, matchSystem: match }),
+          );
+        } catch {}
+      },
+      [process.env.AUDIT_THEME, process.env.AUDIT_MATCH_SYSTEM === "1"],
+    );
   for (const route of routes) {
     const page = await context.newPage();
     const consoleErrors = [];
