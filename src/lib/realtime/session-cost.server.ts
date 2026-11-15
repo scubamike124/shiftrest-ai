@@ -86,7 +86,7 @@ export type StartResult =
   | { ok: true; sessionId: string; deadlineAt: number; maxSessionSeconds: number; debit: number }
   | {
       ok: false;
-      code: "voice_session_active" | "ai_budget_exhausted" | "ai_budget_unavailable";
+      code: "voice_disabled" | "voice_session_active" | "ai_budget_exhausted" | "ai_budget_unavailable";
       message: string;
     };
 
@@ -96,6 +96,14 @@ export async function startRealtimeSession(
   userId: string,
   now: number = Date.now(),
 ): Promise<StartResult> {
+  // Defence in depth: the kill switch also guards the debit itself.
+  if (process.env.REALTIME_VOICE_ENABLED !== "1") {
+    return {
+      ok: false,
+      code: "voice_disabled",
+      message: "Voice is temporarily unavailable.",
+    };
+  }
   const sid = newSessionId();
   const debit = WORST_CASE_DEBIT_TOKENS;
   const verdict = await rpc<string>(admin, "claim_voice_session", {

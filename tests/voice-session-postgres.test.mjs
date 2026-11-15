@@ -109,3 +109,46 @@ test("parallel mints at the budget boundary cannot overshoot the cap or both bec
   assert.equal(more.filter((r) => r === "ok").length, 1, more.join());
   assert.ok(used(A) <= 10001 && used(A) === 10000, `used ${used(A)}`);
 });
+
+// Deterministic: hold a claim's transaction open and fire a second claim while it
+// is uncommitted. With the advisory lock the second call waits for the first and
+// then sees it as active. Without the lock it cannot see the uncommitted row and
+// would also answer "ok" (two active sessions), so this test fails.
+const psqlBg = (sqlText) =>
+  new Promise((resolve, reject) => {
+    const p = spawn("psql", ["-X", "-q", "-At", "--no-psqlrc", "-d", db.url, "-c", sqlText], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.on("close", (c) => (c === 0 ? resolve(out.trim().split("\n")[0]) : reject(new Error("psql " + c))));
+  });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test("the per-user advisory lock serialises claims (fails if the lock is removed)", { skip }, async () => {
+  db.sql(`DELETE FROM public.ai_log WHERE user_id = ${q(A)}`);
+  db.sql(`UPDATE public.user_prefs SET ai_daily_token_cap = 500000 WHERE user_id = ${q(A)}`);
+  const first = psqlBg(
+    `SELECT public.claim_voice_session(${q(A)}, 'lock-1', 10000, 210); SELECT pg_sleep(1.5);`,
+  );
+  await sleep(400);
+  const started = Date.now();
+  const second = await psqlBg(`SELECT public.claim_voice_session(${q(A)}, 'lock-2', 10000, 210)`);
+  assert.equal(await first, "ok");
+  assert.equal(second, "active", "second claim must wait for the first, then see it active");
+  assert.ok(Date.now() - started >= 600, "second claim actually waited on the lock");
+  assert.equal(used(A), 10000);
+});
+
+test("the lock also protects the budget boundary (only one of two debits fits)", { skip }, async () => {
+  db.sql(`DELETE FROM public.ai_log WHERE user_id = ${q(A)}`);
+  db.sql(`UPDATE public.user_prefs SET ai_daily_token_cap = 15000 WHERE user_id = ${q(A)}`);
+  const first = psqlBg(
+    `SELECT public.claim_voice_session(${q(A)}, 'edge-1', 10000, 210); SELECT pg_sleep(1.5);`,
+  );
+  await sleep(400);
+  const second = await psqlBg(`SELECT public.claim_voice_session(${q(A)}, 'edge-2', 10000, 210)`);
+  assert.equal(await first, "ok");
+  assert.notEqual(second, "ok");
+  assert.ok(used(A) <= 14999);
+});

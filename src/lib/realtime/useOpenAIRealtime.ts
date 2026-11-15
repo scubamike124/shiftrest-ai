@@ -588,6 +588,8 @@ export function useOpenAIRealtime() {
       } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");
+      } else if (msg.includes("voice_disabled")) {
+        setError("Voice is temporarily unavailable. You can keep using the text coach.");
       } else if (msg.includes("voice_session_active")) {
         setError("A voice session is already active. End it before starting another.");
       } else if (msg.includes("rate_limited")) {

@@ -23,6 +23,9 @@ export const OPENAI_REALTIME_USD_PER_M = {
 } as const;
 
 /** Documented audio-to-token conversion. */
+/** Input transcription (whisper-1, configured in the mint), USD per minute of user audio. */
+export const INPUT_TRANSCRIPTION_USD_PER_MIN = 0.006;
+
 export const AUDIO_TOKENS_PER_SECOND = { input: 10, output: 20 } as const;
 
 export const VOICE_LIMITS = {
@@ -68,7 +71,8 @@ export function worstCaseUsdPerMinute(responsesPerMin: number = VOICE_LIMITS.HON
   );
   return (
     inputTokens * per(OPENAI_REALTIME_USD_PER_M.audioIn) +
-    outputTokens * per(OPENAI_REALTIME_USD_PER_M.audioOut)
+    outputTokens * per(OPENAI_REALTIME_USD_PER_M.audioOut) +
+    INPUT_TRANSCRIPTION_USD_PER_MIN
   );
 }
 

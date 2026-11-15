@@ -116,6 +116,14 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     const { assertAIConsent } = await import("@/lib/ai/consent.server");
     await assertAIConsent(context.userId);
 
+    // KILL SWITCH: live voice is OFF unless the owner sets REALTIME_VOICE_ENABLED=1
+    // (after putting a hard spend limit on the dedicated OpenAI project/key).
+    // Checked before any rate limit, debit or provider call. Text coach and the
+    // local crisis card do not use this function.
+    if (process.env.REALTIME_VOICE_ENABLED !== "1") {
+      throw new Error("voice_disabled: Voice is temporarily unavailable.");
+    }
+
     // Per-user mint rate limit: each mint opens a paid realtime session.
     {
       const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");

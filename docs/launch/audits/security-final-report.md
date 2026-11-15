@@ -6,7 +6,7 @@ Generated: 2026-06-27.
 
 - **`supabase--linter`** — 2 WARN advisories remain, both intentional and documented:
   1. `Extension in Public` — `pg_cron` lives in the `public` schema. Moving it requires Supabase support and is unsupported on Lovable Cloud. No app exposure.
-  2. `Signed-In Users Can Execute SECURITY DEFINER Function` — `has_active_subscription` and `has_ai_budget`. Both are read-only existence checks scoped to the calling `user_uuid`; required for RLS evaluation in server functions. Documented in the Phase 1 report.
+  2. `Signed-In Users Can Execute SECURITY DEFINER Function` — `has_active_subscription` and `has_ai_budget`. `has_active_subscription` is a read-only existence check used in RLS evaluation. Update Nov 2026: `has_ai_budget` is NOT required by RLS and is no longer executable by signed-in users (it let them probe any user's cap status); only the service role calls it, from `src/lib/ai/log.server.ts` (migration `20261115070000_voice_session_ledger_and_budget_rpc_lockdown.sql`).
 - No new CRITICAL or ERROR findings since Phase 1 hardening.
 
 ## RLS / DB permissions spot-check

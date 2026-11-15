@@ -115,6 +115,7 @@ async function mintAndCapture(prefsRow) {
     },
   });
   sandbox.process.env.OPENAI_API_KEY = "test-placeholder";
+  sandbox.process.env.REALTIME_VOICE_ENABLED = "1";
   const { mintRealtimeSession } = app("@/lib/realtime/openai.functions");
   await mintRealtimeSession.handler({ data: {}, context: { userId: "u1" } });
   assert.equal(sent.length, 1);

@@ -450,6 +450,7 @@ function loadRealtime(db, spy) {
     process: {
       env: {
         OPENAI_API_KEY: "openai-example",
+        ...(spy.voiceOff ? {} : { REALTIME_VOICE_ENABLED: "1" }),
         SUPABASE_URL: "https://example.supabase.test",
         SUPABASE_SERVICE_ROLE_KEY: "service-role-example",
       },
@@ -960,8 +961,8 @@ function ledgerDb(cap, preUsed = 0, { rpcFails = [] } = {}) {
   return db;
 }
 const mintCall = (db, spy) => loadRealtime(db, spy)({ data: {}, context: { userId: USER } });
-const sessionMod = () =>
-  makeLoader({}, { process: { env: {} }, Promise, Date, Math, setTimeout, clearTimeout })(
+const sessionMod = (env = { REALTIME_VOICE_ENABLED: "1" }) =>
+  makeLoader({}, { process: { env }, Promise, Date, Math, setTimeout, clearTimeout })(
     "src/lib/realtime/session-cost.server.ts",
   );
 const pricing = () => makeLoader({}, {})("src/lib/realtime/voice-pricing.ts");
@@ -971,7 +972,7 @@ test("voice cost model: dollars, conversion and debit come from one helper and a
   const p = pricing();
   const perMin = p.worstCaseUsdPerMinute();
   // 6 responses/min x (1500 + 2000) ctx tokens x $32/M + 1200 out tokens x $64/M
-  assert.ok(Math.abs(perMin - (6 * 3500 * 32e-6 + 1200 * 64e-6)) < 1e-9);
+  assert.ok(Math.abs(perMin - (6 * 3500 * 32e-6 + 1200 * 64e-6 + 0.006)) < 1e-9);
   assert.equal(p.TOKENS_PER_MINUTE, p.usdToTokenEquivalents(perMin));
   assert.equal(p.WORST_CASE_DEBIT_TOKENS, 3 * p.TOKENS_PER_MINUTE);
   // the debit, valued back in dollars, covers the dollars of a full-length honest session
@@ -1179,4 +1180,88 @@ test("nothing but the backend can change ai_daily_token_cap (no client code writ
     if (rel.includes("integrations/supabase/types.ts")) continue;
     assert.ok(!/ai_daily_token_cap/.test(read(rel)), `${rel} references the cap column`);
   }
+});
+
+// ---- kill switch: live voice is off unless REALTIME_VOICE_ENABLED=1 ----------
+test("kill switch: flag unset => refused, no debit, no rate-limit hit, no provider call", async () => {
+  const db = ledgerDb(REALTIME_CAP);
+  const spy = upstreamSpy();
+  spy.voiceOff = true;
+  await assert.rejects(mintCall(db, spy), /voice_disabled: Voice is temporarily unavailable/);
+  assert.deepEqual(spy.calls, []);
+  assert.equal(db.logRows.length, 0, "nothing was debited");
+  assert.ok(!db.inserts.some((i) => i.table === "ai_log"));
+  // the debit helper itself also refuses
+  const m = sessionMod({});
+  const r = await m.startRealtimeSession(db, USER);
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "voice_disabled");
+  assert.equal(db.logRows.length, 0);
+});
+
+test("kill switch: any value other than exactly 1 is off; set => normal path", async () => {
+  const spyOn = upstreamSpy();
+  const on = await mintCall(ledgerDb(REALTIME_CAP), spyOn);
+  assert.ok(on.sessionId);
+  assert.equal(spyOn.calls.length, 1);
+  const src = stripComments(read("src/lib/realtime/openai.functions.ts"));
+  assert.match(src, /process\.env\.REALTIME_VOICE_ENABLED !== "1"/);
+  assert.ok(src.indexOf("REALTIME_VOICE_ENABLED") < src.indexOf("enforceRateLimit("), "checked before rate limit and debit");
+  assert.ok(src.indexOf("REALTIME_VOICE_ENABLED") < src.indexOf("startRealtimeSession("));
+  // the client shows a user-safe message and the text coach is untouched
+  assert.match(stripComments(read("src/lib/realtime/useOpenAIRealtime.ts")), /voice_disabled[\s\S]*text coach/);
+});
+
+test("kill switch is OFF by default in the repo (no env file or config sets it)", () => {
+  for (const f of [".env", ".env.example", "wrangler.jsonc", "vite.config.ts"]) {
+    try {
+      assert.ok(!/REALTIME_VOICE_ENABLED\s*=?\s*:?\s*"?1/.test(read(f)), `${f} must not enable voice`);
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+  }
+});
+
+// ---- pinned economics: refund share and the hostile immediate-finish loop -----
+test("REFUND_FRACTION is pinned to 0.5 (a change to 1 must be a deliberate, reviewed edit)", async () => {
+  const m = sessionMod();
+  assert.equal(m.REALTIME_COST.REFUND_FRACTION, 0.5);
+  const D = m.worstCaseTokens();
+  const PM = m.REALTIME_COST.TOKENS_PER_MINUTE;
+  const db = ledgerDb(REALTIME_CAP);
+  const T = 1_800_000_000_000;
+  db.now = () => T;
+  const s = await m.startRealtimeSession(db, USER, T);
+  db.now = () => T + 1000;
+  const r = await m.reportRealtimeSession(db, USER, { sessionId: s.sessionId, elapsedSeconds: 1, final: true }, T + 1000);
+  // literal half, not derived from the constant under test
+  assert.equal(r.refunded, Math.floor((D - PM) / 2));
+  assert.equal(net(db, "rt-"), D - Math.floor((D - PM) / 2), "half of the unused debit is kept");
+});
+
+test("hostile 'mint, finish immediately, repeat' loop: the cap still ends it; count and total are pinned", async () => {
+  const m = sessionMod();
+  const D = m.worstCaseTokens();
+  const PM = m.REALTIME_COST.TOKENS_PER_MINUTE;
+  const db = ledgerDb(REALTIME_CAP);
+  const T = 1_800_000_000_000;
+  let sessions = 0;
+  for (let i = 0; i < 100; i++) {
+    db.now = () => T + i * 2000;
+    const s = await m.startRealtimeSession(db, USER, T + i * 2000);
+    if (!s.ok) {
+      assert.equal(s.code, "ai_budget_exhausted");
+      break;
+    }
+    sessions++;
+    db.now = () => T + i * 2000 + 1000;
+    await m.reportRealtimeSession(db, USER, { sessionId: s.sessionId, elapsedSeconds: 1, final: true }, T + i * 2000 + 1000);
+  }
+  const keptPerSession = D - Math.floor((D - PM) / 2);
+  assert.equal(sessions, Math.floor((REALTIME_CAP - 1 - D + keptPerSession) / keptPerSession));
+  assert.ok(net(db, "rt-") < REALTIME_CAP, "the ledger never passes the cap");
+  // each of those sessions could still be a real, ignored-deadline session at OpenAI:
+  // the loop is the bound on how many, NOT a bound on what each costs (see VOICE-COST-MODEL.md).
+  assert.ok(sessions >= 5 && sessions <= 12, `sessions ${sessions}`);
+  console.log(`hostile loop: ${sessions} sessions/day, kept ${keptPerSession} each`);
 });
