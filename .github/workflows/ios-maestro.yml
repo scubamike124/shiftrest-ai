@@ -44,6 +44,8 @@ jobs:
       QA_PASSWORD: Maestro-QA-2026!
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: "true"
+      # The XCTest driver needs longer than the default to start on hosted runners.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@v4
       - name: Skip cleanly if the iOS project is absent
