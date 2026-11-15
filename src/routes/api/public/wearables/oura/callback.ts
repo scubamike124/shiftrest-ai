@@ -1,5 +1,6 @@
 // Oura OAuth callback.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyOAuthState } from "@/lib/wearables/oauth-state.server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { exchangeCode, OURA_SCOPES } from "@/lib/wearables/oura.server";
@@ -36,7 +37,7 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
         if (err) return redirectBack("error", err);
         if (!code || !state) return redirectBack("error", "missing_code");
 
-        const userId = state.split(":")[0];
+        const userId = verifyOAuthState(state, "oura");
         if (!userId) return redirectBack("error", "bad_state");
 
         try {
