@@ -49,6 +49,10 @@
 :root {
   --radius: 1rem;
 
+  /* Dark-only by design (docs/qa/LIGHT_MODE.md): tell the browser so native
+     controls, scrollbars and form popups stay dark when the OS is in light mode. */
+  color-scheme: dark;
+
   /* Midnight Indigo — premium dark mode */
   --background: oklch(0.13 0.03 275);            /* #0a0a1a */
   --foreground: oklch(0.97 0.01 250);

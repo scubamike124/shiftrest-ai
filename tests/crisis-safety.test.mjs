@@ -486,7 +486,7 @@ test("crisis card: static 988 / 911 / local emergency number / findahelpline.com
 /**
  * Runs the same send pre-flight the Coach and Companion use, with the REAL
  * consent client (supabase, toast stubbed) and a counting fetch:
- *   showCardOnCrisis -> shouldSendToAI(crisis, aiConsentWouldAsk) -> aiFetch
+ *   showCardOnCrisis -> shouldSendToAI(crisis) -> aiFetch
  */
 async function runSendFlow(text, consent) {
   const fetched = [];
@@ -531,7 +531,7 @@ async function runSendFlow(text, consent) {
     card = true;
   });
   const cardBeforeAnyAwait = card;
-  const send = await shouldSendToAI(crisis, client.aiConsentWouldAsk);
+  const send = shouldSendToAI(crisis);
   let dialogOpened = false;
   if (send) {
     const pending = client.aiFetch("/api/ai", { method: "POST" });
@@ -557,17 +557,18 @@ test("no consent: a crisis message shows the card, opens no consent prompt and m
   assert.deepEqual(r.fetched, [], "nothing is sent anywhere");
 });
 
-test("consent granted: the card shows and the message still reaches the AI", async () => {
+test("consent granted: the card shows and the message is NOT forwarded to the AI (owner rule)", async () => {
   const r = await runSendFlow(CRISIS_TEXT, "granted");
   assert.equal(r.cardBeforeAnyAwait, true);
-  assert.equal(r.send, true);
-  assert.deepEqual(r.fetched, ["/api/ai"]);
+  assert.equal(r.send, false);
+  assert.deepEqual(r.fetched, []);
 });
 
-test("consent status unavailable (offline): the card still shows; the server decides on sending", async () => {
+test("consent status unavailable (offline): the card shows and nothing is sent either", async () => {
   const r = await runSendFlow(CRISIS_TEXT, "unknown");
   assert.equal(r.cardBeforeAnyAwait, true);
-  assert.equal(r.send, true);
+  assert.equal(r.send, false);
+  assert.deepEqual(r.fetched, []);
 });
 
 test("non-crisis messages: no card, and the normal consent gate is unchanged", async () => {
@@ -580,29 +581,23 @@ test("non-crisis messages: no card, and the normal consent gate is unchanged", a
   assert.deepEqual(granted.fetched, ["/api/ai"]);
 });
 
-test("shouldSendToAI: a failing consent check never swallows the message", async () => {
+test("shouldSendToAI: only a crisis message is held back, and it needs no consent lookup", () => {
   const { shouldSendToAI } = cues;
-  assert.equal(await shouldSendToAI(false, async () => true), true);
-  assert.equal(await shouldSendToAI(true, async () => true), false);
-  assert.equal(await shouldSendToAI(true, async () => false), true);
-  assert.equal(
-    await shouldSendToAI(true, async () => {
-      throw new Error("x");
-    }),
-    true,
-  );
+  assert.equal(shouldSendToAI(false), true);
+  assert.equal(shouldSendToAI(true), false);
+  assert.equal(shouldSendToAI.length, 1, "takes no consent callback: nothing to await or fail");
 });
 
 for (const [route, sendFn] of [
   ["routes/coach.tsx", "async function send("],
   ["routes/companion.tsx", "async function handleSend("],
 ]) {
-  test(`${route}: wired as showCardOnCrisis -> sending guard -> shouldSendToAI -> aiFetch; never blocks`, () => {
+  test(`${route}: wired as showCardOnCrisis -> sending guard -> shouldSendToAI -> aiFetch; never blocks the composer`, () => {
     const src = readFileSync(path.join(SRC, route), "utf8");
     const body = src.slice(src.indexOf(sendFn));
     const show = body.indexOf("showCardOnCrisis(");
     const guard = body.indexOf("if (sending) return;");
-    const gate = body.indexOf("await shouldSendToAI(crisis, aiConsentWouldAsk)");
+    const gate = body.indexOf("shouldSendToAI(crisis)");
     const ai = body.indexOf('aiFetch("/api/ai"');
     const firstAwait = body.indexOf("await ");
     assert.ok(show > 0 && show < guard, "checked before the sending guard");
@@ -611,7 +606,7 @@ for (const [route, sendFn] of [
     // Not sent: a static caring line stands in for the reply, then return.
     assert.match(
       body,
-      /if \(!\(await shouldSendToAI\(crisis, aiConsentWouldAsk\)\)\) \{\s*setMessages\(\[\.\.\.baseMessages, \{ role: "assistant", content: CRISIS_LOCAL_REPLY \}\]\);\s*return;\s*\}/,
+      /if \(!shouldSendToAI\(crisis\)\) \{\s*setMessages\(\[\.\.\.baseMessages, \{ role: "assistant", content: CRISIS_LOCAL_REPLY \}\]\);\s*(void speakIfEnabled\(CRISIS_LOCAL_REPLY\);\s*)?return;\s*\}/,
     );
     assert.match(src, /<CrisisSupportCard onClose=\{\(\) => setCrisisCard\(false\)\} \/>/);
     assert.doesNotMatch(src, /disabled=\{[^}]*crisis/i, "the composer is never disabled by it");

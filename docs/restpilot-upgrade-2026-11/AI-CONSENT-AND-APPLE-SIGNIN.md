@@ -22,6 +22,7 @@ The fixes reach users only after the owner presses **Publish** in Lovable. The i
   - **ElevenLabs**: the text of companion replies read aloud.
 - It links the Privacy Policy (new §6 "AI providers and your permission") and the subprocessor list, and offers **Allow** / **Not now**.
 - **Not now**: nothing is sent. Schedule, sleep plan and reminders keep working. AI cards show "AI features are off …". Background requests don't ask again that session; anything the user starts asks again.
+- **Crisis text and voice audio:** a typed Coach/Companion message with a crisis cue is not sent to an AI provider (local card on the device; `/api/ai` also answers it locally, even without a session). Voice audio (speech-to-text, live voice) reaches OpenAI when the user speaks or records, before any text check can run, and the privacy policy and consent dialog say so.
 - **Withdraw:** Profile → **Privacy & AI data sharing** (`/settings/privacy`) has a switch. Turning it off stops new requests immediately and ends a live voice session on that device.
 
 ### How it is enforced

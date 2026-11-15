@@ -17,8 +17,13 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isNativeApp } from "@/lib/native-app";
-import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
-import { CRISIS_LOCAL_REPLY, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
+import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import {
+  CRISIS_LOCAL_REPLY,
+  shouldSendToAI,
+  showCardOnCrisis,
+  withoutCrisisTurns,
+} from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 export const Route = createFileRoute("/coach")({
@@ -200,10 +205,11 @@ function Coach() {
     scrollToBottom();
 
     try {
-      // Without AI permission, a crisis message gets the card (already shown
-      // above; keep this after showCardOnCrisis) rather than a data-sharing
-      // prompt. Nothing is sent; the user can keep typing.
-      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+      // A crisis message is never forwarded to an AI provider, with or without
+      // AI permission: it gets the card (already shown above; keep this after
+      // showCardOnCrisis) and a static caring reply. No data-sharing prompt,
+      // nothing is sent; the user can keep typing.
+      if (!shouldSendToAI(crisis)) {
         setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
         return;
       }
@@ -217,7 +223,8 @@ function Coach() {
         },
         body: JSON.stringify({
           intent: "coach",
-          messages: baseMessages,
+          // Earlier crisis messages stay on screen but are not sent as history.
+          messages: withoutCrisisTurns(baseMessages),
           context: coachContext,
           surface: "text",
           localTime: new Date().toISOString(),
@@ -231,6 +238,9 @@ function Coach() {
         setMessages(baseMessages);
         return;
       }
+      // The server found a crisis cue the device check did not: show the card too.
+      const serverCrisis = resp.headers.get("x-crisis-support") === "1";
+      if (serverCrisis) setCrisisCard(true);
       if (!resp.ok || !resp.body) {
         const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
         if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
@@ -306,8 +316,11 @@ function Coach() {
         toast.error("Empty response from coach");
       } else {
         // Persist both turns after a successful exchange. No-op for guests.
-        void saveCoachMessage("user", trimmed);
-        void saveCoachMessage("assistant", assistant);
+        // A crisis exchange found by the server is not stored.
+        if (!serverCrisis) {
+          void saveCoachMessage("user", trimmed);
+          void saveCoachMessage("assistant", assistant);
+        }
         if (voiceOn && assistant !== lastSpokenRef.current) {
           lastSpokenRef.current = assistant;
           speak(assistant);

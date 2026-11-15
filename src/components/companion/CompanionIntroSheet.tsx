@@ -4,6 +4,8 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPrefs } from "@/lib/prefs";
 import { Sparkles, ShieldCheck, Mic2 } from "lucide-react";
 import {
   Sheet,
@@ -42,12 +44,19 @@ export function CompanionIntroSheet() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
-  // Open once per device after mount (after onboarding has cleared the route).
+  // Same query key as <Onboarding />, so this shares its cache. The sheet must
+  // wait until onboarding is finished: opening both at once stacked two modal
+  // layers (focus and pointer events went to the sheet hidden behind the
+  // full-screen onboarding overlay).
+  const { data: prefs, isSuccess, isFetched } = useQuery({ queryKey: ["prefs"], queryFn: fetchPrefs });
+  const onboarded = isSuccess && isFetched && prefs.onboarded;
+
+  // Open once per device after mount, once onboarding has cleared.
   useEffect(() => {
-    if (hasSeenCompanionIntro()) return;
+    if (!onboarded || hasSeenCompanionIntro()) return;
     const id = window.setTimeout(() => setOpen(true), 600);
     return () => window.clearTimeout(id);
-  }, []);
+  }, [onboarded]);
 
   useEffect(() => {
     if (!open) return;

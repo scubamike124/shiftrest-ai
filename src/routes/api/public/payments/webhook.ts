@@ -94,6 +94,25 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
   const productId =
     typeof li.price?.product === "string" ? li.price.product : li.price?.product?.id;
 
+  // Lifetime is discontinued for new customers. A completed payment for the
+  // lifetime price (e.g. a Checkout Session opened before the discontinuation)
+  // is still honored; any other one-time payment must never mint a lifetime row.
+  if (priceId !== "restpilot_lifetime") {
+    console.error("ignoring one-time checkout for non-lifetime price", session.id, priceId);
+    // A paid-but-ignored purchase must never be silent. Ids only, no PII.
+    try {
+      await notifyOwner({
+        severity: "warning",
+        service: "stripe.checkout.unexpected_one_time",
+        message: `Paid one-time checkout ${session.id} ignored (price ${priceId || "unknown"}, user ${userId}); no entitlement granted`,
+        meta: { sessionId: session.id, priceId, userId, env },
+      });
+    } catch (e) {
+      console.error("notifyOwner failed for ignored one-time checkout", e);
+    }
+    return;
+  }
+
   await getSupabase()
     .from("subscriptions")
     .upsert(
