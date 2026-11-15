@@ -24,7 +24,10 @@ export class CardErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <div role="status" className="flex items-center justify-between gap-3 p-4 text-xs text-muted-foreground">
+      <div
+        role="status"
+        className="flex items-center justify-between gap-3 p-4 text-xs text-muted-foreground"
+      >
         <span>This card couldn&apos;t load right now.</span>
         {/* A span, not a <button>: the card itself may be a button (HomeCard asButton). */}
         <span

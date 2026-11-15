@@ -40,7 +40,14 @@ Return { "memories": [] } if nothing qualifies. Each content < 140 chars. Max 4 
 
 /** Categories the AI may propose. "health" is deliberately absent. */
 const categories = new Set([
-  "general","schedule","preferences","employer","recovery","caffeine","family","goals",
+  "general",
+  "schedule",
+  "preferences",
+  "employer",
+  "recovery",
+  "caffeine",
+  "family",
+  "goals",
 ]);
 
 /** Health/medical content is never proposed, whatever category the model chose. */
@@ -48,7 +55,11 @@ const SENSITIVE =
   /\b(health|medical|medic(?:ine|ation|ations)|meds?\b|prescri\w*|diagnos\w*|disorder|illness|sick|symptom\w*|condition|pain|injur\w*|surgery|pregnan\w*|depress\w*|anxiety|panic|bipolar|adhd|ptsd|therap(?:y|ist)|counsel\w*|insomnia|apnea|narcolepsy|diabet\w*|blood pressure|hypertension|asthma|migraine\w*|cancer|heart|seizure|epilep\w*|melatonin|ambien|zolpidem|trazodone|benadryl|antidepressant\w*|ssri\w*|supplement\w*|pill\w*)\b/i;
 
 /** Exported for tests: is this candidate allowed to become a proposal? */
-export function proposalAllowed(m: { content?: unknown; category?: unknown; ttl_days?: unknown }): boolean {
+export function proposalAllowed(m: {
+  content?: unknown;
+  category?: unknown;
+  ttl_days?: unknown;
+}): boolean {
   if (typeof m.content !== "string" || m.content.trim().length < 4) return false;
   if (m.category === "health") return false;
   if (typeof m.ttl_days === "number" && m.ttl_days > 0) return false;
@@ -88,7 +99,10 @@ export async function proposeMemoriesFromChat(opts: {
     .select("memory_enabled, memory_learning_paused")
     .eq("user_id", opts.userId)
     .maybeSingle();
-  const c = consent as { memory_enabled: boolean | null; memory_learning_paused: boolean | null } | null;
+  const c = consent as {
+    memory_enabled: boolean | null;
+    memory_learning_paused: boolean | null;
+  } | null;
   if (consentError || !c?.memory_enabled || c.memory_learning_paused) return 0;
 
   const start = Date.now();
@@ -140,7 +154,11 @@ export async function proposeMemoriesFromChat(opts: {
 
   // Skip facts the user already keeps, and anything they declined in the last 30 days.
   const [{ data: existingRows }, { data: declinedRows }] = await Promise.all([
-    opts.admin.from("ai_memory").select("content, embedding_hash").eq("user_id", opts.userId).is("superseded_by", null),
+    opts.admin
+      .from("ai_memory")
+      .select("content, embedding_hash")
+      .eq("user_id", opts.userId)
+      .is("superseded_by", null),
     opts.admin
       .from("ai_memory_proposals")
       .select("dedupe_key")
@@ -150,8 +168,12 @@ export async function proposeMemoriesFromChat(opts: {
   ]);
   const existing = (existingRows ?? []) as { content: string; embedding_hash: string | null }[];
   const haveText = new Set(existing.map((e) => normalizeHash(e.content)));
-  const haveHash = new Set(existing.map((e) => e.embedding_hash).filter((h): h is string => Boolean(h)));
-  const declined = new Set(((declinedRows ?? []) as { dedupe_key: string }[]).map((r) => r.dedupe_key));
+  const haveHash = new Set(
+    existing.map((e) => e.embedding_hash).filter((h): h is string => Boolean(h)),
+  );
+  const declined = new Set(
+    ((declinedRows ?? []) as { dedupe_key: string }[]).map((r) => r.dedupe_key),
+  );
 
   let proposed = 0;
   for (const m of candidates) {
@@ -160,7 +182,13 @@ export async function proposeMemoriesFromChat(opts: {
     const importance = Math.max(1, Math.min(5, Math.round(m.importance ?? 3)));
     const hash = normalizeHash(content);
     const dedupeKey = `chat:${tokenOverlapKey(content)}`.slice(0, 120);
-    if (haveText.has(hash) || haveHash.has(hash) || haveHash.has(`proposal:${dedupeKey}`) || declined.has(dedupeKey)) continue;
+    if (
+      haveText.has(hash) ||
+      haveHash.has(hash) ||
+      haveHash.has(`proposal:${dedupeKey}`) ||
+      declined.has(dedupeKey)
+    )
+      continue;
 
     const { data: pending } = await opts.admin
       .from("ai_memory_proposals")
@@ -173,7 +201,11 @@ export async function proposeMemoriesFromChat(opts: {
     if (row) {
       await opts.admin
         .from("ai_memory_proposals")
-        .update({ last_seen_at: new Date().toISOString(), observed_count: (row.observed_count ?? 0) + 1, content } as never)
+        .update({
+          last_seen_at: new Date().toISOString(),
+          observed_count: (row.observed_count ?? 0) + 1,
+          content,
+        } as never)
         .eq("id", row.id);
       continue;
     }

@@ -11,10 +11,17 @@
 import { z } from "zod";
 
 const text = (fallback = "") =>
-  z.preprocess((v) => (typeof v === "number" || typeof v === "boolean" ? String(v) : v), z.string().trim()).catch(fallback);
+  z
+    .preprocess(
+      (v) => (typeof v === "number" || typeof v === "boolean" ? String(v) : v),
+      z.string().trim(),
+    )
+    .catch(fallback);
 
 const optText = () =>
-  z.preprocess((v) => (typeof v === "number" ? String(v) : v), z.string().trim().min(1).optional()).catch(undefined);
+  z
+    .preprocess((v) => (typeof v === "number" ? String(v) : v), z.string().trim().min(1).optional())
+    .catch(undefined);
 
 function oneOf<const T extends readonly [string, ...string[]]>(values: T, fallback: T[number]) {
   return z
@@ -23,28 +30,52 @@ function oneOf<const T extends readonly [string, ...string[]]>(values: T, fallba
 }
 
 const optOneOf = <const T extends readonly [string, ...string[]]>(values: T) =>
-  z.preprocess((v) => (typeof v === "string" ? v.trim().toLowerCase() : v), z.enum(values).optional()).catch(undefined);
+  z
+    .preprocess(
+      (v) => (typeof v === "string" ? v.trim().toLowerCase() : v),
+      z.enum(values).optional(),
+    )
+    .catch(undefined);
 
 const confidence = optOneOf(["low", "medium", "high"] as const);
 
 /** Objects only, capped; anything else in the list is dropped. */
 function listOf<S extends z.ZodTypeAny>(item: S, max: number) {
   return z.preprocess(
-    (v) => (Array.isArray(v) ? v.filter((x) => x !== null && typeof x === "object" && !Array.isArray(x)).slice(0, max) : []),
+    (v) =>
+      Array.isArray(v)
+        ? v.filter((x) => x !== null && typeof x === "object" && !Array.isArray(x)).slice(0, max)
+        : [],
     z.array(item),
   );
 }
 
 const textList = (max: number) =>
   z.preprocess(
-    (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).map((x: string) => x.trim()).slice(0, max) : []),
+    (v) =>
+      Array.isArray(v)
+        ? v
+            .filter((x) => typeof x === "string" && x.trim())
+            .map((x: string) => x.trim())
+            .slice(0, max)
+        : [],
     z.array(z.string()),
   );
 
 const isoOr = (fallback: () => string) =>
-  z.preprocess((v) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? new Date(v).toISOString() : fallback()), z.string());
+  z.preprocess(
+    (v) =>
+      typeof v === "string" && Number.isFinite(Date.parse(v))
+        ? new Date(v).toISOString()
+        : fallback(),
+    z.string(),
+  );
 
-const optIso = z.preprocess((v) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? new Date(v).toISOString() : undefined), z.string().optional());
+const optIso = z.preprocess(
+  (v) =>
+    typeof v === "string" && Number.isFinite(Date.parse(v)) ? new Date(v).toISOString() : undefined,
+  z.string().optional(),
+);
 
 const numOrNull = z.preprocess((v) => {
   const n = typeof v === "string" ? Number(v) : v;
@@ -56,7 +87,11 @@ const impact = z
   .optional()
   .catch(undefined);
 
-export type IntentFallbacks = { nowIso: string; targetWakeIso?: string; phase?: "pre" | "arrival" | "post" };
+export type IntentFallbacks = {
+  nowIso: string;
+  targetWakeIso?: string;
+  phase?: "pre" | "arrival" | "post";
+};
 
 function intentSchemas(fb: IntentFallbacks) {
   const now = () => fb.nowIso;
@@ -69,8 +104,14 @@ function intentSchemas(fb: IntentFallbacks) {
           id: text(),
           title: text(),
           detail: text(),
-          category: oneOf(["sleep", "light", "caffeine", "movement", "recovery", "nutrition"] as const, "recovery"),
-          priority: z.preprocess((v) => Math.min(3, Math.max(1, Math.round(Number(v) || 2))), z.number()),
+          category: oneOf(
+            ["sleep", "light", "caffeine", "movement", "recovery", "nutrition"] as const,
+            "recovery",
+          ),
+          priority: z.preprocess(
+            (v) => Math.min(3, Math.max(1, Math.round(Number(v) || 2))),
+            z.number(),
+          ),
           when: text(),
         }),
         5,
@@ -114,7 +155,10 @@ function intentSchemas(fb: IntentFallbacks) {
       confidence,
       blocks: listOf(
         z.object({
-          kind: oneOf(["sleep", "alarm", "light", "caffeine", "commute", "winddown", "recovery"] as const, "recovery"),
+          kind: oneOf(
+            ["sleep", "alarm", "light", "caffeine", "commute", "winddown", "recovery"] as const,
+            "recovery",
+          ),
           title: text(),
           when: text(),
           detail: text(),
@@ -128,12 +172,21 @@ function intentSchemas(fb: IntentFallbacks) {
       wins: textList(3),
       drains: textList(3),
       metrics: z
-        .object({ sleepRecoveredMin: numOrNull, recoveryTrend: oneOf(["up", "flat", "down", "unknown"] as const, "unknown") })
+        .object({
+          sleepRecoveredMin: numOrNull,
+          recoveryTrend: oneOf(["up", "flat", "down", "unknown"] as const, "unknown"),
+        })
         .catch({ sleepRecoveredMin: null, recoveryTrend: "unknown" }),
       tomorrowFocus: text(),
       impact,
     }),
-    pattern_alert: z.object({ headline: text(), why: text(), action: text(), confidence: oneOf(["low", "medium", "high"] as const, "low"), impact }),
+    pattern_alert: z.object({
+      headline: text(),
+      why: text(),
+      action: text(),
+      confidence: oneOf(["low", "medium", "high"] as const, "low"),
+      impact,
+    }),
     jetlag_plan: z.object({
       headline: text(),
       summary: text(),
@@ -144,7 +197,10 @@ function intentSchemas(fb: IntentFallbacks) {
       blocks: listOf(
         z.object({
           day: text(),
-          kind: oneOf(["light", "sleep", "caffeine", "meal", "melatonin", "movement", "hydration"] as const, "sleep"),
+          kind: oneOf(
+            ["light", "sleep", "caffeine", "meal", "melatonin", "movement", "hydration"] as const,
+            "sleep",
+          ),
           title: text(),
           when: text(),
           detail: text(),
@@ -171,18 +227,25 @@ const PRIMARY: Record<string, string> = {
   jetlag_plan: "headline",
 };
 
-export type Normalized = { ok: true; value: Record<string, unknown> } | { ok: false; reason: string };
+export type Normalized =
+  { ok: true; value: Record<string, unknown> } | { ok: false; reason: string };
 
-export function normalizeIntentOutput(intent: string, raw: unknown, fb: IntentFallbacks): Normalized {
+export function normalizeIntentOutput(
+  intent: string,
+  raw: unknown,
+  fb: IntentFallbacks,
+): Normalized {
   const schemas = intentSchemas(fb) as Record<string, z.ZodTypeAny>;
   const schema = schemas[intent];
   if (!schema) return { ok: false, reason: `no schema for ${intent}` };
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "not an object" };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return { ok: false, reason: "not an object" };
   const result = schema.safeParse(raw);
   if (!result.success) return { ok: false, reason: "invalid shape" };
   const value = result.data as Record<string, unknown>;
   const key = PRIMARY[intent];
-  if (key && !(typeof value[key] === "string" && (value[key] as string).length > 0)) return { ok: false, reason: `missing ${key}` };
+  if (key && !(typeof value[key] === "string" && (value[key] as string).length > 0))
+    return { ok: false, reason: `missing ${key}` };
   return { ok: true, value };
 }
 
@@ -195,13 +258,18 @@ const insightsSchema = z.object({
 });
 
 export function normalizeInsights(raw: unknown): Normalized {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "not an object" };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return { ok: false, reason: "not an object" };
   const r = insightsSchema.safeParse(raw);
   if (!r.success || !r.data.headline) return { ok: false, reason: "missing headline" };
   return { ok: true, value: r.data };
 }
 
-const VERDICT_LABEL = { take_it: "Take it", take_with_caveats: "Take it — with caveats", skip_it: "Skip it" } as const;
+const VERDICT_LABEL = {
+  take_it: "Take it",
+  take_with_caveats: "Take it — with caveats",
+  skip_it: "Skip it",
+} as const;
 const swapSchema = z.object({
   verdict: oneOf(["take_it", "take_with_caveats", "skip_it"] as const, "take_with_caveats"),
   verdict_label: optText(),
@@ -210,8 +278,17 @@ const swapSchema = z.object({
   risks: textList(3),
   naps: listOf(
     z.object({
-      time: z.preprocess((v) => (typeof v === "string" && /^\d{1,2}:\d{2}$/.test(v.trim()) ? v.trim().padStart(5, "0") : ""), z.string()),
-      duration_min: z.preprocess((v) => Math.min(120, Math.max(5, Math.round(Number(v) || 20))), z.number()),
+      time: z.preprocess(
+        (v) =>
+          typeof v === "string" && /^\d{1,2}:\d{2}$/.test(v.trim())
+            ? v.trim().padStart(5, "0")
+            : "",
+        z.string(),
+      ),
+      duration_min: z.preprocess(
+        (v) => Math.min(120, Math.max(5, Math.round(Number(v) || 20))),
+        z.number(),
+      ),
       why: text(),
     }),
     2,
@@ -220,9 +297,14 @@ const swapSchema = z.object({
 });
 
 export function normalizeSwap(raw: unknown): Normalized {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, reason: "not an object" };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return { ok: false, reason: "not an object" };
   const r = swapSchema.safeParse(raw);
   if (!r.success || !r.data.summary) return { ok: false, reason: "missing summary" };
-  const value = { ...r.data, verdict_label: r.data.verdict_label ?? VERDICT_LABEL[r.data.verdict], naps: r.data.naps.filter((n) => n.time) };
+  const value = {
+    ...r.data,
+    verdict_label: r.data.verdict_label ?? VERDICT_LABEL[r.data.verdict],
+    naps: r.data.naps.filter((n) => n.time),
+  };
   return { ok: true, value };
 }
