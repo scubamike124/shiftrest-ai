@@ -116,9 +116,15 @@ export function useTtsPlayer(opts: Options = {}) {
         let speakText = text;
 
         if (rewrite) {
+          // /api/brief is bearer-guarded; attach the token like /api/tts below.
+          const { data: briefSess } = await supabase.auth.getSession();
+          const briefToken = briefSess.session?.access_token;
           const briefRes = await aiFetch("/api/brief", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(briefToken ? { Authorization: `Bearer ${briefToken}` } : {}),
+            },
             body: JSON.stringify({
               plan: text,
               localTime: new Date().toISOString(),

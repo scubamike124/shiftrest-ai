@@ -17,6 +17,7 @@ import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { normalizeBrief, type AIBrief } from "@/lib/ai-brief";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -44,13 +45,6 @@ const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
 };
 
 
-type AIBrief = {
-  greeting: string;
-  headline: string;
-  fatigue_note: string;
-  top_actions: { icon: string; title: string; detail: string }[];
-  coach_note: string;
-};
 
 async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
@@ -69,7 +63,9 @@ async function fetchBrief(context: string): Promise<AIBrief> {
     if (resp.status === 401) throw new Error("Sign in to load your brief");
     throw new Error(e.error || "Brief unavailable");
   }
-  return resp.json();
+  const brief = normalizeBrief(await resp.json().catch(() => null));
+  if (!brief) throw new Error("Brief unavailable");
+  return brief;
 }
 
 
@@ -300,9 +296,11 @@ export function AIBriefCard({
               })}
             </ul>
 
-            <p className="text-xs italic leading-relaxed text-muted-foreground">
-              — {data.coach_note}
-            </p>
+            {data.coach_note && (
+              <p className="text-xs italic leading-relaxed text-muted-foreground">
+                — {data.coach_note}
+              </p>
+            )}
           </div>
         )}
       </div>

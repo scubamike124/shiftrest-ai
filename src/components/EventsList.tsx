@@ -124,6 +124,7 @@ export function EventsList({ signedIn }: { signedIn: boolean }) {
           />
           <input
             type="datetime-local"
+            aria-label="Starts at"
             value={startsAt}
             onChange={(e) => setStartsAt(e.target.value)}
             className="h-11 rounded-xl border border-border bg-background px-3 text-sm"

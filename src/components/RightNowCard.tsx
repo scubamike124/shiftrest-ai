@@ -145,7 +145,7 @@ export function RightNowCard({
     );
   }
 
-  const tone = data ? URGENCY_TONE[data.urgency] : URGENCY_TONE.soon;
+  const tone = (data && URGENCY_TONE[data.urgency]) || URGENCY_TONE.soon;
 
   return (
     <section

@@ -118,7 +118,11 @@ function MorningSettings() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 pb-16 pt-6">
       <header className="flex items-center gap-2">
-        <Link to="/companion" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60">
+        <Link
+          to="/companion"
+          aria-label="Back to Companion"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
