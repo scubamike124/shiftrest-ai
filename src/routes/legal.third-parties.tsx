@@ -26,16 +26,24 @@ const ACTIVE: Row[] = [
   },
   {
     name: "Lovable AI Gateway (Google Gemini)",
-    purpose: "AI text generation for coach, plans, briefings",
+    purpose:
+      "AI text generation for the coach, briefings, plans, insights and shift-swap advice. Only after you allow AI features.",
     shared:
-      "Prompt context the AI orchestrator assembles for the current request",
+      "Your coach messages and the context added to them: shifts and schedule, sleep and fatigue estimates, preferences, preferred name, AI memories (if on), wearable summaries (if connected)",
     policy: "https://lovable.dev/privacy",
   },
   {
-    name: "OpenAI",
-    purpose: "Text-to-speech for audio briefings",
-    shared: "The briefing text being read aloud",
+    name: "OpenAI (directly and via the Lovable AI Gateway)",
+    purpose:
+      "Speech-to-text, text-to-speech and live voice conversations. Only after you allow AI features.",
+    shared: "Your voice recordings, the text read aloud to you, your preferred name, your voice settings",
     policy: "https://openai.com/policies/privacy-policy",
+  },
+  {
+    name: "ElevenLabs",
+    purpose: "Text-to-speech for companion replies. Only after you allow AI features.",
+    shared: "The text of companion replies being read aloud",
+    policy: "https://elevenlabs.io/privacy-policy",
   },
   {
     name: "Fitbit (optional)",

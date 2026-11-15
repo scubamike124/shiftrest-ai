@@ -10,6 +10,15 @@ export const Route = createFileRoute("/api/lab/simli/session")({
       POST: async ({ request }) => {
         const denied = await requireLabAccess(request);
         if (denied) return denied;
+        // Staff-only, but still third-party AI: same permission as everywhere.
+        {
+          const { requireUser } = await import("@/lib/api/auth.server");
+          const auth = await requireUser(request);
+          if ("response" in auth) return auth.response;
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
         const apiKey = process.env.SIMLI_API_KEY;
         if (!apiKey) {
           return Response.json(

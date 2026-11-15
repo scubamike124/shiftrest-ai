@@ -9,6 +9,7 @@ import {
   stopSpeaking,
   prepareVoicePlayback,
 } from "@/lib/companion/speak";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 type Props = {
   // Returns the raw plan text. We call /api/brief to rewrite it, then route
@@ -82,7 +83,7 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         toast.info("Sign in to use voice briefing.");
         return;
       }
-      const briefRes = await fetch("/api/brief", {
+      const briefRes = await aiFetch("/api/brief", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

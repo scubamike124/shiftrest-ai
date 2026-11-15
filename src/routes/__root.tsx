@@ -20,6 +20,7 @@ import { AppSidebar } from "../components/site/AppSidebar";
 import { CompanionDock } from "../components/companion/CompanionDock";
 import { DebugHUD } from "../components/companion/DebugHUD";
 import { Onboarding } from "../components/Onboarding";
+import { AIConsentDialog } from "../components/ai/AIConsentDialog";
 import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
 import { UpdateBanner } from "../components/pwa/UpdateBanner";
@@ -262,6 +263,7 @@ function RootComponent() {
       )}
 
       {surface === "app" && authReady && signedIn && <Onboarding />}
+      {authReady && signedIn && <AIConsentDialog />}
       <DebugHUD
         signedIn={authReady ? signedIn : null}
         companionOn={false}

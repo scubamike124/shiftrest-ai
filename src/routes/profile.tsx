@@ -623,6 +623,21 @@ function Profile() {
       <NotificationsSection signedIn={signedIn} />
 
       <section className="rounded-2xl border border-border bg-card">
+        <Link to="/settings/privacy" className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Shield className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Privacy &amp; AI data sharing</p>
+              <p className="text-xs text-muted-foreground">
+                Choose whether RestPilot may send your data to its AI providers.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Divider />
         <Link to="/privacy" className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">

@@ -49,6 +49,7 @@ const SAFE_RETURNS = new Set([
   "/settings/avatar",
   "/settings/companion",
   "/settings/morning",
+  "/settings/privacy",
   "/settings/skills",
 ]);
 

@@ -17,6 +17,7 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { isNativeApp } from "@/lib/native-app";
+import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
 
 export const Route = createFileRoute("/coach")({
   ssr: false,
@@ -193,7 +194,7 @@ function Coach() {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const resp = await fetch("/api/ai", {
+      const resp = await aiFetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -209,6 +210,12 @@ function Coach() {
         }),
       });
 
+      if (isAIConsentRefusal(resp)) {
+        // The consent dialog already asked; the message was not sent.
+        toast.message("Your message wasn't sent. Allow AI features to chat with the coach.");
+        setMessages(baseMessages);
+        return;
+      }
       if (!resp.ok || !resp.body) {
         const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
         if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
