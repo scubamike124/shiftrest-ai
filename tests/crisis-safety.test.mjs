@@ -278,6 +278,19 @@ const POSITIVE = [
   "I keep thinking about dying",
   "I'm done with life",
   "everyone would be better off without me",
+  // Round 4
+  "I'm going to take all my pills tonight",
+  "I want to slit my wrists",
+  "I'm going to slit my wrists",
+  "I cut my wrists",
+  "I hope I die in my sleep",
+  "I wish I would die in my sleep",
+  "I took a whole bottle of Nyquil",
+  "I took a whole pack of tylenol",
+  "I took like 40 pills",
+  "I took my whole prescription",
+  "I want to end it.",
+  "I'm thinking of ending it",
 ];
 
 const NEGATIVE = [
@@ -335,6 +348,15 @@ const NEGATIVE = [
   "I want to sleep and not wake up until noon",
   "I hope I don't wake up at 4am again",
   "killing myself at work this week",
+  "I'm going to cut myself some slack",
+  "I need to cut myself off from coffee",
+  "I cut myself off at 2pm",
+  "will I harm myself by sleeping late?",
+  "that would be career suicide",
+  "suicide prevention training at work today",
+  "my patient attempted suicide on my shift",
+  "I want to end it with my boyfriend",
+  "I want to end this shift early",
   "",
 ];
 
