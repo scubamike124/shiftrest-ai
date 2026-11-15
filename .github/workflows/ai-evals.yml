@@ -1,56 +1,64 @@
 # Promptfoo AI evals for the RestPilot companion.
 #
-# PR smoke run: ~10 scenarios, served from the response cache when prompts are
-# unchanged, hard-capped at 120k tokens by tests/ai/run-evals.mjs. Runs only when
-# AI code or the eval suite changes. The full suite, model comparison and
-# consistency runs are manual (workflow_dispatch) or part of qa-full.yml.
+# Cases, production-prompt assembly, providers and the judge come from the AI
+# companion benchmark (tests/ai/companion, PR #18). tests/ai/run-evals.mjs adds
+# the spend controls: every model and judge call goes through
+# tests/ai/companion/lib/guard.cjs (hard token cap + response cache).
 #
-# Needs: secret AI_API_KEY; variables AI_BASE_URL, AI_CHAT_MODEL (optional
-# AI_CANDIDATE_MODEL, AI_GRADER_MODEL). Without the key the job reports BLOCKED
-# in its summary instead of pretending to pass.
+# On PRs that touch AI code or the evals:
+#   1. offline self-test, $0: all 134 cases assembled by the production prompt
+#      code and checked for the DATA HONESTY guardrail (no key, no network);
+#   2. smoke: 10 cases (one per area) on the current model, cached, 120k cap.
+# Manual / qa-full: full suite (1.5M cap) or consistency repeats.
+# Model comparison stays in tests/ai/companion/run.mjs (also capped).
+#
+# Needs secrets: GEMINI_API_KEY (current model; Google AI Studio) and one judge
+# key (OPENAI_API_KEY, ANTHROPIC_API_KEY or GEMINI_API_KEY). Without them the
+# smoke step reports BLOCKED in the job summary, never a pass.
 name: AI evals (Promptfoo)
 on:
   pull_request:
     paths:
       - "src/lib/ai/**"
+      - "src/lib/schedule*.ts"
       - "src/lib/time/**"
       - "src/routes/api/ai.ts"
       - "src/routes/api/coach.ts"
       - "src/routes/api/brief.ts"
       - "src/routes/api/insights.ts"
       - "tests/ai/**"
-      - "tests/ai-eval-harness.test.mjs"
+      - "tests/ai-*.test.mjs"
       - ".github/workflows/ai-evals.yml"
   workflow_dispatch:
     inputs:
       mode:
-        description: "smoke | full | compare | consistency"
+        description: "smoke | full | consistency"
         required: true
         default: smoke
         type: choice
-        options: [smoke, full, compare, consistency]
+        options: [smoke, full, consistency]
       max_tokens:
-        description: "Hard token cap for this run"
+        description: "Hard token cap for this run (blank = mode default)"
         required: false
+        default: ""
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        default: full
+      max_tokens:
+        type: string
         default: ""
 permissions:
   contents: read
 concurrency:
-  group: ai-evals-${{ github.ref }}
+  group: ai-evals-${{ github.ref }}-${{ inputs.mode || 'smoke' }}
   cancel-in-progress: true
 jobs:
   promptfoo:
-    name: AI evals (Promptfoo smoke)
+    name: AI evals (Promptfoo ${{ inputs.mode || 'smoke' }})
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      AI_API_KEY: ${{ secrets.AI_API_KEY }}
-      AI_BASE_URL: ${{ vars.AI_BASE_URL }}
-      AI_CHAT_MODEL: ${{ vars.AI_CHAT_MODEL }}
-      AI_CANDIDATE_MODEL: ${{ vars.AI_CANDIDATE_MODEL }}
-      AI_GRADER_MODEL: ${{ vars.AI_GRADER_MODEL }}
-      RESTPILOT_EVAL_PRICE_IN_PER_MTOK: ${{ vars.RESTPILOT_EVAL_PRICE_IN_PER_MTOK }}
-      RESTPILOT_EVAL_PRICE_OUT_PER_MTOK: ${{ vars.RESTPILOT_EVAL_PRICE_OUT_PER_MTOK }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,38 +66,45 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Harness self-test (offline)
-        run: node --test tests/ai-eval-harness.test.mjs
+      - name: Spend-guard and assertion unit tests
+        run: node --test tests/ai-eval-guard.test.mjs tests/ai-companion-assertions.test.mjs
       - name: Restore response cache
         uses: actions/cache/restore@v4
         with:
           path: tests/ai/.cache
-          key: ai-evals-v1-${{ github.run_id }}
-          restore-keys: ai-evals-v1-
+          key: ai-evals-v2-${{ github.run_id }}
+          restore-keys: ai-evals-v2-
+      - name: Offline self-test ($0, all cases)
+        run: node tests/ai/run-evals.mjs --offline --out tests/ai/.results/offline
       - name: Run evals (capped)
         shell: bash
+        # Keys are scoped to this step only (not npm ci or other steps).
         env:
           MODE: ${{ inputs.mode || 'smoke' }}
           CAP: ${{ inputs.max_tokens }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BENCH_JUDGE: ${{ vars.BENCH_JUDGE }}
         run: |
           [[ -z "$CAP" || "$CAP" =~ ^[0-9]+$ ]] || { echo "max_tokens must be a number"; exit 1; }
           case "$MODE" in
-            smoke)       ARGS="--smoke";              CAP="${CAP:-120000}" ;;
-            full)        ARGS="";                     CAP="${CAP:-1500000}" ;;
-            compare)     ARGS="--compare";            CAP="${CAP:-3000000}" ;;
-            consistency) ARGS="--repeat 3 --no-cache"; CAP="${CAP:-4500000}" ;;
+            smoke)       ARGS="--smoke";               CAP="${CAP:-120000}" ;;
+            full)        ARGS="";                      CAP="${CAP:-1500000}" ;;
+            consistency) ARGS="--repeat 3 --no-cache"; CAP="${CAP:-3000000}" ;;
+            *) echo "unknown mode $MODE"; exit 1 ;;
           esac
-          node tests/ai/run-evals.mjs $ARGS --max-tokens "$CAP"
+          node tests/ai/run-evals.mjs $ARGS --max-tokens "$CAP" --out "tests/ai/.results/$MODE"
       - name: Save response cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: tests/ai/.cache
-          key: ai-evals-v1-${{ github.run_id }}
+          key: ai-evals-v2-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ai-eval-results
+          name: ai-eval-results-${{ inputs.mode || 'smoke' }}
           path: tests/ai/.results
           retention-days: 14
           if-no-files-found: warn
