@@ -2,7 +2,7 @@
 /**
  * Owner-requested Gemini benchmark on the 134-case companion suite.
  *
- *   GEMINI_API_KEY=… node tests/ai/companion/benchmark-gemini.mjs [--repeat 2] [--max-tokens 3000000]
+ *   GEMINI_API_KEY=… node tests/ai/companion/benchmark-gemini.mjs [--repeat 2] [--max-tokens 3000000] [--cases all|live-parity]
  *
  * Compares RestPilot's current model (gemini-3-flash-preview, baseline) with
  * gemini-2.5-flash (the model LaunchReady uses) and the cheapest Gemini
@@ -37,6 +37,8 @@ const opt = (name, fallback) => {
 };
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const CASES = opt("--cases", "all");
+if (!["all", "live-parity"].includes(CASES)) throw new Error("--cases must be all or live-parity");
 const BASELINE = "gemini-3-flash-preview";
 const WANTED = [BASELINE, "gemini-2.5-flash"];
 // Flash-class judges: Pro models have very small free-tier daily quotas.
@@ -174,7 +176,9 @@ const config = {
     config: { baseUrl: BASE_URL, apiKeyEnv: "GEMINI_API_KEY", model: m },
   })),
   defaultTest: { options: { provider: lib("grader.cjs") } },
-  tests: `file://${path.join(here, "cases", "index.cjs")}`,
+  // --cases live-parity replays the signed-in Companion review turns
+  // (cases/live-parity.cjs) so candidates join the same blind review.
+  tests: `file://${path.join(here, "cases", CASES === "live-parity" ? "live-parity.cjs" : "index.cjs")}`,
   evaluateOptions: { maxConcurrency: 1 },
   sharing: false,
 };
@@ -214,7 +218,7 @@ function evalRun(name, extra) {
 }
 
 const main = evalRun("main", []);
-const repeat = Number(opt("--repeat", "2"));
+const repeat = CASES === "live-parity" ? 0 : Number(opt("--repeat", "2"));
 const consistency =
   repeat > 1
     ? evalRun("consistency", ["--filter-metadata", "consistency=true", "--repeat", String(repeat)])

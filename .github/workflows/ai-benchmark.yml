@@ -1,8 +1,9 @@
 # Owner-requested Gemini benchmark of the RestPilot AI companion (manual only).
 #
-# Runs the 134-case suite (tests/ai/companion) for gemini-3-flash-preview
-# (baseline), gemini-2.5-flash and the cheapest Gemini flash-lite served to the
-# key; models the key cannot use are skipped with a note (ListModels first).
+# Runs the companion suite (tests/ai/companion; 134 cases plus the 25-case
+# quality expansion), or with cases=live-parity the signed-in review turns,
+# for gemini-3-flash-preview (baseline), gemini-2.5-flash and the cheapest
+# Gemini flash-lite served to the key; models the key cannot use are skipped with a note (ListModels first).
 # Every call is under the hard token cap in tests/ai/companion/lib/guard.cjs.
 # The report (relevance/quality, correctness/time math, honesty, safety,
 # consistency, latency, cost per call) is uploaded as an artifact and shown in
@@ -24,6 +25,10 @@ on:
         description: "Hard token cap across all model and judge calls"
         required: false
         default: "3000000"
+      cases:
+        description: "all = the full suite; live-parity = the signed-in Companion review turns (blind-review comparison)"
+        required: false
+        default: "all"
   # Runs only when this file changes, to register the workflow and prove the
   # no-key path; it never calls a model on pull requests (no secret is passed).
   pull_request:
@@ -55,11 +60,13 @@ jobs:
           ANTHROPIC_API_KEY: ${{ github.event_name == 'workflow_dispatch' && secrets.ANTHROPIC_API_KEY || '' }}
           REPEAT: ${{ inputs.repeat || '2' }}
           MAX_TOKENS: ${{ inputs.max_tokens || '3000000' }}
+          CASES: ${{ inputs.cases || 'all' }}
         run: |
           set -euo pipefail
           [ -n "${GEMINI_API_KEY:-}" ] && echo "::add-mask::$GEMINI_API_KEY"
           [[ "$REPEAT" =~ ^[0-9]+$ && "$MAX_TOKENS" =~ ^[0-9]+$ ]] || { echo "repeat and max_tokens must be numbers"; exit 1; }
-          node tests/ai/companion/benchmark-gemini.mjs --repeat "$REPEAT" --max-tokens "$MAX_TOKENS"
+          [[ "$CASES" == "all" || "$CASES" == "live-parity" ]] || { echo "cases must be all or live-parity"; exit 1; }
+          node tests/ai/companion/benchmark-gemini.mjs --repeat "$REPEAT" --max-tokens "$MAX_TOKENS" --cases "$CASES"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
