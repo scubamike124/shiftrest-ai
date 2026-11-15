@@ -68,7 +68,13 @@ test('no hard-coded "Aura" remains where the customer\'s name should appear', ()
   const intro = readFileSync(new URL('../src/components/companion/CompanionIntroSheet.tsx', import.meta.url), 'utf8');
   assert.match(intro, /props\.name \?\? companionName\(prefs\?\.assistantName, avatarId\)/, 'intro sheet resolves the name even when a call site passes no props (dashboard)');
   const realtime = readFileSync(new URL('../src/lib/realtime/openai.functions.ts', import.meta.url), 'utf8');
-  assert.match(realtime, /buildRealtimeInstructions\(\s*voiceProfile,\s*await loadCompanionNameServer\(context\.userId\),?\s*\)/);
-  const instructions = readFileSync(new URL('../src/lib/realtime/instructions.ts', import.meta.url), 'utf8');
+  assert.match(
+    realtime,
+    /buildRealtimeInstructions\(\s*voiceProfile,\s*await loadCompanionNameServer\(context\.userId\),?\s*\)/,
+  );
+  const instructions = readFileSync(
+    new URL("../src/lib/realtime/instructions.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(instructions, /REPLY_SHAPE\.replace\("\{\{NAME\}\}"/);
 });
