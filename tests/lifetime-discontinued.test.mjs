@@ -125,3 +125,31 @@ test('a newer non-premium row cannot hide an existing lifetime entitlement', asy
   assert.equal(c.tier, 'monthly'); assert.equal(c.isPremium, true);
   assert.equal((await run([])).tier, 'free');
 });
+
+test('a paid one-time checkout for a non-lifetime price raises an owner alert and mints no row', async () => {
+  const src = stripTypeScriptTypes(read('src/routes/api/public/payments/webhook.ts'));
+  const m = src.match(/async function handleCheckoutCompleted[\s\S]*?\n\}\n/);
+  assert.ok(m, 'handler found');
+  const run = async (price) => {
+    const alerts = [], writes = [];
+    const ctx = vm.createContext({
+      console: { error() {}, log() {} },
+      notifyOwner: async (a) => { alerts.push(a); },
+      createStripeClient: () => ({ checkout: { sessions: { listLineItems: async () => ({ data: [{ price }] }) } } }),
+      priceLookup: (p) => p?.lookup_key || p?.id || '',
+      getSupabase: () => ({ from: () => ({ upsert: async (row) => { writes.push(row); return {}; } }) }),
+    });
+    const { handleCheckoutCompleted } = vm.runInContext(`${m[0]}\n({handleCheckoutCompleted})`, ctx);
+    await handleCheckoutCompleted({ id: 'cs_1', mode: 'payment', customer: 'cus_1', metadata: { userId: 'u1' } }, 'live');
+    return { alerts, writes };
+  };
+  const other = await run({ id: 'price_x', lookup_key: 'some_other_one_time', product: 'prod_x' });
+  assert.equal(other.writes.length, 0);
+  assert.equal(other.alerts.length, 1);
+  assert.equal(other.alerts[0].severity, 'warning');
+  assert.deepEqual(JSON.parse(JSON.stringify(other.alerts[0].meta)), { sessionId: 'cs_1', priceId: 'some_other_one_time', userId: 'u1', env: 'live' });
+  const legacy = await run({ id: 'price_l', lookup_key: 'restpilot_lifetime', product: 'prod_l' });
+  assert.equal(legacy.writes.length, 1);
+  assert.equal(legacy.writes[0].status, 'lifetime');
+  assert.equal(legacy.alerts.length, 0);
+});
