@@ -58,7 +58,7 @@ module.exports = [
     expect: "Encouraging recap; drains mention the short on-call night from Fitbit; metrics only use given data, null otherwise." }),
   intent({ id: "K11", cat: "structured", persona: "marcus", intent: "daily_review", ask: "daily review",
     payload: {}, keys: ["headline", "wins", "drains", "metrics", "tomorrowFocus"],
-    expect: "No wearable data, so sleepRecoveredMin and readinessDelta must be null and recoveryTrend 'unknown'; no invented numbers." }),
+    expect: "No wearable data, so sleepRecoveredMin must be null and recoveryTrend 'unknown'; no invented numbers, and no readiness figure (none is requested)." }),
   intent({ id: "K12", cat: "structured", persona: "aisha", intent: "jetlag_plan", ask: "jet lag plan",
     user: withUser("aisha", { trip: { id: "trip-1", label: "LHR-JFK", origin_tz: "Europe/London", dest_tz: "America/New_York", dest_label: "New York", depart_utc: local("aisha", "09:00", 3), arrive_utc: local("aisha", "17:00", 3), status: "planned" } }),
     payload: { phase: "pre", tripId: "trip-1" }, keys: ["headline", "summary", "phase", "directionEast", "clockBasis", "blocks", "ifIgnored"],

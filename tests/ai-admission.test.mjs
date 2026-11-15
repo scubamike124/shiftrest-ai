@@ -30,6 +30,7 @@ function load(path, mocks = {}, env = {}, fetchOverride) {
     './models.server': loadModels(env),
     '@/lib/ai/guardrails': { DATA_HONESTY: '' },
     '@/lib/ai/intent-guards': {},
+    "@/lib/ai/intent-schemas": {},
     '@/lib/api/ratelimit.server': { enforceRateLimit: async () => null, RATE_LIMITS: {ai:{},tts:{},stt:{}} },
     '@/lib/api/lab-gate.server': { requireLabAccess: async () => null },
     ...mocks,
@@ -181,6 +182,7 @@ test('legacy coach rejects oversize before forwarding', async () => {
   const { Route } = load('src/routes/api/coach.ts', {
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/ai/request.server': requestModule,
+    '@/lib/ai/forward.server': { aiForwardUrl: () => { throw new Error('must not forward oversize input'); }, DROP_FORWARD_HEADERS: [] },
   });
   const result = await Route.server.handlers.POST({ request: new Request('https://example.test/api/coach', {
     method: 'POST', body: JSON.stringify({ messages: ['a'.repeat(65536)] }),

@@ -5,6 +5,7 @@ import {
   createStripeClient,
   getStripeErrorMessage,
 } from "@/lib/stripe.server";
+import { appleSubscriptionBlocksCheckout } from "@/lib/entitlements/checkout-guard";
 
 type CheckoutResult = { clientSecret: string } | { error: string };
 type PortalResult = { url: string } | { error: string };
@@ -84,6 +85,13 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<CheckoutResult> => {
     try {
       const { supabase, userId } = context;
+      // Duplicate-billing guard: never sell a Stripe subscription to someone
+      // already subscribed through the App Store. Inert unless IAP_ENABLED=true,
+      // so with IAP off the requests sent to Stripe are unchanged.
+      if (process.env.IAP_ENABLED === "true") {
+        const refusal = await appleSubscriptionBlocksCheckout(supabase, userId, process.env);
+        if (refusal) return { error: refusal };
+      }
       const { data: userRes } = await supabase.auth.getUser();
       const email = userRes.user?.email ?? undefined;
 
