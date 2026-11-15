@@ -122,7 +122,11 @@ test('every link or redirect to /paywall or /pricing in the app UI is gated', ()
   // lead to the neutral notice in the app and are not purchase buttons.
   const allowed = new Set(['src/routes/legal.subscription.tsx', 'src/routes/legal.terms.tsx', 'src/routes/auth.tsx', 'src/routes/__root.tsx', 'src/routes/sitemap[.]xml.ts', 'src/routes/pricing.tsx', 'src/routes/paywall.tsx',
     'src/routes/index.tsx', 'src/routes/companion.tsx', 'src/routes/coach.tsx', 'src/routes/pilot.tsx', 'src/routes/profile.tsx',
-    'src/components/site/AppSidebar.tsx', 'src/components/site/SiteHeader.tsx', 'src/components/site/SiteFooter.tsx']);
+    'src/components/site/AppSidebar.tsx', 'src/components/site/SiteHeader.tsx', 'src/components/site/SiteFooter.tsx',
+    // The App Store paywall itself: its only reference is the sign-in return path back to /paywall.
+    'src/components/subscription/NativeSubscription.tsx']);
+  assert.equal((read('src/components/subscription/NativeSubscription.tsx').match(/"\/(paywall|pricing)"/g) ?? []).length, 1);
+  assert.match(read('src/components/subscription/NativeSubscription.tsx'), /search=\{\{ return: "\/paywall" \}\}/);
   const { execSync } = process.getBuiltinModule('node:child_process');
   const files = execSync("git ls-files src | xargs grep -lE '\"/(paywall|pricing)\"' || true", { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' }).trim().split('\n').filter(Boolean)
     .filter((f) => !f.includes('email-templates') && !f.endsWith('routeTree.gen.ts'));
