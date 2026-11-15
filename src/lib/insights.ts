@@ -58,8 +58,8 @@ export type Insights = {
 export type InsightDataSources = {
   /** Shifts entered by the user. */
   schedule: boolean;
-  /** Wearable whose readings were used, or null when none were. */
-  wearableProvider: "fitbit" | "oura" | null;
+  /** Wearable or Apple Health source whose readings were used, or null when none were. */
+  wearableProvider: LastNightSummary["provider"] | null;
   /** Nights of measured sleep duration used for sleep debt (0 = sleep debt unknown). */
   sleepNights: number;
   /** Nights whose readings feed a score (sleep duration, efficiency or HRV). */
@@ -297,7 +297,9 @@ export function computeInsights(
   // Only recent wearable readings count. A reading from weeks ago must not be
   // presented as "last night" or folded into this week's sleep debt.
   const freshLastNight =
-    lastNight && ageInDays(lastNight.date, now) >= 0 && ageInDays(lastNight.date, now) <= LAST_NIGHT_MAX_AGE_DAYS
+    lastNight &&
+    ageInDays(lastNight.date, now) >= 0 &&
+    ageInDays(lastNight.date, now) <= LAST_NIGHT_MAX_AGE_DAYS
       ? lastNight
       : null;
   const wearableStale = !!lastNight && !freshLastNight;
@@ -313,9 +315,9 @@ export function computeInsights(
   const sleepNights = history.filter((r) => r.sleepDurationMin != null).slice(0, 7).length;
   // Only fields that actually adjust a score count as "used" (resting HR
   // feeds none, so an RHR-only night is not claimed as an adjustment).
-  const wearableNights = history.filter(
-    (r) => r.sleepDurationMin != null || r.sleepEfficiency != null || r.hrvMs != null,
-  ).slice(0, 7).length;
+  const wearableNights = history
+    .filter((r) => r.sleepDurationMin != null || r.sleepEfficiency != null || r.hrvMs != null)
+    .slice(0, 7).length;
   const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
   const hrvTrend = computeHrvTrend(history);
   const lastNightDeficit =
@@ -513,7 +515,7 @@ export function computeInsights(
 
   const dataSources: InsightDataSources = {
     schedule: shifts.length > 0,
-    wearableProvider: lastNight?.provider ?? (history[0]?.provider ?? null),
+    wearableProvider: lastNight?.provider ?? history[0]?.provider ?? null,
     sleepNights,
     wearableNights,
     wearableStale,

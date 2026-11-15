@@ -613,6 +613,10 @@ function Dashboard() {
                   {mounted ? debt.score : 0}/100
                 </span>
               </p>
+              <p className="mt-1 text-[10px] text-muted-foreground/80">
+                Estimate calculated from your shift pattern (night shifts, rotation direction, short
+                turnarounds, long shifts). Not a sleep measurement.
+              </p>
             </HomeCard>
           </div>
           {insights && (
@@ -667,6 +671,9 @@ function Dashboard() {
                     signedIn={signedIn === true}
                     context={insights?.contextString ?? ""}
                     enabled={prefs.dailyReviewEnabled}
+                    // The recap is written from the context string, which never
+                    // includes Apple Health, so only server wearable sleep counts.
+                    hasWearableSleep={(device?.baseInsights.dataSources.sleepNights ?? 0) > 0}
                   />
                 </HomeCard>
               </div>

@@ -183,7 +183,10 @@ export function AIBriefCard({
           </p>
         </div>
       </div>
-      <p className="relative z-10 mt-2 text-[10px] leading-snug text-muted-foreground" data-testid="score-provenance">
+      <p
+        className="relative z-10 mt-2 text-[10px] leading-snug text-muted-foreground"
+        data-testid="score-provenance"
+      >
         <span className="font-semibold text-foreground/80">Estimates, not measurements.</span>{" "}
         {estimateSourceLabel(insights)}
       </p>
@@ -368,16 +371,23 @@ export function AIBriefCard({
   );
 }
 
-const PROVIDER_NAME = { fitbit: "Fitbit", oura: "Oura" } as const;
+const PROVIDER_NAME: Record<NonNullable<Insights["dataSources"]["wearableProvider"]>, string> = {
+  fitbit: "Fitbit",
+  oura: "Oura",
+  "apple-health": "Apple Health",
+};
 
 /** Plain-language source line for the fatigue/recovery estimates. */
 export function estimateSourceLabel(insights: Insights): string {
   const d = insights.dataSources;
-  const base = d.schedule ? "Calculated from your shift schedule" : "No shifts entered yet, so these are defaults";
+  const base = d.schedule
+    ? "Calculated from your shift schedule"
+    : "No shifts entered yet, so these are defaults";
   if (d.wearableProvider && d.wearableNights > 0) {
     const n = d.wearableNights;
     return `${base}, adjusted with ${n} night${n === 1 ? "" : "s"} of ${PROVIDER_NAME[d.wearableProvider]} data.`;
   }
-  if (d.wearableStale) return `${base}. Your newest wearable reading is more than 3 days old, so it isn't used.`;
+  if (d.wearableStale)
+    return `${base}. Your newest wearable reading is more than 3 days old, so it isn't used.`;
   return `${base}. No wearable sleep data is used.`;
 }
