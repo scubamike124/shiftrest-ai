@@ -135,9 +135,9 @@ export const Route = createFileRoute("/legal/privacy")({
           shift-swap advice.
         </li>
         <li>
-          <strong>OpenAI:</strong> your voice recordings, the text read aloud to you, and your voice
-          settings. Used for speech-to-text, spoken replies and briefings, and live voice
-          conversations.
+          <strong>OpenAI:</strong> your voice recordings, the text read aloud to you, your preferred
+          or display name, and your voice settings. Used for speech-to-text, spoken replies and
+          briefings, and live voice conversations.
         </li>
         <li>
           <strong>ElevenLabs:</strong> the text of companion replies being read aloud. Used to read
@@ -148,9 +148,11 @@ export const Route = createFileRoute("/legal/privacy")({
         We ask for this permission once, before your first use of an AI feature. If you choose "Not
         now", nothing is sent and the rest of RestPilot keeps working. You can withdraw your
         permission at any time in Profile → Privacy &amp; AI data sharing; new AI requests stop
-        immediately. Withdrawing does not recall data already sent for earlier requests. We do not
-        sell this data or use it for advertising. Each provider is listed, with a link to its
-        privacy policy, in <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
+        immediately, and a live voice conversation on that device ends (one already running on
+        another device continues until it ends). Withdrawing does not recall data already sent for
+        earlier requests. We do not sell this data or use it for advertising. Each provider is
+        listed, with a link to its privacy policy, in{" "}
+        <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
       </p>
 
       <h2>7. Retention</h2>
