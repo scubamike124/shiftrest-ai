@@ -63,6 +63,12 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\b(keep|been|always|can't stop|cannot stop|constantly) thinking about (dying|death|ending it all)\b/i,
   /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
+  /\b(no|any|zero) point (in |to )?(living|being alive)\b/i,
+  /\bwhat'?s the point (of|in) (living|being alive|life)\b/i,
+  /\b(no|any) point (in )?going on\s*([.!?,;]|$)/i,
+  /\bwhat'?s the point (of|in) going on\s*([.!?,;]|$)/i,
+  /\b(want|need|wish) (it|this|everything) all to (end|stop)\b/i,
+  /\b(want|wish) (it|everything) to (end|be over)( now| forever)?\s*([.!?,;]|$)/i,
   // Wanting to die
   /\b(want to|wanted to|wanna) (die|be dead|stop living|stop existing)\b/i,
   /\bready to die\b/i,
@@ -86,6 +92,9 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\b(want|wanna|going|gonna|urge|tempted|thinking about|think about|thought about|feel like)( to)? (hurt|hurting) myself\b/i,
   /\b(been|keep|keeps|kept|started|start) (hurting|cutting|burning|harming) myself\b/i,
   /\b(hurt|hurting|cut|cutting|burn|burning|burned|burnt) myself on purpose\b/i,
+  /\b(i'?m|i am|been|started) cutting( myself)? again\s*([.!?,;]|$)/i,
+  /\b(pills|meds|tablets) (saved|stockpiled|stashed|stored) (up|away)\b/i,
+  /\b(saving|stockpiling|hoarding|stashing) (up )?(my |the )?(sleeping )?(pills|meds|tablets)\b/i,
   /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the|some slack|a break|off|short|loose|free|out|in on|a deal|a piece|a slice|back)\b)/i,
   // Overdose ("overdosing on coffee" is tiredness slang; "my patient
   // overdosed" / "treating overdoses" is clinicians talking about work).

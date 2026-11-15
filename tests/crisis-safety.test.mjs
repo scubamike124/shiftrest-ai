@@ -291,6 +291,18 @@ const POSITIVE = [
   "I took my whole prescription",
   "I want to end it.",
   "I'm thinking of ending it",
+  // Round 5
+  "there's no point in living",
+  "there is no point in living",
+  "I see no point in living anymore",
+  "no point living",
+  "what's the point of living",
+  "no point in going on",
+  "I'm cutting again",
+  "I have pills saved up to end it",
+  "I've been stockpiling my sleeping pills",
+  "I just want it all to end",
+  "I want it to end.",
 ];
 
 const NEGATIVE = [
@@ -357,6 +369,11 @@ const NEGATIVE = [
   "my patient attempted suicide on my shift",
   "I want to end it with my boyfriend",
   "I want to end this shift early",
+  "no point going on about it, my rota is fixed",
+  "what's the point of going on nights if the pay is the same",
+  "I'm cutting again for summer lol",
+  "I want this shift to end",
+  "I'm saving my pill organiser for travel",
   "",
 ];
 
