@@ -59,7 +59,7 @@ inferred from `main`'s code, since Lovable's secret store cannot be read.
 | API | Provider | Needs | Staging result | Status |
 | --- | --- | --- | --- | --- |
 | `POST /api/ai` (`coach`, `brief`, `commute`, `smart_alarm`, `daily_plan`, `daily_review`, `right_now`, `tomorrow_preview`, `jetlag_plan`, `adjust_plan`, `pattern_alert`, `coach_tip`) | OpenAI-compatible `chat/completions` | AI_* keys and models, service role (admission) | `{}` → 400 `intent required`; `{"intent":"coach"}` → `Backend not configured` | **blocked**: `SUPABASE_SERVICE_ROLE_KEY`, `AI_API_KEY` |
-| `POST /api/coach` (legacy alias) | forwards to `/api/ai` | as above | any body → **200 with the HTML app shell** instead of JSON | **broken** (repro below; fixed in this PR) |
+| `POST /api/coach` (legacy alias) | forwards to `/api/ai` | as above | before the fix: any body → 200 with the HTML app shell. After #24 and #37: JSON from `/api/ai` (`500 Backend not configured`, the same as `/api/ai` itself) | **fixed** (#24, #37; verified on staging) |
 | `POST /api/brief`, `/api/insights`, `/api/swap` | chat/completions | AI_* keys and models | 401 `Missing authorization` (auth gate first) | **blocked**: AI keys; no test account |
 | `POST /api/tts` | OpenAI-compatible `audio/speech` | `AI_AUDIO_*`, `AI_TTS_MODEL` | 401 at the auth gate | **blocked**: AI audio keys |
 | `POST /api/stt` | OpenAI-compatible `audio/transcriptions` | `AI_AUDIO_*`, `AI_STT_MODEL` | 401 at the auth gate | **blocked**: AI audio keys |
@@ -91,14 +91,15 @@ functions themselves need a session.
 | `POST /lovable/email/auth/webhook` (Send Email Hook) | Resend | `RESEND_API_KEY`, `EMAIL_FROM`, `SEND_EMAIL_HOOK_SECRET`, `PUBLIC_APP_URL` | 503 `Email service is not configured` | **blocked**: Resend keys |
 | `POST /lovable/email/queue/process`, `/transactional/send`, `/suppression`, `/auth/preview`; `GET /email/unsubscribe` | Resend; Supabase | `RESEND_*`, service role, `EMAIL_PREVIEW_SECRET` | 500 `Server configuration error` | **blocked**: Resend keys and service role |
 | `POST /api/public/contact` | Resend (owner alert); DB rate limit | `OWNER_ALERT_EMAIL`, Resend, service role | `{}` → 400 `invalid_input` (validation works) | **blocked**: a valid submission would need the service role and Resend |
-| Wearables OAuth (`startWearableOAuth`, `/api/public/wearables/{fitbit,oura}/callback`) | Fitbit, Oura | client IDs/secrets, service role | callbacks reachable | **blocked**: keys. **Defect:** OAuth `state` is not verified; see "Defects" |
+| Wearables OAuth (`startWearableOAuth`, `/api/public/wearables/{fitbit,oura}/callback`) | Fitbit, Oura | client IDs/secrets, service role | a forged `state=<uuid>:x` now gets `302 /profile?error=oura&reason=bad_state` | **blocked**: keys. The state defect is fixed in #25 |
 | `POST /api/public/payments/webhook` | Stripe | Stripe key and webhook secret | 400 without `?env`; 400 unsigned | **parked** (owner decision 2026-11-15; PR #21 open, inert) |
 | Checkout/portal (`createCheckoutSession`, `createPortalSession`) | Stripe | see PR #21 | disabled on this branch | **parked**: production's Lovable checkout is untouched |
 
 ## Defects
 
-1. **`/api/coach` returns the HTML app shell on Railway.** *Fixed in this
-   PR.*
+1. **`/api/coach` returned the HTML app shell on Railway.** *Fixed in #24
+   (loopback forward) and #37 (`NITRO_PORT`, 502 on failure); verified on
+   staging.*
    - Repro:
      `curl -X POST -H 'Content-Type: application/json' -d '{"messages":[]}' https://restpilot-web-staging.up.railway.app/api/coach`
      returns `200 text/html`. Production returned `401 {"error":"Sign in required"}` when observed on 2026-11-15.
@@ -108,7 +109,9 @@ functions themselves need a session.
    - Fix: forward over loopback (`127.0.0.1:$PORT`), use
      `redirect: "manual"`, and drop stale encoding headers.
      `tests/coach-forward.test.mjs` covers it.
-2. **Wearables OAuth `state` is not verified.** *Separate PR.*
+2. **Wearables OAuth `state` was not verified.** *Fixed in #25: an
+   HMAC-signed, provider-bound state with a 15-minute expiry. Staging
+   refuses a forged state.*
    - `/api/public/wearables/{oura,fitbit}/callback` takes the user id from
      `state` (`<userId>:<random>`) without checking it was issued by the
      server.
@@ -118,12 +121,17 @@ functions themselves need a session.
      foreign sleep data.
    - Fitbit's PKCE cookie does not prevent this, because the attacker runs the
      flow in their own browser.
+   - Follow-up, not yet done: the state is not tied to the browser that
+     started the flow. That leaves the classic OAuth login-CSRF case for
+     Oura: a victim approves an attacker-started authorization URL. The fix
+     is a short-lived HttpOnly nonce cookie checked in the callback. The
+     same unsigned-state code is still live on Lovable `main`.
 3. **Ready Player Me host is gone.** It is noted above for the AI-companion
    agent; this PR does not change it.
 
 ## Account deletion and subscription status on Railway
 
-- **Subscription status:** *fixed in PR (subscription-status-read).*
+- **Subscription status:** *fixed in #32 and #37 (lifetime ranks first).*
   - The profile and premium UI used to read the `subscriptions` table only
     when a Stripe publishable key was configured.
   - Railway has none, so paid and lifetime members looked free there, even
@@ -131,8 +139,10 @@ functions themselves need a session.
   - Status is now read from the database regardless. A build without a key
     uses the `live` rows. A newer incomplete checkout no longer hides an
     older paid or lifetime row.
-- **Account deletion with an active Stripe subscription fails closed on
-  Railway.** This is *not changed*.
+- **Account deletion fails closed on Railway for any non-canceled Stripe
+  subscription row** (active, trialing, past_due, incomplete, unpaid, or
+  expired active; one-time lifetime purchases excepted). This is *not
+  changed*.
   - `deleteAccountFn` cancels Stripe subscriptions first. With Stripe off,
     the user gets "We couldn't confirm all subscription cancellations…" and
     keeps the account. That is an App Store 5.1.1(v) risk for any app build

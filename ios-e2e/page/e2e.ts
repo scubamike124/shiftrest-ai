@@ -83,6 +83,13 @@ async function run() {
   }
   note("plugins", "App, LocalNotifications, Preferences, SplashScreen");
 
+  // The server and site recognise the app by this user-agent token (capacitor.config appendUserAgent).
+  note("userAgent", navigator.userAgent);
+  check(
+    / RestPilotApp\/\d+\.\d+\.\d+$/.test(navigator.userAgent),
+    "WebView user agent lacks RestPilotApp/<version>",
+  );
+
   // Permission: the UI test taps "Allow" on the iOS alert.
   const perm = await requestReminderPermission();
   note("permission", perm);

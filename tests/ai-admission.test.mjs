@@ -30,6 +30,7 @@ function load(path, mocks = {}, env = {}, fetchOverride) {
     './models.server': loadModels(env),
     '@/lib/ai/guardrails': { DATA_HONESTY: '' },
     '@/lib/ai/intent-guards': {},
+    "@/lib/ai/intent-schemas": {},
     '@/lib/api/ratelimit.server': { enforceRateLimit: async () => null, RATE_LIMITS: {ai:{},tts:{},stt:{}} },
     '@/lib/api/lab-gate.server': { requireLabAccess: async () => null },
     ...mocks,

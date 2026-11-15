@@ -1,6 +1,7 @@
 // Reusable premium glass card shell for the home experience.
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { CardErrorBoundary } from "@/components/CardErrorBoundary";
 
 export type HomeCardProps = {
   children: ReactNode;
@@ -23,11 +24,16 @@ export function HomeCard({ children, className, accent, asButton, onClick }: Hom
   if (asButton) {
     return (
       <button type="button" onClick={onClick} className={cls}>
-        {children}
+        <CardErrorBoundary>{children}</CardErrorBoundary>
       </button>
     );
   }
-  return <section className={cls}>{children}</section>;
+  // Each home card is isolated: one card failing to render never blanks the dashboard.
+  return (
+    <section className={cls}>
+      <CardErrorBoundary>{children}</CardErrorBoundary>
+    </section>
+  );
 }
 
 export function HomeCardHeader({
