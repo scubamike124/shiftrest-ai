@@ -62,12 +62,16 @@ export type InsightDataSources = {
   wearableProvider: "fitbit" | "oura" | null;
   /** Nights of measured sleep duration used for sleep debt (0 = sleep debt unknown). */
   sleepNights: number;
+  /** Nights of ANY wearable reading used (duration, efficiency, HRV or RHR). */
+  wearableNights: number;
   /** True when the newest wearable night was too old to count as "last night". */
   wearableStale: boolean;
 };
 
 /** Wearable nights older than this are not used (not "last night", not this week). */
-const LAST_NIGHT_MAX_AGE_DAYS = 2;
+// 3 days matches the server-side personal-signals window (3.5 days) and
+// tolerates the UTC-dated nightly sync plus one missed run.
+const LAST_NIGHT_MAX_AGE_DAYS = 3;
 const HISTORY_MAX_AGE_DAYS = 7;
 
 function ageInDays(isoDate: string, now: Date): number {
@@ -307,6 +311,9 @@ export function computeInsights(
   const history: WearableHistory =
     wearableHistory.length || !lastNight ? wearableHistory : [lastNight];
   const sleepNights = history.filter((r) => r.sleepDurationMin != null).slice(0, 7).length;
+  const wearableNights = history.filter(
+    (r) => r.sleepDurationMin != null || r.sleepEfficiency != null || r.hrvMs != null || r.restingHr != null,
+  ).slice(0, 7).length;
   const sleepDebtHours = computeSleepDebt(history, prefs.sleepHours);
   const hrvTrend = computeHrvTrend(history);
   const lastNightDeficit =
@@ -494,8 +501,8 @@ export function computeInsights(
     // Provenance for the AI: it must not present estimates as measurements
     // or invent wearable readings that are not listed here.
     lastNight
-      ? `Data sources: shifts entered by the user; ${lastNight.provider} wearable readings for ${sleepNights} night${sleepNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
-      : `Data sources: shifts entered by the user only; no recent wearable data${wearableStale ? " (the last wearable sync is older than 2 days)" : ""}. Fatigue and recovery scores are schedule-based estimates. Do not state or guess any sleep duration, HRV, heart rate, readiness or other wearable measurement.`,
+      ? `Data sources: shifts entered by the user; ${lastNight.provider} wearable readings for ${wearableNights} night${wearableNights === 1 ? "" : "s"}. Fatigue and recovery scores are RestPilot estimates, not measurements.`
+      : `Data sources for this summary: shifts entered by the user; it contains no recent wearable readings${wearableStale ? " (the newest one is more than 3 days old)" : ""}. Fatigue and recovery scores are schedule-based estimates. Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one.`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -504,6 +511,7 @@ export function computeInsights(
     schedule: shifts.length > 0,
     wearableProvider: lastNight?.provider ?? (history[0]?.provider ?? null),
     sleepNights,
+    wearableNights,
     wearableStale,
   };
 

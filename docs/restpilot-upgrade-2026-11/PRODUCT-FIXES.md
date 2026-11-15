@@ -194,14 +194,14 @@ Native scheduling: replace previously scheduled notifications with `result.remin
 **Fixed**
 - The fatigue and recovery tiles carry "Estimates, not measurements." plus a source line, either:
   - "Calculated from your shift schedule. No wearable sleep data is used.", or
-  - "Calculated from your shift schedule, adjusted with N nights of Oura/Fitbit sleep data."
-- Wearable readings older than 2 days (history: 7 days) are ignored. Copy states the real number of nights. With no data, sleep debt reads "unknown (no recent wearable sleep data)".
-- The hero reads "Schedule strain N/100 · estimates". The schedule-stability card says it is "Estimate calculated from your shift pattern … Not a sleep measurement." Greeting lines describe the schedule.
+  - "Calculated from your shift schedule, adjusted with N nights of Oura/Fitbit data."
+- Wearable readings older than 3 days (history: 7 days) are ignored. The 3 days match the server's 3.5-day window and tolerate the UTC-dated nightly sync. Copy states the real number of nights. With no data, sleep debt reads "unknown (no recent wearable sleep data)". A night with only efficiency or HRV still counts as wearable data used.
+- The hero reads "Circadian debt N/100 · estimates", the same name as the dashboard card. The schedule-stability card says it is "Estimate calculated from your shift pattern … Not a sleep measurement." Greeting lines describe the schedule.
 - AI recap:
   - it is labelled "AI-written" and states its sources;
   - "Readiness Δ" is no longer shown;
   - "Sleep recovered" appears only with real wearable sleep, labelled as an AI estimate.
-- `contextString` ends with a data-sources line. Without wearable data it tells the model "Do not state or guess any sleep duration, HRV, heart rate, readiness or other wearable measurement."
+- `contextString` ends with a data-sources line. Without wearable data it says the summary "contains no recent wearable readings" and tells the model to "Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one." It is not a blanket ban, because the coach prompt can carry real server-side measurements.
 - Hydration is labelled "Logged by you on this device … general guide". Health metrics say "Measured by your wearable".
 - The schedule-based calculations are unchanged; a test pins the fatigue and recovery values.
 
@@ -213,7 +213,9 @@ Native scheduling: replace previously scheduled notifications with `result.remin
 - the labels present on each screen;
 - the recap's readiness number removed and sleep numbers gated on real data.
 
-**For the AI agent (not changed here):** server-side AI context (`src/lib/ai/context.server.ts`) and the response schemas in `src/routes/api/ai.ts` still ask the model for `readinessDelta` and `sleepRecoveredMin`. Remove them, or fill them from measured data server-side, rather than relying on the UI gate.
+**For the AI agent (not changed here):**
+- `DAILY_REVIEW_SYSTEM` in `src/routes/api/ai.ts` (client type in `src/lib/ai-client.ts`) still asks the model for `readinessDelta` and `sleepRecoveredMin`. Remove them, or fill them from measured data server-side, rather than relying on the UI gate.
+- The coach's server-side personal-signals block accepts a latest reading up to 3.5 days old. The client now uses 3 days. They are close but not identical.
 
 ---
 

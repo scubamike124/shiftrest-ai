@@ -359,9 +359,10 @@ const PROVIDER_NAME = { fitbit: "Fitbit", oura: "Oura" } as const;
 export function estimateSourceLabel(insights: Insights): string {
   const d = insights.dataSources;
   const base = d.schedule ? "Calculated from your shift schedule" : "No shifts entered yet, so these are defaults";
-  if (d.wearableProvider && d.sleepNights > 0) {
-    return `${base}, adjusted with ${d.sleepNights} night${d.sleepNights === 1 ? "" : "s"} of ${PROVIDER_NAME[d.wearableProvider]} sleep data.`;
+  if (d.wearableProvider && d.wearableNights > 0) {
+    const n = d.wearableNights;
+    return `${base}, adjusted with ${n} night${n === 1 ? "" : "s"} of ${PROVIDER_NAME[d.wearableProvider]} data.`;
   }
-  if (d.wearableStale) return `${base}. Your wearable's last sync is more than 2 days old, so it isn't used.`;
+  if (d.wearableStale) return `${base}. Your newest wearable reading is more than 3 days old, so it isn't used.`;
   return `${base}. No wearable sleep data is used.`;
 }

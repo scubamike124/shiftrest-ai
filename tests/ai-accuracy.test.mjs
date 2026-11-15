@@ -26,8 +26,10 @@ test('without wearable data, sleep debt is unknown and the AI is told not to inv
   assert.equal(i.dataSources.sleepNights, 0);
   assert.equal(i.dataSources.wearableProvider, null);
   assert.equal(i.sleepDebtHours, 0);
-  assert.match(i.contextString, /shifts entered by the user only/);
-  assert.match(i.contextString, /Do not state or guess any sleep duration, HRV, heart rate, readiness/);
+  assert.match(i.contextString, /Data sources for this summary: shifts entered by the user; it contains no recent wearable readings/);
+  assert.match(i.contextString, /contains no recent wearable readings/);
+  assert.match(i.contextString, /Only cite a wearable measurement if it appears explicitly elsewhere in this prompt; never guess one\./);
+  assert.doesNotMatch(i.contextString, /Do not state/, 'no blanket ban: the coach prompt may carry real server-side measurements');
   assert.doesNotMatch(i.contextString, /Last night \(/);
 });
 
@@ -48,7 +50,7 @@ test('a stale wearable reading is not treated as last night', () => {
   assert.equal(i.dataSources.wearableStale, true);
   assert.equal(i.sleepDebtHours, 0);
   assert.doesNotMatch(i.contextString, /Last night/);
-  assert.match(i.contextString, /older than 2 days/);
+  assert.match(i.contextString, /more than 3 days old/);
   const fresh = computeInsights(shifts, prefs, now);
   assert.equal(i.fatigueToday.score, fresh.fatigueToday.score, 'stale data must not change the estimate');
 });
@@ -65,7 +67,7 @@ test('screens label estimates and their sources', () => {
   const brief = read('src/components/AIBriefCard.tsx');
   assert.match(brief, /Estimates, not measurements\./);
   assert.match(brief, /sleep debt unknown \(no recent wearable sleep data\)/);
-  assert.match(read('src/components/home/CompanionHero.tsx'), /Schedule strain .* estimates/);
+  assert.match(read('src/components/home/CompanionHero.tsx'), /Circadian debt .* estimates/);
   assert.doesNotMatch(read('src/components/home/CompanionHero.tsx'), /Sleep debt \{/);
   assert.match(read('src/routes/dashboard.tsx'), /Not a sleep measurement\./);
   assert.match(read('src/components/home/HydrationCard.tsx'), /Logged by you/);
@@ -74,8 +76,27 @@ test('screens label estimates and their sources', () => {
 
 test('AI recap never shows an invented readiness number and gates sleep numbers on real data', () => {
   const card = read('src/components/DailyReviewCard.tsx');
-  assert.doesNotMatch(card, /readinessDelta[^\n]*&&/);
+  assert.doesNotMatch(card, /readinessDelta/);
+  assert.doesNotMatch(card, />Readiness/);
   assert.match(card, /hasWearableSleep && data\.metrics\.sleepRecoveredMin != null/);
   assert.match(card, /AI-written/);
   assert.match(read('src/routes/dashboard.tsx'), /hasWearableSleep=\{\(insights\?\.dataSources\.sleepNights \?\? 0\) > 0\}/);
+});
+
+test('freshness: a 3-day-old night is used, a 4-day-old night is not', () => {
+  assert.equal(computeInsights(shifts, prefs, now, [], night('2026-11-13', 300)).dataSources.sleepNights, 1);
+  const old = computeInsights(shifts, prefs, now, [], night('2026-11-12', 300));
+  assert.equal(old.dataSources.sleepNights, 0);
+  assert.equal(old.dataSources.wearableStale, true);
+});
+
+test('a night with efficiency/HRV but no duration is labelled as used wearable data', () => {
+  const r = { provider: 'fitbit', date: '2026-11-16', sleepDurationMin: null, sleepEfficiency: 0.7, hrvMs: 30, restingHr: null };
+  const i = computeInsights(shifts, prefs, now, [], r);
+  assert.equal(i.dataSources.sleepNights, 0);
+  assert.equal(i.dataSources.wearableNights, 1);
+  assert.match(i.contextString, /fitbit wearable readings for 1 night/);
+  assert.ok(i.fatigueToday.score > computeInsights(shifts, prefs, now).fatigueToday.score, 'efficiency still adjusts the estimate');
+  const brief = read('src/components/AIBriefCard.tsx');
+  assert.match(brief, /d\.wearableNights > 0/);
 });
