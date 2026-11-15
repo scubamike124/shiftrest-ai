@@ -366,7 +366,10 @@ export function NativeSubscription() {
 
       {decision.view === "billing_issue" && (
         <>
-          <section role="alert" className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5 text-sm">
+          <section
+            role="alert"
+            className="rounded-2xl border border-destructive/40 bg-destructive/10 p-5 text-sm"
+          >
             <p className="font-semibold">Payment problem with your RestPilot web subscription</p>
             <p className="mt-1 text-muted-foreground">
               It can still renew once the payment is fixed, so a second subscription can&apos;t be

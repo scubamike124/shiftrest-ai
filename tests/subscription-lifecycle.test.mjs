@@ -393,20 +393,53 @@ test('lifetime: the voice gate treats lifetime as paid premium', async () => {
   const access = loadTs('src/lib/realtime/access.server.ts', { globals: { process: { env: { PAYMENTS_ENVIRONMENT: 'live' } } } });
   assert.equal(access.voiceEntitlement([{ status: 'lifetime', current_period_end: null }]), 'paid');
 });
-
 // ============================ past_due / unpaid Stripe =======================
-test('(c) duplicates: a past_due / unpaid Stripe subscriber is never offered an App Store purchase', () => {
-  for (const status of ['past_due', 'unpaid']) {
-    const e = merge.mergeEntitlements([{ status, price_id: 'restpilot_monthly', current_period_end: iso(Date.now() - DAY), cancel_at_period_end: false, environment: 'live' }], [],
-      { stripeEnvironment: 'live', appleEnvironments: ['live'] });
-    assert.equal(e.active, false); assert.equal(e.stripeBillingIssue, true);
-    const d = decide('ios', e);
-    assert.equal(d.view, 'billing_issue'); assert.equal(d.purchase, null);
-    assert.deepEqual(d.manage, [{ source: 'stripe', path: 'stripe_text_only' }]);
+test("(c) duplicates: a past_due / unpaid Stripe subscriber is never offered an App Store purchase", () => {
+  for (const status of ["past_due", "unpaid"]) {
+    const e = merge.mergeEntitlements(
+      [
+        {
+          status,
+          price_id: "restpilot_monthly",
+          current_period_end: iso(Date.now() - DAY),
+          cancel_at_period_end: false,
+          environment: "live",
+        },
+      ],
+      [],
+      { stripeEnvironment: "live", appleEnvironments: ["live"] },
+    );
+    assert.equal(e.active, false);
+    assert.equal(e.stripeBillingIssue, true);
+    const d = decide("ios", e);
+    assert.equal(d.view, "billing_issue");
+    assert.equal(d.purchase, null);
+    assert.deepEqual(d.manage, [{ source: "stripe", path: "stripe_text_only" }]);
   }
-  assert.equal(merge.mergeEntitlements([{ status: 'past_due', price_id: 'restpilot_monthly', current_period_end: null, cancel_at_period_end: false, environment: 'sandbox' }], [],
-    { stripeEnvironment: 'live', appleEnvironments: [] }).stripeBillingIssue, false, 'other environment ignored');
-  const screen = readFileSync(new URL('../src/components/subscription/NativeSubscription.tsx', import.meta.url), 'utf8');
-  const buy = screen.indexOf('async function onBuy');
-  assert.ok(screen.indexOf('latest.entitlement.stripeBillingIssue', buy) < screen.indexOf('await purchase(pkg)', buy));
+  assert.equal(
+    merge.mergeEntitlements(
+      [
+        {
+          status: "past_due",
+          price_id: "restpilot_monthly",
+          current_period_end: null,
+          cancel_at_period_end: false,
+          environment: "sandbox",
+        },
+      ],
+      [],
+      { stripeEnvironment: "live", appleEnvironments: [] },
+    ).stripeBillingIssue,
+    false,
+    "other environment ignored",
+  );
+  const screen = readFileSync(
+    new URL("../src/components/subscription/NativeSubscription.tsx", import.meta.url),
+    "utf8",
+  );
+  const buy = screen.indexOf("async function onBuy");
+  assert.ok(
+    screen.indexOf("latest.entitlement.stripeBillingIssue", buy) <
+      screen.indexOf("await purchase(pkg)", buy),
+  );
 });

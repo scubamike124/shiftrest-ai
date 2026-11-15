@@ -216,7 +216,9 @@ export function mergeEntitlements(
     if (c && options.appleEnvironments.includes(c.environment)) channels.push(c);
   }
   if (channels.length === 0)
-    return stripeBillingIssue ? { ...NO_ENTITLEMENT, channels: [], stripeBillingIssue } : NO_ENTITLEMENT;
+    return stripeBillingIssue
+      ? { ...NO_ENTITLEMENT, channels: [], stripeBillingIssue }
+      : NO_ENTITLEMENT;
   channels.sort(compareChannels);
   const top = channels[0];
   return {
