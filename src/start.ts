@@ -94,14 +94,32 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   }
 });
 
+// Some responses carry immutable headers: Response.redirect() (used by the
+// Oura and Fitbit OAuth callbacks) and fetch() passthroughs. Setting a header
+// on them throws "TypeError: immutable", which errorMiddleware turned into a
+// 500 page, so every OAuth return failed. Swap in a copy with mutable headers
+// (same status, headers and body) before adding ours.
+function mutableHeaders(result: { response: Response }): Headers {
+  try {
+    result.response.headers.set("x-content-type-options", "nosniff");
+  } catch {
+    const r = result.response;
+    result.response = new Response(r.body, {
+      status: r.status,
+      statusText: r.statusText,
+      headers: new Headers(r.headers),
+    });
+  }
+  return result.response.headers;
+}
+
 // Attach CSP to HTML responses only. JSON, images, and other asset responses
 // don't need it — the browser only evaluates CSP for the document it loaded.
 const cspMiddleware = createMiddleware().server(async ({ next }) => {
   const result = await next();
-  const response = result.response;
-  const ct = response.headers.get("content-type") ?? "";
-  if (ct.includes("text/html") && !response.headers.has("content-security-policy")) {
-    response.headers.set("content-security-policy", CSP);
+  const ct = result.response.headers.get("content-type") ?? "";
+  if (ct.includes("text/html") && !result.response.headers.has("content-security-policy")) {
+    mutableHeaders(result).set("content-security-policy", CSP);
   }
   return result;
 });
@@ -109,7 +127,7 @@ const cspMiddleware = createMiddleware().server(async ({ next }) => {
 // Baseline security headers on every response.
 const securityHeadersMiddleware = createMiddleware().server(async ({ next, request }) => {
   const result = await next();
-  const headers = result.response.headers;
+  const headers = mutableHeaders(result);
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "permissions-policy",
