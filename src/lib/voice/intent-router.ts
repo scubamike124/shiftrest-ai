@@ -296,14 +296,26 @@ export function parseIntent(input: string): ParsedIntent {
       .trim()
       .split(/\s+/);
     const t = words.length <= 3 ? resolveTrack(mPolite[1]) : null;
-    if (t) return { intent: { kind: "play_track", slug: t.slug, label: t.label }, confidence: 0.95, raw };
+    if (t) {
+      return {
+        intent: { kind: "play_track", slug: t.slug, label: t.label },
+        confidence: 0.95,
+        raw,
+      };
+    }
   }
 
   const mPlay = text.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
     const t = resolveTrack(phrase);
-    if (t) return { intent: { kind: "play_track", slug: t.slug, label: t.label }, confidence: 0.95, raw };
+    if (t) {
+      return {
+        intent: { kind: "play_track", slug: t.slug, label: t.label },
+        confidence: 0.95,
+        raw,
+      };
+    }
     return {
       intent: { kind: "unknown", alternates: suggestTracks(phrase) },
       confidence: 0.3,
