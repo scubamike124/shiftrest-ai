@@ -2,9 +2,9 @@
 export function aiApiKey(audio = false): string | undefined {
   return audio ? process.env.AI_AUDIO_API_KEY || process.env.OPENAI_API_KEY : process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
 }
-export function aiEndpoint(path: 'chat/completions' | 'audio/speech' | 'audio/transcriptions'): string {
+export function aiEndpoint(path: 'chat/completions' | 'audio/speech' | 'audio/transcriptions', baseUrl?: string): string {
   const audio = path.startsWith('audio/');
-  const raw = (audio ? process.env.AI_AUDIO_BASE_URL : process.env.AI_BASE_URL)
+  const raw = baseUrl || (audio ? process.env.AI_AUDIO_BASE_URL : process.env.AI_BASE_URL)
     || (process.env.OPENAI_API_KEY ? 'https://api.openai.com/v1' : undefined);
   if (!raw) throw new Error('AI provider endpoint is not configured');
   const base = new URL(raw);

@@ -14,6 +14,12 @@
  *   AI_MODEL_BACKGROUND  memory extraction
  *   AI_REASONING_<TASK>  reasoning_effort for that task (none|minimal|low|medium|high)
  *
+ * Optional failover (off unless AI_FALLBACK_MODEL is set; see fallbackConfig):
+ *   AI_FALLBACK_MODEL     model tried once when the routed model fails
+ *   AI_FALLBACK_BASE_URL  other provider endpoint (then AI_FALLBACK_API_KEY is required)
+ *   AI_FALLBACK_API_KEY   key for AI_FALLBACK_BASE_URL (never the primary key)
+ *   AI_FALLBACK=off       turns failover off without touching the other settings
+ *
  * Rollback: AI_ROUTING=off ignores every per-task override and reasoning setting
  * in one step, returning to the AI_CHAT_MODEL / AI_FAST_MODEL mapping.
  * AI_CHAT_MODEL stays required, so a rollback target always exists.
@@ -74,6 +80,25 @@ export function reasoningForTask(task: AITask, env: Env = process.env): string |
   if (!routingEnabled(env)) return undefined;
   const v = env[`AI_REASONING_${TASK_SUFFIX[task]}`]?.trim().toLowerCase();
   return v && REASONING.has(v) ? v : undefined;
+}
+
+export type FallbackConfig = { model: string; baseUrl?: string; apiKey?: string };
+
+/**
+ * Second model for provider failures. Disabled (undefined) unless AI_FALLBACK_MODEL
+ * is a valid model ID. Off switches: AI_FALLBACK=off|0|false, or AI_ROUTING=off.
+ * A different endpoint needs its own key: the primary key is never sent to another host.
+ */
+export function fallbackConfig(env: Env = process.env): FallbackConfig | undefined {
+  if (!routingEnabled(env)) return undefined;
+  if (["off", "0", "false"].includes((env.AI_FALLBACK ?? "").trim().toLowerCase())) return undefined;
+  const raw = cleanModel(env.AI_FALLBACK_MODEL);
+  if (!raw) return undefined;
+  const baseUrl = env.AI_FALLBACK_BASE_URL?.trim() || undefined;
+  if (!baseUrl) return { model: normalize(raw, env) };
+  const apiKey = env.AI_FALLBACK_API_KEY?.trim();
+  if (!apiKey) return undefined;
+  return { model: normalize(raw, { ...env, AI_BASE_URL: baseUrl }), baseUrl, apiKey };
 }
 
 export type ModelFamily = "openai-reasoning" | "claude" | "gemini" | "other";
