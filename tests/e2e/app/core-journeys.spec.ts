@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { collectErrors, expect, sendChat, test } from "../support/fixtures";
 
 // Signed-in product journeys against the hermetic backend: dashboard, AI
@@ -6,6 +7,16 @@ import { collectErrors, expect, sendChat, test } from "../support/fixtures";
 
 const NOW = Date.now();
 const iso = (h: number) => new Date(NOW + h * 3_600_000).toISOString();
+
+// #33 moves the coach brief, water and 7-day cards into a "More insights"
+// disclosure that starts closed on phones. Open it when it exists.
+async function openMoreInsights(page: Page) {
+  const more = page.locator("details", { has: page.getByText("More insights", { exact: true }) });
+  if ((await more.count()) === 0) return;
+  if (!(await more.first().evaluate((d) => (d as HTMLDetailsElement).open))) {
+    await more.first().locator("summary").click();
+  }
+}
 
 test.describe("dashboard", () => {
   test.use({
@@ -42,6 +53,7 @@ test.describe("dashboard", () => {
       page.getByRole("heading", { name: /Good (morning|afternoon|evening)/i }),
     ).toBeVisible();
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
+    await openMoreInsights(page);
     // AI brief rendered from the (fake) model through /api/insights.
     await expect(page.getByText("Protect tonight's sleep window").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: /Next 7 Days/i })).toBeVisible();
@@ -51,6 +63,10 @@ test.describe("dashboard", () => {
 
   test("water tracker counts glasses", async ({ authedPage: page }) => {
     await page.goto("/dashboard");
+    await expect(
+      page.getByRole("heading", { name: /Good (morning|afternoon|evening)/i }),
+    ).toBeVisible();
+    await openMoreInsights(page);
     const add = page.getByRole("button", { name: "Add a glass of water" });
     await expect(add).toBeVisible();
     await expect(page.getByText(/0 of 8 glasses/i)).toBeVisible();

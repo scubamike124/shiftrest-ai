@@ -91,7 +91,12 @@ test.describe("settings pages", () => {
     const before = await page.evaluate(
       () => document.documentElement.className + "|" + document.documentElement.dataset.theme,
     );
-    await toggle.first().click();
+    // A themed radio is usually visually hidden inside its label (#33): click the label.
+    const target = toggle.first();
+    const isRadio = await target.evaluate(
+      (el) => el instanceof HTMLInputElement && el.type === "radio",
+    );
+    await (isRadio ? target.locator("xpath=ancestor::label[1]") : target).click();
     await expect
       .poll(() =>
         page.evaluate(

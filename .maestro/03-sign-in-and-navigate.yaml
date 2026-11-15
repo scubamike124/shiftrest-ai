@@ -23,6 +23,17 @@ tags: [core]
 - tapOn:
     text: "Sign In"
     index: 0
+# First sign-in on this device shows the three-step Companion intro sheet over Home.
+# Step through it ("Skip" sits under the floating Cookies chip on narrow phones).
+- extendedWaitUntil:
+    visible: "Meet .*your Companion"
+    timeout: 30000
+- tapOn: "Next"
+- extendedWaitUntil:
+    visible: "Memory is optional"
+    timeout: 10000
+- tapOn: "Next"
+- tapOn: "Got it"
 - extendedWaitUntil:
     visible:
       text: "Good (morning|afternoon|evening).*"
