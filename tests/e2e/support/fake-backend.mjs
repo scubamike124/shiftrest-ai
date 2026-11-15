@@ -787,10 +787,6 @@ function proxy(req, res, appUrl) {
       },
     },
     (r) => {
-      // Diagnostic knob for the iOS simulator runs (ios-maestro.yml): drop the
-      // app's Cross-Origin-Opener-Policy header so the WebView does not swap
-      // web processes on the first navigation. Off by default.
-      if (process.env.E2E_STRIP_COOP === "1") delete r.headers["cross-origin-opener-policy"];
       res.writeHead(r.statusCode || 502, r.headers);
       r.pipe(res);
     },

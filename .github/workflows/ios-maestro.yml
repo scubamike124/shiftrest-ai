@@ -74,10 +74,7 @@ jobs:
         if: steps.guard.outputs.ok == 'true'
         run: |
           set -euo pipefail
-          # COOP is stripped for the gating flows: with it, the simulator WebView swaps
-          # web processes on the first navigation and never paints the new one (see the
-          # "COOP diagnostic" step and QA-REPORT.md). Needs a real-device check.
-          E2E_STRIP_COOP=1 nohup node tests/e2e/support/serve.mjs > "$EV/stack.log" 2>&1 &
+          nohup node tests/e2e/support/serve.mjs > "$EV/stack.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/stack.pid"
           for i in $(seq 1 120); do curl -sf http://127.0.0.1:3000/api/public/health >/dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:3000/api/public/health
@@ -149,20 +146,6 @@ jobs:
           maestro --device "$DEVICE" test .maestro --include-tags "$TAGS" --exclude-tags blocked \
             -e QA_EMAIL="$QA_EMAIL" -e QA_PASSWORD="$QA_PASSWORD" \
             --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
-      - name: COOP diagnostic (launch flow with the production COOP header; informational)
-        if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
-        continue-on-error: true
-        run: |
-          kill "$(cat "$RUNNER_TEMP/stack.pid")" 2>/dev/null || true
-          pkill -f "tests/e2e/support/serve.mjs" || true
-          pkill -f ".output/server/index.mjs" || true
-          sleep 2
-          nohup node tests/e2e/support/serve.mjs > "$EV/stack-coop.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/stack.pid"
-          for i in $(seq 1 120); do curl -sf http://127.0.0.1:3000/api/public/health >/dev/null && break; sleep 1; done
-          curl -sI http://127.0.0.1:3000/ | grep -i "cross-origin-opener-policy" | tee "$EV/coop-header.txt"
-          maestro --device "$DEVICE" test .maestro/01-launch.yaml \
-            --format junit --output "$EV/coop-diagnostic.xml" --test-output-dir "$EV/coop" 2>&1 | tee "$EV/coop-diagnostic.log"
       - name: Stop the stack, then the offline flow
         if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
         run: |
@@ -188,10 +171,6 @@ jobs:
                   f += bad; p += not bad
                   print(f"| {tc.get('name')} | {'FAIL' if bad else 'pass'} |")
           print(f"\n**{p} passed, {f} failed.**")
-          d = f"{ev}/coop-diagnostic.xml"
-          if os.path.exists(d):
-              bad = any(tc.find("failure") is not None or tc.find("error") is not None for tc in ET.parse(d).getroot().iter("testcase"))
-              print(f"\n- COOP diagnostic (launch with the production `Cross-Origin-Opener-Policy` header): {'FAIL - blank WebView after the COOP process swap' if bad else 'pass'}")
           hk = "run" if os.environ.get("HEALTHKIT") == "1" else "not run: build has no HealthKit usage description yet (PR #17)"
           print(f"\n- HealthKit permission sheet: {hk}")
           print("- BLOCKED: Apple sandbox purchase (needs App Store Connect products, a Sandbox Apple Account and the StoreKit UI from PR #16, or a .storekit file)")

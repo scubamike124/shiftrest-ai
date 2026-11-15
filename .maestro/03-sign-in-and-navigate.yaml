@@ -4,10 +4,14 @@ tags: [core]
 # QA_EMAIL / QA_PASSWORD come from `maestro test -e` (a user seeded in the E2E stack).
 ---
 - launchApp
+# On iPhone widths "Sign in" sits in the header menu.
 - extendedWaitUntil:
-    visible: "Sign in"
+    visible: "Open menu"
     timeout: 45000
-- tapOn: "Sign in"
+- tapOn: "Open menu"
+- tapOn:
+    text: "Sign in"
+    index: 0
 - extendedWaitUntil:
     visible: "Welcome back"
     timeout: 20000
