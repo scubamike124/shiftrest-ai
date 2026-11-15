@@ -70,11 +70,11 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
           );
         }
         {
-          const { recordAIUsage, estimateTtsTokens } = await import("@/lib/ai/log.server");
+          const { recordAIUsage, estimateElevenLabsTokens } = await import("@/lib/ai/log.server");
           await recordAIUsage(labUserId, {
             intent: "lab-simli-speak",
             model: "elevenlabs/eleven_flash_v2_5",
-            promptTokens: estimateTtsTokens(Math.min(text.length, 4000)),
+            promptTokens: estimateElevenLabsTokens(Math.min(text.length, 4000)),
           });
         }
         return new Response(upstream.body, {

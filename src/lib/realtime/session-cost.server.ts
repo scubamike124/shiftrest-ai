@@ -2,53 +2,49 @@
  * Live voice (OpenAI Realtime) cost control. SERVER ONLY.
  *
  * The browser talks to OpenAI directly with an ephemeral token, so the server
- * cannot meter the session itself. The strongest cap available without a proxy
- * is therefore: (1) debit the WORST-CASE cost of one session against the daily
- * token cap at mint, refusing the mint when the remaining budget cannot cover
- * it; (2) short-lived tokens and per-response limits; (3) one active session
- * per user; (4) a client heartbeat/finish report that refunds part of the
- * unused debit or charges overage; (5) the client ends the call at the
- * server-given deadline.
- *
- * Everything is stored in ai_log (service-role writes only; the daily cap sums
- * its total_tokens), so no new table or RPC is needed:
- *   intent "rt-mint:<sid>"  prompt_tokens = +worst-case debit
- *   intent "rt-end:<sid>"   prompt_tokens = -refund (or +overage), written once
- *   intent "rt-over:<sid>"  prompt_tokens = +overage step per late heartbeat
- *
- * COST MODEL (all constants here, tune together):
+ * cannot meter the session itself. The strongest cap available without a proxy:
+ *  (1) debit the WORST-CASE dollar cost of one session (see voice-pricing.ts)
+ *      against the daily token cap at mint, atomically, refusing when the
+ *      remaining budget cannot cover it and when another session is active;
+ *  (2) short-lived token, capped context and per-response output;
+ *  (3) client heartbeat/finish reports that refund part of the unused debit or
+ *      charge overage, bound to the minted session id and idempotent;
+ *  (4) the client hangs up at the server-given deadline.
+ * Writes go through service-role-only RPCs (claim_voice_session,
+ * end_voice_session, charge_voice_overage) that serialise per user. Every
+ * failure on the debit path REFUSES the mint; a failed refund grants nothing.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
+import {
+  TOKENS_PER_MINUTE,
+  VOICE_LIMITS,
+  WORST_CASE_DEBIT_TOKENS,
+} from "@/lib/realtime/voice-pricing";
 
 export const REALTIME_COST = {
-  /** Longest session the client is told it may run. It must end the call here. */
-  MAX_SESSION_SECONDS: 300,
-  /** Server-side slack before a session is considered over / overage starts. */
+  MAX_SESSION_SECONDS: VOICE_LIMITS.MAX_SESSION_SECONDS,
+  /** Slack before a session counts as over and overage starts. */
   GRACE_SECONDS: 30,
-  /** Ephemeral token lifetime. It only has to survive the SDP handshake. */
-  TOKEN_TTL_SECONDS: 60,
+  TOKEN_TTL_SECONDS: VOICE_LIMITS.TOKEN_TTL_SECONDS,
+  POST_INSTRUCTIONS_TOKENS: VOICE_LIMITS.POST_INSTRUCTIONS_TOKENS,
+  MAX_OUTPUT_TOKENS: VOICE_LIMITS.MAX_OUTPUT_TOKENS,
+  TOKENS_PER_MINUTE,
   /**
-   * Token-equivalents per minute of live audio. Full duplex worst case:
-   * input audio ~10 tokens/s (600/min) + output audio ~20 tokens/s (1200/min)
-   * = 1800/min, rounded up to 2000. This is an estimate, not an invoice.
+   * Share of the unused debit returned on a clean finish. Below 1 on purpose:
+   * the finish call is client-controlled, so a hostile client could "finish"
+   * at once and keep talking; the kept share is never refunded.
    */
-  TOKENS_PER_MINUTE: 2000,
-  /** Share of the unused debit returned on a clean finish (see residuals). */
   REFUND_FRACTION: 0.5,
-  /** Per-response output token ceiling set on the session. */
-  MAX_OUTPUT_TOKENS: 1000,
-  /** Overage charged per heartbeat received after the deadline + grace. */
+  /** Overage charged per started step past deadline + grace. */
   OVERAGE_STEP_SECONDS: 30,
 } as const;
 
-export const worstCaseTokens = () =>
-  Math.ceil(REALTIME_COST.MAX_SESSION_SECONDS / 60) * REALTIME_COST.TOKENS_PER_MINUTE;
+export const worstCaseTokens = () => WORST_CASE_DEBIT_TOKENS;
 export const tokensForSeconds = (seconds: number) =>
-  Math.ceil(Math.max(0, seconds) / 60) * REALTIME_COST.TOKENS_PER_MINUTE;
+  Math.ceil(Math.max(0, seconds) / 60) * TOKENS_PER_MINUTE;
 
-const WINDOW_MS = (REALTIME_COST.MAX_SESSION_SECONDS + REALTIME_COST.GRACE_SECONDS) * 1000;
-const MODEL = "gpt-realtime";
+const WINDOW_SECONDS = REALTIME_COST.MAX_SESSION_SECONDS + REALTIME_COST.GRACE_SECONDS;
+const RPC_TIMEOUT_MS = 4000;
 
 function newSessionId(): string {
   try {
@@ -58,142 +54,100 @@ function newSessionId(): string {
   }
 }
 
-async function row(
+/** RPC with a timeout; any error/throw/hang => null (caller fails closed). */
+async function rpc<T>(
   admin: SupabaseClient,
-  userId: string,
-  intent: string,
-  tokens: number,
-  status = "ok",
-) {
-  await logAIRequest(admin, {
-    user_id: userId,
-    intent,
-    model: MODEL,
-    prompt_tokens: Math.round(tokens),
-    completion_tokens: 0,
-    latency_ms: 0,
-    status,
-  });
-}
-
-type LogRow = { intent: string; prompt_tokens: number; created_at: string };
-
-async function recentSessionRows(
-  admin: SupabaseClient,
-  userId: string,
-  now: number,
-): Promise<LogRow[] | null> {
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const since = new Date(now - 2 * WINDOW_MS).toISOString();
-    const { data, error } = await admin
-      .from("ai_log")
-      .select("intent,prompt_tokens,created_at")
-      .eq("user_id", userId)
-      .gte("created_at", since)
-      .like("intent", "rt-%");
-    if (error || !Array.isArray(data)) return null;
-    return data as LogRow[];
-  } catch {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${fn} timeout`)), RPC_TIMEOUT_MS);
+    });
+    const { data, error } = await Promise.race([
+      Promise.resolve(admin.rpc(fn, args)),
+      timeout,
+    ]);
+    if (error) {
+      console.error(`[realtime] ${fn} failed`, error);
+      return null;
+    }
+    return (data ?? null) as T | null;
+  } catch (e) {
+    console.error(`[realtime] ${fn} threw`, e);
     return null;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-}
-
-/** Sessions minted within the window that have not been finished. */
-function activeSessions(rows: LogRow[], now: number) {
-  const ended = new Set(
-    rows.filter((r) => r.intent.startsWith("rt-end:")).map((r) => r.intent.slice(7)),
-  );
-  return rows
-    .filter((r) => r.intent.startsWith("rt-mint:"))
-    .map((r) => ({ sid: r.intent.slice(8), at: Date.parse(r.created_at), debit: r.prompt_tokens }))
-    .filter((s) => !ended.has(s.sid) && now - s.at < WINDOW_MS);
 }
 
 export type StartResult =
   | { ok: true; sessionId: string; deadlineAt: number; maxSessionSeconds: number; debit: number }
-  | { ok: false; code: "voice_session_active" | "ai_budget_exhausted" | "ai_budget_unavailable"; message: string };
+  | {
+      ok: false;
+      code: "voice_session_active" | "ai_budget_exhausted" | "ai_budget_unavailable";
+      message: string;
+    };
 
-/**
- * Debit the worst case, then ask the existing has_ai_budget gate whether the
- * user is still under the cap WITH the debit counted (used < cap), so a mint is
- * refused exactly when the remaining budget cannot cover the worst case.
- */
+/** Atomic claim: one active session AND worst-case debit fits under the cap. */
 export async function startRealtimeSession(
   admin: SupabaseClient,
   userId: string,
   now: number = Date.now(),
 ): Promise<StartResult> {
-  const unavailable: StartResult = {
-    ok: false,
-    code: "ai_budget_unavailable",
-    message: "Voice is temporarily unavailable. Please try again in a moment.",
-  };
-  const before = await recentSessionRows(admin, userId, now);
-  if (!before) return unavailable;
-  if (activeSessions(before, now).length > 0) {
+  const sid = newSessionId();
+  const debit = WORST_CASE_DEBIT_TOKENS;
+  const verdict = await rpc<string>(admin, "claim_voice_session", {
+    _user_id: userId,
+    _sid: sid,
+    _debit: debit,
+    _window_seconds: WINDOW_SECONDS,
+  });
+  if (verdict === "ok") {
+    return {
+      ok: true,
+      sessionId: sid,
+      deadlineAt: now + REALTIME_COST.MAX_SESSION_SECONDS * 1000,
+      maxSessionSeconds: REALTIME_COST.MAX_SESSION_SECONDS,
+      debit,
+    };
+  }
+  if (verdict === "active") {
     return {
       ok: false,
       code: "voice_session_active",
       message: "A voice session is already active. End it before starting another.",
     };
   }
-
-  const sid = newSessionId();
-  const debit = worstCaseTokens();
-  await row(admin, userId, `rt-mint:${sid}`, debit);
-
-  const undo = async () => {
-    await row(admin, userId, `rt-end:${sid}`, -debit, "refused");
-  };
-
-  const budget = await checkAIBudget(admin, userId);
-  if (budget !== "ok") {
-    await undo();
-    return budget === "exhausted"
-      ? {
-          ok: false,
-          code: "ai_budget_exhausted",
-          message: "Not enough daily AI allowance left for a voice session. It resets in 24 hours.",
-        }
-      : unavailable;
+  if (verdict === "exhausted") {
+    return {
+      ok: false,
+      code: "ai_budget_exhausted",
+      message: "Not enough daily AI allowance left for a voice session. It resets in 24 hours.",
+    };
   }
-
-  // Race guard: two mints at once both see "none active". Re-check after our
-  // debit and back off if another session (not ours) is live. Both back off if
-  // both raced; failing safe is intended.
-  const after = await recentSessionRows(admin, userId, now);
-  if (!after || activeSessions(after, now).some((s) => s.sid !== sid)) {
-    await undo();
-    return after
-      ? {
-          ok: false,
-          code: "voice_session_active",
-          message: "A voice session is already active. End it before starting another.",
-        }
-      : unavailable;
-  }
-
+  // null (RPC error/timeout) or anything unexpected: fail closed.
   return {
-    ok: true,
-    sessionId: sid,
-    deadlineAt: now + REALTIME_COST.MAX_SESSION_SECONDS * 1000,
-    maxSessionSeconds: REALTIME_COST.MAX_SESSION_SECONDS,
-    debit,
+    ok: false,
+    code: "ai_budget_unavailable",
+    message: "Voice is temporarily unavailable. Please try again in a moment.",
   };
 }
 
-/** The provider mint failed after the debit: return everything. */
+/** The provider mint failed after the debit: return everything (no extra, no less). */
 export async function abortRealtimeSession(
   admin: SupabaseClient,
   userId: string,
   sessionId: string,
   debit: number,
 ): Promise<void> {
-  try {
-    await row(admin, userId, `rt-end:${sessionId}`, -debit, "aborted");
-  } catch (e) {
-    console.error("[realtime] abort refund failed", e);
-  }
+  await rpc<number>(admin, "end_voice_session", {
+    _user_id: userId,
+    _sid: sessionId,
+    _delta: -Math.abs(Math.round(debit)),
+    _status: "aborted",
+  });
 }
 
 export type ReportResult = {
@@ -204,13 +158,30 @@ export type ReportResult = {
   overage: number;
 };
 
+type LedgerRow = { intent: string; prompt_tokens: number; created_at: string };
+
+async function ledger(
+  admin: SupabaseClient,
+  userId: string,
+  sid: string,
+): Promise<LedgerRow[] | null> {
+  try {
+    const { data, error } = await admin
+      .from("ai_log")
+      .select("intent,prompt_tokens,created_at")
+      .eq("user_id", userId)
+      .like("intent", `rt-%:${sid}%`);
+    if (error || !Array.isArray(data)) return null;
+    return data as LedgerRow[];
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Heartbeat (final=false) or finish (final=true) from the client.
- * - heartbeat after deadline+grace: charge an overage step and tell it to end;
- * - finish: write the single rt-end row: refund REFUND_FRACTION of the unused
- *   debit, or charge overage when the session ran past the worst case.
- * The server's own clock bounds the elapsed time; the client figure is only
- * used when it is larger (it can never reduce the charge below server time).
+ * Heartbeat (final=false) or finish (final=true). The session id must belong to
+ * the caller (the ledger is read per user and the RPCs re-check it). The server
+ * clock bounds elapsed time: the client figure only counts when larger.
  */
 export async function reportRealtimeSession(
   admin: SupabaseClient,
@@ -219,13 +190,12 @@ export async function reportRealtimeSession(
   now: number = Date.now(),
 ): Promise<ReportResult> {
   const none: ReportResult = { endNow: false, deadlineAt: null, refunded: 0, overage: 0 };
-  const rows = await recentSessionRows(admin, userId, now);
+  const rows = await ledger(admin, userId, input.sessionId);
   if (!rows) return none;
   const mint = rows.find((r) => r.intent === `rt-mint:${input.sessionId}`);
   if (!mint) return { ...none, endNow: true };
-  if (rows.some((r) => r.intent === `rt-end:${input.sessionId}`)) {
-    return { ...none, endNow: true };
-  }
+  if (rows.some((r) => r.intent === `rt-end:${input.sessionId}`)) return { ...none, endNow: true };
+
   const mintedAt = Date.parse(mint.created_at);
   const deadlineAt = mintedAt + REALTIME_COST.MAX_SESSION_SECONDS * 1000;
   const serverElapsed = Math.max(0, (now - mintedAt) / 1000);
@@ -237,17 +207,34 @@ export async function reportRealtimeSession(
   if (!input.final) {
     if (!late) return { ...none, deadlineAt };
     const step = tokensForSeconds(REALTIME_COST.OVERAGE_STEP_SECONDS);
-    await row(admin, userId, `rt-over:${input.sessionId}`, step, "overage");
-    return { endNow: true, deadlineAt, refunded: 0, overage: step };
+    const bucket = Math.floor(
+      (now - deadlineAt) / (REALTIME_COST.OVERAGE_STEP_SECONDS * 1000),
+    );
+    const charged = await rpc<boolean>(admin, "charge_voice_overage", {
+      _user_id: userId,
+      _sid: input.sessionId,
+      _bucket: bucket,
+      _tokens: step,
+    });
+    return { endNow: true, deadlineAt, refunded: 0, overage: charged === true ? step : 0 };
   }
 
   const actual = tokensForSeconds(elapsed);
-  if (actual >= debit) {
-    const overage = actual - debit;
-    await row(admin, userId, `rt-end:${input.sessionId}`, overage, overage ? "overage" : "ok");
-    return { endNow: true, deadlineAt, refunded: 0, overage };
-  }
-  const refund = Math.floor((debit - actual) * REALTIME_COST.REFUND_FRACTION);
-  await row(admin, userId, `rt-end:${input.sessionId}`, -refund, "ok");
-  return { endNow: true, deadlineAt, refunded: refund, overage: 0 };
+  const delta =
+    actual >= debit
+      ? actual - debit
+      : -Math.floor((debit - actual) * REALTIME_COST.REFUND_FRACTION);
+  const applied = await rpc<number>(admin, "end_voice_session", {
+    _user_id: userId,
+    _sid: input.sessionId,
+    _delta: delta,
+    _status: delta > 0 ? "overage" : "ok",
+  });
+  if (applied === null) return { endNow: true, deadlineAt, refunded: 0, overage: 0 };
+  return {
+    endNow: true,
+    deadlineAt,
+    refunded: applied < 0 ? -applied : 0,
+    overage: applied > 0 ? applied : 0,
+  };
 }

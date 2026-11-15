@@ -159,11 +159,11 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             `[tts-elevenlabs] provider_ok voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0}`,
           );
           {
-            const { recordAIUsage, estimateTtsTokens } = await import("@/lib/ai/log.server");
+            const { recordAIUsage, estimateElevenLabsTokens } = await import("@/lib/ai/log.server");
             await recordAIUsage(auth.userId, {
               intent: "tts-elevenlabs",
               model: "elevenlabs/tts",
-              promptTokens: estimateTtsTokens(textLen),
+              promptTokens: estimateElevenLabsTokens(textLen),
             });
           }
           return new Response(upstream.body, {

@@ -80,8 +80,15 @@ export async function checkAIBudget(
 export const USAGE_ESTIMATE = {
   /** Text: ~4 characters per token. */
   CHARS_PER_TOKEN: 4,
-  /** Spoken output (TTS) costs more than text: ~2 characters per token-equivalent. */
-  TTS_CHARS_PER_TOKEN: 2,
+  /**
+   * Token-equivalents are valued at $20 per 1M (voice-pricing.ts TOKEN_EQUIVALENT_USD).
+   * OpenAI gpt-4o-mini-tts: ~$0.015/min of speech (~900 chars) => ~$0.017/1K chars
+   * => ~1 character per token-equivalent (rounded up in cost).
+   * Source: https://developers.openai.com/api/docs/pricing (2026-11-15).
+   */
+  TTS_CHARS_PER_TOKEN: 1,
+  /** ElevenLabs Flash: $0.04 per 1K chars (https://elevenlabs.io/pricing/api) => 0.5 chars per token-equivalent. */
+  ELEVENLABS_CHARS_PER_TOKEN: 0.5,
   /** Speech-to-text: token-equivalents per KB of uploaded audio, with a floor. */
   STT_TOKENS_PER_KB: 2,
   STT_MIN_TOKENS: 50,
@@ -93,6 +100,8 @@ export const estimateTextTokens = (chars: number) =>
   Math.max(1, Math.ceil(Math.max(0, chars) / USAGE_ESTIMATE.CHARS_PER_TOKEN));
 export const estimateTtsTokens = (chars: number) =>
   Math.max(1, Math.ceil(Math.max(0, chars) / USAGE_ESTIMATE.TTS_CHARS_PER_TOKEN));
+export const estimateElevenLabsTokens = (chars: number) =>
+  Math.max(1, Math.ceil(Math.max(0, chars) / USAGE_ESTIMATE.ELEVENLABS_CHARS_PER_TOKEN));
 export const estimateSttTokens = (bytes: number) =>
   Math.max(
     USAGE_ESTIMATE.STT_MIN_TOKENS,

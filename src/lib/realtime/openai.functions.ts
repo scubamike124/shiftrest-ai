@@ -248,6 +248,12 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
           // Give longer answers enough room to finish, while the system
           // prompt still keeps the model conversational and concise.
           max_output_tokens: costMod.REALTIME_COST.MAX_OUTPUT_TOKENS,
+          // Cap the context re-sent with every response (bounds input cost).
+          truncation: {
+            type: "retention_ratio",
+            retention_ratio: 0.8,
+            token_limits: { post_instructions: costMod.REALTIME_COST.POST_INSTRUCTIONS_TOKENS },
+          },
         },
       }),
       });

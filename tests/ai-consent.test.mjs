@@ -78,12 +78,14 @@ function fakeDb({ consent, readError = false } = {}) {
         return { data: { user: { id: USER } }, error: null };
       },
     },
-    async rpc() {
+    async rpc(fn) {
+      if (fn === "claim_voice_session") return { data: "ok", error: null };
+      if (fn === "end_voice_session") return { data: 0, error: null };
       return { data: true, error: null };
     },
     from(table) {
       tables.push(table);
-      const filters = { user: null, prefix: null };
+      const filters = { user: null, like: null };
       const q = {
         select() {
           return q;
@@ -92,7 +94,9 @@ function fakeDb({ consent, readError = false } = {}) {
           return q;
         },
         like(_col, pat) {
-          filters.prefix = String(pat).replace(/%$/, "");
+          filters.like = new RegExp(
+            "^" + String(pat).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*") + "$",
+          );
           return q;
         },
         // Only ai_log reads are awaited directly (the voice session ledger).
@@ -102,7 +106,7 @@ function fakeDb({ consent, readError = false } = {}) {
               ? logRows.filter(
                   (r) =>
                     (!filters.user || r.user_id === filters.user) &&
-                    (!filters.prefix || r.intent.startsWith(filters.prefix)),
+                    (!filters.like || filters.like.test(r.intent)),
                 )
               : [];
           return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
@@ -883,7 +887,8 @@ for (const [label, file, makeReq] of ACCRUAL) {
 test("usage estimates are conservative and documented in one helper", () => {
   const { mod } = budgetModule();
   assert.equal(mod.estimateTextTokens(400), 100);
-  assert.equal(mod.estimateTtsTokens(400), 200);
+  assert.equal(mod.estimateTtsTokens(400), 400);
+  assert.equal(mod.estimateElevenLabsTokens(400), 800);
   assert.ok(mod.estimateSttTokens(0) >= mod.USAGE_ESTIMATE.STT_MIN_TOKENS);
   assert.ok(mod.estimateSttTokens(100 * 1024) >= 200);
   assert.ok(mod.USAGE_ESTIMATE.SESSION_MINT_TOKENS > 0);
@@ -905,132 +910,246 @@ test("nothing but the backend can change ai_daily_token_cap (no client code writ
   }
 });
 
-// ---- live voice: real cost cap (worst-case debit, one session, deadline) -----
-const REALTIME_CAP = 15000;
-function ledgerDb(cap, preUsed = 0) {
+// ---- live voice: real cost cap (atomic worst-case debit, one session, deadline) -
+// The SQL functions are proven on real PostgreSQL in
+// tests/voice-session-postgres.test.mjs; here a JS twin of them backs the
+// route/helper behaviour (refusals, deadline, no provider call on refusal).
+const REALTIME_CAP = 500000;
+function ledgerDb(cap, preUsed = 0, { rpcFails = [] } = {}) {
   const db = fakeDb({ consent: consentLoad().aiConsentGrantPatch("2026-11-15T10:00:00.000Z") });
-  if (preUsed) db.logRows.push({ user_id: USER, intent: "tts", prompt_tokens: preUsed, completion_tokens: 0, created_at: new Date().toISOString() });
-  db.rpc = async () => ({
-    data: db.logRows.reduce((n, r) => n + r.prompt_tokens + r.completion_tokens, 0) < cap,
-    error: null,
-  });
+  const used = () => db.logRows.reduce((n, r) => n + r.prompt_tokens + r.completion_tokens, 0);
+  const now = () => (db.now ? db.now() : Date.now());
+  const add = (user_id, intent, prompt_tokens, status = "ok") =>
+    db.logRows.push({ user_id, intent, prompt_tokens, completion_tokens: 0, status, created_at: new Date(now()).toISOString() });
+  if (preUsed) add(USER, "tts", preUsed);
+  db.rpc = async (fn, a) => {
+    if (rpcFails.includes(fn)) return { data: null, error: { message: `${fn} down` } };
+    const mine = (i) => db.logRows.find((r) => r.user_id === a._user_id && r.intent === i);
+    if (fn === "has_ai_budget") return { data: used() < cap, error: null };
+    if (fn === "claim_voice_session") {
+      const active = db.logRows.some(
+        (m) =>
+          m.user_id === a._user_id &&
+          m.intent.startsWith("rt-mint:") &&
+          Date.parse(m.created_at) > now() - a._window_seconds * 1000 &&
+          !mine("rt-end:" + m.intent.slice(8)),
+      );
+      if (active) return { data: "active", error: null };
+      add(a._user_id, "rt-mint:" + a._sid, a._debit);
+      if (!(used() < cap)) {
+        db.logRows.pop();
+        return { data: "exhausted", error: null };
+      }
+      return { data: "ok", error: null };
+    }
+    if (fn === "end_voice_session") {
+      const m = mine("rt-mint:" + a._sid);
+      if (!m || mine("rt-end:" + a._sid)) return { data: null, error: null };
+      const applied = Math.max(a._delta ?? 0, -m.prompt_tokens);
+      add(a._user_id, "rt-end:" + a._sid, applied, a._status);
+      return { data: applied, error: null };
+    }
+    if (fn === "charge_voice_overage") {
+      const key = `rt-over:${a._sid}:${a._bucket}`;
+      if (!mine("rt-mint:" + a._sid) || mine(key)) return { data: false, error: null };
+      add(a._user_id, key, a._tokens, "overage");
+      return { data: true, error: null };
+    }
+    return { data: true, error: null };
+  };
   return db;
 }
 const mintCall = (db, spy) => loadRealtime(db, spy)({ data: {}, context: { userId: USER } });
-const sessionMod = () => makeLoader({ "@supabase/supabase-js": { createClient: () => ({}) } }, { process: { env: {} }, Promise, Date, Math })("src/lib/realtime/session-cost.server.ts");
+const sessionMod = () =>
+  makeLoader({}, { process: { env: {} }, Promise, Date, Math, setTimeout, clearTimeout })(
+    "src/lib/realtime/session-cost.server.ts",
+  );
+const pricing = () => makeLoader({}, {})("src/lib/realtime/voice-pricing.ts");
 const net = (db, prefix) => db.logRows.filter((r) => r.intent.startsWith(prefix)).reduce((n, r) => n + r.prompt_tokens, 0);
 
-test("voice mint: worst-case debit recorded, deadline + session id returned, short token + per-response limit sent", async () => {
+test("voice cost model: dollars, conversion and debit come from one helper and are consistent", () => {
+  const p = pricing();
+  const perMin = p.worstCaseUsdPerMinute();
+  // 6 responses/min x (1500 + 2000) ctx tokens x $32/M + 1200 out tokens x $64/M
+  assert.ok(Math.abs(perMin - (6 * 3500 * 32e-6 + 1200 * 64e-6)) < 1e-9);
+  assert.equal(p.TOKENS_PER_MINUTE, p.usdToTokenEquivalents(perMin));
+  assert.equal(p.WORST_CASE_DEBIT_TOKENS, 3 * p.TOKENS_PER_MINUTE);
+  // the debit, valued back in dollars, covers the dollars of a full-length honest session
+  assert.ok(p.WORST_CASE_DEBIT_TOKENS * p.TOKEN_EQUIVALENT_USD >= p.maxUsdPerMint() - 1e-9);
+  // the free tier (15,000) cannot start voice; premium (500,000) can start a few
+  assert.equal(p.mintsPerDay(15000), 0);
+  assert.ok(p.mintsPerDay(500000) >= 3);
+  // a modified client ignoring the deadline can cost far more than an honest one
+  assert.ok(p.hostileUsdPerMint() > 50 * p.maxUsdPerMint());
+  // our measured system prompt stays inside the assumption used for pricing
+  const instr = makeLoader({}, {})("src/lib/realtime/instructions.ts");
+  const profile = makeLoader({}, {})("src/lib/voice/profile.ts");
+  const text = instr.buildRealtimeInstructions(profile.DEFAULT_VOICE_PROFILE);
+  assert.ok(Math.ceil(text.length / 4) <= p.VOICE_LIMITS.INSTRUCTION_TOKENS_ASSUMED);
+  const over = instr.buildRealtimeInstructions({ ...profile.DEFAULT_VOICE_PROFILE, instructionsOverride: "x".repeat(5000) });
+  assert.ok(Math.ceil(over.length / 4) <= p.VOICE_LIMITS.INSTRUCTION_TOKENS_ASSUMED, "custom override is capped");
+});
+
+test("voice mint: worst-case debit recorded, deadline + session id returned, short token + limits sent", async () => {
   const m = sessionMod();
-  const db = ledgerDb(500000);
+  const db = ledgerDb(REALTIME_CAP);
   const spy = upstreamSpy();
   const t0 = Date.now();
   const out = await mintCall(db, spy);
   assert.equal(net(db, "rt-mint:"), m.worstCaseTokens());
-  assert.equal(m.worstCaseTokens(), 10000);
   assert.ok(out.sessionId && db.logRows.some((r) => r.intent === `rt-mint:${out.sessionId}`));
   assert.equal(out.maxSessionSeconds, m.REALTIME_COST.MAX_SESSION_SECONDS);
-  assert.ok(Math.abs(out.deadlineAt - (t0 + 300_000)) < 5000);
+  assert.ok(Math.abs(out.deadlineAt - (t0 + m.REALTIME_COST.MAX_SESSION_SECONDS * 1000)) < 5000);
   const sent = JSON.parse(spy.bodies[0]);
   assert.equal(sent.expires_after.seconds, m.REALTIME_COST.TOKEN_TTL_SECONDS);
-  assert.ok(m.REALTIME_COST.TOKEN_TTL_SECONDS <= 60);
+  assert.ok(sent.expires_after.seconds >= 10 && sent.expires_after.seconds <= 60);
   assert.equal(sent.session.max_output_tokens, m.REALTIME_COST.MAX_OUTPUT_TOKENS);
+  assert.equal(sent.session.truncation.token_limits.post_instructions, m.REALTIME_COST.POST_INSTRUCTIONS_TOKENS);
 });
 
-test("voice mint: refused (no OpenAI call, debit undone) when remaining budget < worst case", async () => {
-  const db = ledgerDb(REALTIME_CAP, 8000); // 7000 left < 10000 worst case
+test("voice mint: refused (no OpenAI call, nothing left debited) when remaining budget < worst case", async () => {
+  const m = sessionMod();
+  const D = m.worstCaseTokens();
+  const db = ledgerDb(REALTIME_CAP, REALTIME_CAP - D + 1); // one token short
   const spy = upstreamSpy();
   await assert.rejects(mintCall(db, spy), /ai_budget_exhausted/);
   assert.deepEqual(spy.calls, []);
-  assert.equal(net(db, "rt-"), 0, "debit was fully returned");
-  // exactly enough room still works
-  const ok = ledgerDb(REALTIME_CAP, 4000);
+  assert.equal(net(db, "rt-"), 0);
+  // exactly one token of headroom after the debit is enough (used + debit < cap)
+  const ok = ledgerDb(REALTIME_CAP, REALTIME_CAP - D - 1);
   await mintCall(ok, upstreamSpy());
 });
 
-test("voice mint: budget RPC down => refused, nothing left debited", async () => {
+test("voice mint: a failing debit write or RPC outage refuses the mint (fail closed)", async () => {
+  for (const down of [["claim_voice_session"], ["has_ai_budget"]]) {
+    const db = ledgerDb(REALTIME_CAP, 0, { rpcFails: down });
+    const spy = upstreamSpy();
+    await assert.rejects(mintCall(db, spy), /ai_budget_unavailable|ai_budget_exhausted/, down.join());
+    assert.deepEqual(spy.calls, [], down.join());
+  }
   const db = ledgerDb(REALTIME_CAP);
-  db.rpc = async () => ({ data: null, error: { message: "down" } });
+  const orig = db.rpc;
+  db.rpc = async (fn, a) => {
+    if (fn === "claim_voice_session") throw new Error("socket hang up");
+    return orig(fn, a);
+  };
   const spy = upstreamSpy();
   await assert.rejects(mintCall(db, spy), /ai_budget_unavailable/);
   assert.deepEqual(spy.calls, []);
-  assert.equal(net(db, "rt-"), 0);
 });
 
-test("voice mint: one active session per user; a new mint is refused until it ends", async () => {
+test("voice mint: one active session per user; refused until it ends; wrong user cannot end it", async () => {
   const m = sessionMod();
-  const db = ledgerDb(500000);
+  const db = ledgerDb(REALTIME_CAP);
   const spy = upstreamSpy();
   const first = await mintCall(db, spy);
   await assert.rejects(mintCall(db, spy), /voice_session_active/);
   assert.equal(spy.calls.length, 1, "second mint never reached OpenAI");
-  assert.equal(net(db, "rt-"), 10000, "refused mint left no debit");
+  assert.equal(net(db, "rt-"), m.worstCaseTokens(), "refused mint left no debit");
+  // another user presenting this session id changes nothing
+  const OTHER = "22222222-2222-4222-8222-222222222222";
+  const wrong = await m.reportRealtimeSession(db, OTHER, { sessionId: first.sessionId, elapsedSeconds: 5, final: true });
+  assert.equal(wrong.endNow, true);
+  assert.equal(net(db, "rt-"), m.worstCaseTokens());
+  await assert.rejects(mintCall(db, spy), /voice_session_active/);
   await m.reportRealtimeSession(db, USER, { sessionId: first.sessionId, elapsedSeconds: 5, final: true });
   const again = await mintCall(db, spy);
   assert.notEqual(again.sessionId, first.sessionId);
 });
 
-test("voice mint: provider failure after the debit returns the whole debit", async () => {
-  const db = ledgerDb(500000);
+test("voice mint: provider failure after the debit returns the whole debit and frees the slot", async () => {
+  const db = ledgerDb(REALTIME_CAP);
   const spy = upstreamSpy();
   spy.fail = true;
   await assert.rejects(mintCall(db, spy));
   assert.equal(spy.calls.length, 1);
   assert.equal(net(db, "rt-"), 0);
-  // and the one-session slot is free again
-  const spy2 = upstreamSpy();
-  await mintCall(db, spy2);
+  await mintCall(db, upstreamSpy());
 });
 
-test("heartbeat/finish: refund of unused debit, overage, idempotent, server clock wins", async () => {
+test("heartbeat/finish: bound to the session, refund <= debit and never negative-extra, idempotent, server clock wins", async () => {
   const m = sessionMod();
+  const D = m.worstCaseTokens();
+  const PM = m.REALTIME_COST.TOKENS_PER_MINUTE;
   const T = 1_800_000_000_000;
   const mk = async () => {
-    const db = fakeDb({});
+    const db = ledgerDb(REALTIME_CAP);
     db.now = () => T;
     const r = await m.startRealtimeSession(db, USER, T);
     assert.ok(r.ok);
-    // fakeDb has no budget RPC in this path: default rpc returns true
     return { db, sid: r.sessionId };
   };
-  const rep = (db, sid, at, elapsed, final) => {
+  const rep = (db, sid, at, elapsed, final, user = USER) => {
     db.now = () => at;
-    return m.reportRealtimeSession(db, USER, { sessionId: sid, elapsedSeconds: elapsed, final }, at);
+    return m.reportRealtimeSession(db, user, { sessionId: sid, elapsedSeconds: elapsed, final }, at);
   };
-  // clean finish at 60s: actual 2000, unused 8000, refund half = 4000
+  // clean finish at 60 s: actual = 1 minute, refund half the unused part
   let { db, sid } = await mk();
   let r = await rep(db, sid, T + 60_000, 60, true);
-  assert.equal(r.refunded, 4000);
-  assert.equal(net(db, "rt-"), 10000 - 4000);
-  // second finish is a no-op
+  assert.equal(r.refunded, Math.floor((D - PM) * m.REALTIME_COST.REFUND_FRACTION));
+  assert.ok(r.refunded > 0 && r.refunded < D, "refund never exceeds the debit");
+  assert.ok(net(db, "rt-") > 0 && net(db, "rt-") >= PM, "net charge never below actual use");
+  // replaying the finish is a no-op
   const rows = db.logRows.length;
   r = await rep(db, sid, T + 61_000, 61, true);
   assert.equal(r.endNow, true);
   assert.equal(db.logRows.length, rows);
-  // overage: ran 700s => 12 min => 24000 vs debit 10000
+  // wrong user cannot finish or heartbeat it
   ({ db, sid } = await mk());
-  r = await rep(db, sid, T + 700_000, 700, true);
-  assert.equal(r.overage, 14000);
-  assert.equal(net(db, "rt-"), 24000);
-  // the client cannot under-report: server saw 280s => 5 min => 10000, no refund
-  ({ db, sid } = await mk());
-  r = await rep(db, sid, T + 280_000, 1, true);
+  const OTHER = "33333333-3333-4333-8333-333333333333";
+  r = await rep(db, sid, T + 10_000, 10, true, OTHER);
   assert.equal(r.refunded, 0);
-  assert.equal(net(db, "rt-"), 10000);
+  assert.equal(net(db, "rt-"), D);
+  // overage: ran 5 minutes => charged more than the debit
+  ({ db, sid } = await mk());
+  r = await rep(db, sid, T + 300_000, 300, true);
+  assert.equal(r.overage, 5 * PM - D);
+  assert.equal(net(db, "rt-"), 5 * PM);
+  // the client cannot under-report: server saw the full deadline, no refund
+  ({ db, sid } = await mk());
+  r = await rep(db, sid, T + m.REALTIME_COST.MAX_SESSION_SECONDS * 1000, 1, true);
+  assert.equal(r.refunded, 0);
+  assert.equal(net(db, "rt-"), D);
   // heartbeat inside the window: nothing written, no hang-up
   ({ db, sid } = await mk());
   const before = db.logRows.length;
-  r = await rep(db, sid, T + 120_000, 120, false);
+  r = await rep(db, sid, T + 60_000, 60, false);
   assert.equal(r.endNow, false);
-  assert.equal(r.deadlineAt, T + 300_000);
+  assert.equal(r.deadlineAt, T + m.REALTIME_COST.MAX_SESSION_SECONDS * 1000);
   assert.equal(db.logRows.length, before);
-  // heartbeat past deadline + grace: told to end, overage step charged
-  r = await rep(db, sid, T + 400_000, 400, false);
+  // late heartbeat: told to end, charged once per step even if replayed
+  const late = T + (m.REALTIME_COST.MAX_SESSION_SECONDS + m.REALTIME_COST.GRACE_SECONDS + 5) * 1000;
+  r = await rep(db, sid, late, 999, false);
   assert.equal(r.endNow, true);
-  assert.equal(net(db, "rt-over:"), m.tokensForSeconds(m.REALTIME_COST.OVERAGE_STEP_SECONDS));
-  // unknown session id => hang up
+  const step = m.tokensForSeconds(m.REALTIME_COST.OVERAGE_STEP_SECONDS);
+  assert.equal(net(db, "rt-over:"), step);
+  await rep(db, sid, late + 1000, 999, false);
+  await rep(db, sid, late + 2000, 999, false);
+  assert.equal(net(db, "rt-over:"), step, "replayed heartbeats in the same step are not charged again");
+  // unknown session id => hang up, nothing written
+  const n = db.logRows.length;
   r = await rep(db, "nope", T + 1000, 1, false);
   assert.equal(r.endNow, true);
+  assert.equal(db.logRows.length, n);
+  // a failed refund write grants nothing extra
+  ({ db, sid } = await mk());
+  const orig = db.rpc;
+  db.rpc = async (fn, a) => (fn === "end_voice_session" ? { data: null, error: { message: "down" } } : orig(fn, a));
+  r = await rep(db, sid, T + 30_000, 30, true);
+  assert.equal(r.refunded, 0);
+  assert.equal(net(db, "rt-"), D);
+});
+
+test("modified client: ignoring the deadline is stopped only by token expiry; model of what remains", () => {
+  const p = pricing();
+  const src = stripComments(read("src/lib/realtime/openai.functions.ts"));
+  // The only server-side stops: short token (handshake only), capped context/output, per-user claim.
+  assert.match(src, /expires_after: \{ anchor: "created_at", seconds: costMod\.REALTIME_COST\.TOKEN_TTL_SECONDS \}/);
+  assert.match(src, /post_instructions: costMod\.REALTIME_COST\.POST_INSTRUCTIONS_TOKENS/);
+  assert.ok(p.VOICE_LIMITS.TOKEN_TTL_SECONDS <= 60);
+  // The residual is real: after connecting, only OpenAI's 60-minute cap applies.
+  assert.equal(p.VOICE_LIMITS.PROVIDER_MAX_SESSION_MINUTES, 60);
+  assert.ok(p.hostileUsdPerMint() > p.maxUsdPerMint());
 });
 
 test("client ends the call at the server deadline; reports are authenticated and rate limited", () => {
@@ -1042,4 +1161,22 @@ test("client ends the call at the server deadline; reports are authenticated and
   const fn = stripComments(read("src/lib/realtime/session-report.functions.ts"));
   assert.match(fn, /requireSupabaseAuth/);
   assert.match(fn, /enforceRateLimit\(context\.userId, RATE_LIMITS\.realtimeReport\)/);
+  // ids come from the caller's own auth context, never from the request body
+  assert.match(fn, /report\(supabaseAdmin, context\.userId,/);
+});
+
+test("has_ai_budget is not callable from the client or by other users (server-only callers)", () => {
+  const callers = [];
+  for (const rel of [...walk("src")]) {
+    if (rel.includes("integrations/supabase/types.ts")) continue;
+    if (/rpc\(\s*"has_ai_budget"/.test(stripComments(read(rel)))) callers.push(rel);
+  }
+  assert.deepEqual(callers, ["src/lib/ai/log.server.ts"]);
+});
+
+test("nothing but the backend can change ai_daily_token_cap (no client code writes it)", () => {
+  for (const rel of [...walk("src")]) {
+    if (rel.includes("integrations/supabase/types.ts")) continue;
+    assert.ok(!/ai_daily_token_cap/.test(read(rel)), `${rel} references the cap column`);
+  }
 });
