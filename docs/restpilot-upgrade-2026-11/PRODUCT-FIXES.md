@@ -14,7 +14,7 @@ Development target: `codex/restpilot-railway-migration`, which auto-deploys to R
 | 5 Lifetime removal (production) | #19 | `main` | `08e2545` |
 | 2 Schedule consistency + one-tap overtime API | #11 | migration | `aede1d1` |
 | 8 Privacy and account controls | #14 | migration | `0202fd4` |
-| 1 AI accuracy and confidence (+ this document) | #AI_PR | migration | see PR |
+| 1 AI accuracy and confidence (+ this document) | #23 | migration | (this PR) |
 
 ---
 
