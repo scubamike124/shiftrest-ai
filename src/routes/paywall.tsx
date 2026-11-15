@@ -215,7 +215,7 @@ function Paywall() {
           price="$7.99"
           sub="per month · 14-day free trial"
           selected={checkoutOn && selectedTier === "monthly"}
-          onSelect={() => setSelectedTier("monthly")}
+          onSelect={checkoutOn ? () => setSelectedTier("monthly") : undefined}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
         />
         <PlanCard
@@ -225,7 +225,7 @@ function Paywall() {
           highlighted
           badge="Most popular"
           selected={checkoutOn && selectedTier === "annual"}
-          onSelect={() => setSelectedTier("annual")}
+          onSelect={checkoutOn ? () => setSelectedTier("annual") : undefined}
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
       </div>
@@ -348,12 +348,9 @@ function PlanCard({
       : "border-border bg-card";
   const ring = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "";
   const badgeTone = elite ? "bg-amber/20 text-amber" : "bg-primary/20 text-primary";
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
-    >
+  const className = `relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`;
+  const content = (
+    <>
       {badge && (
         <span
           className={`absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest ${badgeTone}`}
@@ -378,6 +375,13 @@ function PlanCard({
           ))}
         </ul>
       )}
+    </>
+  );
+  // Information only (no onSelect) when website checkout is off.
+  if (!onSelect) return <div className={className}>{content}</div>;
+  return (
+    <button type="button" onClick={onSelect} className={className}>
+      {content}
     </button>
   );
 }
