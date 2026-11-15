@@ -69,11 +69,7 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
 
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
-  return (
-    BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") +
-    overlay +
-    `\n\n${SAFETY_AND_CARE}`
-  );
+  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
 }
 
 export type MemoryRow = {
@@ -185,6 +181,9 @@ export async function buildSystemPrompt(opts: {
 - If a topic genuinely needs more, end with a "### Details" section the reader can skip.
 - Never wrap whole sentences in **bold** for emphasis. Bold is only for short labels at the start of a bullet (e.g. "**Light:** 10 min outside…").
 - Never use emoji unless the user used them first. Never use exclamation marks.`;
+      // Conversational coach only (not the JSON dashboard intents): last, so it
+      // overrides the brevity and mode rules above.
+      prompt += `\n\n${SAFETY_AND_CARE}`;
     }
   }
 

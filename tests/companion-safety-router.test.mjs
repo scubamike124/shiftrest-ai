@@ -52,9 +52,19 @@ test("spoken Companion prompt carries the safety-and-care rules", () => {
   assert.match(PILOT_VOICE_SYSTEM, /never give a dose/);
 });
 
-test("text coach prompt appends the rules after the mode overlay and never asks for doses", () => {
+test("text coach prompt (coach intent only) appends the rules and never asks for doses", () => {
   const src = readFileSync(path.join(SRC, "lib/ai/context.server.ts"), "utf8");
-  assert.match(src, /overlay \+\s*`\\n\\n\$\{SAFETY_AND_CARE\}`/);
+  const chat = src.indexOf("CHAT FORMATTING");
+  const safety = src.indexOf("prompt += `\\n\\n${SAFETY_AND_CARE}`");
+  assert.ok(
+    chat > 0 && safety > chat,
+    "appended after the chat formatting rules, inside the coach branch",
+  );
+  assert.doesNotMatch(
+    src.slice(src.indexOf("function renderPersonality"), chat),
+    /SAFETY_AND_CARE/,
+    "not in the shared personality used by JSON intents",
+  );
   assert.doesNotMatch(src, /exact times, durations, doses/);
   assert.doesNotMatch(src, /timing, dose, or duration/);
 });
