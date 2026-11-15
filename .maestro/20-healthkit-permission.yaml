@@ -11,13 +11,12 @@ tags: [healthkit]
 - tapOn: "Profile"
 - scrollUntilVisible:
     element:
-      text: "(Connect )?Apple Health"
+      text: "Connect Apple Health"
     direction: DOWN
     # Profile is long (voices, personality, settings); scroll faster and longer.
     speed: 80
     timeout: 120000
-- tapOn:
-    text: "(Connect )?Apple Health"
+- tapOn: "Connect Apple Health"
 - extendedWaitUntil:
     visible:
       text: "(Health Access|Turn On All|Allow .* to read)"

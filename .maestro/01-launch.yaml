@@ -8,7 +8,18 @@ tags: [core]
     visible: "Meet the AI companion that helps you sleep better."
     # First launch on a fresh simulator: WebKit's web process alone took 46 s once.
     timeout: 90000
-# On iPhone widths "Sign in" sits in the header menu.
-- tapOn: "Open menu"
+# On iPhone widths "Sign in" sits in the header menu. A tap that lands before the
+# page hydrates does nothing, so retry until the menu reports it is open.
+- retry:
+    maxRetries: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "Open menu"
+          commands:
+            - tapOn: "Open menu"
+      - extendedWaitUntil:
+          visible: "Close menu"
+          timeout: 5000
 - assertVisible: "Sign in"
 - takeScreenshot: maestro-01-launch
