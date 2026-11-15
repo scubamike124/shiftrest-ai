@@ -187,3 +187,19 @@ test("'can you' questions stay with the AI; lead-ins and alias phrases still act
   ])
     assert.equal(parseIntent(c).intent.kind, kind, c);
 });
+
+test("a duration does not turn a question into a sound; common command endings still act", () => {
+  for (const q of [
+    "Can you play rain for 8 hours, or is that bad?",
+    "Play rain for 8 hours, is that safe?",
+    "rain for 8 hours is that bad",
+    "set a timer for 30 minutes is enough?",
+  ])
+    assert.equal(fires(q), false, q);
+  for (const [c, kind] of [
+    ["wake me up at 6 tomorrow morning please", "wake_at"],
+    ["set an alarm at 6 for work tomorrow", "wake_at"],
+    ["could you play rain for 20 minutes", "play_track"],
+  ])
+    assert.equal(parseIntent(c).intent.kind, kind, c);
+});
