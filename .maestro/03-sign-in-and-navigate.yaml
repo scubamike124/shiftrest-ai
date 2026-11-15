@@ -30,7 +30,14 @@ tags: [core]
 - inputText: ${QA_EMAIL}
 - tapOn: "Password"
 - inputText: ${QA_PASSWORD}
-- hideKeyboard
+# Maestro's hideKeyboard reported "Couldn't hide the keyboard" in CI run
+# 43725524725 although the screenshot shows the standard WebKit accessory bar with
+# a "Done" button. Dismiss it through that button.
+- runFlow:
+    when:
+      visible: "Done"
+    commands:
+      - tapOn: "Done"
 - tapOn:
     text: "Sign In"
     index: 0

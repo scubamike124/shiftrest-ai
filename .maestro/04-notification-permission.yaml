@@ -11,7 +11,16 @@ tags: [core]
 - extendedWaitUntil:
     visible: "Profile"
     timeout: 90000
-- tapOn: "Profile"
+# The bottom nav is visible in the server-rendered HTML before the page hydrates,
+# and a tap that lands first does nothing (CI run 43750694354: the tap was
+# accepted, the screen stayed on Home). Retry until the Profile page is up.
+- retry:
+    maxRetries: 4
+    commands:
+      - tapOn: "Profile"
+      - extendedWaitUntil:
+          visible: "Your preferences"
+          timeout: 15000
 - scrollUntilVisible:
     element: "Reminders on this iPhone"
     direction: DOWN
