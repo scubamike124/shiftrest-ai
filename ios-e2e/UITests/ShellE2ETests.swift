@@ -81,34 +81,40 @@ final class ShellE2ETests: XCTestCase {
 
     /// Apple's Health permission sheet: "Turn On All", then "Allow". The sheet is
     /// hosted by a system service and can take a while on a busy CI simulator,
-    /// so look in the app and in SpringBoard for up to 90 s.
-    private func approveHealthSheet(in app: XCUIApplication) {
-        let label = { (t: String) in NSPredicate(format: "label == %@", t) }
-        let places = [app, springboard]
-        var turnOn: XCUIElement?
-        let deadline = Date().addingTimeInterval(90)
-        while turnOn == nil, Date() < deadline {
-            for p in places {
-                let el = p.descendants(matching: .any).matching(label("Turn On All")).firstMatch
-                if el.waitForExistence(timeout: 3) { turnOn = el; break }
+    /// so look in the app and in SpringBoard. Returns the "Turn On All" control.
+    private func findHealthSheet(in app: XCUIApplication, timeout: TimeInterval) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            for p in [app, springboard] {
+                let el = p.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label == %@", "Turn On All")).firstMatch
+                if el.waitForExistence(timeout: 3) { return el }
             }
         }
-        guard let turnOn else {
-            snapshot("Health sheet not found", app)
-            return XCTFail("Health permission sheet did not appear within 90 s")
-        }
+        return nil
+    }
+
+    private func allowOnHealthSheet(_ turnOn: XCUIElement, in app: XCUIApplication) {
         turnOn.tap()
         snapshot("Health sheet, all turned on", app)
         var allow: XCUIElement?
-        for p in places {
+        for p in [app, springboard] {
             for q in [p.navigationBars.buttons, p.buttons] {
-                let el = q.matching(label("Allow")).firstMatch
+                let el = q.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch
                 if el.waitForExistence(timeout: 5) { allow = el; break }
             }
             if allow != nil { break }
         }
         guard let allow else { return XCTFail("no Allow button on the Health sheet") }
         allow.tap()
+    }
+
+    private func approveHealthSheet(in app: XCUIApplication) {
+        guard let turnOn = findHealthSheet(in: app, timeout: 90) else {
+            snapshot("Health sheet not found", app)
+            return XCTFail("Health permission sheet did not appear within 90 s")
+        }
+        allowOnHealthSheet(turnOn, in: app)
     }
 
     private func waitForResult(_ el: XCUIElement, notEqual running: String, timeout: TimeInterval) {
@@ -131,10 +137,30 @@ final class ShellE2ETests: XCTestCase {
 
         // 2. The RestPilot shell connects through its read-only plugin and checks the mapped night.
         //    (CI installed a copy whose page starts the Health check on load.)
+        //    As in the real app, the permission request starts from a tap on Connect,
+        //    once the app is on screen. On a busy CI simulator HealthKit sometimes
+        //    reports "Authorization session timed out" without showing its sheet;
+        //    the page then re-enables Connect, and the test taps it again.
         let app = XCUIApplication(bundleIdentifier: shellId)
         app.launch()
-        approveHealthSheet(in: app)
         let result = text(app, startingWith: "HEALTH ")
+        let connect = app.buttons["Connect Apple Health"]
+        var approved = false
+        for attempt in 1...3 where !approved {
+            XCTAssertTrue(connect.waitForExistence(timeout: 30), "no Connect button on the test page")
+            let enabled = NSPredicate(format: "isEnabled == true")
+            let ready = expectation(for: enabled, evaluatedWith: connect)
+            wait(for: [ready], timeout: 90)
+            connect.tap()
+            if let turnOn = findHealthSheet(in: app, timeout: 60) {
+                allowOnHealthSheet(turnOn, in: app)
+                approved = true
+            } else {
+                snapshot("Health sheet not shown (attempt \(attempt))", app)
+                waitForResult(result, notEqual: "HEALTH RUNNING", timeout: 90)
+            }
+        }
+        XCTAssertTrue(approved, "Health permission sheet did not appear after 3 taps on Connect; page said: \(result.label)")
         waitForResult(result, notEqual: "HEALTH RUNNING", timeout: 60)
         snapshot("C2 shell read Apple Health", app)
         XCTAssertEqual(result.label, "HEALTH PASS", "test page said: \(result.label)")

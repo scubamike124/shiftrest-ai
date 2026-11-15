@@ -241,15 +241,26 @@ async function health() {
 // Which check this launch runs: CI installs a copy of the app whose page has
 // <body data-mode="health"> for the Apple Health phase.
 if (document.body.dataset.mode === "health") {
-  healthOut.textContent = "HEALTH RUNNING";
-  health().then(
-    () => {
-      healthOut.textContent = "HEALTH PASS";
-    },
-    (err) => {
-      healthOut.textContent = `HEALTH FAIL: ${err instanceof Error ? err.message : String(err)}`;
-    },
-  );
+  // Like the real Connect card: Apple's sheet is requested from a tap, once the
+  // app is on screen. A failed attempt re-enables the button for a retry.
+  healthOut.textContent = "HEALTH READY";
+  const connect = document.createElement("button");
+  connect.textContent = "Connect Apple Health";
+  connect.style.cssText = "font: inherit; padding: 12px 20px; min-height: 44px;";
+  healthOut.after(connect);
+  connect.addEventListener("click", () => {
+    connect.disabled = true;
+    healthOut.textContent = "HEALTH RUNNING";
+    health().then(
+      () => {
+        healthOut.textContent = "HEALTH PASS";
+      },
+      (err) => {
+        healthOut.textContent = `HEALTH FAIL: ${err instanceof Error ? err.message : String(err)}`;
+        connect.disabled = false;
+      },
+    );
+  });
 } else {
   run().then(
     () => {
