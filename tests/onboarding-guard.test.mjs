@@ -25,3 +25,8 @@ test("onboarding step resume is storage-safe", () => {
   assert.match(src, /try \{[\s\S]*sessionStorage\.getItem\(STEP_KEY\)/);
   assert.match(src, /try \{[\s\S]*sessionStorage\.setItem\(STEP_KEY/);
 });
+
+test("paywall plan cards expose their selected state", () => {
+  const paywall = readFileSync(new URL("../src/routes/paywall.tsx", import.meta.url), "utf8");
+  assert.match(paywall, /aria-pressed=\{!!selected\}/);
+});

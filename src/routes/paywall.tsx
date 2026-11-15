@@ -327,6 +327,7 @@ function PlanCard({
     <button
       type="button"
       onClick={onSelect}
+      aria-pressed={!!selected}
       className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
     >
       {badge && (
