@@ -161,9 +161,26 @@ const RE_LEAD =
 const RE_COMMAND_VERB = /^(?:wake|set|start|play|put\s+on|turn\s+on|switch\s+on|fade|stop)\b/;
 const RE_WAKE_INTENT =
   /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
-const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b(?:\s+please)?\s*$/;
+const RE_DURATION_TAIL =
+  /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b(?:\s+please)?\s*$/;
 // Words that may follow a timer or alarm command ("... tomorrow morning please").
-const COMMAND_TAIL_WORDS = new Set(["please", "tomorrow", "morning", "tonight", "today", "now", "for", "work", "my", "shift", "nap", "again", "thanks", "thank", "you"]);
+const COMMAND_TAIL_WORDS = new Set([
+  "please",
+  "tomorrow",
+  "morning",
+  "tonight",
+  "today",
+  "now",
+  "for",
+  "work",
+  "my",
+  "shift",
+  "nap",
+  "again",
+  "thanks",
+  "thank",
+  "you",
+]);
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
 
