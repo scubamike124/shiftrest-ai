@@ -412,7 +412,8 @@ function Profile() {
             </span>
             <div className="flex-1">
               <p className="text-sm font-semibold capitalize">
-                Premium · {subState.tier} · Payment problem
+                {subState.tier === "free" ? "Your plan" : `Premium · ${subState.tier}`} · Payment
+                problem
               </p>
               <p className="text-xs text-muted-foreground">
                 {inNativeApp
