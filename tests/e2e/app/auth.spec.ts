@@ -58,11 +58,9 @@ test.describe("sign-up and sign-in", () => {
     await expect(page).toHaveURL(/\/events$/);
   });
 
-  // KNOWN DEFECT (QA-REPORT R2): auth.tsx SAFE_RETURNS omits /memory, /pilot,
-  // /decisions, /health, /settings/* and others, so signing in from those
-  // pages drops the user on /dashboard. Flips to an unexpected pass when fixed.
+  // Guard for QA-REPORT R2 (fixed on the Railway branch): signing in from
+  // /memory used to land on /dashboard because SAFE_RETURNS omitted it.
   test("return target is honoured for /memory too", async ({ page, user }) => {
-    test.fail(true, "R2: /memory is not in SAFE_RETURNS");
     await page.goto("/memory");
     await expect(page).toHaveURL(/\/auth\?return=%2Fmemory/);
     await page.getByLabel("Email address").fill(user.email);

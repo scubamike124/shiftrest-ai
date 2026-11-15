@@ -223,3 +223,52 @@ test.describe("cookie consent", () => {
     await expect(page.getByRole("button", { name: /Reject non-essential/i })).toHaveCount(0);
   });
 });
+
+test.describe("AI data-sharing permission (#62)", () => {
+  test.use({ seedTables: { user_prefs: [{ consent_json: {} }] } });
+
+  test("first AI use asks for permission; Allow is saved and AI then works", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    await page.goto("/coach");
+    const dialog = page.getByRole("alertdialog", { name: /Allow AI features\?/ });
+    // The dialog opens before the first AI request; send one if the page did not.
+    if (!(await dialog.isVisible().catch(() => false))) {
+      const box = page.getByRole("textbox").first();
+      await box.fill("When should I stop caffeine?");
+      await box.press("Enter");
+    }
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Allow" }).click();
+    await expect(dialog).toBeHidden();
+    await expect
+      .poll(
+        async () =>
+          ((await backend.dump(user.email)).tables.user_prefs?.[0]?.consent_json ?? {}) as Record<
+            string,
+            unknown
+          >,
+      )
+      .toHaveProperty("ai_data_sharing");
+  });
+
+  test("Not now keeps AI off and sends nothing", async ({ authedPage: page, backend, user }) => {
+    await page.goto("/coach");
+    const dialog = page.getByRole("alertdialog", { name: /Allow AI features\?/ });
+    if (!(await dialog.isVisible().catch(() => false))) {
+      const box = page.getByRole("textbox").first();
+      await box.fill("When should I stop caffeine?");
+      await box.press("Enter");
+    }
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Not now" }).click();
+    await expect(dialog).toBeHidden();
+    const prefs = (await backend.dump(user.email)).tables.user_prefs?.[0] ?? {};
+    expect((prefs.consent_json ?? {}) as Record<string, unknown>).not.toHaveProperty(
+      "ai_data_sharing",
+      expect.any(String),
+    );
+  });
+});

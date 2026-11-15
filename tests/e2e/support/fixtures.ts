@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { AI_CONSENT_KEY, AI_CONSENT_VERSION } from "../../../src/lib/ai/consent";
 
 /** True when running against a deployed site (read-only smoke). */
 export const REMOTE = Boolean(process.env.E2E_BASE_URL);
@@ -76,7 +77,11 @@ export async function signInViaStorage(page: Page, baseURL: string, session: unk
   ] as const);
 }
 
-/** Default profile for seeded users: onboarding done, memory on, a 7 h goal. */
+/**
+ * Default profile for seeded users: onboarding done, memory on, a 7 h goal, and
+ * the current AI data-sharing permission (#62). Override `consent_json` through
+ * `seedTables.user_prefs` to test a user who has not allowed AI yet.
+ */
 export const DEFAULT_PREFS = {
   onboarded_at: "2026-11-01T12:00:00.000Z",
   memory_enabled: true,
@@ -84,6 +89,10 @@ export const DEFAULT_PREFS = {
   sleep_hours: 7,
   home_tz: "America/Chicago",
   current_tz: "America/Chicago",
+  consent_json: {
+    [AI_CONSENT_KEY]: AI_CONSENT_VERSION,
+    [`${AI_CONSENT_KEY}_at`]: "2026-11-01T12:00:00.000Z",
+  },
 };
 
 type Fixtures = {

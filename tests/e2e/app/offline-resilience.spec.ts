@@ -43,6 +43,8 @@ test.describe("offline @offline", () => {
     await expect(
       page.getByRole("heading", { name: /Good (morning|afternoon|evening)/i }),
     ).toBeVisible();
+    // Let the AI cards finish loading first; cards that fail while offline are R6 (below).
+    await page.waitForLoadState("networkidle");
     await context.setOffline(true);
     try {
       await expect(page.getByText(/offline/i).first()).toBeVisible();
@@ -51,6 +53,38 @@ test.describe("offline @offline", () => {
       await context.setOffline(false);
     }
     await expect(page.getByText(/You're offline|offline/i)).toHaveCount(0, { timeout: 15_000 });
+  });
+
+  // KNOWN DEFECT (QA-REPORT R6): an AI card whose request fails while offline
+  // keeps "You're offline…" after the connection returns, until "Try again".
+  // Flips to an unexpected pass once the cards retry on reconnect.
+  test("AI cards that failed offline recover when the connection returns", async ({
+    authedPage: page,
+    context,
+  }) => {
+    test.fail(true, "R6: AI cards do not retry on reconnect");
+    // Hold the cards' AI requests, drop the connection, then let them fail.
+    let held!: () => void;
+    const firstHeld = new Promise<void>((r) => (held = r));
+    let release!: () => void;
+    const released = new Promise<void>((r) => (release = r));
+    await page.route("**/api/ai", async (route) => {
+      held();
+      await released;
+      await route.abort("internetdisconnected");
+    });
+    await page.goto("/dashboard");
+    await firstHeld;
+    await context.setOffline(true);
+    release();
+    const stuck = page.getByText(/You're offline and I don't have a cached version/);
+    try {
+      await expect(stuck.first()).toBeVisible({ timeout: 20_000 });
+    } finally {
+      await page.unroute("**/api/ai");
+      await context.setOffline(false);
+    }
+    await expect(stuck).toHaveCount(0, { timeout: 20_000 });
   });
 });
 

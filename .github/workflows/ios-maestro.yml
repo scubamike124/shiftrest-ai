@@ -78,9 +78,13 @@ jobs:
           echo $! > "$RUNNER_TEMP/stack.pid"
           for i in $(seq 1 120); do curl -sf http://127.0.0.1:3000/api/public/health >/dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:3000/api/public/health
+          # The QA user has allowed AI sharing (#62), so the permission dialog does not cover Home.
+          AI_CONSENT_VERSION=$(sed -n 's/^export const AI_CONSENT_VERSION = "\(.*\)";$/\1/p' src/lib/ai/consent.ts)
+          test -n "$AI_CONSENT_VERSION"
           curl -sf -X POST http://127.0.0.1:3000/__test/seed -H 'content-type: application/json' -d "{
             \"users\":[{\"email\":\"$QA_EMAIL\",\"password\":\"$QA_PASSWORD\"}],
-            \"tables\":{\"user_prefs\":[{\"user_email\":\"$QA_EMAIL\",\"onboarded_at\":\"2026-11-01T12:00:00Z\",\"assistant_name\":\"Lisa\",\"memory_enabled\":true,\"sleep_hours\":7}],
+            \"tables\":{\"user_prefs\":[{\"user_email\":\"$QA_EMAIL\",\"onboarded_at\":\"2026-11-01T12:00:00Z\",\"assistant_name\":\"Lisa\",\"memory_enabled\":true,\"sleep_hours\":7,
+                                       \"consent_json\":{\"ai_data_sharing\":\"$AI_CONSENT_VERSION\"}}],
                         \"shifts\":[{\"user_email\":\"$QA_EMAIL\",\"day\":0,\"week_index\":0,\"start_min\":1140,\"end_min\":420,\"title\":\"Night shift\"}]}}"
       - name: Point the app shell at the stack and build for the simulator
         if: steps.guard.outputs.ok == 'true'
@@ -150,12 +154,15 @@ jobs:
               --format junit --output "$EV/maestro-core.xml" --test-output-dir "$EV/core" 2>&1 | tee "$EV/maestro-core.log"
           }
           # The XCTest driver sometimes misses its start window on hosted runners
-          # (no flow has run yet). Retry once in that case only; flow failures are not retried.
-          run_core && exit 0
-          grep -q "iOS driver not ready in time" "$EV/maestro-core.log" || exit 1
-          echo "::warning::Maestro's iOS driver did not start in time; retrying the core flows once."
-          mv "$EV/maestro-core.log" "$EV/maestro-core-driver-timeout.log"
-          run_core
+          # (no flow has run yet). Retry up to twice in that case only; flow failures
+          # are not retried.
+          for attempt in 1 2 3; do
+            run_core && exit 0
+            grep -q "iOS driver not ready in time" "$EV/maestro-core.log" || exit 1
+            [ "$attempt" = 3 ] && exit 1
+            echo "::warning::Maestro's iOS driver did not start in time (attempt $attempt); retrying the core flows."
+            mv "$EV/maestro-core.log" "$EV/maestro-core-driver-timeout-$attempt.log"
+          done
       - name: Stop the stack, then the offline flow
         if: always() && steps.guard.outputs.ok == 'true' && env.DEVICE != ''
         run: |

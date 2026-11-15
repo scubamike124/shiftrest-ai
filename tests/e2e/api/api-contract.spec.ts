@@ -284,6 +284,33 @@ test.describe("signed-in AI endpoints (fake model)", () => {
   });
 });
 
+test.describe("AI data-sharing permission (#62)", () => {
+  test.use({ seedTables: { user_prefs: [{ consent_json: {} }] } });
+
+  test("AI endpoints refuse a user who has not allowed AI sharing", async ({
+    request,
+    backend,
+    user,
+  }) => {
+    const s = await backend.session(user.email, user.password);
+    const headers = { authorization: `Bearer ${s.access_token}` };
+    const calls = [
+      {
+        path: "/api/ai",
+        data: { intent: "coach", messages: [{ role: "user", content: "Hi" }] },
+      },
+      { path: "/api/ai", data: { intent: "daily_plan", context: "Night shift 19:00-07:00." } },
+      { path: "/api/insights", data: {} },
+    ];
+    for (const c of calls) {
+      const res = await request.post(c.path, { headers, data: c.data });
+      expect(res.status(), `${c.path} ${JSON.stringify(c.data).slice(0, 40)}`).toBe(403);
+      expect(res.headers()["x-restpilot-ai-consent"]).toBe("required");
+      expect((await res.json()).code).toBe("ai_consent_required");
+    }
+  });
+});
+
 test.describe("site endpoints @readonly", () => {
   test("sitemap lists public pages only", async ({ request }) => {
     const xml = await (await request.get("/sitemap.xml")).text();
