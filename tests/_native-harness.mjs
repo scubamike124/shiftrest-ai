@@ -13,7 +13,7 @@ export function loadNativeApp(windowValue, navigatorValue) {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
   const module = { exports: {} };
-  const ctx = { module, exports: module.exports, require: (n) => { if (n === 'react') return { useEffect() {}, useState: (v) => [v, () => {}] }; throw new Error('unexpected ' + n); } };
+  const ctx = { module, exports: module.exports, require: (n) => { if (n === 'react') return { useEffect() {}, useState: (v) => [v, () => {}], useSyncExternalStore: (_s, get) => get() }; throw new Error('unexpected ' + n); } };
   if (windowValue !== undefined) ctx.window = windowValue;
   if (navigatorValue !== undefined) ctx.navigator = navigatorValue;
   vm.runInNewContext(js, ctx);
