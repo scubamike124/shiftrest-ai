@@ -44,7 +44,7 @@ export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHeal
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Last night
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground">
           {fromAppleHealth ? "Measured · from Apple Health" : `via ${PROVIDER_LABEL[r.provider]}`} · {r.date}
         </p>
       </div>
@@ -62,7 +62,7 @@ export function LastNightStrip({ appleHealth = null }: { appleHealth?: AppleHeal
             {r.hrvMs != null ? `${Math.round(r.hrvMs)}` : "—"}
             <span className="ml-1 text-xs font-normal text-muted-foreground">ms</span>
           </p>
-          <p className="text-[10px] text-muted-foreground">{fromAppleHealth ? "HRV (SDNN)" : "HRV"}</p>
+          <p className="text-[11px] text-muted-foreground">{fromAppleHealth ? "HRV (SDNN)" : "HRV"}</p>
         </div>
         <div className="rounded-xl bg-secondary/40 p-3">
           <Heart className="mb-1 h-4 w-4 text-amber" />

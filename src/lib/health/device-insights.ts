@@ -49,7 +49,15 @@ export function computeDeviceInsights(args: {
   if (!nights.length)
     return { insights: base, baseInsights: base, source: null, appleHealthLastNight: null };
   const last = lastNightFrom(nights, now);
-  const withHealth = computeInsights(shifts, prefs, now, employers, last, nights);
+  // No recent Apple Health night: keep the connected server wearable's last night.
+  const withHealth = computeInsights(
+    shifts,
+    prefs,
+    now,
+    employers,
+    last ?? args.serverLastNight ?? null,
+    nights,
+  );
   return {
     insights: { ...withHealth, contextString: base.contextString },
     baseInsights: base,

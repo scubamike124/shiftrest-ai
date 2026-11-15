@@ -57,7 +57,10 @@ function Bridge({ signedIn }: { signedIn: boolean }) {
       setUserId(id);
       // Opened with nobody signed in (the session expired, or the app was
       // killed mid sign-out): nothing from a previous account may remain.
-      if (!id) void clearNativeUserData();
+      if (!id) {
+        void clearNativeUserData();
+        clearAppleHealth();
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUserId(session?.user.id ?? null);

@@ -83,8 +83,11 @@ export function clearAppleHealth(): void {
   window.dispatchEvent(new CustomEvent("rp:apple-health-changed"));
 }
 
-async function read(p: RestPilotHealthPlugin): Promise<AppleHealthNight[]> {
-  return mapAppleHealthNights(await p.readSamples({ days: READ_DAYS }));
+/** null when HealthKit reported an error and returned nothing (for example while the phone is locked). */
+async function read(p: RestPilotHealthPlugin): Promise<AppleHealthNight[] | null> {
+  const raw = await p.readSamples({ days: READ_DAYS });
+  const nights = mapAppleHealthNights(raw);
+  return raw.partialError && nights.length === 0 ? null : nights;
 }
 
 /** Call only from the person's tap on Connect: it can show Apple's permission sheet. */
@@ -98,7 +101,7 @@ export async function connectAppleHealth(userId: string): Promise<AppleHealthSta
     ownerUserId: userId,
     connectedAt: now,
     lastReadAt: now,
-    nights: await read(p),
+    nights: (await read(p)) ?? [],
   };
   save(state);
   return state;
@@ -109,11 +112,10 @@ export async function refreshAppleHealth(userId: string): Promise<AppleHealthSta
   const current = loadAppleHealth(userId);
   const p = plugin();
   if (!current || !p) return current;
-  const next: AppleHealthState = {
-    ...current,
-    lastReadAt: new Date().toISOString(),
-    nights: await read(p),
-  };
+  const nights = await read(p);
+  // A failed read keeps the last good nights and does not count as a read.
+  if (nights === null) return current;
+  const next: AppleHealthState = { ...current, lastReadAt: new Date().toISOString(), nights };
   // Disconnected while the read was running: do not bring the data back.
   if (!loadAppleHealth(userId)) return null;
   save(next);

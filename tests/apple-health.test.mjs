@@ -244,3 +244,37 @@ test('nothing that can be sent to the AI is built from Apple Health', async () =
   const dash = fs.readFileSync(path.join(root, 'src/routes/dashboard.tsx'), 'utf8');
   assert.match(dash, /<CompanionWhisper\s+insights=\{device\?\.baseInsights \?\? insights\}/, 'dashboard gives CompanionWhisper the base insights');
 });
+
+test('a failed HealthKit read keeps the last good nights and does not count as a read', async () => {
+  const store = await load('src/lib/health/apple-health-store.ts');
+  const mem = new Map();
+  let reply = { sleep: [], hrv: [], restingHeartRate: [], partialError: 'com.apple.healthkit:6' };
+  globalThis.window = {
+    Capacitor: { isNativePlatform: () => true, getPlatform: () => 'ios', isPluginAvailable: () => true,
+      Plugins: { RestPilotHealth: { readSamples: async () => reply } } },
+    localStorage: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) },
+    dispatchEvent: () => true,
+  };
+  globalThis.CustomEvent ??= class { constructor(n) { this.type = n; } };
+  try {
+    mem.set('rp:apple-health:v1', JSON.stringify({ v: 1, ownerUserId: 'alice', connectedAt: 'x', lastReadAt: 'then', nights: shortNights }));
+    const kept = await store.refreshAppleHealth('alice');
+    assert.equal(kept.nights.length, 7);
+    assert.equal(kept.lastReadAt, 'then', 'not marked as read, so it retries');
+    reply = { sleep: night };
+    const fresh = await store.refreshAppleHealth('alice');
+    assert.equal(fresh.nights.length, 1);
+    assert.notEqual(fresh.lastReadAt, 'then');
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test('with no recent Apple Health night, the server wearable keeps "last night"', () => {
+  const old = shortNights.slice(0, 3); // 9–11 Nov: history only, not last night on the 15th
+  const server = { provider: 'oura', date: '2026-11-15', sleepDurationMin: 300, sleepEfficiency: 0.7, hrvMs: 40, restingHr: 60 };
+  const a = DI.computeDeviceInsights({ shifts, prefs, now, appleHealthNights: old, serverLastNight: server });
+  const b = DI.computeDeviceInsights({ shifts, prefs, now, appleHealthNights: old, serverLastNight: null });
+  assert.equal(a.appleHealthLastNight, null);
+  assert.notEqual(a.insights.recoveryScore, b.insights.recoveryScore, 'the server night still counts');
+});

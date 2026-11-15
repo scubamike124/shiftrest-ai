@@ -79,16 +79,35 @@ final class ShellE2ETests: XCTestCase {
         snapshot("B2 offline screen after retry", app)
     }
 
-    /// Apple's Health permission sheet: "Turn On All", then "Allow".
+    /// Apple's Health permission sheet: "Turn On All", then "Allow". The sheet is
+    /// hosted by a system service and can take a while on a busy CI simulator,
+    /// so look in the app and in SpringBoard for up to 90 s.
     private func approveHealthSheet(in app: XCUIApplication) {
         let label = { (t: String) in NSPredicate(format: "label == %@", t) }
-        let turnOn = app.descendants(matching: .any).matching(label("Turn On All")).firstMatch
-        XCTAssertTrue(turnOn.waitForExistence(timeout: 30), "Health permission sheet did not appear")
+        let places = [app, springboard]
+        var turnOn: XCUIElement?
+        let deadline = Date().addingTimeInterval(90)
+        while turnOn == nil, Date() < deadline {
+            for p in places {
+                let el = p.descendants(matching: .any).matching(label("Turn On All")).firstMatch
+                if el.waitForExistence(timeout: 3) { turnOn = el; break }
+            }
+        }
+        guard let turnOn else {
+            snapshot("Health sheet not found", app)
+            return XCTFail("Health permission sheet did not appear within 90 s")
+        }
         turnOn.tap()
         snapshot("Health sheet, all turned on", app)
-        var allow = app.navigationBars.buttons.matching(label("Allow")).firstMatch
-        if !allow.waitForExistence(timeout: 5) { allow = app.buttons.matching(label("Allow")).firstMatch }
-        XCTAssertTrue(allow.waitForExistence(timeout: 10), "no Allow button on the Health sheet")
+        var allow: XCUIElement?
+        for p in places {
+            for q in [p.navigationBars.buttons, p.buttons] {
+                let el = q.matching(label("Allow")).firstMatch
+                if el.waitForExistence(timeout: 5) { allow = el; break }
+            }
+            if allow != nil { break }
+        }
+        guard let allow else { return XCTFail("no Allow button on the Health sheet") }
         allow.tap()
     }
 
