@@ -219,6 +219,9 @@ Return ONLY valid JSON:
 Provide 4-7 blocks ordered chronologically across the relevant window.`;
 
 
+/** /api/ai request body cap (characters). */
+const MAX_BODY_BYTES = 256 * 1024;
+
 function jsonError(status: number, message: string) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -272,9 +275,17 @@ export const Route = createFileRoute("/api/ai")({
     handlers: {
       POST: async ({ request }) => {
         const started = Date.now();
+        // Body-size cap before any parsing or scanning (30 turns of chat are far
+        // below it). Content-Length first, then the real length for chunked bodies.
+        const declared = Number(request.headers.get("content-length"));
+        if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+          return jsonError(413, "Request too large");
+        }
         let body: Body;
         try {
-          body = (await request.json()) as Body;
+          const raw = await request.text();
+          if (raw.length > MAX_BODY_BYTES) return jsonError(413, "Request too large");
+          body = JSON.parse(raw) as Body;
         } catch {
           return jsonError(400, "Invalid JSON body");
         }
@@ -376,7 +387,11 @@ export const Route = createFileRoute("/api/ai")({
             });
             const systemWithTime = system + timeDirective;
 
-            const trimmed = history.slice(-20);
+            // Only role and content go to the provider: extra client-supplied
+            // keys (name, tool_calls, ...) are not forwarded.
+            const trimmed: ChatMsg[] = history
+              .slice(-20)
+              .map((m) => ({ role: m.role, content: m.content }));
             const isVoice = (body.surface ?? "text") === "voice";
             const upstream = await chatStream({
               model: DEFAULT_CHAT_MODEL,

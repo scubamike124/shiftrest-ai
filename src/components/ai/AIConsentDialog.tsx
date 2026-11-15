@@ -102,8 +102,8 @@ export function AIConsentDialog() {
 
           <p className="text-xs leading-relaxed text-muted-foreground">
             RestPilot sends only what the feature you're using needs. A typed message that looks like a
-            crisis is never sent to AI: you'll see support on your device instead. Voice is
-            different: your audio goes to the voice provider as you speak. We don't sell your data or use
+            crisis is not sent to AI: you'll see support on your device instead. Voice is
+            different: your audio goes to the voice provider when you speak or record. We don't sell your data or use
             it for advertising. Without AI, your schedule, sleep plan and reminders still work. You
             can change this anytime in Profile → Privacy. Read our{" "}
             <Link

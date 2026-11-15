@@ -71,26 +71,32 @@ function fakeDb({ consent, budgetOk = true } = {}) {
           : { data: { user: null }, error: { message: "bad" } };
       },
     },
-    async rpc() {
-      return { data: budgetOk, error: null };
+    // Tolerant of budget / voice-cost RPCs added by other branches (has_ai_budget,
+    // reservations, heartbeats): budget RPCs answer budgetOk, anything else succeeds.
+    async rpc(name) {
+      const n = String(name ?? "");
+      if (/budget/i.test(n)) return { data: budgetOk, error: null };
+      if (/claim_voice_session/i.test(n)) return { data: "ok", error: null };
+      return { data: true, error: null };
     },
     from(table) {
       tables.push(table);
-      const q = {
-        select: () => q,
-        eq: () => q,
-        in: () => q,
-        order: () => q,
-        limit: () => q,
-        async insert() {
-          return { error: null };
-        },
+      // Any chain method (select/eq/insert/update/upsert/...) returns the query,
+      // and awaiting it succeeds, so tables added by other branches work too.
+      const base = {
         async maybeSingle() {
           if (table === "user_prefs")
             return { data: consent === undefined ? null : { consent_json: consent }, error: null };
           return { data: null, error: null };
         },
+        async single() {
+          return { data: null, error: null };
+        },
+        then: (resolve) => resolve({ data: null, error: null }),
       };
+      const q = new Proxy(base, {
+        get: (t, k) => (k in t ? t[k] : () => q),
+      });
       return q;
     },
   };
@@ -512,6 +518,11 @@ function loadRealtime(db, calls) {
     Response,
     Headers,
     URL,
+    setTimeout,
+    clearTimeout,
+    Number,
+    String,
+    Error,
     Promise,
     Date,
     Math,
@@ -580,4 +591,45 @@ test("companion: the crisis branch runs before the session-token check (works si
       body.indexOf("const token = session?.access_token"),
   );
   assert.match(body, /speakIfEnabled\(CRISIS_LOCAL_REPLY\)/);
+});
+
+test("extra client keys on a turn (name, tool_calls) are not forwarded: only role and content", async () => {
+  const spy = providerSpy();
+  const h = loadAi({ db: fakeDb({ consent: GRANTED }), spy });
+  const res = await h.post({
+    request: req(
+      coach([{ role: "user", content: NORMAL, name: "injected-name", tool_calls: [{ id: "x" }] }]),
+    ),
+  });
+  assert.equal(res.status, 200);
+  const sent = JSON.parse(spy.calls[0].body).messages;
+  for (const m of sent) assert.deepEqual(Object.keys(m).sort(), ["content", "role"]);
+  assert.ok(!spy.calls[0].body.includes("injected-name"));
+  await res.text();
+});
+
+test("body-size cap: oversized bodies get 413 before parsing, crisis scan or auth; a 30-turn chat is fine", async () => {
+  const spy = providerSpy();
+  const h = loadAi({ db: fakeDb({ consent: GRANTED }), spy });
+  const huge = JSON.stringify(coach([u(`${CRISIS} ${"x".repeat(300_000)}`)]));
+  for (const headers of [
+    { "content-type": "application/json", "content-length": String(huge.length) },
+    { "content-type": "application/json" },
+  ]) {
+    const res = await h.post({
+      request: new Request("https://restpilotai.com/api/ai", {
+        method: "POST",
+        headers,
+        body: huge,
+      }),
+    });
+    assert.equal(res.status, 413);
+    assert.equal(res.headers.get("x-crisis-support"), null);
+  }
+  assert.deepEqual(spy.calls, []);
+  const turns = Array.from({ length: 30 }, (_, i) => u(`${NORMAL} ${i} ${"y".repeat(500)}`));
+  const ok = await h.post({ request: req(coach(turns)) });
+  assert.equal(ok.status, 200);
+  assert.equal(spy.calls.length, 1);
+  await ok.text();
 });

@@ -156,8 +156,8 @@ export const Route = createFileRoute("/legal/privacy")({
         an overdose, RestPilot shows crisis support on your device and does not
         send that message to an AI provider, whether or not you have allowed AI
         features. Voice is different: when you use speech-to-text or a live
-        voice conversation, your audio is sent to the voice provider (OpenAI) as
-        you speak, before any check of the words can run.
+        voice conversation, your audio is sent to the voice provider (OpenAI)
+        when you speak or record, before any check of the words can run.
       </p>
       <p>
         We ask for this permission once, before your first use of an AI
