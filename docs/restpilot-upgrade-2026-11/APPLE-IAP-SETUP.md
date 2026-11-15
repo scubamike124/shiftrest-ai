@@ -106,7 +106,7 @@ Lovable → project → **Cloud → Secrets** (server-only, never in the website
 - `REVENUECAT_WEBHOOK_SECRET` = the webhook signing secret
 - `REVENUECAT_WEBHOOK_AUTHORIZATION` = the Authorization header value, if you set one
 - `IAP_ENABLED` = `true`
-- `IAP_HONOR_SANDBOX` = `true` while testing and during App Review. Afterwards decide: on means TestFlight testers get Premium free.
+- `IAP_HONOR_SANDBOX` = `true` while testing and during App Review only. Turn it off afterwards: while it is on, sandbox and TestFlight purchases grant real Premium (see Section 4).
 
 ### Step 5. Approve the database migration (production change, your decision)
 In Lovable chat, send:
@@ -169,12 +169,22 @@ Submit the products together with the build. In the review notes, add:
 - a **free** demo account, so the reviewer sees the paywall;
 - "Subscriptions are sold with In-App Purchase. Website subscribers keep access (3.1.3(b))."
 
-`IAP_HONOR_SANDBOX` must be `true` while in review. Also close the other gaps in `APP-STORE-COMPLIANCE.md`: Sign in with Apple or hide Google sign-in in the app (4.8), and AI data-sharing consent (5.1.2). The `/legal/subscription` page still describes Stripe billing; ask counsel to add App Store billing wording.
+`IAP_HONOR_SANDBOX` must be `true` while in review. Also close the other gaps in `APP-STORE-COMPLIANCE.md`: Sign in with Apple or hide Google sign-in in the app (4.8), and AI data-sharing consent (5.1.2). The `/legal/subscription` page now covers both App Store and website billing; ask counsel to review the wording.
 
 ## 4. Rollback (any time)
-- **App back to the neutral screen:** remove `VITE_REVENUECAT_IOS_API_KEY` and Publish, or set `IAP_ENABLED` to anything but `true`.
-  - Existing Apple subscribers are still billed by Apple. Their rows still count for the AI budget (`has_active_subscription`), but the app and Profile stop showing them as Apple Premium while IAP is off.
-- **Website selling again:** `VITE_WEB_CHECKOUT_ENABLED="true"` and Publish.
+Read this before changing any flag. Apple subscribers keep being billed by Apple whatever you set.
+
+- **Stop NEW App Store sales:** remove `VITE_REVENUECAT_IOS_API_KEY` and Publish. The app returns to the neutral screen; nobody can start a new Apple subscription.
+- **Keep `IAP_ENABLED=true` while ANY Apple subscriber exists.** Turning it off:
+  - hides their Premium in the app and on Profile (Apple rows stop counting in the status shown to them);
+  - disables Restore purchases and the status re-sync;
+  - makes the duplicate-billing guard inert, so an Apple subscriber who opens the website can be charged a second time through Stripe if web checkout is on (`VITE_WEB_CHECKOUT_ENABLED="true"`).
+  Only set it to anything other than `true` once there are no active Apple subscribers (check RevenueCat → Customers), or if web checkout stays off.
+- **Turn `IAP_HONOR_SANDBOX` OFF after App Review passes.** While it is on, sandbox and TestFlight purchases grant real Premium. It must be `true` only during review and testing.
+- **Website selling again:** `VITE_WEB_CHECKOUT_ENABLED="true"` and Publish (see the `IAP_ENABLED` warning above first).
+
+### Go / no-go before enabling `IAP_ENABLED=true`
+Do not enable IAP (and do not submit the build) until this passes: **a sandbox webhook from RevenueCat returns HTTP 200 with a valid signature** (RevenueCat → Integrations → Webhooks → send a test event, or make a sandbox purchase; the event must show **Delivered 200** and the Lovable logs for `/api/public/iap/revenuecat` must show no signature or database error). If it returns 401/403/5xx, the secret, URL or migration is wrong: **no-go**, because renewals and refunds would never reach RestPilot. Also confirm the migration (Step 5) is applied.
 
 ## 5. Verification done offline by engineering, and what still needs you
 

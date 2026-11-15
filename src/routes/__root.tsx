@@ -30,6 +30,7 @@ import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
 import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
+import { StoreEntitlementResync } from "@/components/subscription/StoreEntitlementResync";
 
 const LOVABLE_PUBLISH_MARKER = "publish-verify-marker-2026-07-06-alpha7q3";
 if (typeof window !== "undefined") (window as unknown as Record<string, string>).__LOVABLE_PUBLISH_MARKER = LOVABLE_PUBLISH_MARKER;
@@ -232,6 +233,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PreviewWarningBanner />
+      {signedIn && <StoreEntitlementResync />}
       {surface === "marketing" && (
         <div className="flex min-h-dvh w-full flex-col overflow-x-clip">
           <SiteHeader signedIn={signedIn} />
