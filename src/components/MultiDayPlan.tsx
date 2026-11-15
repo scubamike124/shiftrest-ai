@@ -160,6 +160,12 @@ export function MultiDayPlan({ shifts, prefs, now }: { shifts: Shift[]; prefs: P
                       {shortKind(ev.kind)} — {ev.title}
                     </span>
                     <span className="block text-xs text-muted-foreground">{ev.detail}</span>
+                    {ev.why && (
+                      <details className="mt-0.5 text-xs text-muted-foreground">
+                        <summary className="cursor-pointer select-none py-1 font-medium text-primary">Why this time?</summary>
+                        <span className="block leading-relaxed">{ev.why}</span>
+                      </details>
+                    )}
                   </span>
                 </li>
               ))}

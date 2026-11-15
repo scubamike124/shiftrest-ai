@@ -1,7 +1,7 @@
 {
   "product": "White Glove Treatment",
   "jobId": "restpilot-sim-github",
-  "bundleId": "com.wrapper.restpilot",
+  "bundleId": "com.restpilotai.app",
   "version": "1.0.0",
   "buildNumber": "261114.1916",
   "lane": "simulator",

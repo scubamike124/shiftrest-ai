@@ -1,5 +1,7 @@
-import { fetchShifts, endAbsolute, type Shift } from "./shifts";
+import { fetchShifts, type Shift } from "./shifts";
 import { fetchPrefs } from "./prefs";
+import { buildReminders, buildSchedule } from "./schedule-core";
+import { detectDeviceTz } from "./tz";
 
 export type NotifyPermission = "default" | "granted" | "denied" | "unsupported";
 
@@ -74,24 +76,22 @@ export async function nextWindDownAt(
   const shifts = await fetchShifts();
   if (!shifts.length) return null;
   const prefs = await fetchPrefs();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const nowDay = (now.getDay() + 6) % 7;
-
-  let best: { deltaMin: number; shift: Shift } | null = null;
-  for (let offset = 0; offset < 7; offset++) {
-    const day = (nowDay + offset) % 7;
-    for (const s of shifts.filter((x: Shift) => x.day === day)) {
-      const end = endAbsolute(s);
-      const ping = end - prefs.windDownMin;
-      const absolute = offset * 1440 + ping;
-      const deltaMin = absolute - nowMin;
-      if (deltaMin > 0 && (!best || deltaMin < best.deltaMin)) {
-        best = { deltaMin, shift: s };
-      }
-    }
-  }
-  if (!best) return null;
-  return { at: new Date(now.getTime() + best.deltaMin * 60_000), shift: best.shift };
+  // Same computation as every screen and the server reminders: wind-down
+  // starts AT clock-out (it used to fire windDownMin BEFORE clock-out), and
+  // multi-week rotations and DST are respected.
+  const schedule = buildSchedule({
+    shifts,
+    tz: detectDeviceTz() ?? "UTC",
+    from: now,
+    days: 8,
+    cycleAnchor: prefs.cycleAnchor,
+    cycleWeeks: prefs.cycleWeeks,
+  });
+  const next = buildReminders(schedule, prefs, now).find((r) => r.kind === "wind-down");
+  if (!next) return null;
+  const occurrence = schedule.shifts.find((s) => s.id === next.shiftId);
+  const shift = shifts.find((s) => s.id === occurrence?.templateId);
+  return shift ? { at: next.at, shift } : null;
 }
 
 let timer: number | null = null;
@@ -111,7 +111,7 @@ export async function scheduleNextWindDown() {
   timer = window.setTimeout(() => {
     showNotification(
       "Wind-down time 🌙",
-      `Dim lights, no caffeine. Sleep window starts in ${prefs.windDownMin} min.`,
+      `Your shift is over. Dim lights, no caffeine. Sleep window starts in ${prefs.windDownMin} min.`,
       "winddown",
     );
     scheduleNextWindDown();

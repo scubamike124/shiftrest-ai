@@ -15,6 +15,7 @@ type PrefsRow = {
 };
 
 type WearableRow = {
+  provider?: string | null;
   date: string;
   sleep_start: string | null;
   sleep_end: string | null;
@@ -36,6 +37,20 @@ type AlarmRow = {
   title: string | null;
 };
 
+
+/**
+ * Provenance tags, appended (never prepended, so categorizeSignal still
+ * matches) to every health-data line. They let the model tell a device
+ * measurement from a calculation, and say which one it is using.
+ */
+const WEARABLE_NAMES: Record<string, string> = { oura: "Oura", fitbit: "Fitbit" };
+export function wearableTag(provider: string | null | undefined): string {
+  const name = provider ? WEARABLE_NAMES[provider] ?? provider : null;
+  return name ? ` [wearable: ${name}]` : " [wearable]";
+}
+export function estimateTag(basis: string): string {
+  return ` [estimate: ${basis}]`;
+}
 
 function fmtHm(min: number): string {
   const h = Math.floor(min / 60);
@@ -94,7 +109,7 @@ export async function fetchPersonalSignals(
     admin
       .from("wearable_readings")
       .select(
-        "date, sleep_start, sleep_end, sleep_duration_min, sleep_efficiency, hrv_ms, resting_hr",
+        "provider, date, sleep_start, sleep_end, sleep_duration_min, sleep_efficiency, hrv_ms, resting_hr",
       )
       .eq("user_id", userId)
       .order("date", { ascending: false })
@@ -159,14 +174,16 @@ export async function fetchPersonalSignals(
         ? Math.round(Number(latest.sleep_efficiency) * (latest.sleep_efficiency <= 1 ? 100 : 1))
         : null;
     const deficitMin = goalHours ? Math.round(goalHours * 60 - dur) : null;
+    // The measurement is tagged as wearable data; the goal comparison is a
+    // calculation from the user's own sleep-goal setting and is tagged as such.
     const deficitTail =
       deficitMin != null && deficitMin > 30
-        ? ` (below goal by ${fmtHm(deficitMin)})`
+        ? `; below goal by ${fmtHm(deficitMin)}${estimateTag("vs your sleep goal")}`
         : deficitMin != null && deficitMin < -30
-          ? ` (above goal by ${fmtHm(-deficitMin)})`
+          ? `; above goal by ${fmtHm(-deficitMin)}${estimateTag("vs your sleep goal")}`
           : "";
     lines.push(
-      `Last sleep: ${fmtHm(dur)}${effPct != null ? `, efficiency ${effPct}%` : ""}${deficitTail}.`,
+      `Last sleep: ${fmtHm(dur)}${effPct != null ? `, efficiency ${effPct}%` : ""}${wearableTag(latest.provider)}${deficitTail}.`,
     );
   } else if (wearables.length === 0) {
     // Don't shout about missing wearable data — just skip.
@@ -190,9 +207,10 @@ export async function fetchPersonalSignals(
       const debtMin = targetMin - actualMin;
       if (Math.abs(debtMin) >= 45) {
         lines.push(
-          debtMin > 0
+          (debtMin > 0
             ? `${recent.length}-night sleep debt: ~${fmtHm(debtMin)} behind goal.`
-            : `${recent.length}-night sleep balance: ~${fmtHm(-debtMin)} above goal.`,
+            : `${recent.length}-night sleep balance: ~${fmtHm(-debtMin)} above goal.`) +
+            estimateTag("wearable sleep totals vs your sleep goal"),
         );
       }
     }
@@ -210,7 +228,7 @@ export async function fetchPersonalSignals(
     const delta = Math.round(cur - baseline);
     if (Math.abs(delta) >= 5) {
       lines.push(
-        `HRV last night: ${Math.round(cur)} ms (baseline ~${Math.round(baseline)} — recovery ${delta < 0 ? "down" : "up"}).`,
+        `HRV last night: ${Math.round(cur)} ms (baseline ~${Math.round(baseline)} — recovery ${delta < 0 ? "down" : "up"}).${wearableTag(latest.provider)}`,
       );
     }
   }
@@ -329,7 +347,7 @@ export async function fetchPersonalSignals(
     const bedStd = stdev(beds);
     const consistency = bedStd < 0.5 ? "very consistent" : bedStd < 1.25 ? "fairly consistent" : "drifting";
     lines.push(
-      `7-night trend: typical bedtime ~${fmtClock(bedMed)}, wake ~${fmtClock(wakeMed)} (${consistency}).`,
+      `7-night trend: typical bedtime ~${fmtClock(bedMed)}, wake ~${fmtClock(wakeMed)} (${consistency}).${estimateTag("median of wearable bed/wake times")}`,
     );
   }
 
@@ -343,7 +361,7 @@ export async function fetchPersonalSignals(
     const delta = Math.round(cur - baseline);
     if (Math.abs(delta) >= 4) {
       lines.push(
-        `Resting HR last night: ${Math.round(cur)} bpm (baseline ~${Math.round(baseline)} — ${delta > 0 ? "elevated, often a load/illness signal" : "lower, usually a recovery sign"}).`,
+        `Resting HR last night: ${Math.round(cur)} bpm (baseline ~${Math.round(baseline)} — ${delta > 0 ? "elevated, often a load/illness signal" : "lower, usually a recovery sign"}).${wearableTag(latest.provider)}`,
       );
     }
   }
@@ -361,9 +379,9 @@ export async function fetchPersonalSignals(
       (w) => w.sleep_duration_min != null && w.sleep_duration_min >= targetMin - 15,
     ).length;
     if (hitStreak >= 3) {
-      lines.push(`Sleep-goal streak: ${hitStreak} nights in a row hitting goal.`);
+      lines.push(`Sleep-goal streak: ${hitStreak} nights in a row hitting goal.${estimateTag("wearable sleep vs your sleep goal")}`);
     } else if (hit14 >= 8) {
-      lines.push(`Hit sleep goal ${hit14} of the last ${wearables.length} nights.`);
+      lines.push(`Hit sleep goal ${hit14} of the last ${wearables.length} nights.${estimateTag("wearable sleep vs your sleep goal")}`);
     }
   }
 
