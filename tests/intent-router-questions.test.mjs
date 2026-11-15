@@ -147,3 +147,24 @@ test("a duration does not turn a question into a sound; common command endings s
   ])
     assert.equal(parseIntent(c).intent.kind, kind, c);
 });
+
+test("spoken alarm times with a.m./p.m. and lead-ins before play still act", () => {
+  assert.equal(
+    JSON.stringify(parseIntent("Wake me up at 6 a.m.").intent),
+    JSON.stringify({ kind: "wake_at", hour: 6, minute: 0 }),
+  );
+  assert.equal(
+    JSON.stringify(parseIntent("Set an alarm for 6:30 p.m.").intent),
+    JSON.stringify({ kind: "wake_at", hour: 18, minute: 30 }),
+  );
+  assert.equal(parseIntent("wake me up at 6 o'clock").intent.kind, "wake_at");
+  for (const c of [
+    "hey play rain",
+    "ok play rain",
+    "hey can you play white noise",
+    "could you turn on white noise",
+  ])
+    assert.equal(parseIntent(c).intent.kind, "play_track", c);
+  for (const q of ["stop the rain", "i want the fire to stop"])
+    assert.notEqual(parseIntent(q).intent.kind, "play_track", q);
+});
