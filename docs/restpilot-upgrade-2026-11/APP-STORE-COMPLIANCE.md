@@ -23,7 +23,7 @@ _Source: [App Review Guidelines](https://developer.apple.com/app-store/review/gu
 
 This was already prepared, with flags off, on the Railway branch (#16: RevenueCat, entitlement merge, app-aware paywall). It is not on `main`, the code the app shell loads today.
 
-**Today's production `main`** after #40 merges and Publish:
+**Today's production `main`** (`e8742a9`, with #40 and #50), once published:
 - **The website is fine.** Guidelines don't apply to the website.
 - **The app** shows no purchase at all, which is the right interim state for internal TestFlight. **Do not submit it for App Review or external TestFlight as is**, because web subscribers still unlock Premium in the app with no IAP offered.
 
@@ -129,7 +129,7 @@ Emails to existing users about the website are fine. Inside the app outside the 
 
 ## Recommended path, in order
 
-1. **Now:** publish `main` with #40.
+1. **Now:** publish `main` (`e8742a9`, which includes #40 and #50).
    - The website is unchanged for buyers.
    - The app shell shows no purchase at all.
    - Use internal TestFlight only. No App Review and no external TestFlight yet.

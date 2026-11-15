@@ -4,13 +4,15 @@ _Nov 15 2026. Production is served by Lovable from `main` and changes only when 
 
 ## Status
 
-**STATUS: PENDING #40**. See "Blockers". This section is updated when #40 merges and main's HEAD has been re-verified.
+**STATUS: READY. `main` at `e8742a9` is fully tested and waiting only for the owner to tap Publish.**
+- `e8742a9` is #50 squash-merged on 8ac52cc. Its tree is byte-identical to the tested #50 head `cf7d303`.
+- No blockers.
 
 | | |
 |---|---|
 | Production now | build `b-1786931160964` (built Aug 17 2026). `/pricing` still shows the **$99 lifetime** plan. |
-| `main` HEAD | `6b683af` |
-| What Publish ships | #2 (robots.txt sitemap) · #19 (lifetime discontinued for new customers) · #38 (wearable OAuth callbacks no longer 500) · #44 (signed wearable OAuth state) · #46 (one lockfile, read-only CI) · **#40 (no purchase inside the iPhone app), once merged** |
+| `main` HEAD | **`e8742a9`** |
+| What Publish ships | #2 (robots.txt sitemap) · #19 (lifetime discontinued for new customers) · #38 (wearable OAuth callbacks no longer 500) · #44 (signed wearable OAuth state) · #46 (one lockfile, read-only CI) · #40 (no purchase inside the iPhone app) · #50 (app hydration fix). #22 (mobile layout port) may follow; if it lands before Publish, re-run the console/layout sweep. |
 
 ## What was tested, with evidence
 
@@ -20,8 +22,8 @@ All browser tests ran against a **local production build** (`NITRO_PRESET=node_s
 - The production CSP was kept. Only the fake Supabase host was added to it.
 - Scripts: scratchpad `rel-int/run.mjs`, `oauth.mjs`, `hydra.mjs`, `clientnav.mjs`.
 
-### Install, typecheck, unit tests, build (fresh clone)
-`git clone --depth 1` of #46's head (`5ece944`, now squash-merged as `6b683af`):
+### Install, typecheck, unit tests, build
+**Fresh clone:** `git clone --depth 1` of #46's head (`5ece944`, squash-merged as `6b683af`):
 
 ```
 $ bun install --frozen-lockfile   → 1011 packages installed, exit 0
@@ -31,7 +33,11 @@ $ bun run build                   → exit 0 (6 vite environments + nitro)
 ```
 The GitHub Actions run "main checks" was green on the PR head (run 43671789722). It is read-only, and main has no branch protection.
 
-### Website: plans and checkout (main + #40, iPhone Safari 390 and desktop 1280)
+**`main` at 8ac52cc (after #40):** `bun install --frozen-lockfile` (no changes) → `typecheck` exit 0 → `test` **39/39** → `build` exit 0. #50's branch gives the same results, 39/39.
+
+Every result below is from `main` at **8ac52cc**, and was repeated on #50's head `cf7d303` (the same tree as `main` `e8742a9`) with identical results, except the hydration row, which #50 fixed.
+
+### Website: plans and checkout (iPhone Safari 390 and desktop 1280)
 
 | Check | Result |
 |---|---|
@@ -90,7 +96,8 @@ Pages: `/`, `/pricing`, `/features`, `/science`, `/auth`, `/paywall`, `/profile`
 | Mode | Result |
 |---|---|
 | Website, all four widths | ✅ **0 app console errors, 0 page errors, 0 px horizontal overflow** |
-| iPhone app mode | ❌ **React hydration error #418** on the first load of `/pricing`, `/features`, `/science` and `/paywall`. See Blockers. 0 overflow. |
+| iPhone app mode, 8ac52cc | ❌ **React hydration error #418** on the first load of `/pricing`, `/features`, `/science` and `/paywall` (and `/` when signed out). 0 overflow. |
+| iPhone app mode, 8ac52cc + #50 | ✅ **0 console errors, 0 page errors, 0 overflow** at 375, 390 and 430. During client navigation in the app, no purchase CTA or price ever appears (checked with a MutationObserver). |
 
 Excluded as test artifacts:
 - network errors for the stubbed Supabase, AI and Stripe hosts;
@@ -144,19 +151,17 @@ See `APP-STORE-COMPLIANCE.md`.
 
 ## Blockers
 
-1. **#40 is not merged yet.** It is awaiting the White Glove attack-test APPROVE; the coordinator merges it.
-   - Without #40, the iPhone app shell, which loads restpilotai.com, can open the website Stripe checkout.
-   - The website itself is unaffected either way.
-2. **#40 hydration error in the app**, found here and posted on #40 with a verified one-line fix (`useSyncExternalStore`).
-   - It is not a purchase leak; every purchase check stays closed.
-   - It is a console error on four pages inside the app only. The website is clean.
-   - The coordinator decides whether to fix it before merge or right after.
+**None.**
+- #40 merged as 8ac52cc after the White Glove attack test approved it.
+- #50 fixed the app-only hydration error #418 that #40 introduced. It had an independent APPROVE and green local and CI checks, and merged as e8742a9.
 
 Non-blocking findings for later:
 - PWA precache warning: `brace-expansion` override → only `/` is precached;
 - the past-due portal gap;
 - webhook hardening;
-- the 5.1.2 and 4.8 App Store items.
+- the 5.1.2 and 4.8 App Store items;
+- On a cold first load in the app, the server-rendered HTML still contains the website's purchase calls to action until hydration, and then they are hidden. A tap before hydration can only follow a plain link (to `/auth` or `/pricing`), and those pages then show the app version. Checkout needs JavaScript, and the server refuses it from the app. For App Review screenshots, a follow-up could render the app version on the server, using the `RestPilotApp/` User-Agent token. This was noted by #50's reviewer and is unchanged by #50.
+- In app mode some pages still download Stripe.js (`js.stripe.com`). No checkout can start, and the server refuses checkout and portal requests from the app. Not loading it in the app would be tidier.
 
 ## Owner: how to Publish (iPhone)
 
