@@ -14,6 +14,7 @@
 const path = require("node:path");
 const { loadTs } = require("./production-prompt.cjs");
 const PRICES = require("../prices.json");
+const { guarded, estimateTokens } = require("./guard.cjs");
 
 const MAX_RETRIES = 4;
 
@@ -68,7 +69,6 @@ class RestPilotAppProvider {
     const { buildChatBody } = loadTs("@/lib/ai/models.server");
     const vars = context?.vars ?? {};
     const key = process.env[this.config.apiKeyEnv];
-    if (!key) return { error: `missing ${this.config.apiKeyEnv} (benchmark pending key)` };
     const messages = JSON.parse(prompt);
     const task = taskFor(vars);
     const streaming = task === "coach" || task === "voice";
@@ -86,6 +86,17 @@ class RestPilotAppProvider {
     );
     if (tools) body.tools = tools;
     const url = `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+    // Every paid call goes through the spend guard: hard token cap + response cache.
+    return guarded({
+      parts: { url, body },
+      estimate: estimateTokens(JSON.stringify(body.messages)) + (body.max_completion_tokens ?? body.max_tokens ?? 2048),
+      context,
+      unavailable: key ? null : `missing ${this.config.apiKeyEnv} (benchmark pending key)`,
+      call: () => this.send(url, key, body, task),
+    });
+  }
+
+  async send(url, key, body, task) {
     const started = Date.now();
     let res;
     try {

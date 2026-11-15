@@ -1,0 +1,78 @@
+{
+  "identifier": "8E3C1A2B",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_applicationInternalID": "6700000001",
+    "_developerTeamID": "",
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "21500001",
+      "localizations": [],
+      "name": "RestPilot Premium",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "49.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "61500002",
+          "introductoryOffer": {
+            "internalID": "71500002",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P2W"
+          },
+          "localizations": [
+            {
+              "description": "RestPilot Premium, billed yearly. 14-day free trial for eligible new subscribers.",
+              "displayName": "Annual",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "restpilot_annual",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "RestPilot Annual",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "7.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "61500001",
+          "introductoryOffer": {
+            "internalID": "71500001",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P2W"
+          },
+          "localizations": [
+            {
+              "description": "RestPilot Premium, billed monthly. 14-day free trial for eligible new subscribers.",
+              "displayName": "Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "restpilot_monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "RestPilot Monthly",
+          "subscriptionGroupID": "21500001",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}
