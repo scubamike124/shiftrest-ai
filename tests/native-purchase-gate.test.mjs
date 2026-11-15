@@ -52,18 +52,22 @@ test('the client tells the server it is the app only when it is (website headers
 });
 
 // ---- UI: no purchase entry point in the app --------------------------------
-test('/paywall: neutral notice in the app, and checkout cannot start even before the notice renders', () => {
+// With Apple IAP (apple-iap-main.test.mjs) the app shows AppSubscriptionScreen:
+// the neutral notice unless the RevenueCat key, the native plugin AND the
+// server's IAP pipeline are all ready; never Stripe.
+test('/paywall: app screen (neutral notice or App Store paywall) in the app, and checkout cannot start even before it renders', () => {
   const src = read('src/routes/paywall.tsx');
-  assert.match(src, /if \(inNativeApp\) return <NativeSubscriptionNotice \/>;/);
+  assert.match(src, /if \(inNativeApp\) return <AppSubscriptionScreen \/>;/);
   const start = src.indexOf('async function startCheckout');
   assert.ok(src.indexOf('if (isNativeApp()) return;', start) < src.indexOf('createCheckoutSession(', start), 'synchronous guard before the server call');
   const resume = src.indexOf('restpilot_pending_checkout");', src.indexOf('useEffect'));
   assert.ok(src.indexOf('if (isNativeApp()) return;', resume) > 0, 'saved checkout intent is dropped in the app');
-  assert.ok(src.indexOf('if (inNativeApp) return <NativeSubscriptionNotice />;') < src.indexOf('if (clientSecret)'), 'notice wins over an open checkout');
+  assert.ok(src.indexOf('if (inNativeApp) return <AppSubscriptionScreen />;') < src.indexOf('if (clientSecret)'), 'app screen wins over an open checkout');
+  assert.match(read('src/components/subscription/AppSubscriptionScreen.tsx'), /if \(!iapAvailable\(\)\) return <NativeSubscriptionNotice \/>;/);
 });
 
-test('/pricing: neutral notice in the app', () => {
-  assert.match(read('src/routes/pricing.tsx'), /if \(useIsNativeApp\(\)\) return <NativeSubscriptionNotice \/>;/);
+test('/pricing: app screen in the app', () => {
+  assert.match(read('src/routes/pricing.tsx'), /if \(useIsNativeApp\(\)\) return <AppSubscriptionScreen \/>;/);
 });
 
 test('the neutral notice has no price, purchase button or website purchase wording', () => {
@@ -86,8 +90,8 @@ test('trial and price calls to action are website-only on /, /science and /featu
   assert.match(read('src/components/native/WebOnly.tsx'), /return useIsNativeApp\(\) \? null : <>\{children\}<\/>;/);
 });
 
-test('navigation: no Upgrade or Pricing entries in the app', () => {
-  assert.match(read('src/components/site/AppSidebar.tsx'), /footerNav\s*\.filter\(\(n\) => !\(inNativeApp && n\.to === "\/paywall"\)\)/);
+test('navigation: no Pricing entries in the app; Upgrade only once App Store purchases are set up', () => {
+  assert.match(read('src/components/site/AppSidebar.tsx'), /footerNav\s*(\/\/[^\n]*\s*)?\.filter\(\(n\) => !\(inNativeApp && n\.to === "\/paywall" && !iapAvailable\(\)\)\)/);
   const header = read('src/components/site/SiteHeader.tsx');
   assert.match(header, /const links = inNativeApp \? nav\.filter\(\(n\) => n\.to !== "\/pricing"\) : nav;/);
   assert.equal((header.match(/\{nav\.map/g) ?? []).length, 0, 'both header menus use the filtered list');
@@ -106,10 +110,10 @@ test('AI-limit prompts: no Upgrade action in the app (companion, coach, pilot)',
   assert.match(companion, /function VoiceTrialUsedUp\(\) \{\s*if \(useIsNativeApp\(\)\) \{/);
 });
 
-test('/profile: no upgrade card and no Stripe portal button in the app', () => {
+test('/profile: no Stripe portal button in the app; upgrade card only once App Store purchases are set up', () => {
   const src = read('src/routes/profile.tsx');
-  assert.match(src, /\) : inNativeApp \? null : \(\s*<Link\s+to="\/paywall"/);
-  assert.match(src, /subState\.tier !== "lifetime" && !inNativeApp && \(\s*<button/);
+  assert.match(src, /\) : inNativeApp && !iapAvailable\(\) \? null : \(\s*<Link\s+to="\/paywall"/);
+  assert.match(src, /subState\.source !== "apple" && subState\.tier !== "lifetime" && !inNativeApp && \(\s*<button/);
   assert.match(src, /Billing changes aren&apos;t available in the app\./);
 });
 

@@ -91,6 +91,7 @@ import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/em
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicIapRevenuecatRouteImport } from './routes/api/public/iap/revenuecat'
 import { Route as ApiPublicHooksSubscriptionLifecycleRouteImport } from './routes/api/public/hooks/subscription-lifecycle'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
 import { Route as ApiPublicHooksDispatchAlarmsRouteImport } from './routes/api/public/hooks/dispatch-alarms'
@@ -514,6 +515,11 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicIapRevenuecatRoute = ApiPublicIapRevenuecatRouteImport.update({
+  id: '/api/public/iap/revenuecat',
+  path: '/api/public/iap/revenuecat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksSubscriptionLifecycleRoute =
   ApiPublicHooksSubscriptionLifecycleRouteImport.update({
     id: '/api/public/hooks/subscription-lifecycle',
@@ -640,6 +646,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -729,6 +736,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -822,6 +830,7 @@ export interface FileRoutesById {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -915,6 +924,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -1004,6 +1014,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -1096,6 +1107,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -1168,6 +1180,7 @@ export interface RootRouteChildren {
   ApiPublicHooksDispatchAlarmsRoute: typeof ApiPublicHooksDispatchAlarmsRoute
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicHooksSubscriptionLifecycleRoute: typeof ApiPublicHooksSubscriptionLifecycleRoute
+  ApiPublicIapRevenuecatRoute: typeof ApiPublicIapRevenuecatRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -1755,6 +1768,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/iap/revenuecat': {
+      id: '/api/public/iap/revenuecat'
+      path: '/api/public/iap/revenuecat'
+      fullPath: '/api/public/iap/revenuecat'
+      preLoaderRoute: typeof ApiPublicIapRevenuecatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/subscription-lifecycle': {
       id: '/api/public/hooks/subscription-lifecycle'
       path: '/api/public/hooks/subscription-lifecycle'
@@ -1953,6 +1973,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicHooksSubscriptionLifecycleRoute:
     ApiPublicHooksSubscriptionLifecycleRoute,
+  ApiPublicIapRevenuecatRoute: ApiPublicIapRevenuecatRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,

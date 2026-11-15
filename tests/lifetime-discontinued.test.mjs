@@ -32,7 +32,8 @@ function checkoutHarness(priceType = 'recurring', { webCheckout = true } = {}) {
   const ctx = vm.createContext({ createServerFn, requireSupabaseAuth: {}, createStripeClient() { calls.push('stripe'); return stripe; }, getStripeErrorMessage: (e) => e.message,
     // Website request (not the iPhone app): the native-app refusal does not apply.
     getRequest: () => new Request('https://restpilotai.com/', { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh)' } }), isNativeAppRequest: () => false, NATIVE_PURCHASE_UNAVAILABLE: '',
-    webCheckoutEnabled: () => webCheckout, WEB_CHECKOUT_DISABLED_MESSAGE: 'off' });
+    webCheckoutEnabled: () => webCheckout, WEB_CHECKOUT_DISABLED_MESSAGE: 'off',
+    process: { env: {} }, appleSubscriptionBlocksCheckout: async () => { throw new Error('guard must not run with IAP off'); } });
   const { createCheckoutSession } = vm.runInContext(`${source}\n({createCheckoutSession})`, ctx);
   const supabase = { auth: { async getUser() { return { data: { user: { email: 'a@example.test' } } }; } } };
   return {

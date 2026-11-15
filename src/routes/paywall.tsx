@@ -8,7 +8,7 @@ import { getStripe, getStripeEnvironment, isPaymentsConfigured } from "@/lib/str
 import { createCheckoutSession } from "@/lib/billing.functions";
 import { toast } from "sonner";
 import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
-import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
+import { AppSubscriptionScreen } from "@/components/subscription/AppSubscriptionScreen";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
 import { APP_ONLY_PURCHASE_NOTE, webCheckoutEnabled } from "@/lib/billing-flags";
 
@@ -148,7 +148,8 @@ function Paywall() {
     }
   }
 
-  if (inNativeApp) return <NativeSubscriptionNotice />;
+  // In the app: App Store paywall when IAP is set up, else the neutral notice.
+  if (inNativeApp) return <AppSubscriptionScreen />;
 
   if (clientSecret) {
     return (

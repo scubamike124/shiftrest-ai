@@ -88,6 +88,9 @@ function subscriptionState(row) {
     modules: {
       '@/integrations/supabase/client': { supabase },
       '@/lib/stripe': { getStripeEnvironment: () => 'live', isPaymentsConfigured: () => true },
+      // Apple IAP not set up for this build: Stripe answer only.
+      '@/lib/billing-flags': { revenueCatIosKey: () => null },
+      '@/lib/entitlements/entitlement.functions': { getEntitlementStatus: async () => { throw new Error('must not be called without the RevenueCat key'); } },
     },
   });
   return mod.getSubscriptionState();
@@ -132,7 +135,7 @@ test('past_due portal: Profile shows "Manage billing" (portal) instead of "Upgra
   const issue = src.indexOf(') : subState?.billingIssue ? (');
   const upgrade = src.indexOf('Upgrade to Premium');
   assert.ok(issue > 0 && issue < upgrade, 'billing-issue branch comes before the Upgrade card');
-  const branch = src.slice(issue, src.indexOf(') : inNativeApp ? null : (', issue));
+  const branch = src.slice(issue, src.indexOf(') : inNativeApp && !iapAvailable() ? null : (', issue));
   assert.match(branch, /onClick=\{handleManageSubscription\}/);
   assert.match(branch, /"Manage billing"/);
   assert.match(branch, /\{!inNativeApp && \(/, 'no portal button inside the iPhone app (Guideline 3.1.1)');
@@ -157,8 +160,8 @@ test('/paywall: with checkout off, no checkout button, trial CTA or Stripe badge
   assert.match(src.slice(off, end), /\{APP_ONLY_PURCHASE_NOTE\}/);
   assert.match(src.slice(off, end), /to="\/profile"/);
   assert.doesNotMatch(src.slice(off, end), /apps\.apple\.com|href=/, 'no external purchase link');
-  // In-app gate (#40) unchanged.
-  assert.match(src, /if \(inNativeApp\) return <NativeSubscriptionNotice \/>;/);
+  // In-app gate (#40): the app screen, never this website paywall.
+  assert.match(src, /if \(inNativeApp\) return <AppSubscriptionScreen \/>;/);
 });
 
 test('/pricing: plan info stays; the "Choose" link to checkout only when checkout is on', () => {

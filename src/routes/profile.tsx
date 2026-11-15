@@ -43,6 +43,7 @@ import { scheduleNextWindDown } from "@/lib/notify";
 import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { useIsNativeApp } from "@/lib/native-app";
+import { APPLE_SUBSCRIPTIONS_URL, iapAvailable } from "@/lib/entitlements/iap-bridge";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
 import { WearableCard } from "@/components/WearableCard";
@@ -372,13 +373,24 @@ function Profile() {
               </p>
             </div>
           </div>
-          {subState.tier !== "lifetime" && inNativeApp && (
+          {subState.source === "apple" && (
+            // Billed by Apple: only Apple can change or cancel it (app or website).
+            <a
+              href={APPLE_SUBSCRIPTIONS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-primary/40 bg-card text-xs font-semibold text-primary"
+            >
+              Manage in App Store subscriptions
+            </a>
+          )}
+          {subState.source !== "apple" && subState.tier !== "lifetime" && inNativeApp && (
             // The Stripe portal can switch or renew plans, so it stays on the website.
             <p className="mt-3 text-xs text-muted-foreground">
               Billing changes aren&apos;t available in the app.
             </p>
           )}
-          {subState.tier !== "lifetime" && !inNativeApp && (
+          {subState.source !== "apple" && subState.tier !== "lifetime" && !inNativeApp && (
             <button
               type="button"
               onClick={handleManageSubscription}
@@ -420,7 +432,7 @@ function Profile() {
             </button>
           )}
         </section>
-      ) : inNativeApp ? null : (
+      ) : inNativeApp && !iapAvailable() ? null : (
         <Link
           to="/paywall"
           className="group relative flex items-center justify-between overflow-hidden rounded-2xl border border-primary/30 bg-primary/10 p-4 transition hover:border-primary/60 hover:bg-primary/15 active:scale-[0.99]"
@@ -752,7 +764,7 @@ function Profile() {
           disabled={deleting}
           onClick={async () => {
             const ok = window.confirm(
-              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.",
+              "Delete your account?\n\nThis permanently removes your account and personal data. For tax and legal reasons we keep canceled subscription records and your legal acceptance log. This cannot be undone.\n\nSubscribed through the App Store? Deleting your account does not cancel it: cancel in iPhone Settings → your name → Subscriptions.",
             );
             if (!ok) return;
             const sure = window.confirm("Are you absolutely sure? This is final.");

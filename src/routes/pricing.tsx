@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check } from "lucide-react";
-import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
+import { AppSubscriptionScreen } from "@/components/subscription/AppSubscriptionScreen";
 import { useIsNativeApp } from "@/lib/native-app";
 import { APP_ONLY_PURCHASE_NOTE, webCheckoutEnabled } from "@/lib/billing-flags";
 
@@ -74,8 +74,9 @@ const matrix = [
 ];
 
 function Pricing() {
-  // Inside the iPhone app: no prices or purchase links (Guideline 3.1.1).
-  if (useIsNativeApp()) return <NativeSubscriptionNotice />;
+  // Inside the iPhone app: no website prices or purchase links (Guideline
+  // 3.1.1); the App Store paywall when IAP is set up, else the neutral notice.
+  if (useIsNativeApp()) return <AppSubscriptionScreen />;
   // New purchases moved to the App Store (owner decision, Nov 15 2026): with
   // website checkout off (the default) the plans are information only.
   const checkoutOn = webCheckoutEnabled();

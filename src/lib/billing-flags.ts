@@ -29,3 +29,17 @@ export const WEB_CHECKOUT_DISABLED_MESSAGE =
 /** Neutral website copy shown where a purchase or trial button used to be.
  *  No App Store link or badge: the owner adds one once the app is live. */
 export const APP_ONLY_PURCHASE_NOTE = "New subscriptions are available in the RestPilot iPhone app.";
+
+/** Publishable Stripe token of this build (pk_test_… / pk_live_…), or "". */
+export function paymentsClientToken(): string {
+  const token = import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN as string | undefined;
+  return typeof token === "string" ? token : "";
+}
+
+/** RevenueCat public Apple SDK key (appl_…), or null when unset or malformed.
+ *  Public by design (it ships inside every iOS app); no secret lives here.
+ *  Without it the iPhone app keeps the neutral "not available yet" screen. */
+export function revenueCatIosKey(): string | null {
+  const key = import.meta.env.VITE_REVENUECAT_IOS_API_KEY as string | undefined;
+  return typeof key === "string" && /^appl_[A-Za-z0-9]+$/.test(key) ? key : null;
+}

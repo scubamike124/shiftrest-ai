@@ -1,6 +1,10 @@
-// Subscription helpers — reads the Stripe-synced `subscriptions` table.
+// Subscription helpers — reads the Stripe-synced `subscriptions` table and,
+// once Apple In-App Purchase is set up (VITE_REVENUECAT_IOS_API_KEY), the
+// merged App Store entitlement from the server.
 import { supabase } from "@/integrations/supabase/client";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
+import { revenueCatIosKey } from "@/lib/billing-flags";
+import { getEntitlementStatus } from "@/lib/entitlements/entitlement.functions";
 
 export type SubscriptionTier = "free" | "monthly" | "annual" | "lifetime";
 
@@ -10,6 +14,8 @@ export interface SubscriptionState {
   expiresAt: Date | null;
   cancelAtPeriodEnd: boolean;
   isPremium: boolean;
+  /** Who bills the plan shown: the website (Stripe) or Apple (App Store). */
+  source: "stripe" | "apple";
   /** Stripe could not charge the card and is retrying (past_due) or gave up
    *  without canceling (unpaid). Not Premium, but still a Stripe customer
    *  who can be charged again: they must be able to open the billing portal
@@ -34,6 +40,7 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     expiresAt: null,
     cancelAtPeriodEnd: false,
     isPremium: false,
+    source: "stripe",
     billingIssue: false,
     stripeCustomerId: null,
   };
@@ -54,7 +61,7 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     .limit(1)
     .maybeSingle();
 
-  if (!data) return empty;
+  if (!data) return withApple(empty);
 
   const tier = TIER_BY_PRICE[data.price_id] ?? "free";
   const expiresAt = data.current_period_end ? new Date(data.current_period_end) : null;
@@ -65,7 +72,7 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
       (!expiresAt || expiresAt > now)) ||
     (data.status === "canceled" && !!expiresAt && expiresAt > now);
 
-  return {
+  return withApple({
     tier,
     status: data.status,
     expiresAt,
@@ -74,7 +81,35 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     billingIssue:
       !isPremium && BILLING_ISSUE_STATUSES.has(data.status) && !!data.stripe_customer_id,
     stripeCustomerId: data.stripe_customer_id ?? null,
-  };
+    source: "stripe",
+  });
+}
+
+/** A user with no Stripe Premium (and no Stripe billing problem) may be an
+ *  App Store subscriber. Asked only once Apple IAP is set up for this build;
+ *  any failure keeps the Stripe answer (display only: Premium itself is
+ *  enforced on the server). */
+async function withApple(state: SubscriptionState): Promise<SubscriptionState> {
+  if (state.isPremium || state.billingIssue || !revenueCatIosKey()) return state;
+  try {
+    const res = await getEntitlementStatus();
+    if (!("entitlement" in res)) return state;
+    const e = res.entitlement;
+    const apple = e.channels.find((c) => c.source === "apple");
+    if (!e.active || !apple) return state;
+    return {
+      tier: apple.plan === "annual" ? "annual" : "monthly",
+      status: apple.state === "trialing" ? "trialing" : "active",
+      expiresAt: apple.expiresAt === null ? null : new Date(apple.expiresAt),
+      cancelAtPeriodEnd: !apple.willRenew,
+      isPremium: true,
+      source: "apple",
+      billingIssue: false,
+      stripeCustomerId: state.stripeCustomerId,
+    };
+  } catch {
+    return state;
+  }
 }
 
 export async function restorePurchases(): Promise<SubscriptionState> {

@@ -69,6 +69,8 @@ export function billingHarness({ headers = { 'user-agent': SAFARI_UA }, existing
     getRequest: () => new Request('https://restpilotai.com/_serverFn/x', { method: 'POST', headers }),
     isNativeAppRequest: native.isNativeAppRequest, NATIVE_PURCHASE_UNAVAILABLE: native.NATIVE_PURCHASE_UNAVAILABLE,
     webCheckoutEnabled: () => webCheckout, WEB_CHECKOUT_DISABLED_MESSAGE: flags.WEB_CHECKOUT_DISABLED_MESSAGE,
+    // IAP off (production default): the App Store duplicate guard is never reached.
+    process: { env: {} }, appleSubscriptionBlocksCheckout: async () => { throw new Error('guard must not run with IAP off'); },
   });
   const { createCheckoutSession, createPortalSession } = vm.runInContext(`${source}\n({createCheckoutSession, createPortalSession})`, ctx);
   const context = { supabase, userId: 'user-123' };
