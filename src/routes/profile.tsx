@@ -389,6 +389,37 @@ function Profile() {
             </button>
           )}
         </section>
+      ) : subState?.billingIssue ? (
+        // past_due / unpaid: still a Stripe customer who can be charged again.
+        // Never offer "Upgrade" (a second subscription); let them fix the card
+        // or cancel in the Stripe portal.
+        <section className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/20 text-destructive">
+              <Sparkles className="h-5 w-5" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold capitalize">
+                Premium · {subState.tier} · Payment problem
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {inNativeApp
+                  ? "We couldn't charge your card. Billing changes aren't available in the app."
+                  : "We couldn't charge your card. Update your payment method to keep Premium, or cancel."}
+              </p>
+            </div>
+          </div>
+          {!inNativeApp && (
+            <button
+              type="button"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="mt-3 h-10 w-full rounded-xl border border-destructive/40 bg-card text-xs font-semibold text-destructive disabled:opacity-60"
+            >
+              {portalLoading ? "Opening…" : "Manage billing"}
+            </button>
+          )}
+        </section>
       ) : inNativeApp ? null : (
         <Link
           to="/paywall"

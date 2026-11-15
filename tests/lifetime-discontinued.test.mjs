@@ -11,7 +11,9 @@ import test from 'node:test';
 const root = new URL('..', import.meta.url).pathname;
 const read = (p) => readFileSync(join(root, p), 'utf8');
 
-function checkoutHarness(priceType = 'recurring') {
+// webCheckout: VITE_WEB_CHECKOUT_ENABLED (production default off since Nov 15 2026).
+// These tests pin what the server does when the owner turns it back on.
+function checkoutHarness(priceType = 'recurring', { webCheckout = true } = {}) {
   const calls = [];
   let payload;
   const source = stripTypeScriptTypes(read('src/lib/billing.functions.ts'))
@@ -29,7 +31,8 @@ function checkoutHarness(priceType = 'recurring') {
   }
   const ctx = vm.createContext({ createServerFn, requireSupabaseAuth: {}, createStripeClient() { calls.push('stripe'); return stripe; }, getStripeErrorMessage: (e) => e.message,
     // Website request (not the iPhone app): the native-app refusal does not apply.
-    getRequest: () => new Request('https://restpilotai.com/', { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh)' } }), isNativeAppRequest: () => false, NATIVE_PURCHASE_UNAVAILABLE: '' });
+    getRequest: () => new Request('https://restpilotai.com/', { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh)' } }), isNativeAppRequest: () => false, NATIVE_PURCHASE_UNAVAILABLE: '',
+    webCheckoutEnabled: () => webCheckout, WEB_CHECKOUT_DISABLED_MESSAGE: 'off' });
   const { createCheckoutSession } = vm.runInContext(`${source}\n({createCheckoutSession})`, ctx);
   const supabase = { auth: { async getUser() { return { data: { user: { email: 'a@example.test' } } }; } } };
   return {
@@ -43,6 +46,16 @@ test('checkout refuses the lifetime price before any Stripe call', async () => {
   const h = checkoutHarness('one_time');
   await assert.rejects(h.checkout('restpilot_lifetime'), /Lifetime membership is no longer offered/);
   assert.deepEqual(h.calls, []);
+});
+
+test('with website checkout off (default), even a valid plan is refused before any Stripe call', async () => {
+  for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
+    const h = checkoutHarness('recurring', { webCheckout: false });
+    assert.equal((await h.checkout(priceId)).error, 'off');
+    assert.deepEqual(h.calls, []);
+  }
+  // Lifetime is still refused by the validator first, whatever the flag.
+  await assert.rejects(checkoutHarness('one_time', { webCheckout: false }).checkout('restpilot_lifetime'), /Lifetime membership is no longer offered/);
 });
 
 test('checkout refuses any non-catalog or one-time price', async () => {

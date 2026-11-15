@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { OrbBadge } from "@/components/PilotOrb";
 import { WebOnly } from "@/components/native/WebOnly";
+import { APP_ONLY_PURCHASE_NOTE, webCheckoutEnabled } from "@/lib/billing-flags";
 import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
 
 export const Route = createFileRoute("/")({
@@ -182,7 +183,7 @@ function Hero({ ctaHref }: { ctaHref: string }) {
                   to={ctaHref}
                   className="group inline-flex items-center gap-2 rounded-full bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition hover:opacity-90"
                 >
-                  Start free — 14 days
+                  {webCheckoutEnabled() ? "Start free — 14 days" : "Get started free"}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </WebOnly>
@@ -1074,13 +1075,15 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
                     : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
                 }`}
               >
-                Get started
+                {webCheckoutEnabled() ? "Get started" : "Create a free account"}
               </Link>
             </div>
           ))}
         </div>
         <p className="mt-8 text-center text-xs text-muted-foreground">
-          Cancel anytime. Billed through Stripe.{" "}
+          {webCheckoutEnabled()
+            ? "Cancel anytime. Billed through Stripe."
+            : `Cancel anytime. ${APP_ONLY_PURCHASE_NOTE}`}{" "}
           <Link to="/pricing" className="text-indigo-glow underline-offset-2 hover:underline">
             See full comparison
           </Link>
@@ -1109,13 +1112,15 @@ function CtaBand({ ctaHref }: { ctaHref: string }) {
             Your next great week of sleep starts tonight.
           </h2>
           <p className="mt-5 text-lg text-muted-foreground">
-            Free for 14 days. No card games. Cancel from your account anytime.
+            {webCheckoutEnabled()
+              ? "Free for 14 days. No card games. Cancel from your account anytime."
+              : "Start with a free account. Premium plans include a 14-day free trial."}
           </p>
           <Link
             to={ctaHref}
             className="group mt-8 inline-flex items-center gap-2 rounded-full bg-foreground px-7 py-4 text-sm font-semibold text-background transition hover:opacity-90"
           >
-            Start free trial
+            {webCheckoutEnabled() ? "Start free trial" : "Create a free account"}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
