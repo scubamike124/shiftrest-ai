@@ -12,7 +12,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimeSession } from "@/lib/realtime/openai.functions";
-import { ensureAIConsent, isAIConsentError } from "@/lib/ai/consent-client";
+import {
+  ensureAIConsent,
+  getAIConsentState,
+  isAIConsentError,
+  subscribeAIConsent,
+} from "@/lib/ai/consent-client";
 import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
@@ -541,6 +546,16 @@ export function useOpenAIRealtime() {
     await teardown();
     setStatus("idle");
   }, [teardown]);
+
+  // Withdrawing AI permission (Profile → Privacy) ends a live session at once:
+  // the browser talks to OpenAI directly, so the server can't stop it.
+  useEffect(
+    () =>
+      subscribeAIConsent(() => {
+        if (getAIConsentState().status === "denied" && pcRef.current) void disconnect();
+      }),
+    [disconnect],
+  );
 
   const toggleMute = useCallback(() => {
     const next = !muted;

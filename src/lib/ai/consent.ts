@@ -43,7 +43,7 @@ export type AIConsentProvider = {
 export const AI_CONSENT_PROVIDERS: AIConsentProvider[] = [
   {
     name: "Google Gemini, through the Lovable AI Gateway",
-    what: "Your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, and summaries from a wearable you connect (Fitbit or Oura).",
+    what: "Your coach messages, plus the schedule, sleep, preference and profile context RestPilot adds to them, AI memories (only if you turned AI memory on), and summaries from a wearable you connect (Fitbit or Oura).",
     why: "To write coach replies, briefings, plans, insights and shift-swap advice.",
   },
   {

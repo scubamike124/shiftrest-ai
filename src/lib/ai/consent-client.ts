@@ -21,7 +21,19 @@ import {
   AI_CONSENT_REQUIRED_MESSAGE,
   aiConsentRefusalBody,
 } from "./consent";
-import { getAIConsentFn, setAIConsentFn, type AIConsentStatus } from "./consent.functions";
+import type { AIConsentStatus, SetAIConsentInput } from "./consent.functions";
+
+// The server functions are registered by <AIConsentDialog /> (mounted in
+// __root.tsx) rather than imported here, so modules that only call aiFetch
+// don't pull server-function code into their import graph.
+type AIConsentApi = {
+  get: () => Promise<AIConsentStatus>;
+  set: (input: SetAIConsentInput) => Promise<AIConsentStatus>;
+};
+let api: AIConsentApi | null = null;
+export function registerAIConsentApi(a: AIConsentApi) {
+  api = a;
+}
 
 export type AIConsentState = {
   /** unknown = not loaded yet (or couldn't be loaded); signed_out = no session. */
@@ -45,7 +57,9 @@ function set(patch: Partial<AIConsentState>) {
 
 export function subscribeAIConsent(l: () => void): () => void {
   listeners.add(l);
-  return () => listeners.delete(l);
+  return () => {
+    listeners.delete(l);
+  };
 }
 
 export function getAIConsentState(): AIConsentState {
@@ -99,7 +113,8 @@ export async function loadAIConsent(force = false): Promise<AIConsentState> {
   if (loading && !force) return loading;
   loading = (async () => {
     try {
-      const s = await getAIConsentFn();
+      if (!api) throw new Error("consent API not registered");
+      const s = await api.get();
       applyStatus(uid, s);
     } catch (e) {
       // Can't tell: leave it unknown. The server still enforces the rule.
@@ -118,7 +133,8 @@ export async function setAIConsent(allow: boolean, source: "dialog" | "settings"
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user.id ?? null;
   if (!uid) throw new Error("Sign in to change this setting.");
-  const s = await setAIConsentFn({ data: { allow, source } });
+  if (!api) throw new Error("Couldn't save your choice. Please reload and try again.");
+  const s = await api.set({ allow, source });
   applyStatus(uid, s);
   if (allow) setDismissed(false);
 }

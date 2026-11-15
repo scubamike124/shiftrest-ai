@@ -405,7 +405,15 @@ export const Route = createFileRoute("/api/ai")({
                       status: "ok",
                     });
 
-                    if (profile.memoryEnabled && userTurn && assistant) {
+                    // Re-check: a revoke during the stream stops this extra
+                    // AI call too.
+                    const { checkAIConsent } = await import("@/lib/ai/consent.server");
+                    if (
+                      profile.memoryEnabled &&
+                      userTurn &&
+                      assistant &&
+                      (await checkAIConsent(userId, admin)) === "granted"
+                    ) {
                       await extractAndStoreMemories({
                         admin,
                         userId,
