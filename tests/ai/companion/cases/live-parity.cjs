@@ -55,9 +55,20 @@ for (const s of scenarios) {
   s.turns.forEach((text, i) => {
     const turnRec = rec.turns[i] || {};
     const sendIso = turnRec.sendLocal || "2026-11-15T03:00:00Z";
+    const now = localIso(sendIso, live.tz);
+    const dayOf = (iso) => Date.parse(`${localIso(iso, live.tz).slice(0, 10)}T00:00:00Z`);
+    const shifts = (live.shifts || []).map((x) => ({
+      d: Math.round((dayOf(x.start_utc) - dayOf(sendIso)) / 86400000),
+      at: localIso(x.start_utc, live.tz).slice(11),
+      hours: (Date.parse(x.end_utc) - Date.parse(x.start_utc)) / 3600000,
+      title: x.title ?? undefined,
+      type: x.shift_type ?? undefined,
+    }));
     const user = {
       tz: live.tz,
-      now: localIso(sendIso, live.tz),
+      now,
+      shifts,
+      windDownMin: live.windDownMin,
       goalHours: live.goalHours,
       wearable: "none",
       assistantName: live.assistantName,

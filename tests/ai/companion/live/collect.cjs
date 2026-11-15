@@ -260,6 +260,15 @@ async function runTurn(page, text) {
   await context.route(/\/api\/(tts|stt)(\?|$)|elevenlabs\.io/, (r) => r.abort());
   const page = await context.newPage();
   const prefs = {};
+  let apikey = null;
+  let supaBase = null;
+  page.on("request", (r) => {
+    const u = r.url();
+    if (/supabase\.co\/(rest|auth)\/v1/.test(u) && r.headers().apikey) {
+      apikey = r.headers().apikey;
+      supaBase = u.split("/rest/")[0].split("/auth/")[0];
+    }
+  });
   page.on("response", async (r) => {
     if (/\/rest\/v1\/user_prefs/.test(r.url()) && r.request().method() === "GET") {
       try {
@@ -288,6 +297,33 @@ async function runTurn(page, text) {
     process.exit(2);
   }
   log("signed in");
+  // What the app knows about the account (synthetic data), so reviewers judge
+  // replies against the real context. Read-only, the user's own rows.
+  for (let i = 0; i < 40 && !apikey; i++) await page.waitForTimeout(250);
+  const account = await page
+    .evaluate(
+      async ({ apikey, supaBase }) => {
+        const k = Object.keys(localStorage).find((x) => /^sb-.*-auth-token$/.test(x));
+        const tok = JSON.parse(localStorage.getItem(k)).access_token;
+        const h = { apikey, Authorization: `Bearer ${tok}` };
+        const get = async (q) => (await fetch(`${supaBase}/rest/v1/${q}`, { headers: h })).json();
+        return {
+          prefs: (
+            await get(
+              "user_prefs?select=home_tz,current_tz,sleep_hours,wind_down_min,assistant_name,assistant_mode,memory_enabled",
+            )
+          )[0],
+          shifts: await get(
+            `shifts?select=start_utc,end_utc,title,shift_type&end_utc=gte.${new Date().toISOString()}&order=start_utc&limit=10`,
+          ),
+          wearableReadings: (await get("wearable_readings?select=date&limit=1")).length,
+        };
+      },
+      { apikey, supaBase },
+    )
+    .catch((e) => ({ error: String(e).slice(0, 120) }));
+  fs.writeFileSync(path.join(OUT, "account-context.json"), JSON.stringify(account, null, 2));
+  if (account.prefs) Object.assign(prefs, account.prefs);
   const outFile = path.join(OUT, "live-responses.jsonl");
   for (const s of scenarios) {
     const memory = SKIP_MEMORY ? "skipped" : await clearMemory(page);

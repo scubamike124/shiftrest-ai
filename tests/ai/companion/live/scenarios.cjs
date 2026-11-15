@@ -4,8 +4,9 @@
  * live/collect.cjs, scored blind against docs/restpilot-upgrade-2026-11/
  * AI-QUALITY-RUBRIC.md, and replayed for other models by cases/live-parity.cjs.
  *
- * The live test account has no wearable, no shifts and default preferences, so
- * the user states their situation in their own words, as a new customer would.
+ * The live test account has no wearable and only a synthetic test schedule, so
+ * the user states their situation in their own words, as a new customer would;
+ * reviewers are shown what the app knew (live/collect.cjs account-context.json).
  * Times are relative ("in about two and a half hours") or explicit
  * ("ends at 7:30 AM") so a reply is judgeable at any real send time.
  *
@@ -579,7 +580,7 @@ module.exports = [
     cat: "personalization",
     ask: "Based on what you know about me, how much sleep should I aim for, and what's coming up on my schedule?",
     expect:
-      "Uses the sleep goal from the user's settings; honest that no shifts are on the calendar (none are saved); offers to add shifts; invents no schedule.",
+      "Uses the sleep goal from the user's settings and the shifts actually saved in the app (or says none are saved); offers to help plan around them; invents no schedule or data.",
     checks: ["noInvented", "noPhantom"],
   }),
   S({

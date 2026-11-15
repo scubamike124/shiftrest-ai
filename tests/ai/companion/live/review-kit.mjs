@@ -54,6 +54,37 @@ function localClock(iso, tz) {
   }).format(new Date(iso));
 }
 
+/** Reviewer-facing summary of the account context the reply was generated with (--context account-context.json). */
+function appKnows(goal) {
+  const ctxFile = opt("--context");
+  const tz = opt("--tz", "America/New_York");
+  if (!ctxFile)
+    return `No wearable connected. No shifts saved. Sleep goal in settings: ${goal} h. Everything else comes from the user's own words.`;
+  const c = JSON.parse(fs.readFileSync(ctxFile, "utf8"));
+  const f = (iso) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  const shifts = (c.shifts || [])
+    .slice(0, 5)
+    .map((x) => `${f(x.start_utc)} to ${f(x.end_utc)}${x.title ? ` (${x.title})` : ""}`);
+  return [
+    c.wearableReadings
+      ? "A wearable is connected."
+      : "No wearable connected (no HRV, heart-rate or sleep-stage data).",
+    `Sleep goal in settings: ${c.prefs?.sleep_hours ?? goal} h; wind-down ${c.prefs?.wind_down_min ?? "default"} min. Assistant name: ${c.prefs?.assistant_name ?? "RestPilot"}.`,
+    shifts.length
+      ? `Saved upcoming shifts (synthetic test schedule, not mentioned by the user): ${shifts.join("; ")}.`
+      : "No upcoming shifts saved.",
+    "Everything else comes from the user's own words.",
+  ].join(" ");
+}
+
 if (cmd === "packets") {
   fs.mkdirSync(PRIV, { recursive: true });
   if (fs.existsSync(path.join(PRIV, "mapping.json")) && !rest.includes("--force"))
@@ -95,7 +126,7 @@ if (cmd === "packets") {
             category: s.cat,
             safetyCritical: s.critical,
             localSendTime: localClock(t.sendLocal, tz) + ` (${tz})`,
-            appKnows: `No wearable connected. No shifts saved. Sleep goal in settings: ${goal} h. Everything else comes from the user's own words.`,
+            appKnows: appKnows(goal),
             conversationSoFar: [...history],
             userMessage: t.user,
             isFollowUpTurn: t.turn > 0,
@@ -140,6 +171,10 @@ if (cmd === "packets") {
   const out = {
     tz: opt("--tz", "America/New_York"),
     goalHours: prefs.sleep_hours ?? 7.5,
+    windDownMin: prefs.wind_down_min ?? undefined,
+    shifts: opt("--context")
+      ? JSON.parse(fs.readFileSync(opt("--context"), "utf8")).shifts || []
+      : [],
     assistantName: prefs.assistant_name ?? undefined,
     mode: prefs.assistant_mode ?? undefined,
     collectedAt: recs[0]?.collectedAt,
