@@ -147,8 +147,10 @@ const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.
 // Match the verb+object FIRST ("set my smart alarm", "create an alarm",
 // "schedule alarm", "wake me up"), then the time. This lets us catch
 // every common phrasing without false positives on bare clock mentions.
+// "wake" alone must be a command ("wake me up at 6", "wake up at 6" at the
+// start), never a statement inside a question ("I usually wake at 6 AM...").
 const RE_WAKE =
-  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+  /(?:\bwake\s+me\s+(?:up\s+)?|^(?:please\s+)?wake\s+(?:up\s+)?|\b(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
 
 const RE_SLEEP_MODE =
   /^(?:start\s+)?(?:sleep\s+mode|night\s+mode|bedtime\s+mode|bedtime(?:\s+routine)?)\s*$/i;
@@ -297,11 +299,15 @@ export function parseIntent(input: string): ParsedIntent {
   // Bare track name ("rain", "ocean sounds") — upgrade to high confidence
   // when the whole utterance unambiguously matches a known sound noun
   // (with optional "sound(s)" / leading filler stripped by normalize()).
+  // Only a short utterance counts: a sentence that merely contains a sound
+  // word ("cabin crew", "fire captain", "rain check") is a question for the
+  // AI, not a request to play a track.
   const bare = resolveTrack(text);
   if (bare) {
     const stripped = text.replace(/\b(some|the|a|please|on|now|sound|sounds|noises)\b/g, " ").replace(/\s+/g, " ").trim();
-    const shortAndClean = stripped.split(" ").length <= 3;
-    return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: shortAndClean ? 0.9 : 0.65, raw };
+    if (stripped.split(" ").length <= 3) {
+      return { intent: { kind: "play_track", slug: bare.slug, label: bare.label }, confidence: 0.9, raw };
+    }
   }
 
   return { intent: { kind: "unknown" }, confidence: 0, raw };
