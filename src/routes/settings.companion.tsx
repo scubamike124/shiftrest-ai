@@ -4,7 +4,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { requireSession } from "@/lib/require-session";
-import { useEffect, useMemo, useState } from "react";
+import { cloneElement, useEffect, useId, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -282,7 +282,7 @@ function CompanionSettings() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 pb-24 pt-6">
       <header className="flex items-center gap-2">
-        <Link to="/companion" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60">
+        <Link to="/companion" aria-label="Back to Companion" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border/60">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
@@ -483,6 +483,7 @@ function VoiceActionsCard() {
             <p className="text-xs text-muted-foreground">Voice replies stay silent during these hours.</p>
           </div>
           <Switch
+            aria-label="Quiet hours for voice"
             checked={Boolean(qh)}
             onCheckedChange={(v) =>
               update({ quietHours: v ? { start: "22:00", end: "07:00" } : null })
@@ -516,14 +517,15 @@ function VoiceActionsCard() {
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactElement }) {
+  const labelId = useId();
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-sm font-medium">{label}</p>
+        <p id={labelId} className="text-sm font-medium">{label}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
-      {children}
+      {cloneElement(children, { "aria-labelledby": labelId } as Record<string, unknown>)}
     </div>
   );
 }

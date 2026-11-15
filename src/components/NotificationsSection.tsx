@@ -265,6 +265,7 @@ export function NotificationsSection({ signedIn }: { signedIn: boolean }) {
               </div>
               <input
                 type="range"
+                aria-label="Daily notification cap"
                 min={1}
                 max={6}
                 value={prefs.daily_cap}

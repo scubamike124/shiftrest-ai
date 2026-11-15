@@ -525,6 +525,7 @@ function Profile() {
           input={
             <input
               type="range"
+              aria-label="Wind-down window in minutes"
               min={60}
               max={180}
               step={15}
@@ -542,6 +543,7 @@ function Profile() {
           input={
             <input
               type="range"
+              aria-label="Target sleep hours"
               min={6}
               max={9}
               step={0.5}

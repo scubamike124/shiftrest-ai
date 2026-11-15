@@ -128,6 +128,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
               <button
                 type="button"
                 role="switch"
+                aria-label="Long-term memory"
                 aria-checked={prefs.memoryEnabled}
                 disabled={!signedIn}
                 onClick={() => onChange("memoryEnabled", !prefs.memoryEnabled)}
@@ -186,6 +187,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
               <button
                 type="button"
                 role="switch"
+                aria-label={label}
                 aria-checked={value}
                 disabled={!signedIn}
                 onClick={() => onChange(key, !value)}
