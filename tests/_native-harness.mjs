@@ -23,8 +23,11 @@ export function loadNativeApp(windowValue, navigatorValue) {
 export const SAFARI_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 export const APP_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 RestPilotApp/1.0.0';
 
-export function billingHarness({ headers = { 'user-agent': SAFARI_UA }, existingCustomer = null, emailCustomer = null } = {}) {
+// webCheckout: VITE_WEB_CHECKOUT_ENABLED. Defaults to off, like production
+// after the Nov 15 2026 decision (new purchases go to the App Store).
+export function billingHarness({ headers = { 'user-agent': SAFARI_UA }, existingCustomer = null, emailCustomer = null, webCheckout = false } = {}) {
   const native = loadNativeApp();
+  const flags = loadBillingFlags();
   const source = stripTypeScriptTypes(read('src/lib/billing.functions.ts'))
     .replace(/^import[\s\S]*?;\n/gm, '').replaceAll('export const ', 'const ');
   const requests = [];
@@ -65,6 +68,7 @@ export function billingHarness({ headers = { 'user-agent': SAFARI_UA }, existing
     createStripeClient(env) { envs.push(env); return stripe; },
     getRequest: () => new Request('https://restpilotai.com/_serverFn/x', { method: 'POST', headers }),
     isNativeAppRequest: native.isNativeAppRequest, NATIVE_PURCHASE_UNAVAILABLE: native.NATIVE_PURCHASE_UNAVAILABLE,
+    webCheckoutEnabled: () => webCheckout, WEB_CHECKOUT_DISABLED_MESSAGE: flags.WEB_CHECKOUT_DISABLED_MESSAGE,
   });
   const { createCheckoutSession, createPortalSession } = vm.runInContext(`${source}\n({createCheckoutSession, createPortalSession})`, ctx);
   const context = { supabase, userId: 'user-123' };
@@ -74,5 +78,14 @@ export function billingHarness({ headers = { 'user-agent': SAFARI_UA }, existing
     checkout: (priceId, environment = 'live') => createCheckoutSession({ context, data: { priceId, environment, returnUrl: 'https://restpilotai.com/profile?checkout=success&session_id={CHECKOUT_SESSION_ID}' } }).then((r) => JSON.parse(JSON.stringify(r))),
     portal: () => createPortalSession({ context, data: { environment: 'live', returnUrl: 'https://restpilotai.com/profile' } }).then((r) => JSON.parse(JSON.stringify(r))),
   };
+}
+/** Load src/lib/billing-flags.ts with a given build-time env (import.meta.env). */
+export function loadBillingFlags(env = {}) {
+  const js = ts.transpileModule(read('src/lib/billing-flags.ts').replaceAll('import.meta.env', '__env'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(js, { module, exports: module.exports, __env: env });
+  return module.exports;
 }
 export { assert, read };

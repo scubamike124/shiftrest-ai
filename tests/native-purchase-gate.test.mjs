@@ -78,9 +78,11 @@ test('the neutral notice has no price, purchase button or website purchase wordi
 test('trial and price calls to action are website-only on /, /science and /features', () => {
   const index = read('src/routes/index.tsx');
   assert.match(index, /<WebOnly>\s*<PricingPreview ctaHref=\{ctaHref\} \/>\s*<CtaBand ctaHref=\{ctaHref\} \/>\s*<\/WebOnly>/);
+  // The trial wording itself depends on VITE_WEB_CHECKOUT_ENABLED (see
+  // web-checkout-flag.test.mjs); either way it stays inside <WebOnly>.
   assert.match(index, /<WebOnly>\s*<Link\s+to=\{ctaHref\}[\s\S]*?Start free — 14 days[\s\S]*?<\/Link>\s*<\/WebOnly>/);
-  assert.match(read('src/routes/science.tsx'), /<WebOnly>\s*<Link\s+to="\/auth"[\s\S]*?Start free — 14 days\s*<\/Link>\s*<\/WebOnly>/);
-  assert.match(read('src/routes/features.tsx'), /<WebOnly>\s*<p[^>]*>\s*14 days free[\s\S]*?Start free trial[\s\S]*?<\/Link>\s*<\/WebOnly>/);
+  assert.match(read('src/routes/science.tsx'), /<WebOnly>\s*<Link\s+to="\/auth"[\s\S]*?Start free — 14 days[\s\S]*?<\/Link>\s*<\/WebOnly>/);
+  assert.match(read('src/routes/features.tsx'), /<WebOnly>\s*<p[^>]*>[\s\S]*?14 days free[\s\S]*?Start free trial[\s\S]*?<\/Link>\s*<\/WebOnly>/);
   assert.match(read('src/components/native/WebOnly.tsx'), /return useIsNativeApp\(\) \? null : <>\{children\}<\/>;/);
 });
 

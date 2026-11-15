@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
 import { useIsNativeApp } from "@/lib/native-app";
+import { APP_ONLY_PURCHASE_NOTE, webCheckoutEnabled } from "@/lib/billing-flags";
 
 export const Route = createFileRoute("/pricing")({
   head: () => ({
@@ -75,6 +76,9 @@ const matrix = [
 function Pricing() {
   // Inside the iPhone app: no prices or purchase links (Guideline 3.1.1).
   if (useIsNativeApp()) return <NativeSubscriptionNotice />;
+  // New purchases moved to the App Store (owner decision, Nov 15 2026): with
+  // website checkout off (the default) the plans are information only.
+  const checkoutOn = webCheckoutEnabled();
   return (
     <div>
       <section className="relative isolate py-20 lg:py-28">
@@ -93,8 +97,9 @@ function Pricing() {
             One platform. <span className="italic text-indigo-glow">Two ways to start.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground">
-            Cancel anytime. Billed securely through Stripe. Every plan includes the full RestPilot
-            AI feature set.
+            {checkoutOn
+              ? "Cancel anytime. Billed securely through Stripe. Every plan includes the full RestPilot AI feature set."
+              : `Cancel anytime. Every plan includes the full RestPilot AI feature set. ${APP_ONLY_PURCHASE_NOTE}`}
           </p>
         </div>
       </section>
@@ -131,16 +136,25 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <Link
-                to="/paywall"
-                className={`mt-8 flex h-12 items-center justify-center rounded-full text-sm font-semibold transition ${
-                  t.featured
-                    ? "bg-foreground text-background hover:opacity-90"
-                    : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
-                }`}
-              >
-                Choose {t.name}
-              </Link>
+              {checkoutOn ? (
+                <Link
+                  to="/paywall"
+                  className={`mt-8 flex h-12 items-center justify-center rounded-full text-sm font-semibold transition ${
+                    t.featured
+                      ? "bg-foreground text-background hover:opacity-90"
+                      : "border border-border bg-secondary/60 text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  Choose {t.name}
+                </Link>
+              ) : (
+                <p
+                  data-testid="web-checkout-off"
+                  className="mt-8 flex min-h-12 items-center justify-center rounded-full border border-border/60 px-4 text-center text-xs font-medium text-muted-foreground"
+                >
+                  Subscribe in the RestPilot iPhone app
+                </p>
+              )}
             </div>
           ))}
         </div>

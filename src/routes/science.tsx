@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 import { WebOnly } from "@/components/native/WebOnly";
+import { webCheckoutEnabled } from "@/lib/billing-flags";
 
 export const Route = createFileRoute("/science")({
   head: () => ({
@@ -370,7 +371,7 @@ function SciencePage() {
             to="/auth"
             className="inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90"
           >
-            Start free — 14 days
+            {webCheckoutEnabled() ? "Start free — 14 days" : "Get started free"}
           </Link>
         </WebOnly>
       </div>

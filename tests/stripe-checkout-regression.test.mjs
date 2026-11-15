@@ -19,7 +19,7 @@ const session = (priceId, customer) => ({
 
 for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
   test(`website ${priceId}: new customer, exact Stripe requests`, async () => {
-    const h = billingHarness();
+    const h = billingHarness({ webCheckout: true });
     assert.deepEqual(await h.checkout(priceId), { clientSecret: 'cs_secret_test' });
     assert.deepEqual(h.envs, ['live']);
     assert.deepEqual(h.requests(), [
@@ -32,7 +32,7 @@ for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
   });
 
   test(`website ${priceId}: returning customer by metadata, same session payload`, async () => {
-    const h = billingHarness({ existingCustomer: { id: 'cus_owned', metadata: { userId: 'user-123' } } });
+    const h = billingHarness({ webCheckout: true, existingCustomer: { id: 'cus_owned', metadata: { userId: 'user-123' } } });
     await h.checkout(priceId, 'sandbox');
     assert.deepEqual(h.envs, ['sandbox']);
     const reqs = h.requests();
@@ -41,7 +41,7 @@ for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
   });
 
   test(`website ${priceId}: existing customer found by email keeps today's behaviour`, async () => {
-    const h = billingHarness({ emailCustomer: { id: 'cus_email', metadata: {} } });
+    const h = billingHarness({ webCheckout: true, emailCustomer: { id: 'cus_email', metadata: {} } });
     await h.checkout(priceId);
     const reqs = h.requests();
     assert.deepEqual(reqs.map((r) => r[0]), ['prices.list', 'customers.search', 'customers.list', 'customers.update', 'checkout.sessions.create']);
@@ -49,14 +49,14 @@ for (const priceId of ['restpilot_monthly', 'restpilot_annual']) {
   });
 
   test(`website ${priceId}: 14-day free trial is present`, async () => {
-    const h = billingHarness();
+    const h = billingHarness({ webCheckout: true });
     await h.checkout(priceId);
     assert.equal(h.requests().at(-1)[1].subscription_data.trial_period_days, 14);
   });
 }
 
 test('website: Stripe customer portal unchanged', async () => {
-  const h = billingHarness();
+  const h = billingHarness({ webCheckout: true });
   assert.deepEqual(await h.portal(), { url: 'https://billing.stripe.com/p/test' });
   assert.deepEqual(h.requests(), [
     ['billingPortal.sessions.create', { customer: 'cus_owned', return_url: 'https://restpilotai.com/profile' }],

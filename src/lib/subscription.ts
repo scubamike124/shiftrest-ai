@@ -10,8 +10,16 @@ export interface SubscriptionState {
   expiresAt: Date | null;
   cancelAtPeriodEnd: boolean;
   isPremium: boolean;
+  /** Stripe could not charge the card and is retrying (past_due) or gave up
+   *  without canceling (unpaid). Not Premium, but still a Stripe customer
+   *  who can be charged again: they must be able to open the billing portal
+   *  to fix the card or cancel, and must never be offered a second plan. */
+  billingIssue: boolean;
   stripeCustomerId: string | null;
 }
+
+/** Stripe statuses where the subscription still exists and can charge again. */
+export const BILLING_ISSUE_STATUSES: ReadonlySet<string> = new Set(["past_due", "unpaid"]);
 
 const TIER_BY_PRICE: Record<string, SubscriptionTier> = {
   restpilot_monthly: "monthly",
@@ -26,6 +34,7 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     expiresAt: null,
     cancelAtPeriodEnd: false,
     isPremium: false,
+    billingIssue: false,
     stripeCustomerId: null,
   };
 
@@ -62,6 +71,8 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     expiresAt,
     cancelAtPeriodEnd: !!data.cancel_at_period_end,
     isPremium,
+    billingIssue:
+      !isPremium && BILLING_ISSUE_STATUSES.has(data.status) && !!data.stripe_customer_id,
     stripeCustomerId: data.stripe_customer_id ?? null,
   };
 }

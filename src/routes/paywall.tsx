@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { RenewalDisclosure } from "@/components/legal/RenewalDisclosure";
 import { NativeSubscriptionNotice } from "@/components/native/NativeSubscriptionNotice";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
+import { APP_ONLY_PURCHASE_NOTE, webCheckoutEnabled } from "@/lib/billing-flags";
 
 // Stripe's React wrappers ship ~50–70 kB min+gz. Split them into an async
 // chunk so the paywall's plan-selection UI paints without paying that cost.
@@ -66,10 +67,14 @@ function Paywall() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const autoResumedRef = useRef(false);
   const inNativeApp = useIsNativeApp();
+  // New purchases moved to the App Store (owner decision, Nov 15 2026). Off by
+  // default: plan information only, no checkout or trial button.
+  const checkoutOn = webCheckoutEnabled();
 
   async function startCheckout(tier: PurchasableTier) {
     // Never start a website purchase inside the iPhone app (Guideline 3.1.1).
     if (isNativeApp()) return;
+    if (!webCheckoutEnabled()) return;
     if (!isPaymentsConfigured()) {
       toast.error("Payments aren't configured for this build yet.");
       return;
@@ -114,6 +119,7 @@ function Paywall() {
     autoResumedRef.current = true;
     sessionStorage.removeItem("restpilot_pending_checkout");
     if (isNativeApp()) return; // drop a saved checkout intent inside the app
+    if (!webCheckoutEnabled()) return; // website checkout is off: drop it too
     // Ignore a stale "lifetime" (or any unknown) intent saved before Nov 14.
     if (stored !== "monthly" && stored !== "annual") return;
     const pending: PurchasableTier = stored;
@@ -208,8 +214,8 @@ function Paywall() {
           label="Monthly"
           price="$7.99"
           sub="per month · 14-day free trial"
-          selected={selectedTier === "monthly"}
-          onSelect={() => setSelectedTier("monthly")}
+          selected={checkoutOn && selectedTier === "monthly"}
+          onSelect={checkoutOn ? () => setSelectedTier("monthly") : undefined}
           perks={["Unlimited AI Coach", "Wind-down alerts", "Smart Light Plan"]}
         />
         <PlanCard
@@ -218,34 +224,53 @@ function Paywall() {
           sub="per year · save 48% · 14-day free trial"
           highlighted
           badge="Most popular"
-          selected={selectedTier === "annual"}
-          onSelect={() => setSelectedTier("annual")}
+          selected={checkoutOn && selectedTier === "annual"}
+          onSelect={checkoutOn ? () => setSelectedTier("annual") : undefined}
           perks={["Everything in Monthly", "Voice briefings", "Shift-swap copilot"]}
         />
       </div>
 
-      <div className="mt-4">
-        <RenewalDisclosure />
-      </div>
+      {checkoutOn ? (
+        <>
+          <div className="mt-4">
+            <RenewalDisclosure />
+          </div>
 
-      <button
-        onClick={handleCheckout}
-        disabled={loading}
-        className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-60"
-      >
-        {ctaLabel}
-      </button>
+          <button
+            onClick={handleCheckout}
+            disabled={loading}
+            className="mt-5 h-14 w-full rounded-2xl bg-primary text-base font-semibold text-primary-foreground shadow-[var(--shadow-glow)] active:scale-[0.99] disabled:opacity-60"
+          >
+            {ctaLabel}
+          </button>
 
-      <p className="mt-2 text-center text-[11px] text-muted-foreground">
-        No charge today · Cancel anytime before your trial ends
-      </p>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            No charge today · Cancel anytime before your trial ends
+          </p>
 
-      <div className="mt-4 flex flex-col items-center gap-1.5 text-[10px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <ShieldCheck className="h-3 w-3" /> Secure checkout powered by Stripe
-        </span>
-        <span className="tracking-wide">Visa · Mastercard · American Express · Apple Pay · Google Pay</span>
-      </div>
+          <div className="mt-4 flex flex-col items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-3 w-3" /> Secure checkout powered by Stripe
+            </span>
+            <span className="tracking-wide">Visa · Mastercard · American Express · Apple Pay · Google Pay</span>
+          </div>
+        </>
+      ) : (
+        <div
+          data-testid="web-checkout-off"
+          className="mt-5 rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm"
+        >
+          <p className="font-semibold">{APP_ONLY_PURCHASE_NOTE}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Already subscribed on the website? Your plan keeps working. Manage or cancel it from
+            your{" "}
+            <Link to="/profile" className="text-primary underline">
+              Profile
+            </Link>
+            .
+          </p>
+        </div>
+      )}
 
       <div className="mt-4 rounded-2xl border border-border bg-card/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
         <p>
@@ -323,12 +348,9 @@ function PlanCard({
       : "border-border bg-card";
   const ring = selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : "";
   const badgeTone = elite ? "bg-amber/20 text-amber" : "bg-primary/20 text-primary";
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`}
-    >
+  const className = `relative w-full rounded-2xl border p-4 text-left transition ${tone} ${ring}`;
+  const content = (
+    <>
       {badge && (
         <span
           className={`absolute -top-2 right-4 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest ${badgeTone}`}
@@ -353,6 +375,13 @@ function PlanCard({
           ))}
         </ul>
       )}
+    </>
+  );
+  // Information only (no onSelect) when website checkout is off.
+  if (!onSelect) return <div className={className}>{content}</div>;
+  return (
+    <button type="button" onClick={onSelect} className={className}>
+      {content}
     </button>
   );
 }
