@@ -138,7 +138,7 @@ jobs:
           xcodebuild test -project E2E.xcodeproj -scheme E2E -destination "id=$DEVICE" \
             -resultBundlePath "$EV/phase-h.xcresult" \
             -only-testing:E2EUITests/ShellE2ETests/testC_appleHealthThroughTheShell \
-            | tee "$EV/phase-h.log" | grep -E "Test Case|error:|XCTAssert|TEST (SUCCEEDED|FAILED)"
+            | tee "$EV/phase-h.log" | grep -E "Test Case|error:|XCTAssert|TEST (SUCCEEDED|FAILED)|E2E:"
       - name: "Phase B: point the same app at an unreachable host"
         shell: bash
         run: |
