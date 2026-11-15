@@ -24,6 +24,8 @@ export const Route = createFileRoute("/auth")({
 });
 
 // Only allow same-origin, in-app return targets.
+// Every page that sends signed-out visitors here (requireSession) must be
+// listed, or the deep link is lost and the user lands on /dashboard.
 const SAFE_RETURNS = new Set([
   "/",
   "/dashboard",
@@ -36,6 +38,18 @@ const SAFE_RETURNS = new Set([
   "/share",
   "/events",
   "/companion",
+  "/automations",
+  "/decisions",
+  "/health",
+  "/inbox",
+  "/memory",
+  "/pilot",
+  "/safety",
+  "/smart-home",
+  "/settings/avatar",
+  "/settings/companion",
+  "/settings/morning",
+  "/settings/skills",
 ]);
 
 function resolveReturn(raw: string | undefined): string {
