@@ -1,4 +1,6 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
+import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
+import { DATA_HONESTY } from "@/lib/ai/guardrails";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -28,7 +30,9 @@ Rules:
 - Always include exact units spelled fully ("100 milligrams", "30 minutes", "65 degrees Fahrenheit").
 - top_actions must be ordered by impact. Avoid duplicates.
 - If no shift today, focus on recovery, anchor sleep, and prep for next shift.
-- Tone: warm, confident, never preachy.`;
+- Tone: warm, confident, never preachy.
+
+${DATA_HONESTY}`;
 
 export const Route = createFileRoute("/api/insights")({
   server: {
@@ -72,15 +76,16 @@ export const Route = createFileRoute("/api/insights")({
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                model: process.env.AI_CHAT_MODEL || "not-configured",
-                max_tokens: 2048,
+              body: JSON.stringify(buildChatBody({
+                model: modelForTask("structured") ?? "not-configured",
+                maxTokens: 2048,
                 messages: [
                   { role: "system", content: SYSTEM },
                   { role: "user", content: context },
                 ],
-                response_format: { type: "json_object" },
-              }),
+                jsonMode: true,
+                reasoningEffort: reasoningForTask("structured"),
+              })),
             },
           );
 

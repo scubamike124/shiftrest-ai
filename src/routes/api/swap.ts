@@ -1,4 +1,6 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
+import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
+import { DATA_HONESTY } from "@/lib/ai/guardrails";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
@@ -22,7 +24,9 @@ Rules:
 - Always spell units fully in summary ("milligrams", "minutes", "hours").
 - Use 24h times in nap "time".
 - 0–3 risks. 0–2 naps. Always at least one entry in risks.
-- Be specific to the proposed shift and current week — never generic.`;
+- Be specific to the proposed shift and current week — never generic.
+
+${DATA_HONESTY}`;
 
 export const Route = createFileRoute("/api/swap")({
   server: {
@@ -66,15 +70,16 @@ export const Route = createFileRoute("/api/swap")({
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                model: process.env.AI_CHAT_MODEL || "not-configured",
-                max_tokens: 2048,
+              body: JSON.stringify(buildChatBody({
+                model: modelForTask("structured") ?? "not-configured",
+                maxTokens: 2048,
                 messages: [
                   { role: "system", content: SYSTEM },
                   { role: "user", content: context },
                 ],
-                response_format: { type: "json_object" },
-              }),
+                jsonMode: true,
+                reasoningEffort: reasoningForTask("structured"),
+              })),
             },
           );
 

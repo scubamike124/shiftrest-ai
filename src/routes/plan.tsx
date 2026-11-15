@@ -143,7 +143,9 @@ function PlanPage() {
   const isCoordsLabel = /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(rawLabel);
   const hasVerifiedLocation = rawLabel.length > 0 && !isCoordsLabel;
   const displayLabel = hasVerifiedLocation ? rawLabel : "";
-  const planTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+  // Device zone: the clock the plan's anchors are computed in, so sunrise
+  // and sleep times are never on two different clocks.
+  const planTz = detectDeviceTz() ?? undefined;
   const sun = useMemo(
     () =>
       hasVerifiedLocation
@@ -152,8 +154,8 @@ function PlanPage() {
     [hasVerifiedLocation, prefs.lat, prefs.lon, activeDate, planTz],
   );
   const events = useMemo(
-    () => (mounted && shift ? buildLightPlan(shift, prefs, sun) : []),
-    [mounted, shift, prefs, sun],
+    () => (mounted && shift ? buildLightPlan(shift, prefs, sun, { date: activeDate }) : []),
+    [mounted, shift, prefs, sun, activeDate],
   );
 
   const { data: employers = [] } = useQuery({
@@ -332,6 +334,7 @@ function PlanPage() {
                         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                           {r.detail}
                         </p>
+                        {r.why && <WhyThisTime why={r.why} />}
                       </div>
                     </li>
                   );
@@ -379,6 +382,7 @@ function PlanPage() {
                       <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                         {e.detail}
                       </p>
+                      {e.why && <WhyThisTime why={e.why} />}
                     </div>
                   </div>
                 </div>
@@ -422,5 +426,15 @@ function PlanPage() {
         </div>
       </Link>
     </main>
+  );
+}
+
+/** Native disclosure: works without JS and with VoiceOver. */
+function WhyThisTime({ why }: { why: string }) {
+  return (
+    <details className="mt-1 text-xs text-muted-foreground">
+      <summary className="cursor-pointer select-none py-1 font-medium text-primary">Why this time?</summary>
+      <p className="leading-relaxed">{why}</p>
+    </details>
   );
 }

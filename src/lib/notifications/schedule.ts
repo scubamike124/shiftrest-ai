@@ -5,8 +5,8 @@
 // Called from the /api/public/hooks/notify cron handler. No I/O, no Date.now()
 // internal — `now` is injected so we can unit-test deterministically.
 
-import { type Shift, endAbsolute } from "@/lib/shifts";
-import { shiftsForDate } from "@/lib/schedule";
+import type { Shift } from "@/lib/shifts";
+import { buildReminders, buildSchedule, type PlannedReminderKind } from "@/lib/schedule-core";
 import type { Prefs } from "@/lib/prefs";
 import type { ReminderKind } from "./copy";
 
@@ -125,31 +125,27 @@ export function computeDueReminders(args: {
   const candidates: DueReminder[] = [];
 
   // ---------- shift-driven reminders ----------
-  for (const dayOffset of [-1, 0]) {
-    const probe = new Date(now.getTime() + dayOffset * 86_400_000);
-    const ymd = ymdInTz(probe, tz);
-    const probeLocalMid = utcFromLocal(ymd.y, ymd.m, ymd.d, 0, tz);
-    const dayShifts = shiftsForDate(shifts, probeLocalMid, prefs.cycleAnchor, prefs.cycleWeeks);
-    if (dayShifts.length === 0) continue;
-    const shift = dayShifts[0];
-    const endMin = endAbsolute(shift);
-    const wakeMin = shift.start - 90;
-    const shiftStartReminderMin = shift.start - 15;
-    const windDownStartMin = endMin;
-    const sleepStartMin = endMin + prefs.windDownMin;
-    const caffeineCutoffPingMin = sleepStartMin - 6 * 60 - 10;
-
-    const add = (kind: ReminderKind, enabled: boolean, minuteOfDay: number) => {
-      if (!enabled) return;
-      const at = utcFromLocal(ymd.y, ymd.m, ymd.d, minuteOfDay, tz);
-      candidates.push({ kind, scheduledFor: at });
-    };
-
-    add("bright-light", notif.bright_light, wakeMin);
-    add("shift-start", notif.shift_start, shiftStartReminderMin);
-    add("caffeine-cutoff", notif.caffeine_cutoff, caffeineCutoffPingMin);
-    add("shift-end-recovery", notif.shift_end_recovery, endMin);
-    add("wind-down", notif.wind_down, windDownStartMin);
+  // Same computation as every screen and as one-tap overtime: the shared
+  // schedule module. It covers every shift (not only the first of the day),
+  // including one that starts just after midnight, whose bright-light
+  // reminder falls on the previous evening.
+  const schedule = buildSchedule({
+    shifts,
+    tz,
+    from: now,
+    days: 2,
+    cycleAnchor: prefs.cycleAnchor,
+    cycleWeeks: prefs.cycleWeeks,
+  });
+  const enabledByKind: Record<PlannedReminderKind, boolean> = {
+    "bright-light": notif.bright_light,
+    "shift-start": notif.shift_start,
+    "caffeine-cutoff": notif.caffeine_cutoff,
+    "shift-end-recovery": notif.shift_end_recovery,
+    "wind-down": notif.wind_down,
+  };
+  for (const r of buildReminders(schedule, prefs, new Date(now.getTime() - 1))) {
+    if (enabledByKind[r.kind]) candidates.push({ kind: r.kind, scheduledFor: r.at });
   }
 
   // ---------- event-driven reminders ----------

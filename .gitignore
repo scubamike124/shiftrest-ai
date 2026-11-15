@@ -48,3 +48,9 @@ tests/e2e/.results/
 tests/e2e/.auth/
 playwright-report/
 test-results/
+
+# Migration kit working files: database exports and restore plans hold user
+# data and password hashes. Never commit them.
+.migration/
+*.backup
+*.dump
