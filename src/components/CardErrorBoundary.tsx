@@ -26,13 +26,25 @@ export class CardErrorBoundary extends Component<Props, State> {
     return (
       <div role="status" className="flex items-center justify-between gap-3 p-4 text-xs text-muted-foreground">
         <span>This card couldn&apos;t load right now.</span>
-        <button
-          type="button"
-          onClick={() => this.setState({ failed: false })}
-          className="rounded-full border border-border px-3 py-1 text-foreground/80 hover:text-foreground"
+        {/* A span, not a <button>: the card itself may be a button (HomeCard asButton). */}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            this.setState({ failed: false });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              this.setState({ failed: false });
+            }
+          }}
+          className="cursor-pointer rounded-full border border-border px-3 py-1 text-foreground/80 hover:text-foreground"
         >
           Try again
-        </button>
+        </span>
       </div>
     );
   }
