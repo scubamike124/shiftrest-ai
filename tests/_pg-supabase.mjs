@@ -34,6 +34,11 @@ DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object OR unique_
 DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
 DO $$ BEGIN CREATE ROLE service_role NOLOGIN BYPASSRLS; EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; END $$;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+-- Supabase's default privileges: API roles get ALL on new public objects, so
+-- RLS (not a missing grant) is what stops a client, as in production.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE SCHEMA auth;
 CREATE TABLE auth.users (
@@ -182,8 +187,14 @@ export function startMigratedDatabase() {
       stdio: ["pipe", "pipe", "pipe"],
       maxBuffer: 64 * 1024 * 1024,
     });
-  run(base, ["-c", `DROP DATABASE IF EXISTS ${dbName}`]);
-  run(base, ["-c", `CREATE DATABASE ${dbName}`]);
+  const dropAll = () => {
+    try {
+      run(base, ["-c", `DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`]);
+    } catch {
+      /* best effort */
+    }
+    cluster?.stop();
+  };
   const url = withDb(base, dbName);
   const sql = (text) => {
     try {
@@ -194,37 +205,40 @@ export function startMigratedDatabase() {
       throw e;
     }
   };
-  sql(BOOTSTRAP);
   const files = fs
     .readdirSync(MIGRATIONS)
     .filter((f) => f.endsWith(".sql"))
     .sort();
-  for (const f of files) {
-    try {
-      sql(rewriteMigration(fs.readFileSync(new URL(f, MIGRATIONS), "utf8")));
-    } catch (err) {
-      throw new Error(`migration ${f} failed on PostgreSQL: ${err.message}`);
+  try {
+    run(base, ["-c", `DROP DATABASE IF EXISTS ${dbName}`]);
+    run(base, ["-c", `CREATE DATABASE ${dbName}`]);
+    sql(BOOTSTRAP);
+    for (const f of files) {
+      try {
+        sql(rewriteMigration(fs.readFileSync(new URL(f, MIGRATIONS), "utf8")));
+      } catch (err) {
+        throw new Error(`migration ${f} failed on PostgreSQL: ${err.message}`);
+      }
     }
+  } catch (err) {
+    // Do not leave a local postgres process or test database behind.
+    dropAll();
+    throw err;
   }
   return {
     url,
     migrations: files,
     sql,
-    json(query) {
+    /** Rows of one SELECT as JSON; `role` runs it as that role (e.g. service_role). */
+    json(query, { role } = {}) {
+      const setRole = role ? `SET ROLE ${role};\n` : "";
       // jsonb_agg prints on one line (json_agg inserts newlines between rows).
       const out = sql(
-        `\\pset format unaligned\n\\pset tuples_only on\nSELECT coalesce(jsonb_agg(q), '[]'::jsonb) FROM (${query}) q;`,
+        `\\pset format unaligned\n\\pset tuples_only on\n${setRole}SELECT coalesce(jsonb_agg(q), '[]'::jsonb) FROM (${query}) q;`,
       );
       return JSON.parse(out.trim());
     },
-    stop() {
-      try {
-        run(base, ["-c", `DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`]);
-      } catch {
-        /* best effort */
-      }
-      cluster?.stop();
-    },
+    stop: dropAll,
   };
 }
 

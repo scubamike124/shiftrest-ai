@@ -41,6 +41,8 @@ function pgAdmin(calls) {
                           `SELECT * FROM public.${quoteIdent(table)} WHERE ${quoteIdent(column)} = ${quoteLiteral(value)}` +
                             ` ORDER BY ${quoteIdent(orderBy)} ${ascending ? "ASC" : "DESC"}` +
                             ` LIMIT ${to - from + 1} OFFSET ${from}`,
+                          // supabaseAdmin uses the service_role key.
+                          { role: "service_role" },
                         );
                         return { data: rows, error: null };
                       } catch (err) {

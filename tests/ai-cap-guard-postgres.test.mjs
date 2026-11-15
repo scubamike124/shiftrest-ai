@@ -99,10 +99,19 @@ test("the guard cannot be switched off from a client role", { skip }, () => {
   );
 });
 
-test("anon cannot write prefs at all", { skip }, () => {
+test("anon cannot change prefs: RLS hides every row and rejects inserts", { skip }, () => {
+  // anon has table privileges (Supabase default grants); RLS is what stops it.
+  const before = cap(USER).cap;
+  as("anon", "", `UPDATE public.user_prefs SET ai_daily_token_cap = 999999;`);
+  assert.equal(cap(USER).cap, before);
   assert.throws(
-    () => as("anon", "", `UPDATE public.user_prefs SET ai_daily_token_cap = 999999;`),
-    /permission denied/,
+    () =>
+      as(
+        "anon",
+        "",
+        `INSERT INTO public.user_prefs (user_id, ai_daily_token_cap) VALUES (gen_random_uuid(), 999999);`,
+      ),
+    /row-level security/,
   );
 });
 
