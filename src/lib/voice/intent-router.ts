@@ -155,7 +155,10 @@ const RE_WAKE =
 // AM...") or a timer. Local actions need a command.
 const RE_QUESTION_START =
   /^(?:is|are|was|were|why|what|when|where|how|should|does|do|did|which|who|can\s+i|could\s+i|will\s+it|would\s+it)\b/;
-const RE_POLITE = /^(?:please\s+|(?:can|could|would|will)\s+you\s+(?:please\s+)?)/;
+// Optional lead-in before a command: "hey", "ok", "please", "can you".
+const RE_LEAD =
+  /^(?:(?:hey|ok|okay|hi)\s+)?(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?)?/;
+const RE_COMMAND_VERB = /^(?:wake|set|start|play|put\s+on|turn\s+on|switch\s+on|fade|stop)\b/;
 const RE_WAKE_INTENT =
   /^(?:i\s+(?:need|want|have)\s+to|i've\s+got\s+to|i\s+gotta)\s+(?:wake|get\s+up)\b/;
 const RE_DURATION_TAIL = /\s+for\s+\d{1,3}\s*(?:min|mins|minute|minutes|m|hours?|h)\b.*$/;
@@ -164,8 +167,13 @@ const FILLER =
 
 /** A phrase that is nothing but a sound name ("rain", "the ocean sounds", "rain for 20 minutes"). */
 function exactTrack(phrase: string): { slug: string; label: string } | null {
-  const c = normalize(phrase)
-    .replace(RE_DURATION_TAIL, "")
+  const whole = normalize(phrase).replace(RE_DURATION_TAIL, "").trim();
+  const direct = TRACK_ALIASES[whole] ?? TRACK_ALIASES[whole.replace(/^(?:some|the|a)\s+/, "")];
+  if (direct) {
+    const d = TRACKS.find((x) => x.slug === direct);
+    if (d) return { slug: d.slug, label: d.label };
+  }
+  const c = whole
     .replace(FILLER, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -226,9 +234,14 @@ export function parseIntent(input: string): ParsedIntent {
   const raw = (input ?? "").trim();
   const text = normalize(raw);
   if (!text) return { intent: { kind: "unknown" }, confidence: 0, raw };
-  // "Can you wake me up at 6?" is a polite command, not a question.
-  const polite = RE_POLITE.test(text);
-  const question = (/\?\s*$/.test(raw) && !polite) || RE_QUESTION_START.test(text);
+  // "Can you wake me up at 6?" is a polite command, not a question; a command
+  // must start right after the lead-in.
+  const lead = (text.match(RE_LEAD)?.[0] ?? "").length;
+  const commandAt = (i: number | undefined) => i === 0 || i === lead;
+  const tailOk = (m: RegExpMatchArray) =>
+    text.slice((m.index ?? 0) + m[0].length).trim().split(" ").filter(Boolean).length <= 2;
+  const question =
+    (/\?\s*$/.test(raw) && !RE_COMMAND_VERB.test(text.slice(lead))) || RE_QUESTION_START.test(text);
 
   if (RE_CANCEL.test(text)) return { intent: { kind: "cancel" }, confidence: 1, raw };
   if (RE_GOODNIGHT.test(text)) return { intent: { kind: "goodnight" }, confidence: 1, raw };
@@ -259,13 +272,7 @@ export function parseIntent(input: string): ParsedIntent {
   // Timer — match BEFORE save so "save my mix for 30 minutes" never wins timer.
   const mTimer = text.match(RE_TIMER);
   // A command, and nothing much after it ("the sleep timer 30 minutes is too short" is not one).
-  const timerTail = mTimer ? text.slice((mTimer.index ?? 0) + mTimer[0].length).trim() : "";
-  if (
-    mTimer &&
-    !question &&
-    (mTimer.index === 0 || polite || /^(?:start|set)\b/.test(text)) &&
-    (timerTail === "" || timerTail.split(" ").length <= 2)
-  ) {
+  if (mTimer && !question && (commandAt(mTimer.index) || /^(?:start|set)\b/.test(text.slice(lead))) && tailOk(mTimer)) {
     const minutes = clamp(parseInt(mTimer[1], 10), 1, 180);
     return { intent: { kind: "set_timer", minutes }, confidence: 0.95, raw };
   }
@@ -277,7 +284,7 @@ export function parseIntent(input: string): ParsedIntent {
   }
 
   const mWake = text.match(RE_WAKE);
-  if (mWake && !question && (mWake.index === 0 || polite || RE_WAKE_INTENT.test(text))) {
+  if (mWake && !question && (commandAt(mWake.index) || RE_WAKE_INTENT.test(text)) && tailOk(mWake)) {
     let hour = parseInt(mWake[1], 10);
     const minute = mWake[2] ? clamp(parseInt(mWake[2], 10), 0, 59) : 0;
     const ampm = mWake[3]?.toLowerCase();

@@ -111,3 +111,23 @@ test("polite commands with a question mark act; statements about waking or timer
   ])
     assert.equal(fires(s), false, s);
 });
+
+test("'can you' questions stay with the AI; lead-ins and alias phrases still act", () => {
+  for (const q of [
+    "Can you explain why I wake up at 3 am every night?",
+    "Can you help me figure out why I wake up at 5?",
+    "Can you tell me if a sleep timer for 30 minutes is enough?",
+    "Can you wake me up at 6 or is that too early?",
+    "I need to wake up at 6 but I cannot fall asleep before 1, what do I do?",
+  ])
+    assert.equal(fires(q), false, q);
+  for (const [c, kind] of [
+    ["hey, wake me up at 6", "wake_at"],
+    ["ok set an alarm for 6", "wake_at"],
+    ["wake me up at 6?", "wake_at"],
+    ["could you start a timer for 30 minutes please", "set_timer"],
+    ["sleep sounds", "play_track"],
+    ["i want something relaxing", "play_track"],
+  ])
+    assert.equal(parseIntent(c).intent.kind, kind, c);
+});
