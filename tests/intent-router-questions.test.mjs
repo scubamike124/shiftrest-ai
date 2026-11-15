@@ -45,3 +45,47 @@ test("real commands still become actions", () => {
   assert.equal(parseIntent("set a timer for 20 minutes").intent.kind, "set_timer");
   assert.equal(parseIntent("stop").intent.kind, "stop_all");
 });
+
+test("more questions stay with the AI (independent review probes)", () => {
+  for (const q of [
+    "Is rain bad?",
+    "Fan or rain?",
+    "rain check",
+    "Start by explaining why rain sounds help",
+    "I want to know why rain helps me sleep",
+    "I need advice about my fan",
+    "Could you play fire safety tips",
+    "Can you play the fan game",
+    "My kids wake me up at 5 every day, how can I cope?",
+    "The baby tends to wake me up at 3 am and I cannot get back to sleep",
+    "Is a timer for 30 minutes enough?",
+    "Should I set an alarm for 6 or 7?",
+    "Can you play rain all night, or is that bad?",
+  ])
+    assert.equal(fires(q), false, q);
+});
+
+test("short and polite commands still act", () => {
+  for (const c of [
+    "rain",
+    "Rain, please.",
+    "ocean sounds please",
+    "play rain",
+    "play rain for 30 minutes",
+    "play some relaxing rain",
+    "put on white noise",
+    "can you play rain",
+    "could you put on ocean sounds",
+    "could you play rain for 20 minutes",
+    "i want rain",
+    "rain sounds for 20 minutes please",
+  ])
+    assert.equal(parseIntent(c).intent.kind, "play_track", c);
+  for (const c of [
+    "I need to wake up at 6",
+    "I want to wake up at 7",
+    "please wake me at 6",
+    "can you wake me up at 6",
+  ])
+    assert.equal(parseIntent(c).intent.kind, "wake_at", c);
+});
