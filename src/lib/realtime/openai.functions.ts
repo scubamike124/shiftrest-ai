@@ -53,6 +53,17 @@ export type MintRealtimeSessionInput = {
 
 
 const DEFAULT_MODEL = "gpt-realtime";
+const DEFAULT_TRANSCRIBE_MODEL = "whisper-1";
+const REALTIME_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
+/**
+ * gpt-realtime and whisper-1 are deprecated by OpenAI (shutdown 2027-01-20 and
+ * 2027-02-26). AI_REALTIME_MODEL / AI_REALTIME_TRANSCRIBE_MODEL switch them
+ * without a code change; unset or invalid values keep today's models.
+ */
+function realtimeModel(name: "AI_REALTIME_MODEL" | "AI_REALTIME_TRANSCRIBE_MODEL", fallback: string): string {
+  const value = process.env[name]?.trim();
+  return value && REALTIME_MODEL_ID.test(value) ? value : fallback;
+}
 // OpenAI's own recommended Realtime voices for best natural quality.
 const DEFAULT_VOICE = "marin";
 
@@ -221,14 +232,14 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       body: JSON.stringify({
         session: {
           type: "realtime",
-          model: DEFAULT_MODEL,
+          model: realtimeModel("AI_REALTIME_MODEL", DEFAULT_MODEL),
           audio: {
             output: {
               voice: voiceProfile.voiceId,
               speed: voiceProfile.speed,
             },
             input: {
-              transcription: { model: "whisper-1" },
+              transcription: { model: realtimeModel("AI_REALTIME_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIBE_MODEL) },
               // semantic_vad with `auto` eagerness: end-of-turn is detected
               // in ~500ms after natural pauses instead of the multi-second
               // wait `low` imposes. Still tolerates mid-sentence pauses
@@ -287,7 +298,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     return {
       clientSecret: value,
       expiresAt,
-      model: data.session?.model ?? DEFAULT_MODEL,
+      model: data.session?.model ?? realtimeModel("AI_REALTIME_MODEL", DEFAULT_MODEL),
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
       greetingLabel,

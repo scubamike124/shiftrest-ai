@@ -125,7 +125,8 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
         severity: "warning",
         service: "account.delete",
         message: `User ${uid} deleted their account`,
-        meta: { email: userEmail, deleted: deleted.length, failed: failed.length, stripe },
+        // No email or other contact data: this alert row outlives the account.
+        meta: { deleted: deleted.length, failed: failed.length, stripe },
       });
     } catch {
       /* noop */

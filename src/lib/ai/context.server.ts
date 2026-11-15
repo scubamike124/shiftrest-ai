@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRankedMemories } from "./memory-rank.server";
 import { fetchActivePatterns, type PatternKey } from "./patterns.server";
+import { DATA_HONESTY } from "./guardrails";
 import {
   fetchFeedbackSummary,
   fetchPreviousRecommendation,
@@ -68,7 +69,7 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
 
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
-  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
+  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + `\n\n${DATA_HONESTY}` + overlay;
 }
 
 export type MemoryRow = {

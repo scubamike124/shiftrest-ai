@@ -175,6 +175,22 @@ if (mk.present) {
   );
 }
 
+// Objects the app build needs, regardless of how import.mjs was run.
+const required = JSON.parse(
+  fs.readFileSync(new URL("./required-objects.json", import.meta.url), "utf8"),
+);
+const lit = (s) => `'${s.replace(/'/g, "''")}'`;
+const missingObjects = queryJson(
+  url,
+  `select name from (values ${[
+    ...required.tables.map((t) => `(${lit(t)}, to_regclass(${lit(t)}) is not null)`),
+    ...required.functions.map((f) => `(${lit(f)}, to_regprocedure(${lit(f)}) is not null)`),
+  ].join(",")}) v(name, present) where not present`,
+).map((r) => r.name);
+(missingObjects.length ? fail : pass)(
+  `required app objects present ${required.tables.length + required.functions.length - missingObjects.length}/${required.tables.length + required.functions.length}${missingObjects.length ? "; missing: " + missingObjects.join(", ") : ""}`,
+);
+
 const report = {
   target: redactUrl(url),
   archive: manifest.archive,

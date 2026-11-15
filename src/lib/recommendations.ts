@@ -13,6 +13,7 @@ import { DAYS, type Shift, endAbsolute, fmt } from "./shifts";
 import type { Insights } from "./insights";
 import type { Prefs } from "./prefs";
 import { sunTimes } from "./sleep-engine";
+import { ANCHOR_WHY, localCivilDate, minuteOfDay, shiftAnchorsOn } from "./schedule-core";
 import { detectDeviceTz } from "./tz";
 
 export type Recommendation = {
@@ -40,6 +41,8 @@ export type Recommendation = {
   basedOnWearable?: boolean;
   /** Where that data came from, for the label (e.g. "Measured · from Apple Health"). */
   dataSource?: string;
+  /** Plain-language reason for this time ("why this time"). */
+  why?: string;
 };
 
 function minutesUntil(targetMinFromMidnight: number, now: Date): number {
@@ -64,27 +67,42 @@ export function buildRecommendations(
   prefs: Prefs,
   now: Date,
   location?: { lat: number | null; lon: number | null },
+  /** How many ranked recommendations to return (UI shows 5). */
+  limit = 5,
 ): Recommendation[] {
   const recs: Recommendation[] = [];
   const target = insights.todayShift ?? insights.nextShift?.shift;
 
-  const recsTz = prefs.currentTz ?? prefs.homeTz ?? detectDeviceTz() ?? undefined;
+  // Device zone: the same clock as the anchors and now.getHours() below.
+  const recsTz = detectDeviceTz() ?? undefined;
   const sun = location
     ? sunTimes(now, location.lat ?? null, location.lon ?? null, recsTz)
     : { sunrise: null, sunset: null };
 
   if (target) {
-    const isNight = target.start >= 22 * 60 || target.start < 4 * 60;
-    const endAbs = endAbsolute(target);
-    const sleepStart = (endAbs + prefs.windDownMin) % 1440;
-    const sleepEnd = (endAbs + prefs.windDownMin + prefs.sleepHours * 60) % 1440;
-    const caffeineOn = (target.start - 30 + 1440) % 1440;
-    const caffeineCutoff = (sleepStart - 6 * 60 + 1440) % 1440;
-    const windDown = endAbs % 1440;
-    const preShiftMeal = (target.start - 90 + 1440) % 1440;
+    // Shared anchors — identical to the Plan screen, Long Clock and reminders,
+    // resolved on the shift's real date so DST nights agree too.
+    let shiftDate = now;
+    if (!insights.todayShift && insights.nextShift) {
+      shiftDate = new Date(now);
+      if (insights.nextShift.dayOffset !== undefined) {
+        shiftDate.setDate(now.getDate() + insights.nextShift.dayOffset); // calendar day, DST-safe
+      } else {
+        shiftDate = new Date(now.getTime() + insights.nextShift.hoursAway * 3_600_000);
+      }
+    }
+    // Device zone: the same clock as now.getHours() used for the labels below.
+    const a = shiftAnchorsOn(target, prefs, localCivilDate(shiftDate), detectDeviceTz() ?? "UTC");
+    const isNight = a.isNight;
+    const sleepStart = minuteOfDay(a.sleepStart);
+    const sleepEnd = minuteOfDay(a.sleepEnd);
+    const caffeineOn = minuteOfDay(a.caffeineOn);
+    const caffeineCutoff = minuteOfDay(a.caffeineCutoff);
+    const windDown = minuteOfDay(a.windDownStart);
+    const preShiftMeal = minuteOfDay(a.meal);
 
     // Pre-shift bright light (if outside sleep window)
-    const wakeApprox = (target.start - 90 + 1440) % 1440;
+    const wakeApprox = minuteOfDay(a.wake);
     recs.push({
       whenMinutes: relMinutesFromNow(wakeApprox, now),
       whenLabel: labelFor(wakeApprox, now),
@@ -94,6 +112,7 @@ export function buildRecommendations(
         ? "10–20 min of bright light (10,000 lux lamp ideal) to lock in alertness before the night."
         : "10–20 min outside or under a bright lamp within 15 min of waking.",
       priority: 1,
+      why: `${ANCHOR_WHY.wake} ${ANCHOR_WHY.brightLight}`,
     });
 
     recs.push({
@@ -103,6 +122,7 @@ export function buildRecommendations(
       title: "Caffeine on",
       detail: "100–200 mg about 30 min before clock-in. Top up midway if needed.",
       priority: 2,
+      why: ANCHOR_WHY.caffeineOn,
     });
 
     recs.push({
@@ -112,6 +132,7 @@ export function buildRecommendations(
       title: "Light pre-shift meal",
       detail: "Protein + complex carbs. Skip heavy/greasy food — it sabotages alertness.",
       priority: 3,
+      why: ANCHOR_WHY.meal,
     });
 
     recs.push({
@@ -121,6 +142,7 @@ export function buildRecommendations(
       title: "Caffeine cutoff",
       detail: `Last coffee by ${fmt(caffeineCutoff)} so it clears before sleep.`,
       priority: 3,
+      why: ANCHOR_WHY.caffeineCutoff,
     });
 
     recs.push({
@@ -130,6 +152,7 @@ export function buildRecommendations(
       title: "Wind-down begins",
       detail: `Dim lights, screens off, hot shower. ${prefs.windDownMin} min until sleep window.`,
       priority: 2,
+      why: ANCHOR_WHY.windDown,
     });
 
     recs.push({
@@ -139,6 +162,7 @@ export function buildRecommendations(
       title: isNight ? "Anchor sleep window" : "Sleep window",
       detail: `Blackout room, 65–68°F. Sleep ${fmt(sleepStart)} → ${fmt(sleepEnd)}.`,
       priority: 1,
+      why: ANCHOR_WHY.sleep,
     });
 
     if (isNight && sun?.sunrise != null) {
@@ -149,6 +173,7 @@ export function buildRecommendations(
         title: "Amber glasses on",
         detail: "Sunrise — switch to amber/blue-blocking glasses on the commute home.",
         priority: 2,
+        why: ANCHOR_WHY.amberGlasses,
       });
     }
 
@@ -175,7 +200,7 @@ export function buildRecommendations(
 
     // Pre-shift nap on extreme/high fatigue days
     if (insights.fatigueToday.band === "extreme" || insights.fatigueToday.band === "high") {
-      const napStart = (target.start - 180 + 1440) % 1440;
+      const napStart = minuteOfDay(a.nap);
       recs.push({
         whenMinutes: relMinutesFromNow(napStart, now),
         whenLabel: labelFor(napStart, now),
@@ -230,7 +255,7 @@ export function buildRecommendations(
   // Rank: lower priority first, then sooner. Cap at 5.
   return recs
     .sort((a, b) => a.priority - b.priority || a.whenMinutes - b.whenMinutes)
-    .slice(0, 5);
+    .slice(0, limit);
 }
 
 export function summarizeRecommendations(recs: Recommendation[]): string {
