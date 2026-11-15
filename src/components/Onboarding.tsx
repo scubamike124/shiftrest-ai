@@ -18,7 +18,7 @@ const INTRO_SLIDES = [
   {
     icon: Sparkles,
     title: "Your AI sleep companion.",
-    body: "Meet Aura, your companion. Ask about light, caffeine, blackout setups, or recovery: tactics built for shift workers, not medical advice. You can rename your companion (for example, Lisa) anytime, and that name is used everywhere.",
+    body: "Meet Aura, your companion. Ask about light, caffeine, blackout setups, or recovery: tactics built for shift workers, not medical advice. You can rename your companion (for example, Lisa) anytime, and that name is used in chat and voice.",
   },
 ];
 

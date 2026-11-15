@@ -28,7 +28,7 @@ The database default for `assistant_name` is the literal `'RestPilot'`, and the 
 
 ## Fix (PR into `codex/restpilot-railway-migration`)
 
-One rule, `src/lib/companion/name.ts`, used by both the app and every AI prompt:
+One rule, `src/lib/companion/name.ts`, used by the app and by the companion's AI prompts (text coach, spoken companion, JSON intents via the personality block, Realtime):
 
 1. A name the customer chose (for example **Lisa**) always wins, everywhere.
 2. Otherwise the name of the chosen look: **Aura** by default; Nova, Atlas or Sage if the customer picked that look.
@@ -42,9 +42,9 @@ Applied to:
 - both Profile name fields. They now show only the customer's own name, with the default as a placeholder; "Leave blank to keep Aura".
 
 Onboarding now explains it:
-- **First-run onboarding**, slide 2: "Meet Aura, your companion… You can rename your companion (for example, Lisa) anytime, and that name is used everywhere."
+- **First-run onboarding**, slide 2: "Meet Aura, your companion… You can rename your companion (for example, Lisa) anytime, and that name is used in chat and voice."
 - **Companion introduction sheet**, step 1:
-  - for an unnamed companion: "Meet Aura, your Companion… You can give your companion your own name (for example, Lisa) or a different look anytime."
+  - for an unnamed companion: "Meet Aura, your Companion… Aura is the default companion; you can give yours your own name (for example, Lisa) or a different look anytime."
   - for a named one: "Meet Lisa, your Companion. Lisa is the name you chose for your companion (the default companion is Aura)."
 
 ## What is preserved
@@ -58,6 +58,11 @@ Onboarding now explains it:
 Customers who never named their companion are now greeted by **Aura** (or Nova, Atlas or Sage if they picked that look) instead of "RestPilot" in chat and "Pilot" on the voice screen. This matches the marketing site and the default look.
 
 A customer who deliberately typed "RestPilot" as the name cannot be told apart from one who never chose a name, and will also see Aura. They can type it again; if that matters, a follow-up could store an explicit "unnamed" flag.
+
+## Known limits
+
+- Briefing narration, insights and shift-swap prompts describe the product ("RestPilot AI…") and don't receive the companion's name. They don't introduce themselves by name, so no conflicting name is spoken, but the copy says "chat and voice" rather than "everywhere".
+- For an *unnamed* companion, the app takes the look from this device first (then syncs from the profile), while the AI reads the look saved in the profile. If someone picked a look while signed out, the app could briefly say Nova while the AI says Aura. Customer-chosen names are not affected.
 
 ## Not changed (other owners or owner decision)
 

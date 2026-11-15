@@ -43,18 +43,17 @@ const STEPS = [
  * Step one names the companion: Aura is the default; a name the customer chose
  * (for example "Lisa") is theirs and is used everywhere.
  */
-function meetStep(name: string, defaultName: string) {
-  const custom = name !== defaultName;
+function meetStep(name: string, isCustom: boolean) {
   return {
     ...STEPS[0],
     title: `Meet ${name}, your Companion`,
-    body: custom
-      ? `${name} is the name you chose for your companion (the default companion is ${DEFAULT_COMPANION_NAME}). ${name} is used everywhere: chat, voice and briefings. A calm assistant for sleep, sounds, alarms, and daily briefs.`
-      : `${name} is your default companion: a calm assistant for sleep, sounds, alarms, and daily briefs. You can give your companion your own name (for example, Lisa) or a different look anytime, and that name is used everywhere: chat, voice and briefings.`,
+    body: isCustom
+      ? `${name} is the name you chose for your companion (the default companion is ${DEFAULT_COMPANION_NAME}), and it's used in chat and voice. A calm assistant for sleep, sounds, alarms, and daily briefs.`
+      : `${name} is your companion: a calm assistant for sleep, sounds, alarms, and daily briefs. ${DEFAULT_COMPANION_NAME} is the default companion; you can give yours your own name (for example, Lisa) or a different look anytime, and that name is used in chat and voice.`,
   };
 }
 
-export function CompanionIntroSheet({ name = DEFAULT_COMPANION_NAME, defaultName = DEFAULT_COMPANION_NAME }: { name?: string; defaultName?: string } = {}) {
+export function CompanionIntroSheet({ name = DEFAULT_COMPANION_NAME, isCustom = false }: { name?: string; isCustom?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
 
@@ -87,7 +86,7 @@ export function CompanionIntroSheet({ name = DEFAULT_COMPANION_NAME, defaultName
   };
 
   const isLast = step === STEPS.length - 1;
-  const current = step === 0 ? meetStep(name, defaultName) : STEPS[step];
+  const current = step === 0 ? meetStep(name, isCustom) : STEPS[step];
   const StepIcon = current.icon;
 
   return (

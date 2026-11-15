@@ -1013,6 +1013,9 @@ function CompanionPage() {
                 <Label htmlFor="ai-name" className="text-sm font-medium">Your AI&apos;s name</Label>
                 <Input
                   id="ai-name"
+                  // Remount once prefs load so a blank placeholder can never be saved over a chosen name.
+                  key={prefs?.assistantName ?? "loading"}
+                  disabled={!prefs}
                   defaultValue={customCompanionName(prefs?.assistantName)}
                   maxLength={40}
                   placeholder={aiDefaultName}
@@ -1022,7 +1025,7 @@ function CompanionPage() {
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Leave blank to keep {aiDefaultName}. A name you choose (like Lisa) is used everywhere: greetings, chat and voice. Up to 40 characters.
+                  Leave blank to keep {aiDefaultName}. A name you choose (like Lisa) is used in greetings, chat and voice. Up to 40 characters.
                 </p>
               </div>
 
@@ -1150,7 +1153,7 @@ function CompanionPage() {
       </div>
 
       {/* First-launch Companion intro (auto-shown once per device). */}
-      <CompanionIntroSheet name={aiName} defaultName={aiDefaultName} />
+      <CompanionIntroSheet name={aiName} isCustom={customCompanionName(prefs?.assistantName) !== ""} />
 
       {/* Mic permission blocked — clear, dismissible, never a silent failure. */}
       {micState === "denied" && !micBannerDismissed && (
