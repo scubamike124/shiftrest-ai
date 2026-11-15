@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>RestPilot is offline</title>
+<!--
+  Shown by the app shell (Capacitor server.errorPath) when restpilotai.com
+  cannot load: no signal, airplane mode, or the site is down. It ships inside
+  the app, so it always works. It shows the plan the site last saved on this
+  phone (Capacitor Preferences key rp.offlinePlan.v1) and goes back to the
+  site as soon as it is reachable again.
+
+  Text uses the iOS system text styles (-apple-system-*), so it follows the
+  person's Dynamic Type size. No external resources.
+-->
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #0b1020; color: #eef0ff; }
+  body {
+    font: -apple-system-body;
+    font-family: -apple-system, system-ui, sans-serif;
+    min-height: 100vh;
+    padding: calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 20px)
+             calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 20px);
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 34rem; margin: 0 auto; }
+  .mark { width: 56px; height: 56px; margin: 8px 0 20px; }
+  h1 { font: -apple-system-title1; font-family: -apple-system, system-ui, sans-serif; font-weight: 700; margin: 0 0 8px; }
+  h2 { font: -apple-system-headline; font-family: -apple-system, system-ui, sans-serif; margin: 32px 0 12px; }
+  p { margin: 0 0 12px; color: #c9cbe6; }
+  .status { font: -apple-system-subheadline; font-family: -apple-system, system-ui, sans-serif; color: #a9adcf; }
+  button {
+    font: -apple-system-headline; font-family: -apple-system, system-ui, sans-serif;
+    min-height: 50px; width: 100%; margin-top: 16px; border: 0; border-radius: 14px;
+    background: #4f46e5; color: #fff; padding: 12px 20px;
+  }
+  button:active { background: #4338ca; }
+  button:focus-visible { outline: 3px solid #c9c4ff; outline-offset: 2px; }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li.day { background: #141432; border: 1px solid #262654; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+  .day-name { font: -apple-system-headline; font-family: -apple-system, system-ui, sans-serif; color: #fff; margin: 0 0 4px; }
+  .line { margin: 2px 0 0; color: #c9cbe6; }
+  .small { font: -apple-system-footnote; font-family: -apple-system, system-ui, sans-serif; color: #a9adcf; }
+  @media (prefers-reduced-motion: no-preference) { .pulse { animation: pulse 2s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity: .55; } }
+</style>
+</head>
+<body>
+<main>
+  <svg class="mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <defs>
+      <mask id="m"><rect width="64" height="64" fill="#000"/><circle cx="29" cy="34" r="20" fill="#fff"/><circle cx="39" cy="26" r="17" fill="#000"/></mask>
+      <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f3ff"/><stop offset="1" stop-color="#8f86ff"/></linearGradient>
+    </defs>
+    <rect width="64" height="64" fill="url(#g)" mask="url(#m)"/>
+  </svg>
+
+  <h1 tabindex="-1" id="title">You're offline</h1>
+  <p>RestPilot needs a connection to load. It will reopen by itself when you're back online.</p>
+  <p id="status" class="status pulse" role="status" aria-live="polite">Waiting for a connection…</p>
+  <button type="button" id="retry">Try again</button>
+
+  <section aria-labelledby="plan-title">
+    <h2 id="plan-title">Your saved plan</h2>
+    <div id="plan"><p>Your next shifts will be saved here the next time RestPilot opens with a connection.</p></div>
+  </section>
+</main>
+<script>
+(function () {
+  "use strict";
+  var DEFAULT_APP_URL = "https://restpilotai.com/";
+  var appUrl = DEFAULT_APP_URL;
+  var plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
+  var statusEl = document.getElementById("status");
+  var checking = false;
+
+  function setStatus(text) { statusEl.textContent = text; }
+
+  function pref(key) {
+    if (!plugins.Preferences) return Promise.resolve(null);
+    return plugins.Preferences.get({ key: key }).then(function (r) { return r && r.value; }, function () { return null; });
+  }
+
+  function reachable() {
+    // An opaque no-cors response means the site answered; a network error rejects.
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 6000);
+    return fetch(appUrl, { mode: "no-cors", cache: "no-store", signal: ctl ? ctl.signal : undefined })
+      .then(function () { clearTimeout(timer); return true; }, function () { clearTimeout(timer); return false; });
+  }
+
+  function tryReturn(manual) {
+    if (checking) return;
+    checking = true;
+    setStatus("Checking your connection…");
+    reachable().then(function (ok) {
+      checking = false;
+      if (ok) { setStatus("Connected. Opening RestPilot…"); window.location.replace(appUrl); return; }
+      setStatus(manual ? "Still offline. We'll keep trying." : "Waiting for a connection…");
+    });
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function dayLabel(ymd, today) {
+    var p = ymd.split("-").map(Number);
+    var d = new Date(p[0], p[1] - 1, p[2]);
+    var diff = Math.round((d - today) / 86400000);
+    var name = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    return diff === 0 ? "Today, " + name : diff === 1 ? "Tomorrow, " + name : name;
+  }
+
+  function renderPlan(raw) {
+    var plan;
+    try { plan = JSON.parse(raw); } catch (e) { return; }
+    if (!plan || plan.v !== 1 || !Array.isArray(plan.days)) return;
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var todayKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    var days = plan.days.filter(function (d) { return d.date >= todayKey && d.shifts && d.shifts.length; }).slice(0, 7);
+    var box = document.getElementById("plan");
+    box.textContent = "";
+    if (!days.length) {
+      box.appendChild(el("p", null, "No shifts saved for the coming days."));
+    } else {
+      var list = el("ol");
+      days.forEach(function (d) {
+        var li = el("li", "day");
+        li.appendChild(el("p", "day-name", dayLabel(d.date, today)));
+        d.shifts.forEach(function (s) {
+          var text = "Shift " + s.start + " to " + s.end + (s.overnight ? " (next day)" : "");
+          if (s.title) text += ", " + s.title;
+          if (s.employer) text += " at " + s.employer;
+          li.appendChild(el("p", "line", text));
+        });
+        if (d.sleep) li.appendChild(el("p", "line", "Sleep " + d.sleep.start + " to " + d.sleep.end));
+        list.appendChild(li);
+      });
+      box.appendChild(list);
+    }
+    var saved = new Date(plan.savedAt);
+    if (!isNaN(saved)) box.appendChild(el("p", "small", "Saved on this iPhone " + saved.toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) + "."));
+  }
+
+  document.getElementById("retry").addEventListener("click", function () { tryReturn(true); });
+  window.addEventListener("online", function () { tryReturn(false); });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) tryReturn(false); });
+  setInterval(function () { if (!document.hidden) tryReturn(false); }, 15000);
+
+  if (plugins.SplashScreen) plugins.SplashScreen.hide().catch(function () {});
+  Promise.all([pref("rp.appUrl"), pref("rp.offlinePlan.v1")]).then(function (r) {
+    if (r[0] && /^https:\/\/[^/]+\/$/.test(r[0])) appUrl = r[0];
+    if (r[1]) renderPlan(r[1]);
+    document.getElementById("title").focus();
+    // A navigation can also fail while online (for example a cancelled load):
+    // check once straight away so the person is not left here needlessly.
+    tryReturn(false);
+  });
+})();
+</script>
+</body>
+</html>

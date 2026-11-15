@@ -1,0 +1,78 @@
+# RestPilot companion model benchmark (Promptfoo 0.125.1).
+#
+# One command:   node tests/ai/companion/run.mjs
+# It runs only the providers whose API key is present, then prints the report.
+# Without any key it stops and reports "pending key"; nothing is fabricated.
+# $0 pipeline self-test (no key, no network):  node tests/ai/companion/run.mjs --offline
+#
+# Every provider goes through RestPilot's own request builder
+# (src/lib/ai/models.server.ts) and the prompts are assembled by the production
+# prompt code from per-scenario fixtures (lib/production-prompt.cjs).
+# Methodology, decision rule and results: docs/restpilot-upgrade-2026-11/AI-BENCHMARK.md
+
+description: RestPilot companion model benchmark
+
+prompts:
+  - id: file://lib/production-prompt.cjs:buildMessages
+    label: restpilot-production-prompt
+
+providers:
+  # ---- CURRENT production model (production calls it through the Lovable gateway
+  # as google/gemini-3-flash-preview; this is the same model direct from Google).
+  - id: file://lib/app-provider.cjs
+    label: current-gemini-3-flash-preview
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-3-flash-preview }
+  # Optional: the exact production path, only if the owner chooses to supply the Lovable key.
+  - id: file://lib/app-provider.cjs
+    label: current-via-lovable-gateway
+    config: { baseUrl: "https://ai.gateway.lovable.dev/v1", apiKeyEnv: LOVABLE_API_KEY, model: google/gemini-3-flash-preview }
+
+  # ---- Google candidates (all have a free tier on a Google AI Studio key)
+  - id: file://lib/app-provider.cjs
+    label: cand-gemini-3.1-flash-lite
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-3.1-flash-lite }
+  - id: file://lib/app-provider.cjs
+    label: cand-gemini-3.5-flash-lite
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-3.5-flash-lite }
+  - id: file://lib/app-provider.cjs
+    label: cand-gemini-3.6-flash
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-3.6-flash }
+  - id: file://lib/app-provider.cjs
+    label: cand-gemini-3.8-flash
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-3.8-flash }
+  - id: file://lib/app-provider.cjs
+    label: cand-gemini-4-hydrogen
+    config: { baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", apiKeyEnv: GEMINI_API_KEY, model: gemini-4-hydrogen }
+
+  # ---- OpenAI candidates (reasoning models: voice uses low effort so the
+  # 180-token spoken cap is not spent on reasoning tokens)
+  - id: file://lib/app-provider.cjs
+    label: cand-gpt-6-luna
+    config: { baseUrl: "https://api.openai.com/v1", apiKeyEnv: OPENAI_API_KEY, model: gpt-6-luna, reasoning: { voice: low } }
+  - id: file://lib/app-provider.cjs
+    label: cand-gpt-6.1-terra
+    config: { baseUrl: "https://api.openai.com/v1", apiKeyEnv: OPENAI_API_KEY, model: gpt-6.1-terra, reasoning: { voice: low } }
+  - id: file://lib/app-provider.cjs
+    label: cand-gpt-6.1-sol
+    config: { baseUrl: "https://api.openai.com/v1", apiKeyEnv: OPENAI_API_KEY, model: gpt-6.1-sol, reasoning: { voice: low } }
+
+  # ---- Anthropic candidates (OpenAI-compatible endpoint)
+  - id: file://lib/app-provider.cjs
+    label: cand-claude-haiku-5-5
+    config: { baseUrl: "https://api.anthropic.com/v1", apiKeyEnv: ANTHROPIC_API_KEY, model: claude-haiku-5-5 }
+  - id: file://lib/app-provider.cjs
+    label: cand-claude-sonnet-5-5
+    config: { baseUrl: "https://api.anthropic.com/v1", apiKeyEnv: ANTHROPIC_API_KEY, model: claude-sonnet-5-5 }
+
+  # ---- $0 pipeline self-test (no network); excluded from real runs
+  - id: file://lib/offline-provider.cjs
+    label: offline-selftest
+
+defaultTest:
+  options:
+    provider: file://lib/grader.cjs
+
+tests: file://cases/index.cjs
+
+evaluateOptions:
+  maxConcurrency: 2

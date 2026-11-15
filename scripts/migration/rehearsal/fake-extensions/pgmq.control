@@ -1,0 +1,5 @@
+# REHEARSAL-ONLY stand-in installed by scripts/migration/rehearsal/run.sh and removed afterwards.
+comment = 'restpilot rehearsal stub for pgmq'
+default_version = '0.0.1'
+relocatable = false
+superuser = true
