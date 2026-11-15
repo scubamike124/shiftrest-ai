@@ -21,6 +21,9 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
           const { requireAIConsent } = await import("@/lib/ai/consent.server");
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
         }
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {

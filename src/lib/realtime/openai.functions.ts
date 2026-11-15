@@ -111,6 +111,19 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     const { assertAIConsent } = await import("@/lib/ai/consent.server");
     await assertAIConsent(context.userId);
 
+    // Daily token cap, fail closed (retryable). Voice minting is a paid call.
+    // The local crisis card / crisis guardrail never go through this function.
+    {
+      const { requireAIBudget } = await import("@/lib/ai/log.server");
+      const over = await requireAIBudget(context.userId);
+      if (over) {
+        const b = (await over.json().catch(() => ({}))) as { error?: string };
+        throw new Error(
+          `${over.status === 429 ? "ai_budget_exhausted" : "ai_budget_unavailable"}: ${b.error ?? "AI is temporarily unavailable."}`,
+        );
+      }
+    }
+
 
     // Trial gate: hard-block minting once the trial voice cap is exhausted.
     // Paying subscribers pass through with isTrial=false / cap=0.

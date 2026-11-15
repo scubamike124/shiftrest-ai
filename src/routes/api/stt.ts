@@ -54,6 +54,12 @@ export const Route = createFileRoute("/api/stt")({
           if (limited) return limited;
         }
 
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(authed.userId);
+          if (overBudget) return overBudget;
+        }
+
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
           return Response.json(

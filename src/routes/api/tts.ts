@@ -102,6 +102,12 @@ export const Route = createFileRoute("/api/tts")({
           if (limited) return limited;
         }
 
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
+        }
+
         try {
           const body = (await request.json()) as {
             text?: string;

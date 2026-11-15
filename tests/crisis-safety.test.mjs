@@ -95,6 +95,7 @@ async function mintAndCapture(prefsRow) {
       "@tanstack/react-start": { createServerFn: () => builder },
       "@/integrations/supabase/auth-middleware": { requireSupabaseAuth: {} },
       "@/lib/ai/consent.server": { assertAIConsent: async () => {} },
+      "@/lib/ai/log.server": { requireAIBudget: async () => null },
       "@/lib/realtime/trial-usage.functions": {
         loadTrialUsageState: async () => ({
           isTrial: false,

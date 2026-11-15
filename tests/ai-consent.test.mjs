@@ -670,7 +670,7 @@ test("upstream 402 is mapped to a user-safe message (no operator wording)", () =
 });
 
 // ---- budget gate on the other AI routes (previously rate-limit only) --------
-for (const [label, file, makeReq] of ROUTES.filter(([, f]) => ["brief", "insights", "swap"].includes(f))) {
+for (const [label, file, makeReq] of ROUTES.filter(([, f]) => f !== "ai")) {
   test(`${label}: budget RPC error -> retryable 503, zero provider calls`, async () => {
     const spy = upstreamSpy();
     const res = await loadRoute(file, budgetDb({ data: null, error: { message: "down" } }), spy)({
@@ -694,10 +694,58 @@ for (const [label, file, makeReq] of ROUTES.filter(([, f]) => ["brief", "insight
     assert.equal(res.status, 403);
     assert.deepEqual(spy.calls, []);
   });
-  test(`${label}: gate order is consent, rate limit, budget, provider`, () => {
+  test(`${label}: gate order is consent, rate limit (if any), budget, provider`, () => {
     const src = read(`src/routes/api/${file}.ts`);
     const at = (n) => src.indexOf(n);
-    assert.ok(at("requireAIConsent(") < at("enforceRateLimit(") && at("enforceRateLimit(") < at("requireAIBudget("));
-    assert.ok(at("requireAIBudget(") < src.indexOf(file === "brief" ? "chatJSON({" : "ai.gateway.lovable.dev", src.indexOf("handlers:")));
+    const h = at("handlers:");
+    assert.ok(at("requireAIConsent(") < at("requireAIBudget("));
+    if (at("enforceRateLimit(") > 0) assert.ok(at("enforceRateLimit(") < at("requireAIBudget("));
+    const providers = ["chatJSON({", "ai.gateway.lovable.dev", "api.elevenlabs.io", "api.simli.ai"]
+      .map((n) => src.indexOf(n, h))
+      .filter((i) => i > 0);
+    assert.ok(providers.length > 0);
+    assert.ok(at("requireAIBudget(") < Math.min(...providers));
   });
 }
+
+// ---- every code path that can reach a paid provider is budget-gated ----------
+import { readdirSync, statSync } from "node:fs";
+const PROVIDER_RE =
+  /ai\.gateway\.lovable\.dev|api\.openai\.com\/v1|api\.elevenlabs\.io\/v1|api\.simli\.ai\/|generativelanguage\.googleapis|api\.anthropic\.com|\bchatJSON\(|\bchatStream\(/;
+// Not entrypoints: the shared gateway library (every caller is gated), the
+// memory extractor (only called from the gated /api/ai), and the browser
+// client that uses an already-minted, gated ephemeral token. The local crisis
+// card and crisis guardrail make no provider call at all.
+const BUDGET_ALLOW = new Set([
+  "src/lib/ai/gateway.server.ts",
+  "src/lib/ai/memory-extractor.server.ts",
+  "src/lib/realtime/useOpenAIRealtime.ts",
+]);
+function walk(dir, out = []) {
+  for (const n of readdirSync(new URL(dir + "/", ROOT))) {
+    const rel = `${dir}/${n}`;
+    if (statSync(new URL(rel, ROOT)).isDirectory()) walk(rel, out);
+    else if (/\.(ts|tsx)$/.test(n)) out.push(rel);
+  }
+  return out;
+}
+test("every route/server function that can call a paid provider uses requireAIBudget", () => {
+  const offenders = [];
+  let seen = 0;
+  for (const rel of [...walk("src/routes"), ...walk("src/lib")]) {
+    if (BUDGET_ALLOW.has(rel)) continue;
+    const src = read(rel);
+    if (!PROVIDER_RE.test(src)) continue;
+    if (!/\bfetch\(|chatJSON\(|chatStream\(/.test(src)) continue;
+    seen++;
+    if (!src.includes("requireAIBudget(")) offenders.push(rel);
+  }
+  assert.ok(seen >= 8, `expected to find the provider routes, saw ${seen}`);
+  assert.deepEqual(offenders, [], "provider-calling code without the budget gate");
+});
+
+test("live voice session minting is budget-gated after consent and before OpenAI", () => {
+  const src = read("src/lib/realtime/openai.functions.ts");
+  const at = (n) => src.indexOf(n);
+  assert.ok(at("assertAIConsent(") < at("requireAIBudget(") && at("requireAIBudget(") < at("api.openai.com"));
+});
