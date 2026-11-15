@@ -75,7 +75,7 @@ export function CookieBanner() {
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + var(--app-bottom-nav, 0px) + 0.75rem)",
       }}
     >
-      <div className="pointer-events-auto mx-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl">
+      <div className="pointer-events-auto mx-auto max-h-[calc(100dvh-1.5rem-env(safe-area-inset-bottom)-var(--app-bottom-nav,0px))] max-w-3xl overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card/95 p-4 shadow-2xl backdrop-blur-xl">
         {!managing ? (
           <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:pr-9">
             <Cookie className="h-5 w-5 shrink-0 text-primary" />

@@ -212,7 +212,7 @@ function SleepPage() {
               size="sm"
               variant="outline"
               onClick={() => void mixer.applyMix(p.tracks)}
-              className="h-auto min-h-11 max-w-full whitespace-normal rounded-full py-2 text-left sm:min-h-0"
+              className="h-auto min-h-11 max-w-full whitespace-normal rounded-full py-2 text-left sm:h-8 sm:min-h-0 sm:whitespace-nowrap sm:py-0 sm:text-center"
             >
               {p.name}
               <span className="ml-2 text-xs text-muted-foreground sm:text-[10px]">{p.description}</span>

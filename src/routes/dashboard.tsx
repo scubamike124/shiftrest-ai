@@ -333,7 +333,7 @@ function Dashboard() {
   const dateLabel = mounted ? `${DAYS[weekday]}, ${monthDate}` : "";
 
   return (
-    <main className="relative mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-4 px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-12 [padding-left:max(1.25rem,env(safe-area-inset-left))] [padding-right:max(1.25rem,env(safe-area-inset-right))] lg:px-10 lg:pt-12">
+    <main className="relative mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-4 pt-4 pb-12 [padding-left:env(safe-area-inset-left)] [padding-right:env(safe-area-inset-right)] sm:[padding-left:max(1.25rem,env(safe-area-inset-left))] sm:[padding-right:max(1.25rem,env(safe-area-inset-right))] lg:px-10 lg:pt-12">
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-20 top-0 h-[40vh] w-[40vh] rounded-full bg-primary/20 blur-[120px]" />
         <div className="absolute right-0 top-1/3 h-[30vh] w-[30vh] rounded-full bg-sky-500/10 blur-[120px]" />
