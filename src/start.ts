@@ -37,8 +37,6 @@ const CSP = [
     // Simli avatar streaming
     "https://api.simli.ai",
     "wss://api.simli.ai",
-    // ReadyPlayerMe avatar model host
-    "https://models.readyplayer.me",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
