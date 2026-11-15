@@ -16,6 +16,7 @@ import {
 import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
+import { aiFetchBackground } from "@/lib/ai/consent-client";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -55,7 +56,7 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Sign in to load your brief");
-  const resp = await fetch("/api/insights", {
+  const resp = await aiFetchBackground("/api/insights", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

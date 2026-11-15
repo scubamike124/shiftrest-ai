@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { parseIntent, type ParsedIntent } from "@/lib/voice/intent-router";
 import { executeIntent } from "@/lib/voice/intent-executor";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 type Phase =
   | { kind: "idle" }
@@ -75,7 +76,7 @@ export function VoiceCommandButton({
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const res = await fetch("/api/stt", {
+      const res = await aiFetch("/api/stt", {
         method: "POST",
         body: form,
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,

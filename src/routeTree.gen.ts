@@ -46,6 +46,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as LegalIndexRouteImport } from './routes/legal.index'
 import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
+import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
 import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
@@ -282,6 +283,11 @@ const LegalIndexRoute = LegalIndexRouteImport.update({
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/settings/skills',
   path: '/settings/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsPrivacyRoute = SettingsPrivacyRouteImport.update({
+  id: '/settings/privacy',
+  path: '/settings/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsMorningRoute = SettingsMorningRouteImport.update({
@@ -622,6 +628,7 @@ export interface FileRoutesByFullPath {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -711,6 +718,7 @@ export interface FileRoutesByTo {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
   '/settings': typeof SettingsIndexRoute
@@ -804,6 +812,7 @@ export interface FileRoutesById {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -897,6 +906,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal/'
     | '/settings/'
@@ -986,6 +996,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal'
     | '/settings'
@@ -1078,6 +1089,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal/'
     | '/settings/'
@@ -1155,6 +1167,7 @@ export interface RootRouteChildren {
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
+  SettingsPrivacyRoute: typeof SettingsPrivacyRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
@@ -1438,6 +1451,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/skills'
       fullPath: '/settings/skills'
       preLoaderRoute: typeof SettingsSkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/privacy': {
+      id: '/settings/privacy'
+      path: '/settings/privacy'
+      fullPath: '/settings/privacy'
+      preLoaderRoute: typeof SettingsPrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/morning': {
@@ -1939,6 +1959,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
+  SettingsPrivacyRoute: SettingsPrivacyRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,

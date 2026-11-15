@@ -57,6 +57,7 @@ import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { isNativeApp, useIsNativeApp } from "@/lib/native-app";
+import { aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
 
 
 
@@ -765,7 +766,7 @@ function CompanionPage() {
         return;
       }
       emitDebug("ai-req");
-      const resp = await fetch("/api/ai", {
+      const resp = await aiFetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -786,8 +787,9 @@ function CompanionPage() {
         emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);
         const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
-        const fallback =
-          resp.status === 429
+        const fallback = isAIConsentRefusal(resp)
+          ? "Your message is still here, but it wasn't sent: AI features are off. Allow AI data sharing (Profile → Privacy) and try again."
+          : resp.status === 429
             ? isNativeApp()
               ? "You've reached today's AI limit. I saved what you said here, and you can keep typing."
               : "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."

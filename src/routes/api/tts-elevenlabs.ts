@@ -41,6 +41,13 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
 
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
+
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.tts);

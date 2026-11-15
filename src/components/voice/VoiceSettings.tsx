@@ -11,6 +11,7 @@ import {
   type PersonalityKey,
   type VoiceGender,
 } from "@/lib/voice/profile";
+import { aiFetch } from "@/lib/ai/consent-client";
 
 type Props = {
   prefs: Prefs;
@@ -83,7 +84,7 @@ export function VoiceSettings({ prefs, signedIn, onChange }: Props) {
 
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const resp = await fetch("/api/tts", {
+      const resp = await aiFetch("/api/tts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

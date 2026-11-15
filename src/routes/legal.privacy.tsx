@@ -97,7 +97,8 @@ export const Route = createFileRoute("/legal/privacy")({
         Where the GDPR applies, we process personal data under the following
         bases: performance of a contract (operating the Service), legitimate
         interests (security, product improvement, fraud prevention), consent
-        (location, push notifications, wearables, optional AI memory), and
+        (location, push notifications, wearables, optional AI memory, and
+        sharing your data with AI providers), and
         compliance with legal obligations.
       </p>
 
@@ -120,7 +121,46 @@ export const Route = createFileRoute("/legal/privacy")({
         memories about your health or other sensitive categories.
       </p>
 
-      <h2>6. Retention</h2>
+      <h2 id="ai-providers">6. AI providers and your permission</h2>
+      <p>
+        RestPilot's AI features (the coach, voice conversations, spoken
+        briefings, insights, plans and shift-swap advice) are powered by
+        third-party AI providers. We send your personal data to them only
+        after you allow it in the app, and only when you use an AI feature:
+      </p>
+      <ul>
+        <li>
+          <strong>Google Gemini, through the Lovable AI Gateway:</strong> your
+          coach messages and the context RestPilot adds to them, such as your
+          shifts and schedule, sleep and fatigue estimates, preferences,
+          preferred name, AI memories (only if you turned AI memory on), and
+          summaries from a wearable you connect (Fitbit or Oura). Used to write
+          coach replies, briefings, plans, insights and shift-swap advice.
+        </li>
+        <li>
+          <strong>OpenAI</strong> (directly, and through the Lovable AI
+          Gateway): your voice recordings, the text read aloud to you, and your
+          voice settings. Used for speech-to-text, spoken replies and briefings,
+          and live voice conversations.
+        </li>
+        <li>
+          <strong>ElevenLabs:</strong> the text of companion replies being read
+          aloud. Used to read them in a natural voice.
+        </li>
+      </ul>
+      <p>
+        We ask for this permission once, before your first use of an AI
+        feature. If you choose "Not now", nothing is sent and the rest of
+        RestPilot keeps working. You can withdraw your permission at any time
+        in Profile → Privacy &amp; AI data sharing; new
+        AI requests stop immediately. Withdrawing does not recall data already
+        sent for earlier requests. We do not sell this data or use it for
+        advertising. Each provider is listed, with a link to its privacy
+        policy, in{" "}
+        <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>.
+      </p>
+
+      <h2>7. Retention</h2>
       <table className="w-full text-left text-xs">
         <thead>
           <tr>
@@ -160,7 +200,7 @@ export const Route = createFileRoute("/legal/privacy")({
         </tbody>
       </table>
 
-      <h2>7. Sharing</h2>
+      <h2>8. Sharing</h2>
       <p>
         We share data with the third-party providers listed in our{" "}
         <Link to="/legal/third-parties">Subprocessors &amp; Integrations</Link>{" "}
@@ -168,14 +208,14 @@ export const Route = createFileRoute("/legal/privacy")({
         when required by law.
       </p>
 
-      <h2>8. International transfers</h2>
+      <h2>9. International transfers</h2>
       <p>
         Our infrastructure may process data in the United States and the
         European Union. Where required, we rely on Standard Contractual
         Clauses or equivalent safeguards.
       </p>
 
-      <h2>9. Your rights</h2>
+      <h2>10. Your rights</h2>
       <p>
         Depending on where you live, you may have the right to access,
         correct, port, delete, restrict, or object to processing of your
@@ -193,7 +233,7 @@ export const Route = createFileRoute("/legal/privacy")({
         CCPA/CPRA.
       </p>
 
-      <h2>10. Security</h2>
+      <h2>11. Security</h2>
       <p>
         Data is transmitted over HTTPS and stored on encrypted servers
         operated by our infrastructure provider. See our{" "}
@@ -202,7 +242,7 @@ export const Route = createFileRoute("/legal/privacy")({
         vulnerability.
       </p>
 
-      <h2>11. Children</h2>
+      <h2>12. Children</h2>
       <p>
         The Service is not directed to children under 16, and we do not
         knowingly collect personal information from them. If you believe a
@@ -210,13 +250,13 @@ export const Route = createFileRoute("/legal/privacy")({
         <a href="mailto:support@restpilotai.com">support@restpilotai.com</a>.
       </p>
 
-      <h2>12. Changes</h2>
+      <h2>13. Changes</h2>
       <p>
         We will post any changes to this Policy here with an updated
         "Effective" date. Material changes will be highlighted in the app.
       </p>
 
-      <h2>13. Contact</h2>
+      <h2>14. Contact</h2>
       <p>
         Email{" "}
         <a href="mailto:support@restpilotai.com">support@restpilotai.com</a> for
