@@ -359,3 +359,37 @@ function checkoutHarness({ env, storeRows = [], storeError = null }) {
       data: { priceId, environment: 'live', returnUrl: 'https://restpilotai.com/profile?session_id={CHECKOUT_SESSION_ID}' } }),
   };
 }
+
+// ============================ existing lifetime purchasers ===================
+test('lifetime: an existing lifetime purchaser is active premium everywhere, with no buy button and nothing to cancel', async () => {
+  const w = world();
+  const life = { status: 'lifetime', price_id: 'restpilot_lifetime', current_period_end: null, cancel_at_period_end: false, environment: 'live' };
+  w.stripeRows.set(ALICE, [life]);
+  const e = w.entitlement(ALICE);
+  assert.equal(e.active, true); assert.equal(e.state, 'lifetime'); assert.equal(e.plan, 'lifetime'); assert.equal(e.expiresAt, null);
+  assert.equal(e.willRenew, false); assert.equal(e.duplicateBilling, false);
+  assert.equal(w.entitlement(ALICE, Date.now() + 50 * 365 * DAY).active, true, 'never expires');
+  for (const surface of ['ios', 'web', 'other_native']) {
+    const d = decide(surface, e);
+    assert.equal(d.view, 'status', surface); assert.equal(d.purchase, null, surface); assert.equal(d.externalPurchaseLink, false, surface);
+  }
+  // The real server status function reports it as premium.
+  const res = await serverFns(w).getEntitlementStatus({ context: { userId: ALICE, supabase: w.supabaseFor(ALICE) } });
+  assert.equal(res.entitlement.active, true); assert.equal(res.entitlement.state, 'lifetime');
+});
+
+test('lifetime: lifetime alongside a renewing App Store subscription keeps lifetime and does not count as double billing', async () => {
+  const w = world();
+  w.stripeRows.set(ALICE, [{ status: 'lifetime', price_id: 'restpilot_lifetime', current_period_end: null, cancel_at_period_end: false, environment: 'live' }]);
+  w.rcState.set(ALICE, { restpilot_monthly: appStoreSub(w.now) });
+  await w.webhook(rcEvent('INITIAL_PURCHASE', ALICE, w.now));
+  const e = w.entitlement(ALICE);
+  assert.equal(e.state, 'lifetime');
+  assert.equal(e.duplicateBilling, false, 'only one channel renews');
+  assert.deepEqual(decide('ios', e).manage.map((m) => m.source).sort(), ['apple', 'stripe'], 'the Apple subscription can still be cancelled');
+});
+
+test('lifetime: the voice gate treats lifetime as paid premium', async () => {
+  const access = loadTs('src/lib/realtime/access.server.ts', { globals: { process: { env: { PAYMENTS_ENVIRONMENT: 'live' } } } });
+  assert.equal(access.voiceEntitlement([{ status: 'lifetime', current_period_end: null }]), 'paid');
+});
