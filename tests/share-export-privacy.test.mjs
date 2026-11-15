@@ -83,3 +83,40 @@ test("every table with a user_id -> auth.users column is in the data export", ()
   const missing = [...tables].filter((t) => !exported.has(t) && !notExported.has(t));
   assert.deepEqual(missing, []);
 });
+
+test("every exported table is paged by a column it really has", () => {
+  const dir = new URL("../supabase/migrations/", import.meta.url);
+  const columns = new Map();
+  const add = (t, c) => {
+    if (!columns.has(t)) columns.set(t, new Set());
+    columns.get(t).add(c.toLowerCase());
+  };
+  for (const f of readdirSync(dir).sort()) {
+    const sql = readFileSync(new URL(f, dir), "utf8");
+    for (const m of sql.matchAll(
+      /CREATE TABLE (?:IF NOT EXISTS )?public\.(\w+)\s*\(([\s\S]*?)\n\);/gi,
+    )) {
+      for (const line of m[2].split("\n")) {
+        const c = /^\s*"?(\w+)"?\s+[a-z]/i.exec(line);
+        if (c && !/^(constraint|primary|unique|foreign|check)$/i.test(c[1])) add(m[1], c[1]);
+      }
+    }
+    for (const m of sql.matchAll(/ALTER TABLE (?:ONLY )?public\.(\w+)([^;]*);/gi)) {
+      for (const c of m[2].matchAll(/ADD COLUMN (?:IF NOT EXISTS )?"?(\w+)"?/gi)) add(m[1], c[1]);
+    }
+  }
+  const src = read("src/lib/account.functions.ts");
+  const fn = /function exportOrderColumn\(table: string\): string \{([\s\S]*?)\n\}/.exec(src);
+  assert.ok(fn, "exportOrderColumn exists");
+  // Evaluate the (type-free) body of exportOrderColumn.
+  const exportOrderColumn = new Function("table", fn[1]);
+  const list = (re) => [...(re.exec(src)?.[1] ?? "").matchAll(/"(\w+)"/g)].map((x) => x[1]);
+  const tables = [
+    ...list(/const USER_TABLES = \[([\s\S]*?)\] as const/),
+    ...list(/exportAccountFn[\s\S]*?const tables = \[([\s\S]*?)\] as const/),
+    ...list(/const exportTables = \[\.\.\.tables,([^\]]*)\] as const/),
+  ];
+  assert.ok(tables.includes("trial_usage") && tables.includes("store_entitlements"));
+  const bad = tables.filter((t) => !columns.get(t)?.has(exportOrderColumn(t)));
+  assert.deepEqual(bad, [], "order column missing for: " + bad.join(", "));
+});
