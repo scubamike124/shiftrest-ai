@@ -1,4 +1,5 @@
 import { readAIJson } from "@/lib/ai/request.server";
+import { aiForwardUrl, DROP_FORWARD_HEADERS } from "@/lib/ai/forward.server";
 /**
  * Legacy /api/coach — kept for backward compatibility.
  * All logic now lives in /api/ai (intent: "coach"). This file just forwards.
@@ -20,10 +21,9 @@ export const Route = createFileRoute("/api/coach")({
             headers: { "Content-Type": "application/json" },
           });
         }
-        const url = new URL(request.url);
-        url.pathname = "/api/ai";
-        const forward = await fetch(url.toString(), {
+        const forward = await fetch(aiForwardUrl(request.url), {
           method: "POST",
+          redirect: "manual",
           headers: {
             "Content-Type": "application/json",
             ...(request.headers.get("authorization")
@@ -38,10 +38,12 @@ export const Route = createFileRoute("/api/coach")({
             timezone: parsed.timezone,
           }),
         });
-        return new Response(forward.body, {
-          status: forward.status,
-          headers: forward.headers,
-        });
+        if (forward.status >= 300 && forward.status < 400) {
+          return Response.json({ error: "AI service unavailable" }, { status: 502 });
+        }
+        const headers = new Headers(forward.headers);
+        for (const h of DROP_FORWARD_HEADERS) headers.delete(h);
+        return new Response(forward.body, { status: forward.status, headers });
       },
     },
   },

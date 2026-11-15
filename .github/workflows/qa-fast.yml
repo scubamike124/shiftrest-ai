@@ -1,0 +1,73 @@
+# FAST checks on every pull request (target: a few minutes, free on public repos).
+#
+#   "Lint, typecheck, unit tests"  - ESLint on the lines a PR adds or changes
+#       (scripts/qa/lint-changed.mjs; the repository carries ~6.4k pre-existing
+#       findings, so whole-file lint would fail any PR touching an old file),
+#       tsc --noEmit, and node --test tests/*.test.mjs.
+#   "Production build"  - npm run build (Vite/TanStack/Nitro node output).
+#
+# Both job names are intended as REQUIRED checks on codex/restpilot-railway-migration.
+# Branch protection is deliberately NOT applied to main: Lovable's bot pushes to
+# main directly and protection could break production syncing.
+name: QA fast checks
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-fast-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint (changed lines)
+        if: github.event_name == 'pull_request'
+        run: node scripts/qa/lint-changed.mjs "origin/${{ github.base_ref }}"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:repair
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build
+        env:
+          # Public, non-secret placeholders: the build only needs well-formed values.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          VITE_SUPABASE_PROJECT_ID: ci-placeholder
+        run: npm run build
+      - name: Smoke the built server
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: |
+          set -euo pipefail
+          PORT=43100 HOST=127.0.0.1 node .output/server/index.mjs > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:43100/api/public/health >/dev/null && break; sleep 0.5; done
+          for p in / /auth /pricing /legal /sleep /manifest.webmanifest /sw.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:43100$p")
+            echo "$p -> $code"
+            [ "$code" = "200" ] || { cat server.log | tail -40; exit 1; }
+          done
