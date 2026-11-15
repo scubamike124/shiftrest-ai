@@ -131,8 +131,10 @@ functions themselves need a session.
   - Status is now read from the database regardless. A build without a key
     uses the `live` rows. A newer incomplete checkout no longer hides an
     older paid or lifetime row.
-- **Account deletion with an active Stripe subscription fails closed on
-  Railway.** This is *not changed*.
+- **Account deletion fails closed on Railway for any non-canceled Stripe
+  subscription row** (active, trialing, past_due, incomplete, unpaid, or
+  expired active; one-time lifetime purchases excepted). This is *not
+  changed*.
   - `deleteAccountFn` cancels Stripe subscriptions first. With Stripe off,
     the user gets "We couldn't confirm all subscription cancellations…" and
     keeps the account. That is an App Store 5.1.1(v) risk for any app build
