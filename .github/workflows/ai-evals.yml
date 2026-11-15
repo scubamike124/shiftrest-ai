@@ -59,11 +59,6 @@ jobs:
     name: AI evals (Promptfoo ${{ inputs.mode || 'smoke' }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BENCH_JUDGE: ${{ vars.BENCH_JUDGE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,9 +78,14 @@ jobs:
         run: node tests/ai/run-evals.mjs --offline --out tests/ai/.results/offline
       - name: Run evals (capped)
         shell: bash
+        # Keys are scoped to this step only (not npm ci or other steps).
         env:
           MODE: ${{ inputs.mode || 'smoke' }}
           CAP: ${{ inputs.max_tokens }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BENCH_JUDGE: ${{ vars.BENCH_JUDGE }}
         run: |
           [[ -z "$CAP" || "$CAP" =~ ^[0-9]+$ ]] || { echo "max_tokens must be a number"; exit 1; }
           case "$MODE" in

@@ -166,8 +166,9 @@ async function guarded({ parts, estimate, context, call, unavailable }) {
   try {
     result = await call();
   } finally {
-    const used =
-      result?.tokenUsage?.total ?? (result && !result.error ? estimate : Math.ceil(estimate / 2));
+    // Charge the reported usage; without it (or after a failure, where tokens may
+    // already have streamed) charge the full worst-case reservation.
+    const used = result?.tokenUsage?.total ?? estimate;
     settle(reservation, used, result?.cost ?? 0);
   }
   if (useCache && result && !result.error && result.output) writeCache(key, result);
