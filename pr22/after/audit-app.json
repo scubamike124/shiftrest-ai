@@ -1,0 +1,337 @@
+[
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/dashboard",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 76,
+    "smallTextSamples": [
+      "10.4px \"Sun, Nov 15\"",
+      "10.4px \"Schedule stability 100% · Sleep debt 0\"",
+      "10px \"AI Coach Brief\"",
+      "10px \"Fatigue today\"",
+      "10px \"low\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "37x54 button.absolute.top-0.h-full.transition.opacity-90.hover:opa \"Bright light 11:42a to 2:42p\"",
+      "9x54 button.absolute.top-0.h-full.transition.opacity-90.hover:opa \"Wind-down 12:55a to 1:40a\""
+    ]
+  },
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/plan",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 5,
+    "smallTextSamples": [
+      "11px \"Home\"",
+      "11px \"Plan\"",
+      "11px \"Companion\"",
+      "11px \"Events\"",
+      "11px \"Profile\""
+    ],
+    "smallTargets": 0,
+    "smallTargetSamples": []
+  },
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/companion",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 10,
+    "smallTextSamples": [
+      "11px \"Companion\"",
+      "11px \"Private\"",
+      "11px \"Memory Off\"",
+      "11px \"Mic only when you tap\"",
+      "10px \"Replay\""
+    ],
+    "smallTargets": 3,
+    "smallTargetSamples": [
+      "36x36 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Companion settings\"",
+      "69x32 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Turn on\"",
+      "64x19 button.mt-1.inline-flex.items-center.gap-1.rounded-full.px-2 \"Replay this reply\""
+    ]
+  },
+  {
+    "viewport": "iPhone SE",
+    "width": 375,
+    "route": "/profile",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 375,
+    "innerWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 40,
+    "smallTextSamples": [
+      "10px \"Used for sunrise/sunset in your light pl\"",
+      "11px \"Used everywhere Pilot speaks.\"",
+      "10px \"Current voice\"",
+      "9px \"★ Current\"",
+      "11px \"Calm & warm · female\""
+    ],
+    "smallTargets": 20,
+    "smallTargetSamples": [
+      "201x40 input.h-10.flex-1.rounded-xl.border.border-border.bg-input \"\"",
+      "60x40 button.rounded-xl.bg-primary.px-4.text-xs.font-semibold.text \"Save\"",
+      "269x16 input.w-full.accent-[var(--primary)] \"\"",
+      "269x16 input.w-full.accent-[var(--primary)] \"\"",
+      "269x38 input#assistant-name.w-full.rounded-lg.border.border-border. \"\"",
+      "178x34 a.inline-flex.items-center.gap-2.rounded-xl.border.border-bo \"Open full Memory page →\"",
+      "269x42 input#pilot-name.w-full.rounded-xl.border.border-border.bg-b \"\"",
+      "40x40 button.flex.h-10.w-10.shrink-0.items-center.justify-center \"Preview Sage\""
+    ]
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/dashboard",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 76,
+    "smallTextSamples": [
+      "10.4px \"Sun, Nov 15\"",
+      "10.4px \"Schedule stability 100% · Sleep debt 0\"",
+      "10px \"AI Coach Brief\"",
+      "10px \"Fatigue today\"",
+      "10px \"low\""
+    ],
+    "smallTargets": 2,
+    "smallTargetSamples": [
+      "39x54 button.absolute.top-0.h-full.transition.opacity-90.hover:opa \"Bright light 11:42a to 2:42p\"",
+      "10x54 button.absolute.top-0.h-full.transition.opacity-90.hover:opa \"Wind-down 12:55a to 1:40a\""
+    ]
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/plan",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 5,
+    "smallTextSamples": [
+      "11px \"Home\"",
+      "11px \"Plan\"",
+      "11px \"Companion\"",
+      "11px \"Events\"",
+      "11px \"Profile\""
+    ],
+    "smallTargets": 0,
+    "smallTargetSamples": []
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/companion",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 10,
+    "smallTextSamples": [
+      "11px \"Companion\"",
+      "11px \"Private\"",
+      "11px \"Memory Off\"",
+      "11px \"Mic only when you tap\"",
+      "10px \"Replay\""
+    ],
+    "smallTargets": 3,
+    "smallTargetSamples": [
+      "36x36 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Companion settings\"",
+      "69x32 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Turn on\"",
+      "64x19 button.mt-1.inline-flex.items-center.gap-1.rounded-full.px-2 \"Replay this reply\""
+    ]
+  },
+  {
+    "viewport": "iPhone 13/14",
+    "width": 390,
+    "route": "/profile",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 390,
+    "innerWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 40,
+    "smallTextSamples": [
+      "10px \"Used for sunrise/sunset in your light pl\"",
+      "11px \"Used everywhere Pilot speaks.\"",
+      "10px \"Current voice\"",
+      "9px \"★ Current\"",
+      "11px \"Calm & warm · female\""
+    ],
+    "smallTargets": 20,
+    "smallTargetSamples": [
+      "216x40 input.h-10.flex-1.rounded-xl.border.border-border.bg-input \"\"",
+      "60x40 button.rounded-xl.bg-primary.px-4.text-xs.font-semibold.text \"Save\"",
+      "284x16 input.w-full.accent-[var(--primary)] \"\"",
+      "284x16 input.w-full.accent-[var(--primary)] \"\"",
+      "284x38 input#assistant-name.w-full.rounded-lg.border.border-border. \"\"",
+      "178x34 a.inline-flex.items-center.gap-2.rounded-xl.border.border-bo \"Open full Memory page →\"",
+      "284x42 input#pilot-name.w-full.rounded-xl.border.border-border.bg-b \"\"",
+      "40x40 button.flex.h-10.w-10.shrink-0.items-center.justify-center \"Preview Sage\""
+    ]
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/dashboard",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 76,
+    "smallTextSamples": [
+      "10.4px \"Sun, Nov 15\"",
+      "10.4px \"Schedule stability 100% · Sleep debt 0\"",
+      "10px \"AI Coach Brief\"",
+      "10px \"Fatigue today\"",
+      "10px \"low\""
+    ],
+    "smallTargets": 1,
+    "smallTargetSamples": [
+      "11x54 button.absolute.top-0.h-full.transition.opacity-90.hover:opa \"Wind-down 12:55a to 1:40a\""
+    ]
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/plan",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 5,
+    "smallTextSamples": [
+      "11px \"Home\"",
+      "11px \"Plan\"",
+      "11px \"Companion\"",
+      "11px \"Events\"",
+      "11px \"Profile\""
+    ],
+    "smallTargets": 0,
+    "smallTargetSamples": []
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/companion",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 10,
+    "smallTextSamples": [
+      "11px \"Companion\"",
+      "11px \"Private\"",
+      "11px \"Memory Off\"",
+      "11px \"Mic only when you tap\"",
+      "10px \"Replay\""
+    ],
+    "smallTargets": 3,
+    "smallTargetSamples": [
+      "36x36 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Companion settings\"",
+      "69x32 button.inline-flex.items-center.justify-center.gap-2.whitesp \"Turn on\"",
+      "64x19 button.mt-1.inline-flex.items-center.gap-1.rounded-full.px-2 \"Replay this reply\""
+    ]
+  },
+  {
+    "viewport": "iPhone Pro Max",
+    "width": 430,
+    "route": "/profile",
+    "status": 200,
+    "ok": true,
+    "consoleErrors": [],
+    "clientWidth": 430,
+    "innerWidth": 430,
+    "scrollWidth": 430,
+    "bodyScrollWidth": 430,
+    "visualScale": 1,
+    "offenders": [],
+    "smallText": 40,
+    "smallTextSamples": [
+      "10px \"Used for sunrise/sunset in your light pl\"",
+      "11px \"Used everywhere Pilot speaks.\"",
+      "10px \"Current voice\"",
+      "9px \"★ Current\"",
+      "11px \"Calm & warm · female\""
+    ],
+    "smallTargets": 20,
+    "smallTargetSamples": [
+      "256x40 input.h-10.flex-1.rounded-xl.border.border-border.bg-input \"\"",
+      "60x40 button.rounded-xl.bg-primary.px-4.text-xs.font-semibold.text \"Save\"",
+      "324x16 input.w-full.accent-[var(--primary)] \"\"",
+      "324x16 input.w-full.accent-[var(--primary)] \"\"",
+      "324x38 input#assistant-name.w-full.rounded-lg.border.border-border. \"\"",
+      "178x34 a.inline-flex.items-center.gap-2.rounded-xl.border.border-bo \"Open full Memory page →\"",
+      "324x42 input#pilot-name.w-full.rounded-xl.border.border-border.bg-b \"\"",
+      "40x40 button.flex.h-10.w-10.shrink-0.items-center.justify-center \"Preview Sage\""
+    ]
+  }
+]
