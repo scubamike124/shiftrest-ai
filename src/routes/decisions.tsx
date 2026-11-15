@@ -81,7 +81,7 @@ function DecisionsPage() {
               <p>Could not load today's decisions.</p>
               <button
                 onClick={() => void refetch()}
-                className="mt-2 text-sm font-semibold text-primary"
+                className="hit-area mt-2 text-sm font-semibold text-primary"
               >
                 Try again
               </button>

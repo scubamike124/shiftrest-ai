@@ -140,7 +140,7 @@ export function AIBriefCard({
           onClick={() => refetch()}
           disabled={isFetching}
           aria-label="Refresh brief"
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50 hit-area"
         >
           {isFetching ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

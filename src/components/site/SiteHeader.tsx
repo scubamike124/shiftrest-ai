@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Menu, X, Moon } from "lucide-react";
 import { useIsNativeApp } from "@/lib/native-app";
@@ -15,6 +15,20 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   const links = inNativeApp ? nav.filter((n) => n.to !== "/pricing") : nav;
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Close the phone menu on navigation and on Escape.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     let raf = 0;
@@ -97,30 +111,36 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
           style={{ WebkitTapHighlightColor: "transparent" }}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
+          aria-controls="site-mobile-menu"
         >
           {open ? <X className="pointer-events-none h-5 w-5" /> : <Menu className="pointer-events-none h-5 w-5" />}
         </button>
       </div>
 
       {open && (
-        <div className="border-t border-border/60 bg-background/95 backdrop-blur-xl md:hidden">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-5 py-3">
+        <nav
+          id="site-mobile-menu"
+          aria-label="Main"
+          className="max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-border/60 bg-background/95 backdrop-blur-xl md:hidden"
+        >
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-1 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
             {links.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}
                 onClick={() => setOpen(false)}
-                className="rounded-xl px-3 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                className="flex min-h-12 items-center rounded-xl px-3 text-base font-medium text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                activeProps={{ className: "text-foreground bg-secondary/60" }}
               >
                 {n.label}
               </Link>
             ))}
-            <div className="mt-2 flex gap-2">
+            <div className="mt-3 flex gap-3">
               {signedIn ? (
                 <Link
                   to="/dashboard"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-full bg-foreground px-4 py-2.5 text-center text-sm font-semibold text-background"
+                  className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-center text-base font-semibold text-background"
                 >
                   Open app
                 </Link>
@@ -129,14 +149,14 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
                   <Link
                     to="/auth"
                     onClick={() => setOpen(false)}
-                    className="flex-1 rounded-full border border-border px-4 py-2.5 text-center text-sm font-semibold"
+                    className="flex min-h-12 flex-1 items-center justify-center rounded-full border border-border px-4 text-center text-base font-semibold"
                   >
                     Sign in
                   </Link>
                   <Link
                     to="/auth"
                     onClick={() => setOpen(false)}
-                    className="flex-1 rounded-full bg-foreground px-4 py-2.5 text-center text-sm font-semibold text-background"
+                    className="flex min-h-12 flex-1 items-center justify-center rounded-full bg-foreground px-4 text-center text-base font-semibold text-background"
                   >
                     Get started
                   </Link>
@@ -144,7 +164,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
               )}
             </div>
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );
