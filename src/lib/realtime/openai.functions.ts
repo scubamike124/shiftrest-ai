@@ -13,10 +13,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { loadTrialUsageState } from "@/lib/realtime/trial-usage.functions";
+import { buildRealtimeInstructions } from "@/lib/realtime/instructions";
 import {
   VOICE_OPTIONS,
   DEFAULT_VOICE_PROFILE,
-  buildInstructions,
   type PersonalityKey,
   type VoiceProfile,
 } from "@/lib/voice/profile";
@@ -65,27 +65,6 @@ function clampRealtimeSpeed(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(v)) return 1.0;
   return Math.min(1.5, Math.max(0.25, v));
-}
-
-// Reply-shape system prompt — keeps answers conversational and short so
-// audio starts fast and there are no long paragraph gaps between sentences.
-const REPLY_SHAPE = [
-  "You are RestPilot, a warm and calm sleep and rest companion.",
-  "Speak like a person on a phone call: one or two short sentences at a time.",
-  "Use plain, natural conversational language. No lists, no headings, no long paragraphs.",
-  "Give the shortest useful answer first. If there's more to share or you want the user to continue, end with a clear, inviting question like 'Want me to walk you through it step by step?' or 'Should I continue?' — never trail off or ask a soft, easy-to-miss question.",
-  "Pause after a beat so the user can respond. Never lecture.",
-].join(" ");
-
-/**
- * Speed on the Realtime API only changes playback rate — the model doesn't
- * self-adjust its cadence. Per OpenAI guidance, pair the speed multiplier
- * with an instruction so the delivery also feels paced correctly.
- */
-function pacingHint(speed: number): string {
-  if (speed < 0.95) return "Pace yourself calmly and unhurried, with soft breath between thoughts.";
-  if (speed > 1.05) return "Keep a brisk, energetic pace without rushing the words.";
-  return "Speak at a measured, natural pace.";
 }
 
 async function loadUserVoiceProfileServer(userId: string): Promise<VoiceProfile> {
@@ -190,25 +169,10 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       console.warn("[realtime/openai] greeting-name-lookup-failed", e);
     }
 
-    // Compose instructions: reply-shape rules + personality/accent/language
-    // from buildInstructions() + pacing hint keyed to speed tier.
-    // If the user set a custom instructions override, buildInstructions()
-    // returns it verbatim and we still prepend the reply-shape rules so the
-    // conversation contract holds.
-    const personalityBlock = buildInstructions(
-      {
-        personality: voiceProfile.personality,
-        accent: voiceProfile.accent,
-        language: voiceProfile.language,
-        instructionsOverride: voiceProfile.instructionsOverride,
-      },
-      "normal",
-    );
-    const instructions = [
-      REPLY_SHAPE,
-      personalityBlock,
-      pacingHint(voiceProfile.speed),
-    ].join(" ");
+    // Reply-shape rules + personality/accent/language (or the user's custom
+    // override) + pacing hint, then the shared SAFETY_AND_CARE rules last so
+    // the live voice surface has the same safety guardrail as text and TTS.
+    const instructions = buildRealtimeInstructions(voiceProfile);
 
     const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
