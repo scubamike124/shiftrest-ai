@@ -528,6 +528,44 @@ completes section 7 steps 1 to 9 and 11 to 13: App Store Connect agreements and 
 RevenueCat project and webhook, secrets, migration, sandbox testers. The native agent also has to
 install the plugin (section 6). The staging checklist in step 13 is the live verification plan.
 
+## 6b. Local StoreKit Testing (no App Store Connect products needed)
+
+`ios-app/ios/App/RestPilot.storekit` is an Xcode StoreKit configuration file containing the same
+subscription group and products as section 7 step 6:
+- `restpilot_annual`: $49.99 a year, ranked first;
+- `restpilot_monthly`: $7.99 a month;
+- each with a free 2-week introductory offer.
+
+`tests/storekit-config.test.mjs` keeps it in line with the code's product catalog.
+
+With this file, purchase, restore, cancel, refund, renewal speed-up and billing failure can be
+exercised in the free iOS Simulator, with no Apple account and no App Store Connect products.
+
+How to use it in Xcode:
+1. Open `ios-app/ios/App/App.xcworkspace`.
+2. Go to Product, then Scheme, then Edit Scheme, then Run, then Options, then **StoreKit
+   Configuration**, and select `RestPilot.storekit`.
+3. Run on a simulator.
+4. Use Debug, then StoreKit, then **Manage Transactions** to cancel, refund, expire or fail renewals.
+
+On purpose, no shared scheme is committed. The CI simulator lane builds the auto-created `App`
+scheme, and a shared scheme for the same target could stop Xcode from auto-creating it.
+
+This still needs:
+- **The native plugin** (section 6, F1).
+- **A RevenueCat project** with the two products and the `premium` entitlement, the public `appl_`
+  key, and the **StoreKit Testing certificate** uploaded. The certificate comes from Xcode, Editor,
+  then Save Public Certificate, and goes into RevenueCat, Project Settings, then Apps, then
+  "StoreKit testing framework". RevenueCat validates these local transactions against that
+  certificate, so this step is owner-only, like the rest of the RevenueCat account.
+
+Limits:
+- The configuration applies only to runs launched from Xcode, and to XCTest through
+  `SKTestSession`. A Maestro flow or a `simctl launch` does not use it, so it cannot drive purchases
+  headlessly.
+- Cancellations made in Manage Transactions are not reported to RevenueCat. Check the cancel paths
+  with the signed webhook tests (section 6a) and with Apple sandbox testers (section 7 step 12).
+
 ## 7. Owner-only setup, in order
 
 None of these steps can be done by an agent. They need the owner's Apple, bank, tax, RevenueCat or
