@@ -148,7 +148,7 @@ const RE_SAVE = /^(?:please\s+)?save\s+(?:this\s+|my\s+|the\s+)?mix(?:\s+as\s+(.
 // "schedule alarm", "wake me up"), then the time. This lets us catch
 // every common phrasing without false positives on bare clock mentions.
 const RE_WAKE =
-  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i;
+  /\b(?:wake\s+(?:me\s+)?(?:up\s+)?|(?:set|create|schedule|make|add|put)\s+(?:up\s+)?(?:my\s+|an?\s+|the\s+)?(?:smart\s+)?alarm)\s*(?:for|at|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|a\s?m|p\s?m)?\b/i;
 
 // Questions and long sentences are for the AI, even when they mention a sound
 // ("is rain bad?", "my fire captain..."), a wake time ("I usually wake at 6
@@ -180,6 +180,8 @@ const COMMAND_TAIL_WORDS = new Set([
   "thanks",
   "thank",
   "you",
+  "o'clock",
+  "oclock",
 ]);
 const FILLER =
   /\b(?:some|the|a|please|on|now|sound|sounds|noises|of|me|my|relaxing|soft|gentle)\b/g;
@@ -358,8 +360,10 @@ export function parseIntent(input: string): ParsedIntent {
 
   // Play <track> — explicit play verb is high-confidence regardless of phrasing.
   // Polite commands: "can you play rain", "could you put on ocean sounds".
-  const mPolite = text.match(
-    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on)\s+(.+)$/,
+  // "hey play rain", "ok, could you turn on white noise".
+  const playText = text.replace(/^(?:hey|ok|okay|hi)\s+/, "");
+  const mPolite = playText.match(
+    /^(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\s+(.+)$/,
   );
   const politeTrack = mPolite ? exactTrack(mPolite[1]) : null;
   if (politeTrack) {
@@ -370,10 +374,10 @@ export function parseIntent(input: string): ParsedIntent {
     };
   }
 
-  const mPlay = text.match(RE_PLAY);
+  const mPlay = playText.match(RE_PLAY);
   if (mPlay) {
     const phrase = mPlay[1];
-    const playVerb = /^(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\b/.test(text);
+    const playVerb = /^(?:please\s+)?(?:play|put\s+on|turn\s+on|switch\s+on)\b/.test(playText);
     const loose =
       phrase.replace(RE_DURATION_TAIL, "").replace(FILLER, " ").trim().split(/\s+/).length <= 2;
     const t = question
