@@ -16,9 +16,18 @@
 // than "overdosing on coffee" style slang, including questions such as "can
 // you overdose on melatonin?", and "makes me want to die" even with "lol".
 
-/** Phone-keyboard curly apostrophes become straight ones before matching. */
+/** Phone-keyboard curly apostrophes and "my self" (autocorrect) are normalised before matching. */
 function normalize(text: string): string {
-  return text.replace(/[‘’ʼ]/g, "'").replace(/\s+/g, " ");
+  return (
+    text
+      .replace(/[‘’ʼ]/g, "'")
+      .replace(/\s+/g, " ")
+      // Not "my self-esteem" / "my self confidence".
+      .replace(
+        /\bmy self\b(?!-| ?(esteem|confidence|care|doubt|worth|image|respect|control|belief)\b)/gi,
+        "myself",
+      )
+  );
 }
 
 // Sleep aids and common over-the-counter or prescription drugs people name
@@ -29,8 +38,18 @@ const DRUGS =
 const DRUGS_ALL =
   "(sleeping |sleep )?(pills|tablets|melatonin|ambien|zolpidem|benadryl|zzzquil|unisom|trazodone|nyquil|zquil|tylenol|acetaminophen|paracetamol|ibuprofen|advil|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|percocet|vicodin|opioids|insulin|antidepressants)";
 const TOOK_PAST = "(took|swallowed|downed|have taken|i've taken|just took)";
-const TOOK_INTENT = "((going to|gonna|want to|wanna|about to|i'll|planning to) (take|swallow))";
-const TOOK = `(${TOOK_PAST}|${TOOK_INTENT})`;
+// A stated plan. "will / I'll / could / may take all my pills" are also how
+// people describe a routine, so those skip specific routine phrases ("with
+// breakfast", "before my shift").
+const TOOK_INTENT =
+  "((going to|gonna|want to|wanna|about to|planning to) (take|swallow)|(thinking (of|about)|considering) (taking|swallowing))";
+// First person only, so not "the pharmacy will take all my pills back".
+const TOOK_MAYBE = "((i'll|i will|i could|i may|i might) (take|swallow))";
+const TOOK = `(${TOOK_PAST}|${TOOK_INTENT}|${TOOK_MAYBE})`;
+// Specific daily-routine phrases only, so "at once", "with vodka" or "before
+// anyone wakes up" still count.
+const ROUTINE =
+  "(with (my )?(breakfast|lunch|dinner|food|water|a meal|meals|my meal)|(before|after) (my |the )?(shift|work|bed|breakfast|lunch|dinner|meal)|as prescribed|on time|(every|each) (day|morning|night|evening)|(in the|this) (morning|afternoon|evening)|at \\d|with me|on (the |my )?(trip|flight|holiday|vacation|plane))";
 const CONTAINER = "((a|the|my) )?(whole |entire )?(bottle|pack|packet|box|strip|blister pack)";
 const END = "\\s*([.!?,;]|$)";
 
@@ -60,9 +79,20 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\b(better off|rather be|i'd rather be) dead\b/i,
   /\b(everyone|everybody|they|my family|my kids|the world|people) (would be|'d be|would all be|are) better off without me\b/i,
   /\bdone with (life|living)\b/i,
+  // Not "done living here / with my parents / paycheck to paycheck".
+  /\b(i'?m|i am) (so |just |really |honestly )?done living( like this| anymore| any more)?\s*([.!?;]|$)/i,
+  /\bi (really |just |honestly |probably )?(deserve|deserved) to die\b/i,
   /\b(keep|been|always|can't stop|cannot stop|constantly) thinking about (dying|death|ending it all)\b/i,
   /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
+  // At the end of a sentence, so not "any point in living closer to work?".
+  /\b(no|zero|isn'?t any|is not any) point (in |to )?(living|being alive)( anymore| any more| like this)?\s*([.!?,;]|$)/i,
+  /\bwhat'?s (even )?the point (of|in) (living|being alive|life)( anymore| any more| like this)?\s*([.!?,;]|$)/i,
+  /\b(no|any) point (in )?going on\s*([.!?;]|$)/i,
+  /\bwhat'?s the point (of|in) going on\s*([.!?;]|$)/i,
+  /\b(want|need|wish) (it|this|everything) all to (end|stop)( now| forever)?\s*([.!?;]|$)/i,
+  /\b(want|wish) (it|everything) to (end|be over)( now| forever)?\s*([.!?;]|$)/i,
+  /\b(want to|wanna|going to|gonna|ready to|about to|thinking of|thinking about) end things( tonight| now| today)?\s*([.!?;]|$)/i,
   // Wanting to die
   /\b(want to|wanted to|wanna) (die|be dead|stop living|stop existing)\b/i,
   /\bready to die\b/i,
@@ -86,16 +116,19 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\b(want|wanna|going|gonna|urge|tempted|thinking about|think about|thought about|feel like)( to)? (hurt|hurting) myself\b/i,
   /\b(been|keep|keeps|kept|started|start) (hurting|cutting|burning|harming) myself\b/i,
   /\b(hurt|hurting|cut|cutting|burn|burning|burned|burnt) myself on purpose\b/i,
+  /\b(i'?m|i am|been|started) cutting( myself)? again\s*([.!?;]|$)/i,
+  // Not "saving my sleeping pills for the flight" / "meds stored away".
+  /\b(pills|meds|tablets) (saved up|stockpiled)( (to end it|to take (them )?all|to overdose|for when i)\b|\s*([.!?;]|$))/i,
+  /\b(stockpiling|hoarding)( up)? (my |the )?(sleeping )?(pills|meds|tablets)\s*([.!?;]|$)/i,
+  /\b(saving|stashing|stockpiling|hoarding)( up)? (my |the )?(sleeping )?(pills|meds|tablets) (to end it|for when i|in case i|to take (them )?all|to overdose)\b/i,
   /(?<!accidentally )\bcut(ting)? myself\b(?! (shaving|while|cooking|chopping|by accident|accidentally|on (a|an|the|my|some)|with (a|an|the|my)|at (work|the)|in the|some slack|a break|off|short|loose|free|out|in on|a deal|a piece|a slice|back)\b)/i,
   // Overdose ("overdosing on coffee" is tiredness slang; "my patient
   // overdosed" / "treating overdoses" is clinicians talking about work).
   /(?<!(patient|patients|someone|somebody|client|resident|we had an|we had a|treating|treated|treat) )\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
   // Past "took all my ..." skips daily-routine words; a stated plan never does.
-  new RegExp(
-    `\\b${TOOK_PAST} all (of )?(my |the )?${DRUGS_ALL}\\b(?! (this|today|tonight|every|each|at|in the|for|on time|as prescribed)\\b)`,
-    "i",
-  ),
+  new RegExp(`\\b${TOOK_PAST} all (of )?(my |the )?${DRUGS_ALL}\\b(?! ${ROUTINE})`, "i"),
   new RegExp(`\\b${TOOK_INTENT} all (of )?(my |the )?${DRUGS_ALL}\\b`, "i"),
+  new RegExp(`\\b${TOOK_MAYBE} all (of )?(my |the )?${DRUGS_ALL}\\b(?! ${ROUTINE})`, "i"),
   new RegExp(`\\b${TOOK} ${CONTAINER} of (my |the )?${DRUGS}\\b`, "i"),
   new RegExp(`\\b${TOOK} (my|the) (whole|entire) (prescription|supply|stash)\\b`, "i"),
   new RegExp(`\\b${TOOK} a bunch of (my |the )?${DRUGS}\\b`, "i"),
