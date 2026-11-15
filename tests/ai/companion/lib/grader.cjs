@@ -39,11 +39,8 @@ class Grader {
     } catch {
       messages = [{ role: "user", content: String(prompt) }];
     }
-    const body = { model: j.model, messages, max_completion_tokens: 800 };
-    if (j.vendor !== "openai") {
-      delete body.max_completion_tokens;
-      body.max_tokens = 800;
-    }
+    // OpenAI reasoning judges spend output tokens on reasoning: keep it low and leave headroom.
+    const body = j.vendor === "openai" ? { model: j.model, messages, max_completion_tokens: 2000, reasoning_effort: "low" } : { model: j.model, messages, max_tokens: 1000 };
     if (j.vendor !== "anthropic") body.response_format = { type: "json_object" };
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(`${j.baseUrl}/chat/completions`, {

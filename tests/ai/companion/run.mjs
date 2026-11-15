@@ -38,6 +38,10 @@ let labels = offline ? ["offline-selftest"] : Object.entries(KEYS).filter(([k]) 
 const only = opt("--only");
 if (only) labels = labels.filter((l) => new RegExp(only, "i").test(l));
 
+if (!labels.length && only && Object.keys(KEYS).some((k) => process.env[k])) {
+  console.log(`No provider with a key matches --only ${only}.`);
+  process.exit(2);
+}
 if (!labels.length) {
   console.log("Benchmark PENDING KEY: no provider key is set.");
   console.log("Needed: GEMINI_API_KEY (Google AI Studio, free tier) to measure the current model and Gemini candidates;");

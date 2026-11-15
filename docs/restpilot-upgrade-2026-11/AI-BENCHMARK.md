@@ -62,7 +62,7 @@ Sources: <https://developers.openai.com/api/docs/pricing>, <https://developers.o
 Defaults are unchanged and rollback is a single setting.
 
 - **`src/lib/ai/models.server.ts`**: task routing (`coach`, `voice`, `structured`, `brief`, `background`). With only `AI_CHAT_MODEL` / `AI_FAST_MODEL` set, behaviour is identical to before. Optional `AI_MODEL_<TASK>` and `AI_REASONING_<TASK>` apply per task. **`AI_ROUTING=off` ignores every override at once.** Lovable-style `google/…` IDs are normalised for Google, OpenAI and Anthropic endpoints.
-- **Provider-family request shapes**: OpenAI reasoning models get `max_completion_tokens` and no `temperature`. Claude's compatible endpoint gets no `json_object` and no sub-1 temperature. Gemini requests are unchanged.
+- **Provider-family request shapes**: OpenAI reasoning models get `max_completion_tokens` and no `temperature`. Claude's compatible endpoint gets no `json_object` and no `temperature` (Anthropic: "On Claude 4.7 and later models … any value below 1 returns a 400 error, so omit it"). Gemini requests are unchanged.
 - **Budget accounting fix**: streamed chat now requests `stream_options.include_usage`. On direct OpenAI/Gemini endpoints the coach stream would otherwise log 0 tokens, so the daily token cap (`has_ai_budget`) would never count the most frequent call. `AI_STREAM_USAGE=off` disables this for a provider that rejects it. Logs now record the model actually used.
 - **Companion context bug**: the companion page sends `context` as an object, and the prompt contained `[object Object]`. It is now serialised and bounded.
 - **Commute math**: `leaveAt` / `prepStartAt` are computed exactly on the server instead of trusting the model's subtraction (`src/lib/ai/intent-guards.ts`).
@@ -126,7 +126,7 @@ node tests/ai/companion/run.mjs --offline       # $0 pipeline self-test, no key
 node tests/ai/companion/voice-samples.mjs       # voice A/B samples + blind rating sheet
 ```
 
-Offline self-test (2026-11-14): all 134 cases assembled from production prompt code. Promptfoo ran them with 0 pipeline errors, the report generated, and every production prompt contained the guardrail. The self-test reply is a fixed sentence, so its scores say nothing about any model. 251/251 repository tests pass.
+Offline self-test (2026-11-14): all 134 cases assembled from production prompt code. Promptfoo ran them with 0 pipeline errors, the report generated, and every production prompt contained the guardrail. The self-test reply is a fixed sentence, so its scores say nothing about any model. 265/265 repository tests pass after merging the base.
 
 ### Keys needed and estimated benchmark cost
 
@@ -154,6 +154,8 @@ Per task, a candidate replaces the current model only if, in the same run:
 4. Lifecycle: a stable model with no announced shutdown is preferred over a preview.
 
 Rollout is per task via env (for example `AI_MODEL_BRIEF` first), while watching `ai_log` errors and tokens. Rollback is `AI_ROUTING=off` or the previous env values.
+
+When an OpenAI reasoning model (gpt-5 / gpt-6 family) serves the `voice` task, **also set `AI_REASONING_VOICE=low` (or `none`)**. Its default `medium` reasoning counts against the 180-token spoken cap and can leave replies empty. The benchmark runs these models with `voice: low` and flags empty or truncated voice replies.
 
 ## 6. Voice quality
 
