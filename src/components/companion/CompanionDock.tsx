@@ -1,4 +1,4 @@
-// Persistent corner avatar — always visible inside the app surface.
+// Persistent corner avatar on desktop-width app screens (lg and up).
 // Tap → opens the full Companion experience.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { OrbBadge } from "@/components/PilotOrb";
@@ -31,7 +31,9 @@ export function CompanionDock() {
       to="/companion"
       aria-label="Open AI Companion"
       className={cn(
-        "fixed z-40 flex h-14 w-14 items-center justify-center rounded-full",
+        // Phones reach the companion from the bottom navigation's centre tab;
+        // a floating corner button there covered page titles and card controls.
+        "fixed z-40 hidden h-14 w-14 items-center justify-center rounded-full lg:flex",
         "border border-white/15 bg-card/70 backdrop-blur-xl dock-glow",
         "transition-transform active:scale-95",
       )}
