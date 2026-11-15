@@ -31,7 +31,6 @@ const opt = (n, d) => many(n)[0] ?? d;
 const OUT = opt("--out");
 if (!OUT) throw new Error("--out is required");
 const PRIV = path.join(OUT, "private");
-fs.mkdirSync(PRIV, { recursive: true });
 const readJsonl = (f) =>
   fs
     .readFileSync(f, "utf8")
@@ -56,6 +55,7 @@ function localClock(iso, tz) {
 }
 
 if (cmd === "packets") {
+  fs.mkdirSync(PRIV, { recursive: true });
   if (fs.existsSync(path.join(PRIV, "mapping.json")) && !rest.includes("--force"))
     throw new Error(
       "packets already built here (rids are random; rebuilding would orphan reviews). Use --force.",
@@ -133,7 +133,34 @@ if (cmd === "packets") {
   fs.writeFileSync(path.join(PRIV, "checks.json"), JSON.stringify(checks, null, 1));
   fs.writeFileSync(path.join(PRIV, "intercepted.json"), JSON.stringify(product, null, 1));
   console.log(`${items.length} items, ${product.length} intercepted turns`);
+} else if (cmd === "transcripts") {
+  // Live responses -> live/transcripts.json for cases/live-parity.cjs (no credentials, no tokens).
+  const recs = readJsonl(opt("--in"));
+  const prefs = recs.find((r) => r.prefs)?.prefs ?? {};
+  const out = {
+    tz: opt("--tz", "America/New_York"),
+    goalHours: prefs.sleep_hours ?? 7.5,
+    assistantName: prefs.assistant_name ?? undefined,
+    mode: prefs.assistant_mode ?? undefined,
+    collectedAt: recs[0]?.collectedAt,
+    scenarios: Object.fromEntries(
+      recs.map((r) => [
+        r.id,
+        {
+          turns: r.turns.map((t) => ({
+            user: t.user,
+            reply: t.reply ?? "",
+            sendLocal: t.sendLocal,
+            intercepted: Boolean(t.intercepted),
+          })),
+        },
+      ]),
+    ),
+  };
+  fs.writeFileSync(path.join(OUT, "transcripts.json"), JSON.stringify(out, null, 1) + "\n");
+  console.log(`${recs.length} scenarios written`);
 } else if (cmd === "aggregate") {
+  fs.mkdirSync(PRIV, { recursive: true });
   const mapping = JSON.parse(fs.readFileSync(path.join(PRIV, "mapping.json"), "utf8"));
   const checks = JSON.parse(fs.readFileSync(path.join(PRIV, "checks.json"), "utf8"));
   const reviewers = opt("--scores")
