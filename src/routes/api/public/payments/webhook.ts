@@ -94,6 +94,14 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
   const productId =
     typeof li.price?.product === "string" ? li.price.product : li.price?.product?.id;
 
+  // Lifetime is discontinued for new customers. A completed payment for the
+  // lifetime price (e.g. a Checkout Session opened before the discontinuation)
+  // is still honored; any other one-time payment must never mint a lifetime row.
+  if (priceId !== "restpilot_lifetime") {
+    console.error("ignoring one-time checkout for non-lifetime price", session.id, priceId);
+    return;
+  }
+
   await getSupabase()
     .from("subscriptions")
     .upsert(

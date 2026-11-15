@@ -19,6 +19,14 @@ const TIER_BY_PRICE: Record<string, SubscriptionTier> = {
   restpilot_lifetime: "lifetime",
 };
 
+type SubRow = {
+  price_id: string;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean | null;
+  stripe_customer_id: string | null;
+};
+
 export async function getSubscriptionState(): Promise<SubscriptionState> {
   const empty: SubscriptionState = {
     tier: "free",
@@ -34,7 +42,10 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
   if (!isPaymentsConfigured()) return empty;
 
   const env = getStripeEnvironment();
-  const { data } = await supabase
+  // Read a few rows, not just the newest: a later canceled-and-expired row must
+  // never hide an existing lifetime (or other still-valid) entitlement. Nothing
+  // here writes, deletes or converts any row.
+  const { data: rows } = await supabase
     .from("subscriptions")
     .select(
       "price_id, status, current_period_end, cancel_at_period_end, stripe_customer_id",
@@ -42,19 +53,25 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
     .eq("user_id", session.session.user.id)
     .eq("environment", env)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
+
+  const now = new Date();
+  const rowIsPremium = (r: SubRow) => {
+    const end = r.current_period_end ? new Date(r.current_period_end) : null;
+    return (
+      r.status === "lifetime" ||
+      ((r.status === "active" || r.status === "trialing") && (!end || end > now)) ||
+      (r.status === "canceled" && !!end && end > now)
+    );
+  };
+  const list = (rows ?? []) as SubRow[];
+  const data = list.find((r) => r.status === "lifetime") ?? list.find(rowIsPremium) ?? list[0];
 
   if (!data) return empty;
 
   const tier = TIER_BY_PRICE[data.price_id] ?? "free";
   const expiresAt = data.current_period_end ? new Date(data.current_period_end) : null;
-  const now = new Date();
-  const isPremium =
-    data.status === "lifetime" ||
-    ((data.status === "active" || data.status === "trialing") &&
-      (!expiresAt || expiresAt > now)) ||
-    (data.status === "canceled" && !!expiresAt && expiresAt > now);
+  const isPremium = rowIsPremium(data);
 
   return {
     tier,

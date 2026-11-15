@@ -91,6 +91,37 @@ test('pricing pages still show monthly $7.99, annual $49.99 and the 14-day trial
 
 test('existing lifetime entitlements are still honored', () => {
   assert.match(read('src/lib/subscription.ts'), /restpilot_lifetime: "lifetime"/);
-  assert.match(read('src/lib/subscription.ts'), /data\.status === "lifetime"/);
+  assert.match(read('src/lib/subscription.ts'), /r\.status === "lifetime"/);
   assert.match(read('src/routes/api/public/payments/webhook.ts'), /status: "lifetime"/);
+});
+
+test('webhook only mints a lifetime row for the lifetime price (paid legacy sessions still honored)', () => {
+  const src = read('src/routes/api/public/payments/webhook.ts');
+  assert.match(src, /if \(priceId !== "restpilot_lifetime"\) \{[\s\S]*?return;\s*\}[\s\S]*?status: "lifetime"/);
+  // Nothing in the codebase deletes or converts lifetime rows.
+  assert.doesNotMatch(src, /\.delete\(\)/);
+});
+
+test('a newer non-premium row cannot hide an existing lifetime entitlement', async () => {
+  const source = stripTypeScriptTypes(read('src/lib/subscription.ts'))
+    .replace(/^import[\s\S]*?;\n/gm, '').replaceAll('export async function', 'async function').replaceAll('export interface', 'interface');
+  const run = async (rows) => {
+    const q = { select: () => q, eq: () => q, order: () => q, limit: async () => ({ data: rows }) };
+    const supabase = { auth: { async getSession() { return { data: { session: { user: { id: 'u1' } } } }; } }, from: () => q };
+    const ctx = vm.createContext({ supabase, getStripeEnvironment: () => 'live', isPaymentsConfigured: () => true });
+    const { getSubscriptionState } = vm.runInContext(`${source}\n({getSubscriptionState})`, ctx);
+    return getSubscriptionState();
+  };
+  const past = new Date(Date.now() - 86400e3).toISOString();
+  const future = new Date(Date.now() + 86400e3).toISOString();
+  const lifetime = { price_id: 'restpilot_lifetime', status: 'lifetime', current_period_end: null, cancel_at_period_end: false, stripe_customer_id: 'c' };
+  const expired = { price_id: 'restpilot_monthly', status: 'canceled', current_period_end: past, cancel_at_period_end: false, stripe_customer_id: 'c' };
+  const active = { price_id: 'restpilot_monthly', status: 'active', current_period_end: future, cancel_at_period_end: false, stripe_customer_id: 'c' };
+  const a = await run([expired, lifetime]);
+  assert.equal(a.tier, 'lifetime'); assert.equal(a.isPremium, true);
+  const b = await run([expired]);
+  assert.equal(b.isPremium, false);
+  const c = await run([active]);
+  assert.equal(c.tier, 'monthly'); assert.equal(c.isPremium, true);
+  assert.equal((await run([])).tier, 'free');
 });
