@@ -57,3 +57,26 @@ test('migration keeps store tables service-written and user-readable only', () =
   assert.match(sql, /revoke all on function public\.apply_store_entitlement\(jsonb\) from public, anon, authenticated;/);
   assert.match(sql, /where cur\.snapshot_at <= excluded\.snapshot_at;/);
 });
+
+test('Buy and Restore wait until the App Store SDK is identified as the signed-in user', () => {
+  const screen = read('src/components/subscription/NativeSubscription.tsx');
+  assert.match(screen, /if \(!pkg \|\| busy \|\| !userId \|\| storeUser !== userId\) return;/);
+  assert.match(screen, /if \(busy \|\| !userId \|\| storeUser !== userId\) return;/);
+  assert.match(screen, /disabled=\{busy !== null \|\| storeUser !== userId\}/);
+  assert.match(screen, /decision\.restore && decision\.view !== "loading" && storeUser === userId &&/);
+  const buy = screen.indexOf('async function onBuy');
+  assert.ok(screen.indexOf('await identify(userId)', buy) < screen.indexOf('await purchase(pkg)', buy));
+  const restore = screen.indexOf('async function onRestore');
+  assert.ok(screen.indexOf('await identify(userId)', restore) < screen.indexOf('await restore()', restore));
+  // A user switch resets identity and plans before anything can be bought.
+  assert.match(screen, /setStoreUser\(null\);\s*setPackages\(\{\}\);\s*setPlansState\("loading"\);/);
+  // identify() is serialized in the bridge.
+  assert.match(read('src/lib/entitlements/iap-bridge.ts'), /identifyQueue = run\.catch/);
+});
+
+test('plans show a loading state and a retry, not "unavailable", while StoreKit loads', () => {
+  const screen = read('src/components/subscription/NativeSubscription.tsx');
+  assert.match(screen, /plansState === "loading" \?/);
+  assert.match(screen, /Loading plans…/);
+  assert.match(screen, /setPlansAttempt\(\(n\) => n \+ 1\)/);
+});

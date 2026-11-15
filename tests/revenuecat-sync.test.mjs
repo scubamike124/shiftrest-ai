@@ -207,3 +207,30 @@ test('authenticated sync refuses non-UUID users and missing API key', async () =
   await assert.rejects(sync.syncStoreEntitlement('$RCAnonymousID:x', f.deps), /app user id/);
   await assert.rejects(sync.syncStoreEntitlement(USER, { ...f.deps, env: {} }), /not configured/);
 });
+
+test('oversized bodies are rejected while streaming, even without or with a lying Content-Length', async () => {
+  const big = JSON.stringify({ event: event({ pad: 'x'.repeat(70 * 1024) }) });
+  const stream = () => new ReadableStream({ start(c) { const b = new TextEncoder().encode(big); for (let i = 0; i < b.length; i += 8192) c.enqueue(b.slice(i, i + 8192)); c.close(); } });
+  for (const headers of [{}, { 'content-length': '10' }]) {
+    const f = fixture();
+    const req = new Request('https://x.test/', { method: 'POST', body: stream(), duplex: 'half', headers: { 'x-revenuecat-webhook-signature': sign(big), ...headers } });
+    assert.equal((await sync.handleRevenueCatWebhook(req, f.deps)).status, 413, JSON.stringify(headers));
+    assert.deepEqual(f.calls, []);
+  }
+  const ok = fixture();
+  const small = JSON.stringify({ api_version: '1.0', event: event() });
+  const req = new Request('https://x.test/', { method: 'POST', body: new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(small)); c.close(); } }), duplex: 'half', headers: { 'x-revenuecat-webhook-signature': sign(small) } });
+  assert.equal((await sync.handleRevenueCatWebhook(req, ok.deps)).status, 200, 'streamed body within the cap still works');
+});
+
+test('sandbox purchases are stored only while IAP_HONOR_SANDBOX=true (otherwise the sandbox row is written empty)', async () => {
+  const sandboxBody = subscriber({ restpilot_monthly: sub({ is_sandbox: true }) });
+  for (const [honor, expectPlan] of [[undefined, null], ['true', 'monthly']]) {
+    const applied = [];
+    const deps = { env: { ...ENV, IAP_HONOR_SANDBOX: honor }, fetch: async () => Response.json(sandboxBody), applySnapshot: async (s) => { applied.push(s); return true; } };
+    await sync.syncStoreEntitlement(USER, deps);
+    const sandbox = applied.find((s) => s.environment === 'sandbox');
+    assert.equal(sandbox.plan, expectPlan); assert.equal(sandbox.expires_at === null, expectPlan === null);
+    assert.equal(sandbox.snapshot_at, new Date(REQUEST_MS).toISOString(), 'still ordered, so it also clears older rows');
+  }
+});

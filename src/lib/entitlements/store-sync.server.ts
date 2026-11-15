@@ -54,9 +54,58 @@ export async function syncStoreEntitlement(
     signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`RevenueCat subscriber lookup failed (${res.status})`);
-  const snapshots = snapshotsFromSubscriber(userId, await res.json());
+  const honorSandbox = deps.env.IAP_HONOR_SANDBOX === "true";
+  // Stored rows are the single source of truth (the SQL premium helper reads
+  // them too), so sandbox purchases are stored only while sandbox is honored;
+  // otherwise the sandbox row is written empty, which also clears an old one.
+  const snapshots = snapshotsFromSubscriber(userId, await res.json()).map((s) =>
+    s.environment === "sandbox" && !honorSandbox ? emptySnapshot(s) : s,
+  );
   for (const snapshot of snapshots) await deps.applySnapshot(snapshot);
   return snapshots;
+}
+
+function emptySnapshot(s: StoreSnapshot): StoreSnapshot {
+  return {
+    ...s,
+    store: null,
+    product_id: null,
+    plan: null,
+    period_type: null,
+    expires_at: null,
+    grace_expires_at: null,
+    will_renew: false,
+    billing_issue: false,
+    management_url: null,
+  };
+}
+
+/** Read at most `max` bytes of the body, aborting the stream beyond that,
+ *  whatever Content-Length says (or omits). Returns null when too large. */
+async function readBodyCapped(request: Request, max: number): Promise<string | null> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > max) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    all.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
 }
 
 function constantTimeEqual(a: string, b: string): boolean {
@@ -117,10 +166,8 @@ export async function handleRevenueCatWebhook(
     );
     return text("Not configured", 503);
   }
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY_BYTES) return text("Payload too large", 413);
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) return text("Payload too large", 413);
+  const raw = await readBodyCapped(request, MAX_BODY_BYTES);
+  if (raw === null) return text("Payload too large", 413);
 
   const signed = await verifyRevenueCatSignature(
     request.headers.get("x-revenuecat-webhook-signature"),

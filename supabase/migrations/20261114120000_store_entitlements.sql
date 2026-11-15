@@ -86,3 +86,38 @@ begin
 end; $$;
 revoke all on function public.apply_store_entitlement(jsonb) from public, anon, authenticated;
 grant execute on function public.apply_store_entitlement(jsonb) to service_role;
+
+-- The AI token budget (has_ai_budget) and other SQL premium checks go
+-- through has_active_subscription. Count an active App Store entitlement for
+-- the same environment too, so an Apple-only subscriber gets the premium
+-- budget. The Stripe conditions are unchanged. Rows here exist only once IAP
+-- is switched on, and sandbox rows only while IAP_HONOR_SANDBOX=true (the
+-- sync writes them empty otherwise), so with IAP off the result is unchanged.
+-- Same signature, language and security as the original, so existing grants
+-- are kept.
+CREATE OR REPLACE FUNCTION public.has_active_subscription(
+  user_uuid uuid,
+  check_env text DEFAULT 'live'
+)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.subscriptions
+    WHERE user_id = user_uuid
+    AND environment = check_env
+    AND (
+      (status IN ('active', 'trialing') AND (current_period_end IS NULL OR current_period_end > now()))
+      OR (status = 'canceled' AND current_period_end IS NOT NULL AND current_period_end > now())
+      OR (status = 'lifetime')
+    )
+  ) OR EXISTS (
+    SELECT 1 FROM public.store_entitlements
+    WHERE user_id = user_uuid
+    AND environment = check_env
+    AND expires_at IS NOT NULL
+    AND greatest(expires_at, coalesce(grace_expires_at, expires_at)) > now()
+  );
+$$;

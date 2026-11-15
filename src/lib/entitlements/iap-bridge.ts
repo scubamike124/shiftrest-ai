@@ -78,22 +78,29 @@ function call<T>(method: string, options?: unknown): Promise<T> {
 }
 
 let configuredFor: string | null = null;
+let identifyQueue: Promise<void> = Promise.resolve();
 
 /** Identify the purchaser as the signed-in RestPilot user (Supabase UUID), so
- *  App Store purchases attach to the account, never to an anonymous ID. */
-export async function identify(userId: string): Promise<void> {
-  if (configuredFor === userId) return;
-  // The native SDK outlives page reloads; configure once, then switch users.
-  const state =
-    configuredFor === null
-      ? await call<{ isConfigured?: unknown }>("isConfigured")
-      : { isConfigured: true };
-  if (state?.isConfigured === true) {
-    await call("logIn", { appUserID: userId });
-  } else {
-    await call("configure", { apiKey: sdkKey(), appUserID: userId });
-  }
-  configuredFor = userId;
+ *  App Store purchases attach to the account, never to an anonymous ID or a
+ *  previously signed-in user. Calls are serialized: a later sign-in always
+ *  wins, and a caller awaiting identify(x) resumes only once the SDK is x. */
+export function identify(userId: string): Promise<void> {
+  const run = identifyQueue.then(async () => {
+    if (configuredFor === userId) return;
+    // The native SDK outlives page reloads; configure once, then switch users.
+    const state =
+      configuredFor === null
+        ? await call<{ isConfigured?: unknown }>("isConfigured")
+        : { isConfigured: true };
+    if (state?.isConfigured === true) {
+      await call("logIn", { appUserID: userId });
+    } else {
+      await call("configure", { apiKey: sdkKey(), appUserID: userId });
+    }
+    configuredFor = userId;
+  });
+  identifyQueue = run.catch(() => undefined);
+  return run;
 }
 
 /** Storefront country. getStorefront exists only in newer plugin releases

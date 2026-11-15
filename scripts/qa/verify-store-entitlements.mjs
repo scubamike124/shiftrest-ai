@@ -9,8 +9,11 @@ await db.exec(`create role anon; create role authenticated; create role service_
 create schema auth; create table auth.users(id uuid primary key);
 grant usage on schema auth to authenticated, anon;
 create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.uid', true), '')::uuid$$;
-grant usage on schema public to anon, authenticated, service_role;`);
-await db.exec(fs.readFileSync(new URL('../../supabase/migrations/20261114120000_store_entitlements.sql', import.meta.url), 'utf8'));
+grant usage on schema public to anon, authenticated, service_role;
+create function public.set_updated_at() returns trigger language plpgsql as $$begin new.updated_at=now();return new;end;$$;`);
+for (const file of ['20260626222351_6ee9b465-a4e1-4d6d-8755-4fb200212e6c.sql', '20261114120000_store_entitlements.sql']) {
+  await db.exec(fs.readFileSync(new URL('../../supabase/migrations/' + file, import.meta.url), 'utf8'));
+}
 const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222', GONE = '33333333-3333-4333-8333-333333333333';
 await db.query('insert into auth.users values ($1), ($2)', [A, B]);
 const snap = (o = {}) => ({ user_id: A, environment: 'live', store: 'app_store', product_id: 'restpilot_monthly', plan: 'monthly', period_type: 'normal',
@@ -35,6 +38,23 @@ for (const bad of [snap({ environment: 'prod' }), snap({ user_id: 'not-a-uuid' }
 const times = Array.from({ length: 20 }, (_, i) => new Date(Date.parse('2026-11-15T00:00:00Z') + i * 1000).toISOString());
 await Promise.all(times.sort(() => Math.random() - 0.5).map((t) => apply(snap({ user_id: B, snapshot_at: t }))));
 assert.equal(new Date((await row(B)).snapshot_at).toISOString(), times.sort().at(-1));
+
+// has_active_subscription (used by the AI budget) counts App Store rows; Stripe rules unchanged.
+const C = '44444444-4444-4444-8444-444444444444';
+await db.query('insert into auth.users values ($1)', [C]);
+const has = async (u, e = 'live') => (await db.query('select public.has_active_subscription($1, $2) as ok', [u, e])).rows[0].ok;
+assert.equal(await has(C), false, 'no rows: not premium');
+await apply(snap({ user_id: C, snapshot_at: '2026-11-20T00:00:00Z', expires_at: new Date(Date.now() + 86400000).toISOString() }));
+assert.equal(await has(C), true, 'active App Store row: premium');
+assert.equal(await has(C, 'sandbox'), false, 'other environment does not count');
+await apply(snap({ user_id: C, snapshot_at: '2026-11-21T00:00:00Z', expires_at: new Date(Date.now() - 86400000).toISOString(), grace_expires_at: new Date(Date.now() + 86400000).toISOString() }));
+assert.equal(await has(C), true, 'Apple billing grace: premium');
+await apply(snap({ user_id: C, snapshot_at: '2026-11-22T00:00:00Z', expires_at: new Date(Date.now() - 1000).toISOString(), grace_expires_at: null }));
+assert.equal(await has(C), false, 'expired: not premium');
+await apply(snap({ user_id: C, snapshot_at: '2026-11-23T00:00:00Z', expires_at: null, plan: null, product_id: null, store: null }));
+assert.equal(await has(C), false, 'empty snapshot: not premium');
+await db.query("insert into public.subscriptions(user_id, stripe_subscription_id, stripe_customer_id, product_id, price_id, status, current_period_end, environment) values ($1, 'sub_c', 'cus_c', 'p', 'restpilot_monthly', 'active', now() + interval '1 day', 'live')", [C]);
+assert.equal(await has(C), true, 'Stripe rule unchanged');
 
 // Privileges: clients can read only their own row and cannot write or call the function.
 await db.exec(`set test.uid = '${A}'`);

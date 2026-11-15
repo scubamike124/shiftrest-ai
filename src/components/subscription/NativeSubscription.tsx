@@ -160,6 +160,10 @@ export function NativeSubscription() {
   const [status, setStatus] = useState<EntitlementStatus | null>(null);
   const [storefront, setStorefront] = useState<string | null>(null);
   const [packages, setPackages] = useState<Packages>({});
+  // The App Store SDK must be identified as THIS user before Buy or Restore,
+  // or a purchase could attach to a previously signed-in account.
+  const [storeUser, setStoreUser] = useState<string | null>(null);
+  const [plansState, setPlansState] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState<null | "purchase" | "restore">(null);
   const [message, setMessage] = useState<string | null>(null);
   const canIap = iapAvailable();
@@ -172,6 +176,7 @@ export function NativeSubscription() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  const [plansAttempt, setPlansAttempt] = useState(0);
   const refresh = useCallback(async () => {
     setStatus(null);
     try {
@@ -184,17 +189,29 @@ export function NativeSubscription() {
   useEffect(() => {
     if (!userId) return;
     void refresh();
+    setStoreUser(null);
+    setPackages({});
+    setPlansState("loading");
     if (!canIap) return;
+    let current = true;
     (async () => {
       try {
         await identify(userId);
+        if (!current) return;
+        setStoreUser(userId);
         setStorefront(await getStorefront());
-        setPackages(await loadPackages());
+        const loaded = await loadPackages();
+        if (!current) return;
+        setPackages(loaded);
+        setPlansState("ready");
       } catch {
-        setPackages({});
+        if (current) setPlansState("error");
       }
     })();
-  }, [userId, canIap, refresh]);
+    return () => {
+      current = false;
+    };
+  }, [userId, canIap, refresh, plansAttempt]);
 
   if (userId === undefined)
     return <p className="px-5 py-16 text-center text-muted-foreground">Loading…</p>;
@@ -244,7 +261,7 @@ export function NativeSubscription() {
 
   async function onBuy(plan: AppStorePlan) {
     const pkg = packages[plan];
-    if (!pkg || busy) return;
+    if (!pkg || busy || !userId || storeUser !== userId) return;
     setBusy("purchase");
     setMessage(null);
     try {
@@ -255,6 +272,7 @@ export function NativeSubscription() {
         setMessage("error" in latest ? latest.error : "You already have RestPilot Premium.");
         return;
       }
+      await identify(userId); // no-op when already this user; never buy as someone else
       const result = await purchase(pkg);
       if (result === "cancelled") return;
       await afterStoreChange("Thank you — RestPilot Premium is active.");
@@ -268,10 +286,11 @@ export function NativeSubscription() {
   }
 
   async function onRestore() {
-    if (busy) return;
+    if (busy || !userId || storeUser !== userId) return;
     setBusy("restore");
     setMessage(null);
     try {
+      await identify(userId);
       await restore();
       await afterStoreChange("Purchases restored.");
     } catch {
@@ -336,10 +355,21 @@ export function NativeSubscription() {
       )}
 
       {decision.view === "purchase" &&
-        (plans.length === 0 ? (
-          <p className="text-muted-foreground">
-            Subscriptions are not available right now. Please try again later.
+        (plansState === "loading" ? (
+          <p className="text-muted-foreground" aria-live="polite">
+            Loading plans…
           </p>
+        ) : plansState === "error" || plans.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            <p>Subscriptions are not available right now.</p>
+            <button
+              type="button"
+              onClick={() => setPlansAttempt((n) => n + 1)}
+              className="mt-3 min-h-11 rounded-full border border-border px-5 font-semibold text-foreground"
+            >
+              Try again
+            </button>
+          </div>
         ) : (
           <>
             <div className="grid gap-3">
@@ -350,7 +380,7 @@ export function NativeSubscription() {
                   <button
                     key={plan}
                     type="button"
-                    disabled={busy !== null}
+                    disabled={busy !== null || storeUser !== userId}
                     onClick={() => void onBuy(plan)}
                     className="flex min-h-16 flex-col items-start rounded-2xl border border-border bg-card p-4 text-left disabled:opacity-60"
                   >
@@ -387,7 +417,7 @@ export function NativeSubscription() {
         </p>
       )}
 
-      {decision.restore && decision.view !== "loading" && (
+      {decision.restore && decision.view !== "loading" && storeUser === userId && (
         <button
           type="button"
           onClick={() => void onRestore()}

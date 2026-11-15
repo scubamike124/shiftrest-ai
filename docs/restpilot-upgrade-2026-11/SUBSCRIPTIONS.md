@@ -311,6 +311,10 @@ Two writers:
   sync, then shows the merged status. With RevenueCat's default "transfer to new App User ID"
   behaviour, restoring on a different RestPilot account moves the entitlement. The webhook refreshes
   both accounts, so the old account loses access.
+- **Transfer timing.** A restore syncs only the signed-in user. The previous account loses access
+  through the `TRANSFER` webhook, which refreshes both accounts. If webhooks are misconfigured, the
+  old account keeps access until its stored expiry, at most one period, and nobody is charged twice.
+  The F4 reconcile job closes this gap.
 - **Web.** Stripe subscribers are recognized from the database. There is nothing to restore.
 
 ### Cancel
@@ -459,8 +463,21 @@ RevenueCat's documented response shape.
 | Both channels active are flagged for support | `(c) duplicates: both channels renewing is flagged for support with both manage paths` |
 | Status re-checked before the App Store sheet | `(c) duplicates: the app re-checks status on the server right before the App Store sheet` |
 
-Mutation checks were run by hand while writing these tests: disabling the guard fails two "(c)"
-tests, and ignoring Apple grace fails a "(b)" test.
+Mutation checks (run by hand):
+- Making the guard always allow fails the "REFUSES" test.
+- Disabling the guard at its call site fails both refusal tests.
+- Ignoring Apple grace fails the billing-grace test.
+
+The independent reviewer killed 16 further source mutants against this suite.
+
+### Also verified
+
+| Requirement | Where |
+|---|---|
+| Apple subscribers get the premium AI token budget: `has_active_subscription`, used by `has_ai_budget`, counts active App Store rows; Stripe rules unchanged | `scripts/qa/verify-store-entitlements.mjs` (PGlite) |
+| Buy and Restore wait until the App Store SDK is identified as the signed-in user; a user switch resets it; `identify` is serialized | `tests/app-aware-paywall.test.mjs` |
+| The webhook body is capped while streaming, even with no or a false `Content-Length` | `tests/revenuecat-sync.test.mjs` |
+| Sandbox purchases are stored only while `IAP_HONOR_SANDBOX=true` | `tests/revenuecat-sync.test.mjs` |
 
 **Unchanged website checkout.** `tests/stripe-checkout-regression.test.mjs` pins the exact Stripe
 requests for monthly, annual and the 14-day trial.
@@ -555,6 +572,9 @@ Stripe identity.
   the profile reads Stripe rows only, and on the Railway build `getSubscriptionState` returns
   "free" for everyone because payments are not configured. That second point affects existing
   Stripe subscribers' display on staging even without IAP.
+- **F2b, legal link.** Inside the app, the Subscription Terms page (`/legal/subscription`) links to
+  `/pricing`. That is harmless while `/pricing` is the preview screen. If `/pricing` ever regains
+  Stripe checkout on Railway, hide that link in the native shell.
 - **F3, account.** Account export should include `store_entitlements`. Account deletion should tell
   Apple subscribers to cancel in Settings (section 5). It cancels Stripe only, and Apple keeps
   billing after the row cascades away.
