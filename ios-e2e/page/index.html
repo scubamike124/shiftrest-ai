@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RestPilot shell E2E</title>
+<style>
+  body { font: -apple-system-body; font-family: -apple-system, system-ui; background: #0b1020; color: #fff; margin: 0;
+         padding: calc(env(safe-area-inset-top) + 16px) 16px 16px; }
+  pre { white-space: pre-wrap; font-size: 11px; color: #c9cbe6; }
+</style>
+</head>
+<body>
+<!-- CI only: replaces the shell's www/index.html in the simulator test. Never shipped. -->
+<h1 id="result">E2E RUNNING</h1>
+<p id="tapped">NOT TAPPED</p>
+<pre id="log"></pre>
+<script src="e2e.js"></script>
+</body>
+</html>

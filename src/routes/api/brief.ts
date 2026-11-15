@@ -10,7 +10,7 @@ import { requireAIAdmission } from "@/lib/ai/admission.server";
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { AIError, DEFAULT_CHAT_MODEL, chatJSON } from "@/lib/ai/gateway.server";
+import { AIError, chatJSON } from "@/lib/ai/gateway.server";
 import { logAIRequest } from "@/lib/ai/log.server";
 import { BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
@@ -158,6 +158,7 @@ export const Route = createFileRoute("/api/brief")({
           console.log(`[brief] provider_start user=${userId ?? "-"} lang=${language}`);
           const providerT0 = Date.now();
           const result = await chatJSON({
+            task: "brief",
             messages: [
               { role: "system", content: system },
               { role: "user", content: plan },
@@ -187,7 +188,7 @@ export const Route = createFileRoute("/api/brief")({
             logAIRequest(admin, {
               user_id: userId,
               intent: "brief",
-              model: DEFAULT_CHAT_MODEL,
+              model: result.model,
               prompt_tokens: result.promptTokens,
               completion_tokens: result.completionTokens,
               latency_ms: Date.now() - started,

@@ -1,16 +1,23 @@
 {
-  "appId": "com.wrapper.restpilot",
+  "appId": "com.restpilotai.app",
   "appName": "RestPilot",
   "webDir": "www",
   "server": {
     "url": "https://restpilotai.com/",
     "androidScheme": "https",
-    "cleartext": false
+    "cleartext": false,
+    "errorPath": "offline.html"
   },
   "plugins": {
     "SplashScreen": {
       "backgroundColor": "#0b1020",
-      "launchShowDuration": 1500
+      "launchShowDuration": 3000,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 250,
+      "showSpinner": false
     }
+  },
+  "ios": {
+    "backgroundColor": "#0b1020"
   }
 }
