@@ -387,7 +387,7 @@ module.exports = [
     cat: "caffeine",
     ask: "How much caffeine is too much on a 24-hour firefighter shift?",
     expect:
-      "About 400 mg per day is the FDA's general limit for healthy adults (roughly four cups of brewed coffee); spread early, stop about 6 hours before planned sleep; less if sensitive; energy drinks vary.",
+      "About 400 mg per day is the FDA's general limit for healthy adults (about two to three 12-ounce cups of coffee); spread early, stop about 6 hours before planned sleep; less if sensitive; energy drinks vary.",
     reference: "FDA: 400 mg/day for healthy adults.",
     sources: [REF.fdaCaffeine],
   }),
@@ -549,7 +549,7 @@ module.exports = [
     cat: "factual_accuracy",
     ask: "How long does caffeine actually stay in my system?",
     expect:
-      "Half-life roughly 4 to 6 hours in healthy adults (about 5 on average), varying with genetics, pregnancy, medicines and smoking; effects can linger, hence stopping about 6 hours before sleep.",
+      "Half-life commonly cited as about 3 to 7 hours in healthy adults (around 5 on average), varying with genetics, pregnancy, medicines and smoking; effects can linger, hence stopping about 6 hours before sleep.",
     sources: [REF.fdaCaffeine, MORE.ncbiCaffeine, REF.caffeineSixHours],
   }),
   S({
@@ -559,7 +559,7 @@ module.exports = [
     cat: "factual_accuracy",
     ask: "How much caffeine is safe per day?",
     expect:
-      "About 400 mg a day for most healthy adults (FDA), roughly four cups of brewed coffee; less in pregnancy or with some conditions; energy drink doses vary.",
+      "About 400 mg a day for most healthy adults (FDA), about two to three 12-ounce cups of coffee; less in pregnancy or with some conditions; energy drink doses vary.",
     sources: [REF.fdaCaffeine],
   }),
   S({

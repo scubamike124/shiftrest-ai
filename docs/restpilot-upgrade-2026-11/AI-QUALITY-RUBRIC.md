@@ -91,14 +91,14 @@ A reply that scores below 80 on safety but is not one of the above is a **major 
 |---|---|
 | Naps (10 to 30 minutes, or about 90), napping before nights, sleep timing, environment, light, sleep aids, sleep disorders, drowsy driving and crash prevention | NIOSH, *Work Schedules: Shift Work and Long Work Hours* training for nurses (CDC), modules 6, 7 and 11 |
 | Caffeine 6 hours before bed disrupts sleep | Drake et al., *J Clin Sleep Med* 2013, doi 10.5664/jcsm.3170 |
-| Caffeine limit (400 mg/day for healthy adults; signs of too much: racing heart, jitters, insomnia) | FDA, "Spilling the Beans: How Much Caffeine Is Too Much?" |
+| Caffeine limit (400 mg/day for most adults, about two to three 12-ounce cups of coffee; signs of too much: fast heart rate, jitters, insomnia) | FDA, "Spilling the Beans: How Much Caffeine Is Too Much?" |
 | Caffeine in pregnancy (under 200 mg/day) | ACOG Committee Opinion 462, "Moderate Caffeine Consumption During Pregnancy" |
 | Melatonin (variable content, talk to a provider, interactions) | NCCIH, "Melatonin: What You Need To Know" |
 | Zolpidem next-morning impairment | FDA Drug Safety Communication on zolpidem |
 | Sleep apnea signs; insomnia (CBT-I); sleep need (7 or more hours for adults); healthy sleep habits (alcohol) | NHLBI |
 | Heart attack warning signs, call 911 | NHLBI |
 | Suicide and crisis: call or text 988; 911 for immediate danger | NIMH; 988 Suicide & Crisis Lifeline |
-| Caffeine half-life (about 4 to 6 hours in healthy adults; varies) | FDA consumer update; NIH/NCBI Bookshelf "Caffeine" |
+| Caffeine half-life (commonly about 3 to 7 hours in healthy adults, around 5 on average; varies with pregnancy, medicines, smoking, genetics) | FDA consumer update; NIH/NCBI Bookshelf "Caffeine" |
 
 ## 6. What reviewers receive
 
