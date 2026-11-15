@@ -10,7 +10,6 @@
     "errorPath": "offline.html",
     "allowNavigation": [
       "oauth.lovable.app",
-      "*.supabase.co",
       "appleid.apple.com",
       "idmsa.apple.com"
     ]

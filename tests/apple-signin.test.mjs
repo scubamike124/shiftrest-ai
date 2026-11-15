@@ -61,9 +61,13 @@ test("app shell: never Google; Apple only in a shell that keeps OAuth in the web
 
 test("the shell capability is read from its User-Agent token only", () => {
   const p = loadProviders();
-  assert.equal(p.NATIVE_WEB_OAUTH_UA_TOKEN, "RestPilotWebOAuth/1");
+  // This hosting signs in through its own Supabase project, so it needs a
+  // shell that also allows that host (token /2). A /1 shell (Lovable broker
+  // and Apple only) must not get the Apple button here.
+  assert.equal(p.NATIVE_WEB_OAUTH_UA_TOKEN, "RestPilotWebOAuth/2");
   assert.equal(p.hasNativeWebOAuth(APP_UA), false);
-  assert.equal(p.hasNativeWebOAuth(`${APP_UA} RestPilotWebOAuth/1`), true);
+  assert.equal(p.hasNativeWebOAuth(`RestPilotWebOAuth/1 ${APP_UA}`), false);
+  assert.equal(p.hasNativeWebOAuth(`RestPilotWebOAuth/1 RestPilotWebOAuth/2 ${APP_UA}`), true);
   assert.equal(p.hasNativeWebOAuth(undefined), false);
   assert.equal(p.hasNativeWebOAuth(""), false);
 });
@@ -147,19 +151,24 @@ test("sign-in page wiring: Apple first, through Supabase OAuth, gated by the rul
   assert.doesNotMatch(src, /hidden until Apple OAuth is configured/);
 });
 
-test("the app shell keeps the Apple sign-in pages in the web view and says so", () => {
+test("the app shell keeps the Lovable/Apple sign-in pages in the web view, exact hosts only", () => {
   const config = JSON.parse(read("ios-app/capacitor.config.json"));
-  assert.match(config.appendUserAgent, /(^| )RestPilotWebOAuth\/1( |$)/);
-  assert.match(config.appendUserAgent, / RestPilotApp\/\d+\.\d+\.\d+$/);
+  const ua = config.appendUserAgent;
+  assert.match(ua, / RestPilotApp\/\d+\.\d+\.\d+$/, "app token stays last");
   const nav = config.server.allowNavigation;
-  for (const host of [
-    "oauth.lovable.app",
-    "*.supabase.co",
-    "appleid.apple.com",
-    "idmsa.apple.com",
-  ]) {
-    assert.ok(nav.includes(host), host);
+  // Every page on these hosts gets the native bridge (HealthKit, purchases,
+  // preferences, notifications) while it is shown: exact hosts only.
+  for (const h of nav) {
+    assert.match(h, /^[a-z0-9-]+(\.[a-z0-9-]+)+$/, `exact host, no wildcard: ${h}`);
   }
   assert.ok(!nav.some((h) => /google/.test(h)), "Google is never loaded in the web view");
-  assert.ok(!nav.includes("*"), "no blanket navigation");
+  for (const host of ["oauth.lovable.app", "appleid.apple.com", "idmsa.apple.com"]) {
+    assert.ok(nav.includes(host), host);
+  }
+  assert.match(ua, /(^| )RestPilotWebOAuth\/1( |$)/, "/1 matches the hosts above");
+  // /2 promises this hosting's Supabase project host too; claim it only when
+  // that exact host is in the list.
+  const supabaseHosts = nav.filter((h) => h.endsWith(".supabase.co"));
+  if (/(^| )RestPilotWebOAuth\/2( |$)/.test(ua)) assert.equal(supabaseHosts.length, 1);
+  else assert.equal(supabaseHosts.length, 0);
 });

@@ -12,21 +12,28 @@
 //   - Google: never. Google refuses OAuth in embedded web views
 //     (`disallowed_useragent`), and the shell sends other hosts to Safari, so
 //     the session would never come back to the app.
-//   - Apple:  only in a shell build that keeps the Apple sign-in pages inside
-//     the web view (`server.allowNavigation` in ios-app/capacitor.config.json:
-//     oauth.lovable.app for Lovable's broker, *.supabase.co for Supabase's own
-//     OAuth on Railway hosting, appleid.apple.com, and idmsa.apple.com, which
-//     Apple uses for two-factor and account recovery). Such a build adds
-//     NATIVE_WEB_OAUTH_UA_TOKEN to its
-//     User-Agent. Older builds open those pages in Safari, where the session
-//     would be lost, so they get email and password only. With neither
-//     third-party button in the app, 4.8 does not apply there.
+//   - Apple:  only in a shell build that keeps this hosting's whole Apple
+//     sign-in flow inside the web view. Capacitor 6 opens any other host in
+//     Safari, where the session is lost.
+//
+// Shell capability tokens (appended to the User-Agent by ios-app/capacitor.config.json):
+//   RestPilotWebOAuth/1  allowNavigation covers Lovable's broker and Apple
+//                        (oauth.lovable.app, appleid.apple.com, idmsa.apple.com).
+//                        Enough for the Lovable-hosted site (main), not for this
+//                        branch.
+//   RestPilotWebOAuth/2  also covers THIS hosting's Supabase project host,
+//                        pinned exactly (<ref>.supabase.co, never a wildcard: the
+//                        bridge would reach every Supabase tenant's pages). This
+//                        branch signs in with Supabase's own OAuth
+//                        (/auth/v1/authorize), so it needs /2.
+// Older builds have neither token and get email and password only. With
+// neither third-party button in the app, 4.8 does not apply there.
 
 /** Kill switch. Set to false to hide Sign in with Apple everywhere. */
 export const APPLE_SIGNIN_ENABLED = true;
 
-/** Added to the User-Agent by app shells that keep OAuth inside the web view. */
-export const NATIVE_WEB_OAUTH_UA_TOKEN = "RestPilotWebOAuth/1";
+/** The shell capability this hosting needs (see above). */
+export const NATIVE_WEB_OAUTH_UA_TOKEN = "RestPilotWebOAuth/2";
 
 export type OAuthContext = {
   /** Running inside the iPhone/Android app shell. */
