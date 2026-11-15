@@ -4,6 +4,12 @@ _Nov 15 2026. Owner decision: new purchases move to Apple's App Store subscripti
 
 Who runs it: the owner. The engineering agents have no database or Stripe access, and did not run any of it.
 
+> **Status on `main` today (Nov 15):** nothing has changed for buyers yet.
+> - **New website Stripe purchases are still open.** The `VITE_WEB_CHECKOUT_ENABLED` switch, which stops them and makes the server refuse them, is in PR #57. It is not merged into `main` yet.
+> - **The past-due gap is still open.** On `main` today, a `past_due` / `unpaid` subscriber sees "Upgrade to Premium" (a path to a second subscription) and has no way to fix their card or cancel. The fix is also in #57.
+>
+> Both reach restpilotai.com only after #57 is merged into `main` **and** you tap Publish. Until then, do not describe Stripe as "removed from new purchases".
+
 ## What you get from this audit
 
 | Question | Where the answer comes from |
@@ -72,6 +78,18 @@ group by 1, 2
 order by 1, 2;
 ```
 
+This counts rows, so one person with an old canceled row and a current active row appears in two lines. For a headcount of people with Premium right now, use:
+
+```sql
+-- READ-ONLY. One number per environment: people with Premium now.
+select environment, count(distinct user_id) as people_with_premium
+from public.subscriptions
+where status = 'lifetime'
+   or (status in ('active', 'trialing') and (current_period_end is null or current_period_end > now()))
+   or (status = 'canceled' and current_period_end is not null and current_period_end > now())
+group by environment;
+```
+
 ### Query 3: possible double billing inside Stripe
 
 ```sql
@@ -80,7 +98,7 @@ select environment, count(*) as people_with_2_or_more
 from (
   select environment, user_id
   from public.subscriptions
-  where status in ('active', 'trialing', 'past_due', 'unpaid', 'incomplete')
+  where status in ('active', 'trialing', 'past_due', 'unpaid')   -- 'incomplete' never charged yet: left out
     and cancel_at_period_end is not true
   group by environment, user_id
   having count(*) > 1
@@ -116,15 +134,17 @@ The Stripe account is the one connected to Lovable Payments. Use Safari at **das
    - **Incomplete** / **Incomplete expired** (abandoned checkouts; normally no access)
    - **Paused**, if it appears
 3. Optional per plan: add the **Price** or **Product** filter (RestPilot Monthly, RestPilot Annual) to split each count.
-4. **Lifetime members are not subscriptions.** They were one-time payments. Find them under **Payments** → filter **Status: Succeeded**, search "Lifetime" or filter by the lifetime product/price. Their count should match the `lifetime` rows of query 1.
+4. **Lifetime members are not subscriptions.** They were one-time payments. Find them under **Payments** → filter **Status: Succeeded** and filter by the lifetime **Product / Price** (easier than a text search). Their count should match the `lifetime` rows of query 1.
 5. **Export:** on the Subscriptions list tap **Export** (top right; on a phone, Safari's **aA** → **Request Desktop Website** shows it). Choose **All** (or the current filter), the default columns, and **Export**. Stripe emails or downloads a CSV. The file contains customer emails: keep it in your Files app or iCloud Drive, do not share it.
-6. Optional check of the renewal setting, **without changing it**: **Settings** → **Billing** → **Subscriptions and emails** → **Manage failed payments**. Note what happens after the last retry (cancel, mark unpaid, or leave past due). This decides how long past-due customers stay past due.
+6. Optional check of the renewal setting, **without changing it**: **Settings** → **Billing** → **Revenue recovery** → **Retries** (older layouts: **Subscriptions and emails** → **Manage failed payments**). Note what happens after the last retry (cancel, mark unpaid, or leave past due). This decides how long past-due customers stay past due.
 7. Optional check of the Customer Portal, **without changing it**: **Settings** → **Billing** → **Customer portal**. It must stay **active** and allow **update payment method**, **cancel subscription** and **view invoices**, because Profile → "Manage subscription" / "Manage billing" opens it.
 
 ## Step 3: compare
 
 - Database query 1 (`live`, per status) and Stripe Step 2 should match within a few rows.
-- A Stripe subscription with no database row usually means a webhook delivery failed. Check **Developers** → **Webhooks** → the RestPilot endpoint → **Failed** deliveries, and resend from there (resending is safe: our webhook upserts by subscription ID).
+- A Stripe subscription with no database row usually means a webhook delivery failed. Check **Developers** → **Webhooks** → the RestPilot endpoint → **Failed** deliveries.
+  - **Resend with care.** Our webhook writes the status and period end exactly as they appear in the event; it does not re-read the subscription from Stripe. Replaying an **older** event after newer ones can roll a row back: for example, an old "active" after a cancel, or an old period end after a renewal, which could cost a paying customer Premium. Replaying `invoice.payment_failed` also emails the customer and alerts you again.
+  - So resend only the **most recent** failed event for that subscription, and only if no later event for the same subscription succeeded. Then re-run query 1. When in doubt, don't resend; note the subscription ID for engineering.
 - Record the counts and date in this file or in a private note. They are the baseline for the cut-over.
 
 ---
@@ -140,18 +160,19 @@ Removing Stripe from **new** purchases does not stop Stripe billing **existing**
 | Webhook signature check | `verifyWebhook` in `src/lib/stripe.server.ts` with the `PAYMENTS_LIVE_WEBHOOK_SECRET` / `PAYMENTS_SANDBOX_WEBHOOK_SECRET` secrets | Rejects forged events. |
 | The Stripe endpoint itself | Stripe → Developers → Webhooks: the RestPilot endpoint (`…/api/public/payments/webhook?env=live`) and its events | Stripe must keep delivering. |
 | **Customer Portal from Profile** | `createPortalSession` in `src/lib/billing.functions.ts`; Profile button | Lets existing subscribers update their card, see invoices and cancel. |
-| **Past-due fix** (shipped with the web-checkout PR) | `src/routes/profile.tsx`, `src/lib/subscription.ts` | Before: a `past_due` / `unpaid` subscriber was not "Premium", so Profile showed **"Upgrade to Premium"** (a path to a *second* subscription) and **no way to fix the card or cancel**. After: they see their plan with **"Payment problem"** and a **"Manage billing"** button into the Stripe portal. |
-| Daily lifecycle sweep | `src/routes/api/public/hooks/subscription-lifecycle.ts` (pg_cron) | Trial-ending and access-ended emails for Stripe rows. |
-| **Account deletion's Stripe cancel** | `attemptStripeCancel` in `src/lib/account.functions.ts` | Deleting an account must stop Stripe charging that person. Without it, a deleted user keeps being billed. |
-| Premium checks that read Stripe rows | `public.has_active_subscription` / `has_ai_budget` (SQL), `getSubscriptionState` (`src/lib/subscription.ts`) | How Stripe subscribers (and lifetime members) get Premium. |
-| Secrets and build values | `STRIPE_LIVE_API_KEY`, `STRIPE_SANDBOX_API_KEY`, `LOVABLE_API_KEY` (Stripe goes through Lovable's gateway), `PAYMENTS_LIVE_WEBHOOK_SECRET`, `PAYMENTS_SANDBOX_WEBHOOK_SECRET`, and `VITE_PAYMENTS_CLIENT_TOKEN` in `.env.production` | The portal, deletion cancel and webhook need the keys. The publishable token is also how the site knows which Stripe environment to read: **without it every Stripe subscriber, lifetime included, shows as Free and "Manage subscription" fails.** |
+| **Past-due fix**: in PR #57, **not on `main` yet** | `src/routes/profile.tsx`, `src/lib/subscription.ts` | On `main` today, a `past_due` / `unpaid` subscriber is not "Premium", so Profile shows **"Upgrade to Premium"** (a path to a *second* subscription) and **no way to fix the card or cancel**. With #57: they see their plan with **"Payment problem"** and a **"Manage billing"** button into the Stripe portal. |
+| Daily lifecycle sweep | `src/routes/api/public/hooks/subscription-lifecycle.ts`, the database's pg_cron job that calls it, and its cron secret | Trial-ending and access-ended emails for Stripe rows. |
+| Email delivery | `src/lib/email/send.server.ts`, the email queue and its pg_cron job (`supabase/migrations/20260702061959_email_infra.sql`), `src/lib/email-templates/` | Payment-failed, canceled, receipt, trial-ending and access-ended emails from the webhook and sweep. |
+| **Account deletion's Stripe cancel** | `attemptStripeCancel` in `src/lib/account.functions.ts` | Deleting an account must stop Stripe charging that person. Without it, a deleted user keeps being billed. (It also tries to "cancel" lifetime rows, whose IDs are not subscriptions. Stripe refuses, the error is caught and logged, and deletion continues. That is harmless; do not "fix" it in a way that touches lifetime rows.) |
+| Premium checks that read Stripe rows | `public.has_active_subscription` / `has_ai_budget` (SQL, called from `src/lib/ai/log.server.ts`), the voice trial meter (`src/lib/realtime/trial-usage.functions.ts`), `getSubscriptionState` (`src/lib/subscription.ts`) | How Stripe subscribers (and lifetime members) get Premium and their AI budget. |
+| Secrets and build values | `SUPABASE_SERVICE_ROLE_KEY` (the webhook writes `public.subscriptions` with it), `STRIPE_LIVE_API_KEY`, `STRIPE_SANDBOX_API_KEY`, `LOVABLE_API_KEY` (Stripe goes through Lovable's gateway), `PAYMENTS_LIVE_WEBHOOK_SECRET`, `PAYMENTS_SANDBOX_WEBHOOK_SECRET`, and `VITE_PAYMENTS_CLIENT_TOKEN` in `.env.production` | The portal, deletion cancel and webhook need the keys. The publishable token is also how the site knows which Stripe environment to read: **without it every Stripe subscriber, lifetime included, shows as Free and "Manage subscription" fails.** |
 | Table | `public.subscriptions` | The record of every Stripe customer's access. |
 
 ## (d) What NOT to disable, delete or change
 
 Until the last Stripe subscription has ended (lifetime: never):
 
-- **Do not** cancel, pause or migrate any Stripe subscription, and do not change prices or products that existing subscribers are on. (Archiving a price stops *new* sales only, but there is no need: the website flag already stops new purchases.)
+- **Do not** cancel, pause or migrate any Stripe subscription, and do not change prices or products that existing subscribers are on. (Archiving a price stops *new* sales only. Prefer the website switch from #57 once it is live: archiving can break the code's price lookup if web checkout is ever turned back on.)
 - **Do not** delete or disable the Stripe webhook endpoint, remove its events, or rotate its signing secret without updating `PAYMENTS_LIVE_WEBHOOK_SECRET` at the same moment.
 - **Do not** remove `STRIPE_LIVE_API_KEY`, `LOVABLE_API_KEY`, the webhook secrets, or `VITE_PAYMENTS_CLIENT_TOKEN`.
 - **Do not** disconnect Stripe from Lovable Payments or deactivate the Stripe account.
@@ -159,7 +180,7 @@ Until the last Stripe subscription has ended (lifetime: never):
 - **Do not** delete or rewrite rows in `public.subscriptions` (lifetime rows especially: they are the only record of a lifetime purchase).
 - **Do not** remove `src/routes/api/public/payments/webhook.ts`, `src/lib/stripe.server.ts`, `createPortalSession`, `attemptStripeCancel` or the lifecycle sweep.
 - **Do not** change "Manage failed payments" / Smart Retries in Stripe as part of this switch.
-- It is fine to leave `createCheckoutSession` in the code: with `VITE_WEB_CHECKOUT_ENABLED` off it refuses every new purchase on the server before any Stripe call.
+- It is fine to leave `createCheckoutSession` in the code. Once #57 is merged and published, with `VITE_WEB_CHECKOUT_ENABLED` off it refuses every new purchase on the server before any Stripe call. **Until then it still sells on the website.**
 
 ### When Stripe can finally be retired (later, owner decision)
 
