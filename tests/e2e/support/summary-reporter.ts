@@ -25,24 +25,27 @@ export default class SummaryReporter implements Reporter {
     const project = test.parent.project()?.name ?? "default";
     const annotations = [...(result.annotations ?? []), ...test.annotations];
     const blocked = annotations.find((a) => a.type === "blocked")?.description;
+    const parked = annotations.find((a) => a.type === "parked")?.description;
     const outcome = test.outcome();
     const status =
-      blocked && result.status === "skipped"
-        ? "blocked"
-        : outcome === "expected"
-          ? result.status === "skipped"
-            ? "skipped"
-            : "passed"
-          : outcome === "flaky"
-            ? "flaky"
-            : outcome === "skipped"
+      parked && result.status === "skipped"
+        ? "parked"
+        : blocked && result.status === "skipped"
+          ? "blocked"
+          : outcome === "expected"
+            ? result.status === "skipped"
               ? "skipped"
-              : "failed";
+              : "passed"
+            : outcome === "flaky"
+              ? "flaky"
+              : outcome === "skipped"
+                ? "skipped"
+                : "failed";
     this.rows.set(`${project}::${test.id}`, {
       title: test.titlePath().slice(3).join(" › "),
       project,
       status,
-      blocked,
+      blocked: blocked ?? parked,
       error: result.error?.message?.split("\n")[0]?.slice(0, 200),
       file: path.basename(test.location.file),
     });
@@ -57,6 +60,7 @@ export default class SummaryReporter implements Reporter {
       flaky: count("flaky"),
       skipped: count("skipped"),
       blocked: count("blocked"),
+      parked: count("parked"),
       total: rows.length,
     };
     const byProject: Record<string, Record<string, number>> = {};
@@ -67,6 +71,7 @@ export default class SummaryReporter implements Reporter {
         flaky: 0,
         skipped: 0,
         blocked: 0,
+        parked: 0,
       });
       p[r.status] += 1;
     }
@@ -76,13 +81,13 @@ export default class SummaryReporter implements Reporter {
     const md = [
       `### RestPilot web regression (Playwright): ${result.status.toUpperCase()}`,
       "",
-      `**${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.blocked} blocked, ${totals.skipped} skipped** (${totals.total} test runs)`,
+      `**${totals.passed} passed, ${totals.failed} failed, ${totals.flaky} flaky, ${totals.blocked} blocked, ${totals.parked} parked by owner, ${totals.skipped} skipped** (${totals.total} test runs)`,
       "",
-      "| Project | Passed | Failed | Flaky | Blocked | Skipped |",
-      "|---|---|---|---|---|---|",
+      "| Project | Passed | Failed | Flaky | Blocked | Parked | Skipped |",
+      "|---|---|---|---|---|---|---|",
       ...Object.entries(byProject).map(
         ([p, c]) =>
-          `| ${p} | ${c.passed} | ${c.failed} | ${c.flaky} | ${c.blocked} | ${c.skipped} |`,
+          `| ${p} | ${c.passed} | ${c.failed} | ${c.flaky} | ${c.blocked} | ${c.parked} | ${c.skipped} |`,
       ),
       "",
       ...(failures.length
@@ -96,7 +101,7 @@ export default class SummaryReporter implements Reporter {
           ]
         : []),
       ...(blockedReasons.length
-        ? ["**Blocked**", "", ...blockedReasons.map((b) => `- ${b}`), ""]
+        ? ["**Blocked / parked**", "", ...blockedReasons.map((b) => `- ${b}`), ""]
         : []),
     ].join("\n");
 

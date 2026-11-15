@@ -30,26 +30,49 @@ const LEGAL = [
   "trademark",
 ];
 
-// Known, already-reported defects: the test is expected to fail until fixed,
-// then Playwright reports an unexpected pass so the entry can be removed.
-const KNOWN_DEFECTS: Record<string, string> = {
-  "/legal":
-    "R3: React hydration error #418 (server/client text mismatch) on the legal index; see branch fix/legal-date-hydration",
+// Known, already-reported defects whose console noise is tolerated (and
+// annotated) on the page-render check; each has its own deterministic test below.
+const KNOWN_CONSOLE_DEFECTS: Record<string, { pattern: RegExp; id: string }> = {
+  "/legal": {
+    pattern: /Minified React error #418/,
+    id: "R3 legal effective-date hydration mismatch",
+  },
 };
 
 test.describe("marketing pages @readonly", () => {
   for (const { path, h1 } of MARKETING) {
     test(`${path} renders without errors @smoke`, async ({ page }) => {
-      if (KNOWN_DEFECTS[path]) test.fail(true, KNOWN_DEFECTS[path]);
-      const errors = collectErrors(page);
+      const known = KNOWN_CONSOLE_DEFECTS[path];
+      const all = collectErrors(page);
       const res = await page.goto(path);
       expect(res?.status(), `${path} status`).toBeLessThan(400);
       await expect(page.locator("h1").first()).toBeVisible();
       await expect(page.locator("h1").first()).toHaveText(h1);
       await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
+      const errors = known ? all.filter((e) => !known.pattern.test(e)) : all;
+      if (known && errors.length < all.length) {
+        test.info().annotations.push({ type: "known-defect", description: known.id });
+      }
       expect(errors, `${path} console errors`).toEqual([]);
     });
   }
+
+  // KNOWN DEFECT (QA-REPORT R3): legal.index.tsx formats the effective date
+  // with toLocaleDateString() and no timeZone, so in US time zones the client
+  // renders the previous day ("June 26" for 2026-06-27) and React throws
+  // hydration error #418. Fixed on fix/legal-date-hydration (not yet merged
+  // here). Expected to fail until then; Playwright flags the fix as a pass.
+  test("legal index shows the same effective date as the server render", async ({
+    page,
+    request,
+  }) => {
+    test.fail(true, "R3: effective date is off by one day in US time zones");
+    const html = await (await request.get("/legal")).text();
+    const server = /Effective (?:<!-- -->)?([A-Z][a-z]+ \d{1,2}, \d{4})/.exec(html)?.[1];
+    expect(server, "server-rendered effective date").toBeTruthy();
+    await page.goto("/legal");
+    await expect(page.getByText(`Effective ${server}`)).toBeVisible({ timeout: 5_000 });
+  });
 
   test("home: primary calls to action lead to sign-up and the app preview @smoke", async ({
     page,
@@ -124,7 +147,10 @@ test.describe("platform basics @readonly", () => {
     expect(sitemap.status()).toBe(200);
     expect(await sitemap.text()).toContain("<urlset");
   });
+});
 
+// Not @readonly: sends (rejected) POSTs, so it never runs against a live site.
+test.describe("API guards", () => {
   test("AI and account APIs refuse anonymous callers", async ({ request }) => {
     const ai = await request.post("/api/ai", {
       data: { intent: "coach", messages: [{ role: "user", content: "hi" }] },

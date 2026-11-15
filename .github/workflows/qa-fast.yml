@@ -1,0 +1,98 @@
+# FAST checks on every relevant pull request (target: under ~10 minutes).
+#
+#   "Lint, typecheck, unit tests"  - eslint on the files the PR changes (the
+#       repository has ~6.4k pre-existing lint findings, so a whole-repo lint
+#       would block every PR), tsc --noEmit, node --test tests/*.test.mjs.
+#   "E2E smoke (Chromium desktop + iPhone 15)" - Playwright @smoke subset
+#       against a production build and the hermetic fake backend.
+#
+# These two job names are the REQUIRED checks on codex/restpilot-railway-migration.
+# AI evals (ai-evals.yml) are path-filtered and therefore not required.
+# Everything else (WebKit, all iPhones, Maestro, full Promptfoo) is qa-full.yml.
+name: QA fast checks
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "ios-app/**"
+      - ".maestro/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-fast-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PLAYWRIGHT_VERSION: "1.63.0"
+jobs:
+  static:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Lint changed files
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            mapfile -t FILES < <(git diff --name-only --diff-filter=ACMR "origin/$BASE_REF"...HEAD -- '*.ts' '*.tsx' '*.js' '*.mjs' | grep -v '^ios-app/' || true)
+          else
+            mapfile -t FILES < <(git ls-files 'tests/**/*.ts' 'tests/**/*.mjs')
+          fi
+          if [ "${#FILES[@]}" -eq 0 ]; then echo "No lintable files changed."; exit 0; fi
+          printf 'Linting %s file(s)\n' "${#FILES[@]}"
+          npx eslint --max-warnings=0 --no-warn-ignored "${FILES[@]}"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:repair
+
+  e2e-smoke:
+    name: E2E smoke (Chromium desktop + iPhone 15)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}-chromium
+      - name: Install Chromium
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Build for the hermetic E2E backend
+        shell: bash
+        run: |
+          eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
+          npm run build
+      - name: Playwright smoke
+        run: npx playwright test -c tests/e2e --grep @smoke --project=chromium-desktop --project=chromium-iphone-15
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-smoke-report
+          path: tests/e2e/.results
+          retention-days: 14
+          if-no-files-found: warn

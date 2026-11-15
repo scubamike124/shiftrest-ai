@@ -1,11 +1,13 @@
 import { blocked, expect, test } from "../support/fixtures";
 
-// Stripe checkout: TEST MODE ONLY, against RestPilot's own Stripe account.
-// Needs the owner-provided GitHub secret E2E_STRIPE_TEST_SECRET_KEY (sk_test_...)
-// and a build with checkout enabled. Without them every test here reports
-// "blocked: needs Stripe TEST key" - it never fakes a successful payment.
+// Stripe checkout on the website: PARKED BY OWNER (Nov 15). Website Stripe on
+// Railway is on hold (PR #21 stays open) and the existing Lovable checkout must
+// not be touched. Every test here reports "parked" (a skip, never a pass or a
+// failure). To resume: set E2E_STRIPE_UNPARK=1 and supply the TEST-mode key
+// E2E_STRIPE_TEST_SECRET_KEY (sk_test_...). Live keys are always refused.
 
 const key = process.env.E2E_STRIPE_TEST_SECRET_KEY ?? "";
+const parked = process.env.E2E_STRIPE_UNPARK !== "1";
 
 test.describe("Stripe checkout @stripe", () => {
   test.beforeAll(() => {
@@ -20,6 +22,14 @@ test.describe("Stripe checkout @stripe", () => {
   });
 
   test.beforeEach(() => {
+    if (parked) {
+      test.info().annotations.push({
+        type: "parked",
+        description:
+          "Website Stripe checkout parked by owner (Nov 15); PR #21 stays open; Lovable checkout untouched",
+      });
+      test.skip(true, "parked by owner: website Stripe checkout on Railway is on hold");
+    }
     if (!key.startsWith("sk_test_"))
       blocked("needs Stripe TEST key (GitHub secret E2E_STRIPE_TEST_SECRET_KEY, sk_test_...)");
   });
