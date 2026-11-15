@@ -18,13 +18,42 @@ tags: [healthkit]
       - extendedWaitUntil:
           visible: "Your preferences"
           timeout: 15000
+# Finding the card. The card renders only once the app's Apple Health probe answers
+# (it is re-probed for ~10 s after the page loads). CI run 43763803447 swiped 48 times
+# past a card that was not on the page yet. So: a short scroll down, then back up and
+# down again as needed, and finally a non-optional wait that fails the flow if the
+# card is never there.
 - scrollUntilVisible:
     element:
       text: "Connect Apple Health"
     direction: DOWN
-    # Profile is long (voices, personality, settings); scroll faster and longer.
     speed: 80
-    timeout: 120000
+    timeout: 20000
+    optional: true
+- retry:
+    maxRetries: 3
+    commands:
+      - runFlow:
+          when:
+            notVisible: "Connect Apple Health"
+          commands:
+            - scrollUntilVisible:
+                element:
+                  text: "Connect Apple Health"
+                direction: UP
+                speed: 80
+                timeout: 15000
+                optional: true
+            - scrollUntilVisible:
+                element:
+                  text: "Connect Apple Health"
+                direction: DOWN
+                speed: 80
+                timeout: 30000
+                optional: true
+      - extendedWaitUntil:
+          visible: "Connect Apple Health"
+          timeout: 10000
 # The system Health privacy service starts slowly on a fresh hosted simulator, and
 # HealthKit fails each authorization request after ~10 s while it is down. CI run
 # 43691170744 needed 2 taps; run 43759122862 (attempt 2) needed more: both taps
