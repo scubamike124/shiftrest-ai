@@ -16,9 +16,12 @@
 // than "overdosing on coffee" style slang, including questions such as "can
 // you overdose on melatonin?", and "makes me want to die" even with "lol".
 
-/** Phone-keyboard curly apostrophes become straight ones before matching. */
+/** Phone-keyboard curly apostrophes and "my self" (autocorrect) are normalised before matching. */
 function normalize(text: string): string {
-  return text.replace(/[‘’ʼ]/g, "'").replace(/\s+/g, " ");
+  return text
+    .replace(/[‘’ʼ]/g, "'")
+    .replace(/\s+/g, " ")
+    .replace(/\bmy self\b/gi, "myself");
 }
 
 // Sleep aids and common over-the-counter or prescription drugs people name
@@ -30,13 +33,16 @@ const DRUGS_ALL =
   "(sleeping |sleep )?(pills|tablets|melatonin|ambien|zolpidem|benadryl|zzzquil|unisom|trazodone|nyquil|zquil|tylenol|acetaminophen|paracetamol|ibuprofen|advil|xanax|valium|klonopin|ativan|seroquel|oxys?|oxycodone|percocet|vicodin|opioids|insulin|antidepressants)";
 const TOOK_PAST = "(took|swallowed|downed|have taken|i've taken|just took)";
 // A stated plan. "will / I'll / could / may take all my pills" are also how
-// people describe a routine, so those skip routine words ("with breakfast").
+// people describe a routine, so those skip specific routine phrases ("with
+// breakfast", "before my shift").
 const TOOK_INTENT =
   "((going to|gonna|want to|wanna|about to|planning to|might) (take|swallow)|(thinking (of|about)|considering) (taking|swallowing))";
 const TOOK_MAYBE = "((i'll|i will|will|could|may) (take|swallow))";
 const TOOK = `(${TOOK_PAST}|${TOOK_INTENT}|${TOOK_MAYBE})`;
+// Specific daily-routine phrases only, so "at once", "with vodka" or "before
+// anyone wakes up" still count.
 const ROUTINE =
-  "(this|today|every|each|at|in the|for|on time|as prescribed|with|before|after|when)";
+  "(with (my )?(breakfast|lunch|dinner|food|water|a meal|meals|my meal)|(before|after) (my |the )?(shift|work|bed|breakfast|lunch|dinner|meal)|as prescribed|on time|(every|each) (day|morning|night|evening)|(in the|this) (morning|afternoon|evening)|today|at \\d)";
 const CONTAINER = "((a|the|my) )?(whole |entire )?(bottle|pack|packet|box|strip|blister pack)";
 const END = "\\s*([.!?,;]|$)";
 
@@ -65,7 +71,8 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bunalive myself\b/i,
   /\b(better off|rather be|i'd rather be) dead\b/i,
   /\b(everyone|everybody|they|my family|my kids|the world|people) (would be|'d be|would all be|are) better off without me\b/i,
-  /\bdone with (life|living)\b/i,
+  /\bdone (with )?(life|living)\b/i,
+  /\b(deserve|deserved) to die\b/i,
   /\b(keep|been|always|can't stop|cannot stop|constantly) thinking about (dying|death|ending it all)\b/i,
   /\b(life|living) (isn't|is not|isnt|ain't|is no longer|isn't even) worth (it|living)\b/i,
   /\bno reason to (live|go on)\b/i,
@@ -74,7 +81,7 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   /\bwhat'?s (even )?the point (of|in) (living|being alive|life)( anymore| any more| like this)?\s*([.!?,;]|$)/i,
   /\b(no|any) point (in )?going on\s*([.!?;]|$)/i,
   /\bwhat'?s the point (of|in) going on\s*([.!?;]|$)/i,
-  /\b(want|need|wish) (it|this|everything) all to (end|stop)\b/i,
+  /\b(want|need|wish) (it|this|everything) all to (end|stop)( now| forever)?\s*([.!?;]|$)/i,
   /\b(want|wish) (it|everything) to (end|be over)( now| forever)?\s*([.!?;]|$)/i,
   /\b(want to|wanna|going to|gonna|ready to|about to|thinking of|thinking about) end things\s*([.!?;]|$)/i,
   // Wanting to die
@@ -110,12 +117,9 @@ export const CRISIS_PATTERNS: readonly RegExp[] = [
   // overdosed" / "treating overdoses" is clinicians talking about work).
   /(?<!(patient|patients|someone|somebody|client|resident|we had an|we had a|treating|treated|treat) )\boverdos(e|ed|es|ing)\b(?! on (coffee|caffeine|espresso|lattes?|tea|energy drinks?|sugar|chocolate)\b)/i,
   // Past "took all my ..." skips daily-routine words; a stated plan never does.
-  new RegExp(
-    `\\b${TOOK_PAST} all (of )?(my |the )?${DRUGS_ALL}\\b(?! (this|today|tonight|every|each|at|in the|for|on time|as prescribed)\\b)`,
-    "i",
-  ),
+  new RegExp(`\\b${TOOK_PAST} all (of )?(my |the )?${DRUGS_ALL}\\b(?! ${ROUTINE})`, "i"),
   new RegExp(`\\b${TOOK_INTENT} all (of )?(my |the )?${DRUGS_ALL}\\b`, "i"),
-  new RegExp(`\\b${TOOK_MAYBE} all (of )?(my |the )?${DRUGS_ALL}\\b(?! ${ROUTINE}\\b)`, "i"),
+  new RegExp(`\\b${TOOK_MAYBE} all (of )?(my |the )?${DRUGS_ALL}\\b(?! ${ROUTINE})`, "i"),
   new RegExp(`\\b${TOOK} ${CONTAINER} of (my |the )?${DRUGS}\\b`, "i"),
   new RegExp(`\\b${TOOK} (my|the) (whole|entire) (prescription|supply|stash)\\b`, "i"),
   new RegExp(`\\b${TOOK} a bunch of (my |the )?${DRUGS}\\b`, "i"),
