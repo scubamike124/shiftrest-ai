@@ -24,7 +24,7 @@ function fallback(reason: Fallback["reason"], message: string): Response {
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused — AI credits are exhausted.";
+    case "credits":    return "Voice playback is paused for now. Try again later.";
     case "rate_limit": return "Voice playback is busy. Try again in a moment.";
     case "config":     return "Voice playback isn't configured on the server yet.";
     default:           return "Voice playback is temporarily unavailable.";
@@ -100,6 +100,12 @@ export const Route = createFileRoute("/api/tts")({
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.tts);
           if (limited) return limited;
+        }
+
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
         }
 
         try {
@@ -204,6 +210,16 @@ export const Route = createFileRoute("/api/tts")({
               });
             }
             return fallback(reason, messageFromReason(reason));
+          }
+
+          {
+            // Accrue against the daily cap (estimate: TTS reports no tokens).
+            const { recordAIUsage, estimateTtsTokens } = await import("@/lib/ai/log.server");
+            await recordAIUsage(auth.userId, {
+              intent: "tts",
+              model: "openai/gpt-4o-mini-tts",
+              promptTokens: estimateTtsTokens(Math.min(text.length, 4000)),
+            });
           }
 
           return new Response(upstream.body, {

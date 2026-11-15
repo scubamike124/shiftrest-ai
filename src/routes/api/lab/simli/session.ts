@@ -11,6 +11,7 @@ export const Route = createFileRoute("/api/lab/simli/session")({
         const denied = await requireLabAccess(request);
         if (denied) return denied;
         // Staff-only, but still third-party AI: same permission as everywhere.
+        let labUserId = "";
         {
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
@@ -18,6 +19,10 @@ export const Route = createFileRoute("/api/lab/simli/session")({
           const { requireAIConsent } = await import("@/lib/ai/consent.server");
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
+          labUserId = auth.userId;
         }
         const apiKey = process.env.SIMLI_API_KEY;
         if (!apiKey) {
@@ -62,6 +67,15 @@ export const Route = createFileRoute("/api/lab/simli/session")({
             { error: "Simli session refused", status: upstream.status, detail: text.slice(0, 500) },
             { status: 502 },
           );
+        }
+        {
+          // Accrue a fixed estimate per session token against the daily cap.
+          const { recordAIUsage, USAGE_ESTIMATE } = await import("@/lib/ai/log.server");
+          await recordAIUsage(labUserId, {
+            intent: "lab-simli-session",
+            model: "simli/compose",
+            promptTokens: USAGE_ESTIMATE.SESSION_MINT_TOKENS,
+          });
         }
         console.log(`[lab/simli/session] ok faceId=${faceId} ms=${ms}`);
         return new Response(text, {

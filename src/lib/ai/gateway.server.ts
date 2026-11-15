@@ -32,8 +32,10 @@ function apiKey(): string {
 
 export function mapUpstreamError(status: number): string {
   if (status === 429) return "Rate limit reached. Try again in a moment.";
+  // User-safe wording only. The operator detail (provider credits exhausted)
+  // is delivered via notifyOwnerAsync + server logs, never to the client.
   if (status === 402)
-    return "AI credits exhausted. Add funds in Settings > Workspace > Usage.";
+    return "AI is temporarily unavailable. Please try again later.";
   return "AI request failed.";
 }
 

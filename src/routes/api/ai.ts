@@ -26,7 +26,7 @@ import {
   loadAssistantProfile,
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
-import { checkAIBudget, logAIRequest } from "@/lib/ai/log.server";
+import { requireAIBudget, logAIRequest } from "@/lib/ai/log.server";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
@@ -347,13 +347,8 @@ export const Route = createFileRoute("/api/ai")({
         }
 
         // Budget gate
-        const ok = await checkAIBudget(admin, userId);
-        if (!ok) {
-          return jsonError(
-            429,
-            "Daily AI limit reached. It resets in 24 hours.",
-          );
-        }
+        const budgetRefusal = await requireAIBudget(userId, admin);
+        if (budgetRefusal) return budgetRefusal;
 
         try {
           if (body.intent === "coach") {

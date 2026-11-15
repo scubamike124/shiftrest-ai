@@ -24,6 +24,11 @@ import {
 export type RealtimeSessionResult = {
   clientSecret: string;
   expiresAt: number; // epoch ms
+  /** Server-issued id the client echoes in heartbeat/finish reports. */
+  sessionId: string;
+  /** Epoch ms by which the client MUST end the call (hard timer). */
+  deadlineAt: number;
+  maxSessionSeconds: number;
   model: string;
   voice: string;
   /** First name / preferred name for the greeting; empty if unknown. */
@@ -111,6 +116,34 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     const { assertAIConsent } = await import("@/lib/ai/consent.server");
     await assertAIConsent(context.userId);
 
+    // KILL SWITCH: live voice is OFF unless the owner sets REALTIME_VOICE_ENABLED=1
+    // (after putting a hard spend limit on the dedicated OpenAI project/key).
+    // Checked before any rate limit, debit or provider call. Text coach and the
+    // local crisis card do not use this function.
+    if (process.env.REALTIME_VOICE_ENABLED !== "1") {
+      throw new Error("voice_disabled: Voice is temporarily unavailable.");
+    }
+
+    // Per-user mint rate limit: each mint opens a paid realtime session.
+    {
+      const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
+      const limited = await enforceRateLimit(context.userId, RATE_LIMITS.realtime);
+      if (limited) throw new Error("rate_limited: Too many voice sessions. Try again in a moment.");
+    }
+
+    // Daily token cap, fail closed (retryable). Voice minting is a paid call.
+    // The local crisis card / crisis guardrail never go through this function.
+    {
+      const { requireAIBudget } = await import("@/lib/ai/log.server");
+      const over = await requireAIBudget(context.userId);
+      if (over) {
+        const b = (await over.json().catch(() => ({}))) as { error?: string };
+        throw new Error(
+          `${over.status === 429 ? "ai_budget_exhausted" : "ai_budget_unavailable"}: ${b.error ?? "AI is temporarily unavailable."}`,
+        );
+      }
+    }
+
 
     // Trial gate: hard-block minting once the trial voice cap is exhausted.
     // Paying subscribers pass through with isTrial=false / cap=0.
@@ -174,13 +207,29 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     // the live voice surface has the same safety guardrail as text and TTS.
     const instructions = buildRealtimeInstructions(voiceProfile);
 
-    const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    // Debit the WORST-CASE session cost against the daily cap now (refused if
+    // the remaining budget cannot cover it) and enforce one active session.
+    // See src/lib/realtime/session-cost.server.ts for the cost model.
+    const costMod = await import("@/lib/realtime/session-cost.server");
+    const { supabaseAdmin: costAdmin } = await import("@/integrations/supabase/client.server");
+    const started = await costMod.startRealtimeSession(costAdmin, context.userId);
+    if (!started.ok) throw new Error(`${started.code}: ${started.message}`);
+    const refundAndThrow = async (msg: string): Promise<never> => {
+      await costMod.abortRealtimeSession(costAdmin, context.userId, started.sessionId, started.debit);
+      throw new Error(msg);
+    };
+
+    let res: Response;
+    try {
+      res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        // Short-lived token: it only has to survive the SDP handshake.
+        expires_after: { anchor: "created_at", seconds: costMod.REALTIME_COST.TOKEN_TTL_SECONDS },
         session: {
           type: "realtime",
           model: DEFAULT_MODEL,
@@ -206,19 +255,28 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
           instructions,
           // Give longer answers enough room to finish, while the system
           // prompt still keeps the model conversational and concise.
-          max_output_tokens: 2000,
+          max_output_tokens: costMod.REALTIME_COST.MAX_OUTPUT_TOKENS,
+          // Cap the context re-sent with every response (bounds input cost).
+          truncation: {
+            type: "retention_ratio",
+            retention_ratio: 0.8,
+            token_limits: { post_instructions: costMod.REALTIME_COST.POST_INSTRUCTIONS_TOKENS },
+          },
         },
       }),
-    });
+      });
+    } catch (e) {
+      return refundAndThrow(e instanceof Error ? e.message : "Failed to mint realtime client secret");
+    }
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error(
         `[realtime/openai] client_secret_mint_fail status=${res.status} body=${detail.slice(0, 240)}`,
       );
-      if (res.status === 429) throw new Error("OpenAI rate limit reached");
-      if (res.status === 401) throw new Error("OpenAI key rejected");
-      throw new Error("Failed to mint realtime client secret");
+      if (res.status === 429) return refundAndThrow("OpenAI rate limit reached");
+      if (res.status === 401) return refundAndThrow("OpenAI key rejected");
+      return refundAndThrow("Failed to mint realtime client secret");
     }
 
     // POST /v1/realtime/client_secrets returns:
@@ -229,7 +287,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       session?: { model?: string; audio?: { output?: { voice?: string } } };
     };
     const value = data.value;
-    if (!value) throw new Error("Missing client_secret value in mint response");
+    if (!value) return refundAndThrow("Missing client_secret value in mint response");
 
     const expiresAt =
       typeof data.expires_at === "number"
@@ -249,6 +307,9 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     return {
       clientSecret: value,
       expiresAt,
+      sessionId: started.sessionId,
+      deadlineAt: started.deadlineAt,
+      maxSessionSeconds: started.maxSessionSeconds,
       model: data.session?.model ?? DEFAULT_MODEL,
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,

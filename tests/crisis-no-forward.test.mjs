@@ -506,6 +506,9 @@ function loadRealtime(db, calls) {
     process: {
       env: {
         OPENAI_API_KEY: "openai-example",
+        // Live voice is off unless this is exactly "1"; set inside the sandbox
+        // only, so the test never depends on the shell or CI environment.
+        REALTIME_VOICE_ENABLED: "1",
         SUPABASE_URL: "https://example.supabase.test",
         SUPABASE_SERVICE_ROLE_KEY: "service-role-example",
       },

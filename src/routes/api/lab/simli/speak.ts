@@ -14,6 +14,7 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
         const denied = await requireLabAccess(request);
         if (denied) return denied;
         // Staff-only, but still third-party AI: same permission as everywhere.
+        let labUserId = "";
         {
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
@@ -21,6 +22,10 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
           const { requireAIConsent } = await import("@/lib/ai/consent.server");
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
+          labUserId = auth.userId;
         }
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
@@ -63,6 +68,14 @@ export const Route = createFileRoute("/api/lab/simli/speak")({
             { error: "TTS failed", status: upstream.status },
             { status: 502 },
           );
+        }
+        {
+          const { recordAIUsage, estimateElevenLabsTokens } = await import("@/lib/ai/log.server");
+          await recordAIUsage(labUserId, {
+            intent: "lab-simli-speak",
+            model: "elevenlabs/eleven_flash_v2_5",
+            promptTokens: estimateElevenLabsTokens(Math.min(text.length, 4000)),
+          });
         }
         return new Response(upstream.body, {
           headers: {

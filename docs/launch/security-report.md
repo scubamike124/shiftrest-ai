@@ -9,13 +9,13 @@ Scan date: 2026-06-27. Tools: `supabase--linter`, `security--run_security_scan`,
 | 1 | WARN | `ai_log` had no INSERT/UPDATE/DELETE RLS policies — an authenticated user could spoof another user's AI usage. | Migration `20260627205xxx`: dropped write policies; revoked INSERT/UPDATE/DELETE from `authenticated`. Writes are server-only via `supabaseAdmin` in `src/lib/ai/log.server.ts`. SELECT (own rows) retained. |
 | 2 | WARN | `notification_log` had no UPDATE/DELETE policies. | Added owner-scoped DELETE policy; revoked UPDATE from `authenticated` (server-only via `supabaseAdmin`). |
 | 3 | WARN | `wearable_connections` allowed authenticated INSERT/UPDATE on OAuth tokens — a user could overwrite their own access/refresh tokens. | Dropped INSERT/UPDATE policies; revoked grants. Tokens are written exclusively by the OAuth callbacks and sync cron (both use service role). SELECT + DELETE (disconnect) remain. |
-| 4 | WARN | `has_ai_budget`, `has_active_subscription` SECURITY DEFINER functions executable by `anon`. | Revoked EXECUTE from `PUBLIC, anon`. `authenticated` retains EXECUTE so RLS and serverFns continue to work. |
+| 4 | WARN | `has_ai_budget`, `has_active_subscription` SECURITY DEFINER functions executable by `anon`. | Revoked EXECUTE from `PUBLIC, anon`. (Update Nov 2026: `has_ai_budget` is now also revoked from `authenticated`, because it let any signed-in user probe another user's cap status; only the service role calls it. See migration `20261115070000_voice_session_ledger_and_budget_rpc_lockdown.sql`. `has_active_subscription` is unchanged.) |
 | 5 | WARN | `handle_new_user`, `set_updated_at` SECURITY DEFINER trigger functions directly callable. | Revoked EXECUTE from `PUBLIC, anon, authenticated` — they run only via triggers. |
 
 ## Pre-existing advisories left in place
 
 - **Extension in public schema** (`pg_cron` / `pg_net`): required for nightly cron + Stripe webhook calls. Moving to a separate schema is non-trivial and out of scope.
-- **`SECURITY DEFINER` callable by authenticated** (`has_ai_budget`, `has_active_subscription`): intentional — RLS policies and serverFns invoke these as the signed-in user.
+- **`SECURITY DEFINER` callable by authenticated** (`has_active_subscription`): intentional — RLS policies and serverFns invoke it as the signed-in user. (`has_ai_budget` is no longer callable by authenticated as of Nov 2026; server-side only.)
 
 ## Areas reviewed clean
 

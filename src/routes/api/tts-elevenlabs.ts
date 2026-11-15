@@ -21,7 +21,7 @@ function fallback(reason: Fallback["reason"], message: string): Response {
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused — provider credits exhausted.";
+    case "credits":    return "Voice playback is paused for now. Try again later.";
     case "rate_limit": return "ElevenLabs is rate-limiting. Try again in a moment.";
     case "config":     return "ElevenLabs isn't configured on the server yet.";
     default:           return "ElevenLabs voice is temporarily unavailable.";
@@ -52,6 +52,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
           const limited = await enforceRateLimit(auth.userId, RATE_LIMITS.tts);
           if (limited) return limited;
+        }
+
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(auth.userId);
+          if (overBudget) return overBudget;
         }
 
         try {
@@ -152,6 +158,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           console.log(
             `[tts-elevenlabs] provider_ok voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0}`,
           );
+          {
+            const { recordAIUsage, estimateElevenLabsTokens } = await import("@/lib/ai/log.server");
+            await recordAIUsage(auth.userId, {
+              intent: "tts-elevenlabs",
+              model: "elevenlabs/tts",
+              promptTokens: estimateElevenLabsTokens(textLen),
+            });
+          }
           return new Response(upstream.body, {
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });

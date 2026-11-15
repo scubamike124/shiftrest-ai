@@ -49,6 +49,12 @@ export const Route = createFileRoute("/api/insights")({
             if (limited) return limited;
           }
 
+          {
+            const { requireAIBudget } = await import("@/lib/ai/log.server");
+            const overBudget = await requireAIBudget(auth.userId);
+            if (overBudget) return overBudget;
+          }
+
           const { context } = (await request.json()) as { context?: string };
           if (!context || typeof context !== "string") {
             return new Response(JSON.stringify({ error: "context required" }), {
@@ -101,7 +107,7 @@ export const Route = createFileRoute("/api/insights")({
                   upstream.status === 429
                     ? "Rate limit reached."
                     : upstream.status === 402
-                    ? "AI credits exhausted."
+                    ? "AI is temporarily unavailable."
                     : "Insights unavailable.",
               }),
               { status: upstream.status, headers: { "Content-Type": "application/json" } },
@@ -110,8 +116,19 @@ export const Route = createFileRoute("/api/insights")({
 
           const data = (await upstream.json()) as {
             choices?: { message?: { content?: string } }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
           };
           const raw = data.choices?.[0]?.message?.content?.trim() ?? "{}";
+          {
+            // Accrue against the daily cap (provider usage, else estimate).
+            const { recordAIUsage, estimateTextTokens } = await import("@/lib/ai/log.server");
+            await recordAIUsage(auth.userId, {
+              intent: "insights",
+              model: "google/gemini-3-flash-preview",
+              promptTokens: data.usage?.prompt_tokens ?? estimateTextTokens(SYSTEM.length + context.length),
+              completionTokens: data.usage?.completion_tokens ?? estimateTextTokens(raw.length),
+            });
+          }
           // Strip accidental code fences just in case.
           const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
           let parsed: unknown;

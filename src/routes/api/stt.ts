@@ -54,6 +54,12 @@ export const Route = createFileRoute("/api/stt")({
           if (limited) return limited;
         }
 
+        {
+          const { requireAIBudget } = await import("@/lib/ai/log.server");
+          const overBudget = await requireAIBudget(authed.userId);
+          if (overBudget) return overBudget;
+        }
+
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
           return Response.json(
@@ -108,7 +114,7 @@ export const Route = createFileRoute("/api/stt")({
           });
           const msg =
             upstream.status === 402
-              ? "AI credits are exhausted."
+              ? "Voice is temporarily unavailable. Try again later."
               : upstream.status === 429
                 ? "Voice is busy. Try again."
                 : "Couldn't transcribe that — try again.";
@@ -126,19 +132,20 @@ export const Route = createFileRoute("/api/stt")({
         }
         const text = (payload.text ?? "").trim();
 
-        // Best-effort usage log
-        const admin = getAdmin();
-        const userId = await userIdFromAuth(admin, request.headers.get("authorization"));
-        if (admin && userId) {
-          logAIRequest(admin, {
-            user_id: userId,
+        // Accrue against the daily cap: provider tokens when reported, never
+        // less than the audio-size estimate.
+        {
+          const { recordAIUsage, estimateSttTokens } = await import("@/lib/ai/log.server");
+          const estimate = estimateSttTokens(file.size);
+          const inTok = payload.usage?.input_tokens ?? 0;
+          const outTok = payload.usage?.output_tokens ?? 0;
+          await recordAIUsage(authed.userId, {
             intent: "stt",
             model: "openai/gpt-4o-mini-transcribe",
-            prompt_tokens: payload.usage?.input_tokens ?? 0,
-            completion_tokens: payload.usage?.output_tokens ?? 0,
-            latency_ms: Date.now() - started,
-            status: "ok",
-          }).catch((e) => console.error("[stt] log failed", e));
+            promptTokens: Math.max(inTok, estimate - outTok),
+            completionTokens: outTok,
+            startedAt: started,
+          });
         }
 
         return Response.json({ text });
