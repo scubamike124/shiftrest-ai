@@ -236,8 +236,8 @@ function AuthPage() {
             <div className="flex items-start gap-2 rounded-xl border-2 border-amber-400/60 bg-amber-500/15 px-3 py-3 text-xs leading-relaxed text-amber-100 shadow-[0_0_0_1px_rgba(251,191,36,0.25)]">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
               <span>
-                <strong className="font-semibold text-amber-200">Preview limitation:</strong>{" "}
-                Google and Apple sign-in are unavailable in this embedded preview. Please use{" "}
+                <strong className="font-semibold text-amber-200">Preview limitation:</strong> Google
+                and Apple sign-in are unavailable in this embedded preview. Please use{" "}
                 <strong>email &amp; password</strong> below to test. Open the site directly to use
                 them.
               </span>
