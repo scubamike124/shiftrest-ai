@@ -61,6 +61,13 @@ const APP_ROUTES = [
   "/paywall",
 ];
 const FAKE = process.env.AUDIT_FAKE_SESSION === "1";
+if (FAKE && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)) {
+  // The fake session is for a local placeholder build only; never point it at a real site.
+  console.error(
+    "AUDIT_FAKE_SESSION=1 is only allowed against http://localhost or http://127.0.0.1",
+  );
+  process.exit(2);
+}
 const routes = process.argv.slice(3).length
   ? process.argv.slice(3)
   : FAKE
