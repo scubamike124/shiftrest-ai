@@ -29,7 +29,7 @@ inferred from `main`'s code, since Lovable's secret store cannot be read.
 | Variable | Used by | Lovable production |
 | --- | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | admin DB access: AI admission, rate limits, cron hooks, email queue, webhooks, account delete/export, wearables callbacks, contact | yes, managed by Lovable; not obtainable (see CUTOVER.md) |
-| `AI_API_KEY`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_FAST_MODEL` (optional `AI_ROUTING`, `AI_MODEL_*`, `AI_REASONING_VOICE`, `AI_STREAM_USAGE`) | all text AI | no: production used `LOVABLE_API_KEY` (Lovable AI gateway) |
+| `AI_API_KEY`, `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_FAST_MODEL` (optional `AI_ROUTING`, `AI_MODEL_<TASK>`, `AI_REASONING_<TASK>`, `AI_STREAM_USAGE`; tasks are COACH, VOICE, STRUCTURED, BRIEF and BACKGROUND) | all text AI | no: production used `LOVABLE_API_KEY` (Lovable AI gateway) |
 | `AI_AUDIO_API_KEY`, `AI_AUDIO_BASE_URL`, `AI_TTS_MODEL`, `AI_STT_MODEL` | `/api/tts`, `/api/stt` | no: Lovable AI gateway |
 | `OPENAI_API_KEY` (fallback for both), `OPENAI_REALTIME_API_KEY` (optional `AI_REALTIME_MODEL`, `AI_REALTIME_TRANSCRIBE_MODEL`) | realtime voice, fallback AI | yes |
 | `ELEVENLABS_API_KEY` | `/api/tts-elevenlabs`, lab Simli speak | yes |
@@ -101,7 +101,7 @@ functions themselves need a session.
    PR.*
    - Repro:
      `curl -X POST -H 'Content-Type: application/json' -d '{"messages":[]}' https://restpilot-web-staging.up.railway.app/api/coach`
-     returns `200 text/html`. Production returns `401 {"error":"Sign in required"}`.
+     returns `200 text/html`. Production returned `401 {"error":"Sign in required"}` when observed on 2026-11-15.
    - Cause: behind Railway's edge, the server sees `http://<host>`. Its
      self-fetch to `http://…/api/ai` gets a `301` to https, and `fetch`
      replays the POST as a GET, which serves the SPA.
@@ -121,6 +121,40 @@ functions themselves need a session.
 3. **Ready Player Me host is gone.** It is noted above for the AI-companion
    agent; this PR does not change it.
 
+## Account deletion and subscription status on Railway
+
+- **Subscription status:** *fixed in PR (subscription-status-read).*
+  - The profile and premium UI used to read the `subscriptions` table only
+    when a Stripe publishable key was configured.
+  - Railway has none, so paid and lifetime members looked free there, even
+    though the server still honoured their access.
+  - Status is now read from the database regardless. A build without a key
+    uses the `live` rows. A newer incomplete checkout no longer hides an
+    older paid or lifetime row.
+- **Account deletion with an active Stripe subscription fails closed on
+  Railway.** This is *not changed*.
+  - `deleteAccountFn` cancels Stripe subscriptions first. With Stripe off,
+    the user gets "We couldn't confirm all subscription cancellations…" and
+    keeps the account. That is an App Store 5.1.1(v) risk for any app build
+    pointed at Railway.
+  - Deleting anyway would lose the subscription id (rows cascade with the
+    user) and leave the customer billed. So the fix is a billing decision,
+    not a code-only one. Options for the owner:
+    - (a) **Recommended:** keep the CUTOVER hard gate. Railway does not serve
+      customers until website Stripe works there, and then deletion cancels
+      as on Lovable.
+    - (b) If Railway must serve customers before Stripe:
+      - deletion proceeds;
+      - the subscription id is written to a cancellation queue table with no
+        foreign key to the user;
+      - the owner is alerted at once;
+      - the queue is processed when the Stripe key exists;
+      - the user-facing copy is agreed by the owner.
+- **White Glove iOS test (2026-11-16):** not blocked.
+  `ios-app/capacitor.config.json` loads `https://restpilotai.com/`, which is
+  Lovable, where Stripe and deletion work. The Railway gap only applies
+  after cutover, which the Stripe gate covers.
+
 ## Licensing and cost notes for the owner
 
 None of these are changed by this work.
@@ -128,12 +162,21 @@ None of these are changed by this work.
 - **Open-Meteo:** its terms say the free API is "only" for "non-commercial
   purposes". Apps with subscriptions are listed as commercial. RestPilot
   sells subscriptions, so this needs a paid Open-Meteo plan, or another
-  provider. Free-tier limits are 10,000 calls a day and 600 a minute.
+  provider. Free-tier limits are 10,000 calls a day, 5,000 an hour and 600
+  a minute.
   Source: open-meteo.com/en/terms.
-- **OSRM demo server:** its policy forbids selling access, requires public
-  access with attribution, and can be withdrawn "at any time and without
-  giving a reason". It is not a dependable production router for a paid
-  feature. Source: github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy.
+- **OSRM demo server:** the OSRM usage-policy page lists the terms of the
+  previous demo server.
+  - Those terms forbade selling access, required public access with
+    attribution, and said access could be withdrawn "at any time and without
+    giving a reason".
+  - The page now points to FOSSGIS's terms at
+    routing.openstreetmap.de/about.html for the current server.
+  - Either way, it is not a dependable production router for a paid
+    feature.
+  - The policy also asks for an identifying `User-Agent`;
+    `src/lib/traffic.server.ts` sends Node's default.
+  - Source: github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy.
 - **AI and voice providers** bill per use. See `COST-MODEL.md`.
 
 ## How this was checked
