@@ -8,10 +8,11 @@ tags: [core]
     timeout: 45000
 - tapOn: "Profile"
 - scrollUntilVisible:
-    element: "Export my data"
+    # Each row's accessible name includes its description.
+    element: "Export my data.*"
     direction: DOWN
     # Profile is long (voices, personality, settings); scroll faster and longer.
     speed: 80
     timeout: 120000
-- assertVisible: "Erase AI memory"
+- assertVisible: "Erase AI memory.*"
 - takeScreenshot: maestro-06-privacy

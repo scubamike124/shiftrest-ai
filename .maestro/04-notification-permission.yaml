@@ -15,9 +15,11 @@ tags: [core]
     speed: 80
     timeout: 120000
 - takeScreenshot: maestro-04-reminders-card
+# Four elements carry this name, in document order: the card region, the heading,
+# its text and the switch (value 0/1). Tap the switch.
 - tapOn:
     text: "Reminders on this iPhone"
-    index: 1
+    index: 3
 # The system alert ("“RestPilot” Would Like to Send You Notifications").
 - extendedWaitUntil:
     visible: "Allow"

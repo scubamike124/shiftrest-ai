@@ -9,12 +9,13 @@ tags: [core]
     timeout: 45000
 - tapOn: "Profile"
 - scrollUntilVisible:
-    element: "Delete Account"
+    # The row's accessible name includes its description.
+    element: "Delete Account.*"
     direction: DOWN
     # Profile is long (voices, personality, settings); scroll faster and longer.
     speed: 80
     timeout: 120000
-- tapOn: "Delete Account"
+- tapOn: "Delete Account.*"
 - extendedWaitUntil:
     visible: "Delete your account?"
     timeout: 15000
