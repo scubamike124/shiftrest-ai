@@ -6,6 +6,7 @@ const cases = [
   ...require("./voice-memory.cjs"),
   ...require("./honesty-safety.cjs"),
   ...require("./structured-tools.cjs"),
+  ...require("./quality-expansion.cjs"),
 ];
 
 const ids = new Set();
