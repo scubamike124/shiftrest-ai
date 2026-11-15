@@ -8,20 +8,20 @@ export const Route = createFileRoute("/pricing")({
       {
         name: "description",
         content:
-          "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
+          "Simple monthly and annual plans for the AI rest platform built for shift workers.",
       },
       { property: "og:title", content: "Pricing — RestPilot AI" },
       {
         property: "og:description",
         content:
-          "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
+          "Simple monthly and annual plans for the AI rest platform built for shift workers.",
       },
       { property: "og:url", content: "https://restpilotai.com/pricing" },
       { name: "twitter:title", content: "Pricing — RestPilot AI" },
       {
         name: "twitter:description",
         content:
-          "Simple monthly, annual, and lifetime plans for the AI rest platform built for shift workers.",
+          "Simple monthly and annual plans for the AI rest platform built for shift workers.",
       },
     ],
     links: [{ rel: "canonical", href: "https://restpilotai.com/pricing" }],
@@ -57,26 +57,17 @@ const tiers = [
     ],
     featured: true,
   },
-  {
-    name: "Lifetime",
-    price: "$99",
-    cadence: "one-time",
-    trial: "Pay once, use forever",
-    perks: ["Everything in Annual", "All future updates", "Founders' badge", "No renewals, ever"],
-    featured: false,
-  },
 ];
 
 const matrix = [
-  { label: "AI Coach with memory", values: [true, true, true] },
+  { label: "AI Coach with memory", values: [true, true] },
 
-  { label: "Long Clock (7-day plan)", values: [true, true, true] },
-  { label: "Wearable sync", values: [true, true, true] },
-  { label: "Multi-employer rotations", values: [true, true, true] },
-  { label: "Recovery playbooks", values: [true, true, true] },
-  { label: "Priority AI capacity", values: [false, true, true] },
-  { label: "Early access to new models", values: [false, true, true] },
-  { label: "All future updates included", values: ["—", "—", true] },
+  { label: "Long Clock (7-day plan)", values: [true, true] },
+  { label: "Wearable sync", values: [true, true] },
+  { label: "Multi-employer rotations", values: [true, true] },
+  { label: "Recovery playbooks", values: [true, true] },
+  { label: "Priority AI capacity", values: [false, true] },
+  { label: "Early access to new models", values: [false, true] },
 ];
 
 function Pricing() {
@@ -95,7 +86,7 @@ function Pricing() {
             className="mt-3 text-5xl leading-tight tracking-tight lg:text-6xl"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            One platform. <span className="italic text-indigo-glow">Three ways to start.</span>
+            One platform. <span className="italic text-indigo-glow">Two ways to start.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground">
             Cancel anytime. Billed securely through Stripe. Every plan includes the full RestPilot
@@ -105,7 +96,7 @@ function Pricing() {
       </section>
 
       <section className="px-5 pb-20 lg:px-10">
-        <div className="mx-auto grid w-full max-w-7xl gap-5 lg:grid-cols-3">
+        <div className="mx-auto grid w-full max-w-4xl gap-5 lg:grid-cols-2">
           {tiers.map((t) => (
             <div
               key={t.name}
@@ -153,16 +144,15 @@ function Pricing() {
 
       <section className="px-5 pb-24 lg:px-10 lg:pb-32">
         <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border border-border/60 bg-card/40">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr] border-b border-border/60 px-6 py-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="grid grid-cols-[2fr_1fr_1fr] border-b border-border/60 px-6 py-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <span>Feature</span>
             <span className="text-center">Monthly</span>
             <span className="text-center">Annual</span>
-            <span className="text-center">Lifetime</span>
           </div>
           {matrix.map((row) => (
             <div
               key={row.label}
-              className="grid grid-cols-[2fr_1fr_1fr_1fr] items-center border-b border-border/40 px-6 py-4 text-sm last:border-b-0"
+              className="grid grid-cols-[2fr_1fr_1fr] items-center border-b border-border/40 px-6 py-4 text-sm last:border-b-0"
             >
               <span className="text-foreground/90">{row.label}</span>
               {row.values.map((v, i) => (

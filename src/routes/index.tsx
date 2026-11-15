@@ -1020,13 +1020,6 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
       perks: ["Save 48% vs monthly", "Priority AI capacity", "Everything in Monthly"],
       featured: true,
     },
-    {
-      name: "Lifetime",
-      price: "$99",
-      cadence: "one-time",
-      perks: ["Pay once, use forever", "All future updates", "Founders' badge"],
-      featured: false,
-    },
   ];
   return (
     <section className="py-24 lg:py-32" id="pricing">
@@ -1037,7 +1030,7 @@ function PricingPreview({ ctaHref }: { ctaHref: string }) {
             Simple plans. No clinical pricing games.
           </h2>
         </div>
-        <div className="mt-14 grid gap-5 lg:grid-cols-3">
+        <div className="mx-auto mt-14 grid max-w-4xl gap-5 lg:grid-cols-2">
           {tiers.map((t) => (
             <div
               key={t.name}
