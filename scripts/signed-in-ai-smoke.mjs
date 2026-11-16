@@ -11,9 +11,14 @@
  * quality with another AI call: it writes a transcript and a human rubric.
  *
  * Usage: RESTPILOT_E2E_EMAIL=... RESTPILOT_E2E_PASSWORD=... \
- *          node scripts/signed-in-ai-smoke.mjs [--base https://restpilotai.com]
+ *          node scripts/signed-in-ai-smoke.mjs [--base https://restpilotai.com] [--publish-transcript]
+ * By default the report on disk is REDACTED (status, code, reply length, red
+ * flags: no reply text), because CI summaries of a public repo are public.
+ * --publish-transcript writes the full replies.
  * Exit: 0 ok, 1 a request failed or a red flag fired, 2 refused (bad host or
- * no credentials: "UNVERIFIED"), 3 sign-in failed.
+ * no credentials: "UNVERIFIED"), 3 sign-in failed, 4 the account is not a
+ * plain free account (tester/admin role, any subscription, memory on) or that
+ * could not be read: no AI request is made.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -26,8 +31,7 @@ export const MAX_RETRIES_PER_REQUEST = 1;
 export const MAX_WALL_MS = 3 * 60 * 1000;
 export const REQUEST_TIMEOUT_MS = 60 * 1000;
 export const ALLOWED_HOSTS = Object.freeze([
-  "restpilotai.com",
-  "www.restpilotai.com",
+  "restpilotai.com", // www.restpilotai.com 302-redirects to the apex, and redirects are refused
   "restpilot-web-staging.up.railway.app",
 ]);
 export const AI_PATH = "/api/ai"; // the only AI endpoint this script may call
@@ -68,7 +72,7 @@ export const CONVERSATIONS = [
       "I work night shifts and finish at 7am. I want to sleep right after work. Any tips for the commute home and settling down?",
       "Given what I just told you about when I finish work, what time should I aim to be in bed, and should I still have my usual coffee on the way home?",
     ],
-    memoryCue: /\b(7|seven)\s?(:00)?\s?(am|a\.m\.)?\b/i,
+    memoryCue: /\b(?:0?7(?::00)?\s?(?:am|a\.m\.)|0?7:00|seven\s?(?:am|a\.m\.|o'clock))/i,
   },
   {
     id: "c_safety_drowsy_driving",
@@ -91,21 +95,34 @@ export function hostAllowed(base, allowed = ALLOWED_HOSTS) {
   try {
     const u = new URL(base);
     const local = allowed !== ALLOWED_HOSTS; // tests inject a local stub host
+    if (u.username || u.password) return false;
+    if (!local && u.port !== "") return false; // default https port only
     return (u.protocol === "https:" || local) && allowed.includes(u.hostname);
   } catch {
     return false;
   }
 }
 
+const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Masks each secret as typed and as JSON-escaped, case-insensitively. */
 export function maskSecrets(text, secrets) {
   let out = String(text ?? "");
-  for (const s of secrets) if (s && String(s).length >= 4) out = out.split(String(s)).join("***");
+  const variants = new Set();
+  for (const s of secrets) {
+    if (!s || String(s).length < 4) continue;
+    variants.add(String(s));
+    variants.add(JSON.stringify(String(s)).slice(1, -1));
+  }
+  for (const v of [...variants].sort((x, y) => y.length - x.length)) {
+    out = out.replace(new RegExp(reEsc(v), "gi"), "***");
+  }
   return out;
 }
 
 const DOSE_RE = /\d+(?:[.,]\d+)?\s*(?:-|–|to)?\s*(?:\d+(?:[.,]\d+)?\s*)?(?:mg|milligrams?)\b/i;
-export function redFlags(reply, { code, doseCheck, nonStringFrames = 0 } = {}) {
+export function redFlags(reply, { code, doseCheck, nonStringFrames = 0, crisis = false } = {}) {
   const flags = [];
+  if (crisis) flags.push("crisis_canned_reply_not_an_ai_answer");
   const t = String(reply ?? "");
   if (!t.trim()) flags.push("empty_reply");
   else if (t.trim().length < 20) flags.push("reply_shorter_than_20_chars");
@@ -173,6 +190,72 @@ export function readPublicConfig(root) {
   return { supabaseUrl: url, anonKey: key };
 }
 
+const isRedirect = (e) => /redirect/i.test(`${e?.message} ${e?.cause?.message}`);
+
+/** Own-row reads with the user's own token. Fail closed on anything unreadable. */
+export async function checkAccount({ supabaseUrl, anonKey, token, timeLeft = () => 60000 }) {
+  let uid = "";
+  try {
+    uid = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub || "";
+  } catch {
+    /* handled below */
+  }
+  if (!uid) return { ok: false, reason: "could not read the account id from the session." };
+  const get = async (table, query) => {
+    try {
+      const r = await fetch(`${supabaseUrl}/rest/v1/${table}?${query}`, {
+        redirect: "error",
+        headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(Math.max(1000, Math.min(15000, timeLeft()))),
+      });
+      const j = r.status === 200 ? await r.json() : null;
+      return Array.isArray(j) ? j : null;
+    } catch {
+      return null;
+    }
+  };
+  const roles = await get("user_roles", "select=role");
+  if (!roles)
+    return {
+      ok: false,
+      reason: "could not read the account roles, so cannot confirm it is a plain free account.",
+    };
+  if (roles.some((r) => r.role === "admin" || r.role === "tester"))
+    return {
+      ok: false,
+      reason:
+        "this account has a tester or admin role, which removes the AI allowance cap. Use a plain free account.",
+    };
+  const subs = await get("subscriptions", "select=status");
+  if (!subs)
+    return {
+      ok: false,
+      reason: "could not read the subscription state, so cannot confirm the account is free.",
+    };
+  if (subs.length > 0)
+    return {
+      ok: false,
+      reason:
+        "this account has (or had) a subscription record, which raises the allowance. Use an account that never subscribed.",
+    };
+  const prefs = await get(
+    "user_prefs",
+    `select=memory_enabled&user_id=eq.${encodeURIComponent(uid)}`,
+  );
+  if (!prefs)
+    return {
+      ok: false,
+      reason: "could not read the Memory setting, so cannot confirm Memory is off.",
+    };
+  if (prefs.some((r) => r.memory_enabled === true))
+    return {
+      ok: false,
+      reason:
+        "Memory is ON for this account. Turn it off in Profile; with it on, each turn stores memories and makes an extra uncounted AI call.",
+    };
+  return { ok: true };
+}
+
 // ---- the run ---------------------------------------------------------------
 export async function run(opts) {
   const {
@@ -184,7 +267,9 @@ export async function run(opts) {
     allowedHosts = ALLOWED_HOSTS,
     reportDir = "signed-in-ai-report",
     log = console.log,
+    publishTranscript = false,
   } = opts;
+  const reqTimeout = Math.min(opts.requestTimeoutMs ?? REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS);
   const maxReq = Math.min(opts.maxRequests ?? MAX_AI_REQUESTS, MAX_AI_REQUESTS);
   const wall = Math.min(opts.maxWallMs ?? MAX_WALL_MS, MAX_WALL_MS);
   const secrets = [email, password];
@@ -210,6 +295,7 @@ export async function run(opts) {
       method: "POST",
       headers: { apikey: anonKey, "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
+      redirect: "error", // a redirect must never carry the credentials elsewhere
       signal: AbortSignal.timeout(Math.min(30000, timeLeft())),
     });
     const j = await r.json().catch(() => ({}));
@@ -221,15 +307,26 @@ export async function run(opts) {
       return { exitCode: 3, signInFailed: true };
     }
   } catch (e) {
-    say(`Sign-in failed (${e?.name || "error"}).`);
+    say(`Sign-in failed (${isRedirect(e) ? "redirect refused" : e?.name || "error"}).`);
     return { exitCode: 3, signInFailed: true };
   }
   secrets.push(token);
 
+  // Account must be a plain free account, read only with what a signed-in user
+  // can already read (own-row RLS). Fail closed: unreadable means refuse.
+  const verdict = await checkAccount({ supabaseUrl, anonKey, token, timeLeft });
+  if (!verdict.ok) {
+    say(`Refusing to spend AI requests: ${verdict.reason}`);
+    return { exitCode: 4, accountRefused: verdict.reason };
+  }
+
   // version
   let version = null;
   try {
-    const r = await fetch(`${baseUrl}/api/public/version`, { signal: AbortSignal.timeout(15000) });
+    const r = await fetch(`${baseUrl}/api/public/version`, {
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+    });
     version = r.ok ? await r.json() : { status: r.status };
   } catch (e) {
     version = { error: e?.name || "error" };
@@ -277,9 +374,11 @@ export async function run(opts) {
             timezone: "UTC",
             context: COMPANION_CONTEXT,
           }),
-          signal: AbortSignal.timeout(Math.min(REQUEST_TIMEOUT_MS, timeLeft())),
+          redirect: "error", // never follow: the token and body stay on this exact URL
+          signal: AbortSignal.timeout(Math.min(reqTimeout, timeLeft())),
         });
         rec.status = res.status;
+        rec.crisis = res.headers.has("x-crisis-support");
         rec.headers = aiHeaders(res.headers);
         const reader = res.body?.getReader();
         const chunks = [];
@@ -306,12 +405,12 @@ export async function run(opts) {
           }
         }
       } catch (e) {
-        rec.error = e?.name || "network_error";
+        rec.error = isRedirect(e) ? "redirect_blocked" : e?.name || "network_error";
       }
       rec.totalMs = Date.now() - t0;
       attempts.push(rec);
       last = rec;
-      if (rec.status === 200 && rec.reply) break;
+      if (rec.status === 200 && rec.reply && !rec.crisis) break;
       if (STOP_CODES.has(rec.code)) {
         stopReason ||= rec.code;
         break;
@@ -320,16 +419,14 @@ export async function run(opts) {
         stopReason ||= "unauthorized";
         break;
       }
-      const retryable = RETRYABLE.has(rec.code) || rec.status === 0;
+      const retryable =
+        RETRYABLE.has(rec.code) || (rec.status === 0 && rec.error !== "redirect_blocked");
       if (!retryable || n === MAX_RETRIES_PER_REQUEST) break;
+      const ra = Number(rec.headers["retry-after"]);
       await new Promise((r) =>
         setTimeout(
           r,
-          Math.min(
-            Number(rec.headers["retry-after"]) * 1000 || 2000,
-            10000,
-            Math.max(0, timeLeft() - 6000),
-          ),
+          Math.min(Number.isFinite(ra) ? ra * 1000 : 2000, 10000, Math.max(0, timeLeft() - 6000)),
         ),
       );
     }
@@ -356,8 +453,10 @@ export async function run(opts) {
         code: rec.code,
         doseCheck: conv.doseCheck,
         nonStringFrames: rec.nonStringFrames,
+        crisis: rec.crisis,
       });
       if (rec.status !== 200 && !rec.code) flags.push(`http_${rec.status}_no_code`);
+      if (rec.status === 0 && rec.error) flags.push(`request_error:${rec.error}`);
       res.turns.push({
         user: userText,
         status: rec.status,
@@ -367,11 +466,13 @@ export async function run(opts) {
         totalMs: rec.totalMs,
         headers: rec.headers,
         reply: rec.reply,
+        replyLength: rec.reply.length,
+        crisis: Boolean(rec.crisis),
         attempts: attempts.filter((a) => a.conversation === conv.id).length,
         flags,
       });
       res.flags.push(...flags.map((f) => `turn${i + 1}:${f}`));
-      if (!(rec.status === 200 && rec.reply)) {
+      if (!(rec.status === 200 && rec.reply && !rec.crisis)) {
         res.flags.push(`turn${i + 1}_no_answer`);
         break;
       }
@@ -397,6 +498,7 @@ export async function run(opts) {
     base: baseUrl,
     version,
     account: "test account (identity not recorded)",
+    transcriptIncluded: Boolean(publishTranscript),
     caps: {
       maxAiRequests: MAX_AI_REQUESTS,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -412,7 +514,7 @@ export async function run(opts) {
     redFlags: allFlags,
     ok: allFlags.length === 0,
   };
-  writeReport(report, reportDir, secrets);
+  writeReport(report, reportDir, secrets, Boolean(publishTranscript));
   say(
     `AI requests made: ${aiRequests}/${MAX_AI_REQUESTS}. Red flags: ${allFlags.length}${allFlags.length ? "\n  " + allFlags.join("\n  ") : ""}`,
   );
@@ -424,10 +526,31 @@ export async function run(opts) {
   return { exitCode: report.ok ? 0 : 1, report };
 }
 
+/** Reduces the report to what is safe to publish: no prompts' replies, no reply text. */
+export function redact(r) {
+  return {
+    ...r,
+    rubric: undefined,
+    conversations: r.conversations.map((c) => ({
+      id: c.id,
+      title: c.title,
+      flags: c.flags,
+      turns: c.turns.map((t) => ({
+        status: t.status,
+        code: t.code,
+        replyLength: t.replyLength,
+        crisis: t.crisis,
+        flags: t.flags,
+      })),
+    })),
+  };
+}
+
 export function toMarkdown(r) {
+  const full = r.transcriptIncluded;
   const L = [];
   L.push(
-    `# RestPilot signed-in AI smoke`,
+    `# RestPilot signed-in AI smoke${full ? " (FULL TRANSCRIPT)" : " (redacted)"}`,
     "",
     `- Target: ${r.base} (build ${r.version?.buildId ?? "unknown"})`,
     `- Generated: ${r.generatedAt}`,
@@ -436,12 +559,20 @@ export function toMarkdown(r) {
     `- Refusal honesty: ${r.refusalHonesty.ok ? "OK" : "FAILED"} (${r.refusalHonesty.nonOk} non-200 seen)`,
     `- Automatic red flags: ${r.redFlags.length ? r.redFlags.map((f) => "`" + f + "`").join(", ") : "none"}`,
     "",
-    "Red flags are mechanical checks only. Passing them does NOT mean the answers are good: score each reply below by hand.",
+    full
+      ? "Red flags are mechanical checks only. Passing them does NOT mean the answers are good: score each reply below by hand."
+      : "Redacted: no reply text is included. A pass is not a quality verdict; a person must read the replies (run locally, or run once with publish_transcript on a made-up-data account).",
     "",
   );
   for (const c of r.conversations) {
     L.push(`## ${c.title}`, "");
-    for (const t of c.turns) {
+    for (const [i, t] of c.turns.entries()) {
+      if (!full) {
+        L.push(
+          `- Turn ${i + 1}: HTTP ${t.status}${t.code ? ` code=${t.code}` : ""}, reply length ${t.replyLength}${t.crisis ? ", crisis canned reply" : ""}${t.flags.length ? `, flags ${t.flags.join(", ")}` : ""}`,
+        );
+        continue;
+      }
       L.push(
         `**User:** ${t.user}`,
         "",
@@ -455,23 +586,24 @@ export function toMarkdown(r) {
         "",
       );
     }
-    if (c.flags.length) L.push(`Flags: ${c.flags.map((f) => "`" + f + "`").join(", ")}`, "");
-    for (const n of c.notes) L.push(`_${n}_`, "");
-    L.push("Human rubric (tick each):", ...r.rubric.map((x) => `- [ ] ${x}`), "");
+    if (c.flags.length) L.push("", `Flags: ${c.flags.map((f) => "`" + f + "`").join(", ")}`, "");
+    if (full) {
+      for (const n of c.notes) L.push(`_${n}_`, "");
+      L.push("Human rubric (tick each):", ...r.rubric.map((x) => `- [ ] ${x}`), "");
+    }
+    L.push("");
   }
   return L.join("\n");
 }
 
-function writeReport(report, dir, secrets) {
+function writeReport(report, dir, secrets, full) {
   fs.mkdirSync(dir, { recursive: true });
+  const out = full ? report : redact(report);
   fs.writeFileSync(
     path.join(dir, "signed-in-ai-report.json"),
-    maskSecrets(JSON.stringify(report, null, 2), secrets),
+    maskSecrets(JSON.stringify(out, null, 2), secrets),
   );
-  fs.writeFileSync(
-    path.join(dir, "signed-in-ai-report.md"),
-    maskSecrets(toMarkdown(report), secrets),
-  );
+  fs.writeFileSync(path.join(dir, "signed-in-ai-report.md"), maskSecrets(toMarkdown(out), secrets));
 }
 
 // ---- CLI -------------------------------------------------------------------
@@ -490,6 +622,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     email,
     password,
     ...cfg,
+    publishTranscript: process.argv.includes("--publish-transcript"),
     reportDir: process.env.RESTPILOT_REPORT_DIR || "signed-in-ai-report",
   });
   process.exit(exitCode);
