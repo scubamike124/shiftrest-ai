@@ -210,3 +210,37 @@ test("Profile gives an over-long city its own message before any lookup", () => 
   const tooLong = profile.indexOf("q.length > 80");
   assert.ok(tooLong > 0 && tooLong < profile.indexOf("await geocodeCity(q)"));
 });
+
+// A loader that fetches a host through a constant (not a literal fetch("https://...")) is
+// governed by connect-src too: KTX2Loader.setTranscoderPath() downloads the Basis
+// transcoder with fetch (FileLoader), and useGLTF()/GLTFLoader do the same for model files.
+// KNOWN DEFECT (reported, not fixed here): Avatar3D.tsx points the transcoder at
+// cdn.jsdelivr.net, which is in script-src but NOT connect-src, so the browser blocks it. It
+// only matters for a KTX2-compressed model (there is no default 3D model; only a QA override).
+// The test pins the exact known set: a new offender fails, and fixing this one makes the
+// test ask for its entry to be removed.
+test("loader paths held in constants point at hosts connect-src allows (known offenders pinned)", () => {
+  const list = connectSrc();
+  const KNOWN = new Set(["src/components/companion/Avatar3D.tsx: cdn.jsdelivr.net"]);
+  const found = new Set();
+  for (const file of walk("src").filter((p) => !serverOnly(p))) {
+    const text = read(file);
+    for (const call of text.matchAll(
+      /\b(?:setTranscoderPath|setPath|setDecoderPath)\(\s*([A-Za-z_][\w]*|["'`]https:\/\/[^"'`]+)/g,
+    )) {
+      const arg = call[1];
+      let url =
+        arg.startsWith('"') || arg.startsWith("'") || arg.startsWith("`") ? arg.slice(1) : null;
+      if (!url) {
+        const decl = text.match(
+          new RegExp(`\\b${arg}\\b\\s*(?::[^=]+)?=\\s*[\\r\\n\\s]*["'\`](https://[^"'\`]+)`),
+        );
+        url = decl?.[1] ?? null;
+      }
+      if (!url) continue;
+      const host = new URL(url).host;
+      if (!allowed(host, list)) found.add(`${file.split(path.sep).join("/")}: ${host}`);
+    }
+  }
+  assert.deepEqual([...found].sort(), [...KNOWN].sort());
+});
