@@ -73,41 +73,25 @@ test.describe("settings pages", () => {
     await expect(page.getByRole("button", { name: "Show Weather" })).toBeVisible();
   });
 
-  test("appearance: theme can be switched once the redesign lands", async ({
+  test("appearance: theme changes and survives reload @smoke", async ({
     authedPage: page,
+    user,
   }) => {
     await page.goto("/profile");
-    const toggle = page
-      .getByRole("button", { name: /theme|appearance|dark mode|light mode/i })
-      .or(page.getByRole("switch", { name: /dark|theme/i }))
-      .or(page.getByRole("radio", { name: /dark|light|system/i }));
-    if ((await toggle.count()) === 0) {
-      await page.goto("/settings/companion");
-    }
-    if ((await toggle.count()) === 0) {
-      test.info().annotations.push({
-        type: "blocked",
-        description:
-          "Appearance/themes setting not on this branch yet (UI redesign agent); test activates automatically once a theme control exists",
-      });
-      test.skip(true, "blocked: no appearance/theme control yet");
-    }
-    const before = await page.evaluate(
-      () => document.documentElement.className + "|" + document.documentElement.dataset.theme,
-    );
-    // A themed radio is usually visually hidden inside its label (#33): click the label.
-    const target = toggle.first();
-    const isRadio = await target.evaluate(
-      (el) => el instanceof HTMLInputElement && el.type === "radio",
-    );
-    await (isRadio ? target.locator("xpath=ancestor::label[1]") : target).click();
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () => document.documentElement.className + "|" + document.documentElement.dataset.theme,
-        ),
-      )
-      .not.toBe(before);
+    // Wait for the signed-in profile and its per-user appearance scope. An
+    // immediate count during hydration used to turn this journey into a skip.
+    await expect(page.getByText(user.email, { exact: true })).toBeVisible();
+    const appearance = page.getByRole("region", { name: "Appearance", exact: true });
+    await expect(appearance).toBeVisible();
+    const light = appearance.getByRole("radio", { name: "Soft Light", exact: true });
+    await expect(light).not.toBeChecked();
+    await light.locator("xpath=ancestor::label[1]").click();
+    await expect(light).toBeChecked();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await page.reload();
+    await expect(page.getByText(user.email, { exact: true })).toBeVisible();
+    await expect(light).toBeChecked();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   });
 });
 
