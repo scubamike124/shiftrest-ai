@@ -18,6 +18,18 @@ function loadModels(env) {
   return module.exports;
 }
 
+// The real, dependency-free refusal module (stable codes + bodies): the admission
+// and route modules import it, so the tests that load them provide the real thing.
+function loadRefusal() {
+  const output = ts.transpileModule(
+    readFileSync(new URL("../src/lib/ai/refusal.ts", import.meta.url), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(output, { exports: module.exports, module });
+  return module.exports;
+}
+
 function load(path, mocks = {}, env = {}, fetchOverride) {
   const output = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -28,6 +40,8 @@ function load(path, mocks = {}, env = {}, fetchOverride) {
     './provider.server': loadProvider(env),
     '@/lib/ai/models.server': loadModels(env),
     './models.server': loadModels(env),
+    "@/lib/ai/refusal": loadRefusal(),
+    "./refusal": loadRefusal(),
     '@/lib/ai/guardrails': { DATA_HONESTY: '' },
     '@/lib/ai/intent-guards': {},
     "@/lib/ai/intent-schemas": {},

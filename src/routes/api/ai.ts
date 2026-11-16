@@ -28,9 +28,10 @@ import {
   loadAssistantProfile,
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
-import { logAIRequest } from "@/lib/ai/log.server";
+import { logAIRequest, estimateTextTokens } from "@/lib/ai/log.server";
+import { providerFailureResponse } from "@/lib/ai/refusal";
 import { modelForTask } from "@/lib/ai/models.server";
-import { commuteTimes, normalizeLiveContext } from "@/lib/ai/intent-guards";
+import { commuteTimes } from "@/lib/ai/intent-guards";
 import { normalizeIntentOutput } from "@/lib/ai/intent-schemas";
 import { proposeMemoriesFromChat } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
@@ -40,9 +41,17 @@ import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { classifyIntent } from "@/lib/ai/intent-hint.server";
 
 
+type CoachBody = {
+  intent: "coach";
+  messages: ChatMsg[];
+  context?: string | Record<string, unknown>;
+  surface?: "voice" | "text";
+  expand?: boolean;
+};
+
 type Body =
   ({ localTime?: string; timezone?: string } & (
-    | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
+  | CoachBody
     | { intent: "brief"; plan: string }
     | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
     | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
@@ -218,8 +227,8 @@ Return ONLY valid JSON:
 Provide 4-7 blocks ordered chronologically across the relevant window.`;
 
 
-function jsonError(status: number, message: string) {
-  return new Response(JSON.stringify({ error: message }), {
+function jsonError(status: number, message: string, code?: string) {
+  return new Response(JSON.stringify(code ? { error: message, code } : { error: message }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -232,6 +241,22 @@ function getAdminClient() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+/**
+ * Run a provider call. The gateway flags every provider failure it recognises
+ * (`AIError.upstream`); a raw error that escapes it with failover off (a network
+ * TypeError, an unparseable body) is the provider path failing too, so it is
+ * flagged here. Either way the browser never gets the provider's own status.
+ */
+async function viaProvider<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    if (e instanceof AIError) throw e;
+    console.error("ai provider call failed", e instanceof Error ? e.message : String(e));
+    throw new AIError(502, mapUpstreamError(502), { upstream: true });
+  }
 }
 
 async function getUserIdFromAuthHeader(
@@ -327,7 +352,7 @@ export const Route = createFileRoute("/api/ai")({
               admin,
               userId,
               profile,
-              liveContext: normalizeLiveContext(body.context),
+              liveContext: body.context, // formatted (and sanitised) by buildSystemPrompt
               intent: "coach",
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
@@ -339,13 +364,14 @@ export const Route = createFileRoute("/api/ai")({
             const isVoice = (body.surface ?? "text") === "voice";
             const coachTask = isVoice ? "voice" : "coach";
             const coachModel = modelForTask(coachTask) ?? DEFAULT_CHAT_MODEL;
-            const upstream = await chatStream({
-              model: coachModel,
-              task: coachTask,
-              messages: [{ role: "system", content: systemWithTime }, ...trimmed],
-              maxTokens: isVoice && !body.expand ? 180 : undefined,
-            });
-
+            const upstream = await viaProvider(() =>
+              chatStream({
+                model: coachModel,
+                task: coachTask,
+                messages: [{ role: "system", content: systemWithTime }, ...trimmed],
+                maxTokens: isVoice && !body.expand ? 180 : undefined,
+              }),
+            );
 
             // Pipe upstream through a TransformStream so logging + memory
             // extraction complete *before* the response stream closes.
@@ -354,7 +380,12 @@ export const Route = createFileRoute("/api/ai")({
             const userTurn = lastUser?.content ?? "";
             const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
-            (async () => {
+            // Runs to completion on its own on Node (Railway): the server process
+            // outlives the client, so the usage row below is written even when the
+            // browser disconnects. Deliberately NOT registered with waitUntil: on
+            // Node, srvx keeps one settled promise per registered call for the life
+            // of the process. (Cloudflare's waitUntil, in main, is not needed here.)
+            void (async () => {
               const reader = upstream.body!.getReader();
               const writer = writable.getWriter();
               const decoder = new TextDecoder();
@@ -362,10 +393,25 @@ export const Route = createFileRoute("/api/ai")({
               let assistant = "";
               let usage: { p: number; c: number } | null = null;
 
+              // Prompt size for the estimate, used only when the provider sends
+              // no usage frame.
+              const promptChars =
+                systemWithTime.length + trimmed.reduce((n, m) => n + m.content.length, 0);
+              let completed = false;
+              // A client cancel is noticed even while the provider is silent:
+              // stop reading, and do not mistake the cancelled read for a finish.
+              let clientGone = false;
+              writer.closed.catch(() => {
+                clientGone = true;
+                reader.cancel().catch(() => {});
+              });
+
               try {
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) break;
+                  // A failed write means the client is gone: this chunk was not
+                  // delivered, so it is not counted below.
                   await writer.write(value);
 
                   buf += decoder.decode(value, { stream: true });
@@ -395,20 +441,35 @@ export const Route = createFileRoute("/api/ai")({
                     }
                   }
                 }
-
-                // Upstream finished — persist BEFORE closing the writable.
-                if (userId) {
+                completed = !clientGone;
+              } catch (e) {
+                // Client cancel, or the provider stream broke mid-way.
+                console.error("coach stream failed", e);
+              } finally {
+                // Persist BEFORE closing the writable. Exactly once, on every
+                // path (finish, client abort, upstream error): if ANY answer
+                // text was delivered, the user used the AI and it is counted.
+                // The provider's usage frame is used when it arrived, else an
+                // estimate. A turn that delivered no text is never debited.
+                if (userId && assistant.length > 0) {
+                  // An all-zero usage frame is not a measurement.
+                  const reported = usage !== null && usage.p + usage.c > 0;
                   try {
                     await logAIRequest(admin, {
                       user_id: userId,
                       intent: "coach",
                       model: coachModel,
-                      prompt_tokens: usage?.p ?? 0,
-                      completion_tokens: usage?.c ?? 0,
+                      prompt_tokens: reported ? usage!.p : estimateTextTokens(promptChars),
+                      completion_tokens: reported ? usage!.c : estimateTextTokens(assistant.length),
                       latency_ms: Date.now() - started,
-                      status: "ok",
+                      status: completed ? "ok" : "partial",
                     });
-
+                  } catch (e) {
+                    console.error("coach usage log failed", e);
+                  }
+                }
+                if (completed && userId) {
+                  try {
                     // Re-check: a revoke during the stream stops this extra
                     // AI call too.
                     const { checkAIConsent } = await import("@/lib/ai/consent.server");
@@ -430,9 +491,13 @@ export const Route = createFileRoute("/api/ai")({
                     console.error("coach capture failed", e);
                   }
                 }
-              } catch (e) {
-                console.error("coach stream failed", e);
-              } finally {
+                if (!completed) {
+                  try {
+                    await reader.cancel();
+                  } catch {
+                    // already closed
+                  }
+                }
                 try {
                   await writer.close();
                 } catch {
@@ -462,13 +527,15 @@ export const Route = createFileRoute("/api/ai")({
                 localTime: body.localTime,
                 timezone: body.timezone,
               }).directive;
-            const result = await chatJSON({
-              task: "brief",
-              messages: [
-                { role: "system", content: briefSystem },
-                { role: "user", content: body.plan },
-              ],
-            });
+            const result = await viaProvider(() =>
+              chatJSON({
+                task: "brief",
+                messages: [
+                  { role: "system", content: briefSystem },
+                  { role: "user", content: body.plan },
+                ],
+              }),
+            );
 
             if (userId) {
               await logAIRequest(admin, {
@@ -491,12 +558,11 @@ export const Route = createFileRoute("/api/ai")({
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
-            const ctxString = normalizeLiveContext("context" in body ? body.context : undefined);
             const system = await buildSystemPrompt({
               admin,
               userId,
               profile,
-              liveContext: ctxString,
+              liveContext: "context" in body ? body.context : undefined,
               intent: body.intent,
             });
             const timeDirective = buildTimeDirective({
@@ -596,13 +662,18 @@ export const Route = createFileRoute("/api/ai")({
               }
             }
 
-            const result = await chatJSON({
-              task: "structured",
-              messages: [
-                { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
-                { role: "user", content: userPayload },
-              ],
-            });
+            const result = await viaProvider(() =>
+              chatJSON({
+                task: "structured",
+                messages: [
+                  {
+                    role: "system",
+                    content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}`,
+                  },
+                  { role: "user", content: userPayload },
+                ],
+              }),
+            );
             if (userId) {
               await logAIRequest(admin, {
                 user_id: userId,
@@ -704,6 +775,10 @@ export const Route = createFileRoute("/api/ai")({
 
           return jsonError(400, "Unknown intent");
         } catch (e) {
+          // `status` is the PROVIDER's status when the provider failed. It drives the
+          // owner alerts and the log row below and is never sent to the browser: a
+          // provider 429 is not this user's limit.
+          const upstreamFailure = e instanceof AIError && e.upstream;
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
           // Alert owner ONLY on genuine infra failures — never on user
@@ -751,7 +826,12 @@ export const Route = createFileRoute("/api/ai")({
               error: msg,
             });
           }
-          return jsonError(status, msg);
+          // Provider rate limit / credits / auth / outage (after this line's own
+          // failover): a retryable 503 (or 502 for a request the provider rejected)
+          // with its own code, so the client says "the AI service is busy" and never
+          // "your limit".
+          if (upstreamFailure) return providerFailureResponse(status);
+          return jsonError(status, msg, "ai_internal_error");
         }
       },
     },

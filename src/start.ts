@@ -37,6 +37,9 @@ const CSP = [
     // Simli avatar streaming
     "https://api.simli.ai",
     "wss://api.simli.ai",
+    // Reverse geocoding for Profile > Location > Detect (a keyless browser API;
+    // without this entry the browser blocks the call and Detect cannot name the city).
+    "https://api.bigdatacloud.net",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
@@ -109,6 +112,8 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "permissions-policy",
+    // geolocation=(self): Profile > Detect, weather and traffic "use my location"
+    // need it. With geolocation=() the browser refuses every request, whatever the user allows.
     "camera=(), geolocation=(self), payment=(self), microphone=(self), usb=()",
   );
   headers.set("cross-origin-opener-policy", "same-origin-allow-popups");

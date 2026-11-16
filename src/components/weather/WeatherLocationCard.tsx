@@ -121,7 +121,11 @@ export function WeatherLocationCard({
     try {
       const hit = await geocode({ data: { query: q } });
       if (!hit.ok) {
-        toast.error("No match found. Try a nearby city.");
+        toast.error(
+          hit.reason === "unavailable"
+            ? "The city lookup isn't responding right now. Nothing was changed — please try again."
+            : "No match found. Try a nearby city.",
+        );
         return;
       }
       await saveLocation(hit.lat, hit.lon, hit.label);

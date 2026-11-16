@@ -37,3 +37,12 @@ export async function checkAIBudget(
     return false;
   }
 }
+
+/**
+ * Conservative token estimate for text the provider did not meter (about 4
+ * characters per token). Used only when a delivered chat turn has no usable
+ * provider usage frame, so the turn still counts toward has_ai_budget.
+ */
+export const CHARS_PER_TOKEN = 4;
+export const estimateTextTokens = (chars: number) =>
+  Math.max(1, Math.ceil(Math.max(0, chars) / CHARS_PER_TOKEN));

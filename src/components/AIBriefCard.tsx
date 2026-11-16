@@ -18,6 +18,7 @@ import { estimateSourceLabel } from "@/lib/insight-labels";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -66,9 +67,8 @@ async function fetchBrief(context: string): Promise<AIBrief> {
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
     if (resp.status === 401) throw new Error("Sign in to load your brief");
-    throw new Error(e.error || "Brief unavailable");
+    throw new Error(aiRefusalText(await readAIRefusal(resp), "Brief unavailable"));
   }
   return resp.json();
 }

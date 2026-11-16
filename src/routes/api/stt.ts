@@ -1,6 +1,7 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIRequestBody } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { providerFailure } from "@/lib/ai/refusal";
 /**
  * POST /api/stt — Forward audio to Lovable AI Gateway transcription.
  * Multipart in (file, optional language), JSON out ({ text }).
@@ -91,14 +92,33 @@ export const Route = createFileRoute("/api/stt")({
           upstreamForm.append("language", language);
         }
 
-        const upstream = await fetch(
-          aiEndpoint("audio/transcriptions"),
-          {
+        let upstream: Response;
+        try {
+          upstream = await fetch(aiEndpoint("audio/transcriptions"), {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}` },
             body: upstreamForm,
-          },
-        );
+          });
+        } catch (e) {
+          // The provider could not be reached: a retryable 503 with a provider code.
+          console.error("[stt] network error", e instanceof Error ? e.message : String(e));
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: "error",
+            service: "stt",
+            message: "network_error",
+            meta: { error: e instanceof Error ? e.message : String(e) },
+          });
+          const failure = providerFailure(null);
+          return Response.json(
+            {
+              error: "Voice is temporarily unavailable. Try again.",
+              code: failure.code,
+              retryable: true,
+            },
+            { status: failure.status },
+          );
+        }
 
         if (!upstream.ok) {
           const detail = await upstream.text().catch(() => "");
@@ -115,13 +135,16 @@ export const Route = createFileRoute("/api/stt")({
           });
           const msg =
             upstream.status === 402
-              ? "AI credits are exhausted."
+              ? "Voice is temporarily unavailable. Try again."
               : upstream.status === 429
                 ? "Voice is busy. Try again."
                 : "Couldn't transcribe that — try again.";
+          // Never pass the provider's status through (its 402/429 is not this user's
+          // limit): 503 retryable, or 502 for audio the provider rejected.
+          const failure = providerFailure(upstream.status);
           return Response.json(
-            { error: msg },
-            { status: upstream.status === 402 ? 402 : 502 },
+            { error: msg, code: failure.code, retryable: failure.retryable },
+            { status: failure.status },
           );
         }
 

@@ -227,22 +227,25 @@ export async function fetchWeatherIntel(
 
 /**
  * Server-side geocoding helper. Resolves a city / "City, State" / ZIP into
- * lat/lon. Returns null when no match. Used by /settings/skills manual entry.
+ * lat/lon, and says WHY when it cannot: "not_found" (the service answered and
+ * has no match) versus "unavailable" (timeout, network or a non-200 answer).
+ * Callers must not tell a user "city not found" when the lookup never ran.
  */
-export async function geocodeLocation(query: string): Promise<{
-  lat: number;
-  lon: number;
-  label: string;
-} | null> {
+export type GeocodeResult =
+  | { status: "ok"; lat: number; lon: number; label: string }
+  | { status: "not_found" }
+  | { status: "unavailable" };
+
+export async function geocodeLocationDetailed(query: string): Promise<GeocodeResult> {
+  let t: ReturnType<typeof setTimeout> | undefined;
   try {
     const url =
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}` +
       `&count=1&language=en&format=json`;
     const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 3500);
+    t = setTimeout(() => ac.abort(), 6000);
     const res = await fetch(url, { signal: ac.signal });
-    clearTimeout(t);
-    if (!res.ok) return null;
+    if (!res.ok) return { status: "unavailable" };
     const json = (await res.json()) as {
       results?: Array<{
         latitude: number;
@@ -253,10 +256,24 @@ export async function geocodeLocation(query: string): Promise<{
       }>;
     };
     const r = json.results?.[0];
-    if (!r) return null;
+    if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) {
+      return { status: "not_found" };
+    }
     const labelParts = [r.name, r.admin1, r.country_code].filter(Boolean);
-    return { lat: r.latitude, lon: r.longitude, label: labelParts.join(", ") };
+    return { status: "ok", lat: r.latitude, lon: r.longitude, label: labelParts.join(", ") };
   } catch {
-    return null;
+    return { status: "unavailable" };
+  } finally {
+    if (t) clearTimeout(t);
   }
+}
+
+/** Resolves to null when there is no match OR the lookup failed. Used by /settings/skills manual entry. */
+export async function geocodeLocation(query: string): Promise<{
+  lat: number;
+  lon: number;
+  label: string;
+} | null> {
+  const r = await geocodeLocationDetailed(query);
+  return r.status === "ok" ? { lat: r.lat, lon: r.lon, label: r.label } : null;
 }

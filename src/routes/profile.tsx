@@ -46,6 +46,7 @@ import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
+import { geocodeWeatherQuery } from "@/lib/weather/weather.functions";
 import { WearableCard } from "@/components/WearableCard";
 import { AppleHealthCard } from "@/components/native/AppleHealthCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
@@ -75,6 +76,7 @@ function Profile() {
   const deleteAccount = useServerFn(deleteAccountFn);
   const exportAccount = useServerFn(exportAccountFn);
   const purgeAiMemory = useServerFn(purgeAiMemoryFn);
+  const geocodeQuery = useServerFn(geocodeWeatherQuery);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -242,24 +244,21 @@ function Profile() {
     }
   }
 
+  // City lookup runs on the server (geocodeWeatherQuery). A direct browser
+  // call to the geocoder is blocked by the site's Content-Security-Policy
+  // (connect-src), which is why "Los Angeles" used to come back "not found".
   async function geocodeCity(
     name: string,
-  ): Promise<{ lat: number; lon: number; label: string } | null> {
+  ): Promise<
+    | { status: "ok"; lat: number; lon: number; label: string }
+    | { status: "not_found" | "unavailable" }
+  > {
     try {
-      const r = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`,
-      );
-      const j = await r.json();
-      const hit = j?.results?.[0];
-      if (!hit) return null;
-      const region = hit.admin1 ?? hit.country;
-      return {
-        lat: hit.latitude,
-        lon: hit.longitude,
-        label: region ? `${hit.name}, ${region}` : hit.name,
-      };
+      const r = await geocodeQuery({ data: { query: name } });
+      if (r.ok) return { status: "ok", lat: r.lat, lon: r.lon, label: r.label };
+      return { status: r.reason };
     } catch {
-      return null;
+      return { status: "unavailable" };
     }
   }
 
@@ -293,13 +292,23 @@ function Profile() {
           // Save coordinates for sunrise/sunset calculations, but leave the
           // user-facing label empty so we never display raw lat/lon.
           mutation.mutate({ lat, lon, locationLabel: "" });
-          toast.error("Couldn't look up your city — please type it below.");
+          toast.error("We found your position but couldn't name the city — please type it below.");
           return;
         }
-        mutation.mutate({ lat, lon, locationLabel: label });
+        try {
+          await mutation.mutateAsync({ lat, lon, locationLabel: label });
+        } catch {
+          return; // the mutation's onError already told the user and rolled back
+        }
         toast.success(`Location set to ${label}`);
       },
-      () => toast.error("Couldn't detect — enter your city below."),
+      (err) =>
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission is off for this site. Allow it in your browser settings, or type your city below."
+            : "Couldn't detect your location — type your city below.",
+        ),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60_000 },
     );
   }
 
@@ -312,12 +321,29 @@ function Profile() {
     }
     setGeocoding(true);
     try {
-      const hit = await geocodeCity(q);
-      if (!hit) {
-        toast.error("City not found — try a nearby larger city.");
+      if (q.length < 2) {
+        toast.error("Enter at least 2 letters of your city.");
         return;
       }
-      mutation.mutate({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      if (q.length > 80) {
+        toast.error("That's too long for a city name — enter just the city, or a ZIP code.");
+        return;
+      }
+      const hit = await geocodeCity(q);
+      if (hit.status !== "ok") {
+        toast.error(
+          hit.status === "unavailable"
+            ? "The city lookup isn't responding right now. Your city wasn't changed — please try again."
+            : "City not found — check the spelling or try a nearby larger city.",
+        );
+        return;
+      }
+      // Wait for the save: only say "set" once the server has stored it.
+      try {
+        await mutation.mutateAsync({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      } catch {
+        return; // the mutation's onError already told the user and rolled back
+      }
       setCityDraft("");
       toast.success(`Location set to ${hit.label}`);
     } finally {
