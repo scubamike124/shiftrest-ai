@@ -146,10 +146,16 @@ export function formatLiveContext(ctx: unknown): string {
   // whitespace rules below.
   const INVISIBLE =
     // eslint-disable-next-line no-control-regex -- matching control characters is the point
-    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  // NEL, LS and PS are line breaks, not invisible: they become a newline (string
+  // path) or a space (single-line values/keys) BEFORE the stripping below.
+  // U+200C/U+200D (ZWNJ/ZWJ) are kept in values: they are part of Persian,
+  // Hindi and composite emoji. Keys drop them via their character filter.
+  const SEPARATORS = /[\u0085\u2028\u2029]/g;
   if (typeof ctx === "string") {
     return ctx
       .replace(/\r\n?/g, "\n")
+      .replace(SEPARATORS, "\n")
       .replace(INVISIBLE, "")
       .replace(/[ \t]+/g, " ")
       .replace(/ ?\n[ \n]*/g, "\n")
@@ -164,6 +170,7 @@ export function formatLiveContext(ctx: unknown): string {
     if (
       skip.has(
         k
+          .replace(SEPARATORS, " ")
           .replace(INVISIBLE, "")
           .toLowerCase()
           .replace(/[^a-z0-9]/g, ""),
@@ -174,13 +181,19 @@ export function formatLiveContext(ctx: unknown): string {
     // Keys are client-controlled too: collapse whitespace like values, keep a
     // safe character set, and cap the length.
     const key = k
+      .replace(SEPARATORS, " ")
       .replace(INVISIBLE, "")
       .replace(/_/g, " ")
       .replace(/\s+/g, " ")
       .replace(/[^A-Za-z0-9 .-]/g, "")
       .trim()
       .slice(0, 40);
-    const text = String(v).replace(INVISIBLE, "").trim().replace(/\s+/g, " ").slice(0, 200);
+    const text = String(v)
+      .replace(SEPARATORS, " ")
+      .replace(INVISIBLE, "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 200);
     if (key && text) lines.push(`${key}: ${text}`);
     if (lines.length >= 20) break;
   }
