@@ -77,16 +77,64 @@ test.describe("mobile layout (signed in)", () => {
     });
   }
 
-  test("bottom navigation reaches the main tabs", async ({ authedPage: page }) => {
-    await page.goto("/dashboard");
-    for (const [name, url] of [
-      ["Plan", /\/plan/],
-      ["Events", /\/events/],
-      ["Profile", /\/profile/],
-      ["Home", /\/dashboard/],
-    ] as const) {
-      await page.getByRole("link", { name, exact: true }).last().click();
-      await expect(page).toHaveURL(url);
+  test("bottom navigation first enabled tap survives delayed bootstrap @smoke", async ({
+    authedPage: page,
+  }) => {
+    let release!: () => void;
+    const bootstrap = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/assets/*.js", async (route) => {
+      await bootstrap;
+      await route.continue();
+    });
+    try {
+      await page.goto("/dashboard", { waitUntil: "commit" });
+      const nav = page.getByRole("navigation", { name: "App", exact: true });
+      const plan = nav.getByRole("link", { name: "Plan", exact: true });
+      await expect(nav).toBeVisible();
+      await expect(nav).toHaveAttribute("aria-busy", "true");
+      await expect(plan).toBeDisabled();
+      await expect(plan).not.toHaveAttribute("href");
+      await expect(plan).toHaveAttribute("tabindex", "-1");
+      await page.evaluate(() => {
+        (window as Window & { navigationDocument?: boolean }).navigationDocument = true;
+      });
+      release();
+      // No dashboard-heading/data wait: the first enabled tap is the contract.
+      await plan.click();
+      await expect(page).toHaveURL(/\/plan$/);
+      await expect(page.getByRole("heading", { name: "Today's light plan." })).toBeVisible();
+      await expect(plan).toHaveAttribute("aria-current", "page");
+      expect(
+        await page.evaluate(
+          () => (window as Window & { navigationDocument?: boolean }).navigationDocument,
+        ),
+      ).toBe(true);
+    } finally {
+      release();
+      await page.unroute("**/assets/*.js");
     }
+  });
+
+  test("bottom navigation reaches the main tabs @smoke", async ({ authedPage: page }) => {
+    await page.goto("/dashboard");
+    const nav = page.getByRole("navigation", { name: "App", exact: true });
+    for (const [name, url, heading] of [
+      ["Plan", /\/plan$/, "Today's light plan."],
+      ["Events", /\/events$/, "Events"],
+      ["Profile", /\/profile$/, "Your preferences"],
+    ] as const) {
+      const link = nav.getByRole("link", { name, exact: true });
+      await link.click();
+      await expect(page).toHaveURL(url);
+      await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      await expect(link).toHaveAttribute("aria-current", "page");
+    }
+    const home = nav.getByRole("link", { name: "Home", exact: true });
+    await home.click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("button", { name: /Log today.s shift/i })).toBeVisible();
+    await expect(home).toHaveAttribute("aria-current", "page");
   });
 });

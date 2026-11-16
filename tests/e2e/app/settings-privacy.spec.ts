@@ -212,11 +212,41 @@ test.describe("privacy and data", () => {
 test.describe("cookie consent", () => {
   test.use({ cookieConsent: false });
 
-  test("banner offers reject-non-essential and remembers the choice", async ({ page }) => {
+  test("collapsed banner reopens, rejects non-essential and remembers the choice @smoke", async ({
+    page,
+  }) => {
+    const now = Date.now();
+    await page.clock.install({ time: now });
+    await page.clock.pauseAt(now + 60_000);
     await page.goto("/");
-    await page.getByRole("button", { name: /Reject non-essential/i }).click();
+    const reject = page.getByRole("button", { name: /Reject non-essential/i });
+    const consent = () => page.evaluate(() => localStorage.getItem("restpilot.cookie-consent.v1"));
+    await expect(reject).toBeVisible();
+    await page.clock.runFor(6000);
+    await expect(reject).toHaveCount(0);
+    expect(await consent()).toBeNull();
+    await page.getByRole("button", { name: "Cookie preferences", exact: true }).click();
+    await expect(reject).toBeVisible();
+    await reject.click();
+    await expect.poll(consent).not.toBeNull();
+    const saved = await consent();
+    expect(JSON.parse(saved!)).toEqual({
+      necessary: true,
+      preferences: false,
+      analytics: false,
+      ai_logs: false,
+      third_party: false,
+      version: "2026-06-27",
+      decidedAt: expect.any(String),
+    });
+    expect(Number.isNaN(Date.parse(JSON.parse(saved!).decidedAt))).toBe(false);
     await page.reload();
-    await expect(page.getByRole("button", { name: /Reject non-essential/i })).toHaveCount(0);
+    await expect(page.getByRole("heading").first()).toBeVisible();
+    expect(await consent()).toBe(saved);
+    await expect(reject).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Cookie preferences", exact: true })).toHaveCount(
+      0,
+    );
   });
 });
 
