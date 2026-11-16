@@ -15,6 +15,8 @@ import { fetchEmployers } from "@/lib/employers";
 import { fetchPrefs } from "@/lib/prefs";
 import { computeInsights } from "@/lib/insights";
 import { toast } from "sonner";
+import { aiFetch } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 
 export const Route = createFileRoute("/swap")({
   ssr: false,
@@ -78,15 +80,14 @@ ${
 
 User state: ${insights.contextString}`;
 
-      const resp = await fetch("/api/swap", {
+      const resp = await aiFetch("/api/swap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ context }),
       });
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        toast.error(err.error || "Analysis failed");
+        toastAIRefusal(await readAIRefusal(resp), "Analysis failed");
         return;
       }
       const data = (await resp.json()) as SwapResult;

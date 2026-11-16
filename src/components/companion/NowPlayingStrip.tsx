@@ -37,7 +37,7 @@ export function NowPlayingStrip() {
       <button
         type="button"
         onClick={() => void mixer.stopAll()}
-        className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+        className="inline-flex h-8 items-center gap-1 rounded-full border border-border bg-background px-3 text-xs font-medium hover:bg-muted hit-area"
         aria-label="Stop all sounds"
       >
         <Square className="h-3 w-3" />

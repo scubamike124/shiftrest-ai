@@ -5,7 +5,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRankedMemories } from "./memory-rank.server";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import { fetchActivePatterns, type PatternKey } from "./patterns.server";
+import { DATA_HONESTY, SAFETY_AND_CARE } from "./guardrails";
 import {
   fetchFeedbackSummary,
   fetchPreviousRecommendation,
@@ -35,7 +37,7 @@ const BASE_PERSONALITY = `You are {{NAME}} — a warm, sharp recovery and circad
 
 Voice rules:
 - Speak like a trusted friend who happens to be a sleep expert.
-- Concrete and specific. Always give exact times, durations, doses, and temperatures.
+- Concrete and specific. Give exact times, durations and temperatures (never medication or supplement doses).
 - Encouraging, never preachy. Acknowledge how hard rotating schedules are.
 - Plain English. Spell out abbreviations ("milligrams", "minutes", "hours", "degrees Fahrenheit").
 - Keep responses tight: 3-6 short paragraphs or a short list.
@@ -53,9 +55,9 @@ Reasoning contract:
 const MODE_OVERLAYS: Record<AssistantMode, string> = {
   // 6 canonical user-facing presets — each has a distinct cadence rule + opener style
   // so the model produces audibly different output through TTS.
-  coach: `\n\nMode: COACH. Action-first. Open with the single most important next step ("Here's the play:" / "Tonight, do this:"). Every reply names a specific timing, dose, or duration. Push gently when the user drifts. No hedging.`,
+  coach: `\n\nMode: COACH. Action-first. Open with the single most important next step ("Here's the play:" / "Tonight, do this:"). Every reply names a specific timing or duration. Push gently when the user drifts. No hedging.`,
   companion: `\n\nMode: COMPANION. Conversational and personal — check in first, then guide. Open with a warm one-liner referencing what the user shared before ("Been thinking about your night shifts..."). End with one short, genuine follow-up question when it helps. Concrete on numbers, never vague.`,
-  friend: `\n\nMode: FRIENDLY. Warm, casual, first-name basis. Contractions, light humour, no jargon. Open like a mate texting ("Hey — quick one for tonight."). Still exact on timings and doses.`,
+  friend: `\n\nMode: FRIENDLY. Warm, casual, first-name basis. Contractions, light humour, no jargon. Open like a mate texting ("Hey — quick one for tonight."). Still exact on timings.`,
   professional: `\n\nMode: PROFESSIONAL. Calm, precise, clinical-adjacent (never diagnostic). Open with a one-line summary of the recommendation, then a short rationale. Structured, minimal small talk, no exclamation marks.`,
   motivational: `\n\nMode: MOTIVATIONAL. Higher energy, performance framing. Open with a confident challenge ("Tonight is a win night."). One clear focus per reply. Short punchy sentences. Confident, not preachy — no cheerleader clichés.`,
   // Aliases retained for prior data; map to closest canonical behavior.
@@ -68,7 +70,7 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
 
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
-  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
+  return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + `\n\n${DATA_HONESTY}` + overlay;
 }
 
 export type MemoryRow = {
@@ -143,11 +145,80 @@ function formatPreviousBlock(
   return `\n\nYOUR PREVIOUS RECOMMENDATION FOR THIS INTENT (do not repeat verbatim — refresh the angle or move on if still valid):\n- "${prev.headline}"${prev.rationale ? ` — ${prev.rationale}` : ""}`;
 }
 
+/**
+ * The client's live context as prompt text. Routes send a string, but the
+ * Companion sends an object; interpolating that gave "[object Object]". Plain
+ * fields become "key: value" lines; client-only hints (surface, max_tokens)
+ * are dropped. Returns "" when there is nothing useful, so no line is added.
+ */
+export function formatLiveContext(ctx: unknown): string {
+  const MAX = 4000;
+  // Control and invisible characters (NUL, BEL, ESC, NEL, zero-width and
+  // bidi marks/overrides/isolates, line/paragraph separators, BOM) are removed
+  // from everything the client sends; tab, LF and CR are handled by the
+  // whitespace rules below.
+  const INVISIBLE =
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  // NEL, LS and PS are line breaks, not invisible: they become a newline (string
+  // path) or a space (single-line values/keys) BEFORE the stripping below.
+  // U+200C/U+200D (ZWNJ/ZWJ) are kept in values: they are part of Persian,
+  // Hindi and composite emoji. Keys drop them via their character filter.
+  const SEPARATORS = /[\u0085\u2028\u2029]/g;
+  // trim() does not remove ZWJ/ZWNJ, so a value made only of joiners and
+  // whitespace is checked explicitly: it has no visible content.
+  const hasVisible = (t: string) => t.replace(/[\s\u200C\u200D]/g, "") !== "";
+  if (typeof ctx === "string") {
+    if (!hasVisible(ctx.replace(INVISIBLE, ""))) return "";
+    return ctx
+      .replace(/\r\n?/g, "\n")
+      .replace(SEPARATORS, "\n")
+      .replace(INVISIBLE, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ?\n[ \n]*/g, "\n")
+      .trim()
+      .slice(0, MAX);
+  }
+  if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return "";
+  // Client-only hints, compared by a normalised key ("max tokens", maxTokens, MAX-TOKENS).
+  const skip = new Set(["surface", "maxtokens"]);
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(ctx as Record<string, unknown>)) {
+    if (
+      skip.has(
+        k
+          .replace(SEPARATORS, " ")
+          .replace(INVISIBLE, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ""),
+      )
+    )
+      continue;
+    if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
+    // Keys are client-controlled too: collapse whitespace like values, keep a
+    // safe character set, and cap the length.
+    const key = k
+      .replace(SEPARATORS, " ")
+      .replace(INVISIBLE, "")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[^A-Za-z0-9 .-]/g, "")
+      .trim()
+      .slice(0, 40);
+    const cleaned = String(v).replace(SEPARATORS, " ").replace(INVISIBLE, "");
+    if (!hasVisible(cleaned)) continue;
+    const text = cleaned.trim().replace(/\s+/g, " ").slice(0, 200);
+    if (key && text) lines.push(`${key}: ${text}`);
+    if (lines.length >= 20) break;
+  }
+  return lines.join("\n").slice(0, MAX);
+}
+
 export async function buildSystemPrompt(opts: {
   admin: SupabaseClient;
   userId: string | null;
   profile: AssistantProfile;
-  liveContext?: string;
+  liveContext?: unknown;
   intent?: string;
   /** "voice" = Pilot (spoken). "text" = Coach chat. Defaults to "text". */
   surface?: "voice" | "text";
@@ -180,6 +251,9 @@ export async function buildSystemPrompt(opts: {
 - If a topic genuinely needs more, end with a "### Details" section the reader can skip.
 - Never wrap whole sentences in **bold** for emphasis. Bold is only for short labels at the start of a bullet (e.g. "**Light:** 10 min outside…").
 - Never use emoji unless the user used them first. Never use exclamation marks.`;
+      // Conversational coach only (not the JSON dashboard intents): last, so it
+      // overrides the brevity and mode rules above.
+      prompt += `\n\n${SAFETY_AND_CARE}`;
     }
   }
 
@@ -249,8 +323,9 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
-  if (opts.liveContext) {
-    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
+  const liveContext = formatLiveContext(opts.liveContext);
+  if (liveContext) {
+    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${liveContext}`;
   }
 
 
@@ -322,11 +397,22 @@ export async function loadAssistantProfile(
   admin: SupabaseClient,
   userId: string,
 ): Promise<AssistantProfile> {
-  const { data } = await admin
-    .from("user_prefs")
-    .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const [{ data }, avatar] = await Promise.all([
+    admin
+      .from("user_prefs")
+      .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    // The chosen look supplies the default name (Aura, Nova, Atlas, Sage); best-effort.
+    (async () => {
+      try {
+        const r = await admin.from("profiles").select("companion_avatar_id").eq("id", userId).maybeSingle();
+        return ((r.data ?? null) as { companion_avatar_id?: string | null } | null)?.companion_avatar_id ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+  ]);
   const row = (data ?? null) as
     | {
         assistant_name?: string | null;
@@ -337,7 +423,7 @@ export async function loadAssistantProfile(
       }
     | null;
   return {
-    name: row?.assistant_name || "RestPilot",
+    name: companionName(row?.assistant_name, avatar),
     mode: ((row?.assistant_mode as AssistantMode) || "coach"),
     memoryEnabled: Boolean(row?.memory_enabled),
     language: row?.voice_language || "en-US",
@@ -346,7 +432,7 @@ export async function loadAssistantProfile(
 }
 
 export const DEFAULT_ASSISTANT_PROFILE: AssistantProfile = {
-  name: "RestPilot",
+  name: DEFAULT_COMPANION_NAME,
   mode: "coach",
   memoryEnabled: false,
   language: "en-US",

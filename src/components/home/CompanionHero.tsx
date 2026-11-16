@@ -62,13 +62,14 @@ export function CompanionHero({
           </p>
           {context.debtScore !== null && context.recoveryScore !== null ? (
             <p className="mt-2 text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground/80">
-              Schedule stability {Math.round(context.recoveryScore)}% · Sleep debt {Math.round(context.debtScore)}
+              Schedule stability {Math.round(context.recoveryScore)}% · Circadian debt{" "}
+              {Math.round(context.debtScore)}/100 · estimates
             </p>
           ) : null}
           <div className="mt-4">
             <Link
               to="/companion"
-              className="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform active:scale-[0.98]"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow)] transition-transform active:scale-[0.98]"
             >
               {view.ctaLabel}
             </Link>

@@ -1,0 +1,12 @@
+appId: com.restpilotai.app
+name: With the server unreachable the app shows its offline screen, not a blank WebView
+tags: [offline]
+---
+# The workflow stops the E2E stack before running this flow.
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "You're offline"
+    timeout: 90000
+- assertVisible: "Try again"
+- takeScreenshot: maestro-10-offline

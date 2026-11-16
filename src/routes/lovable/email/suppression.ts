@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
-import { WebhookError, verifyWebhookRequest } from '@lovable.dev/webhooks-js'
+import { WebhookError, verifyWebhookRequest } from '@/lib/email/webhook.server'
 import { createFileRoute } from '@tanstack/react-router'
 
-// Suppression event payload sent by the Go API when Mailgun reports
-// a bounce, complaint, or unsubscribe.
+// Verified Resend bounce and complaint events.
 interface SuppressionPayload {
   email: string
   reason: 'bounce' | 'complaint' | 'unsubscribe'
@@ -15,13 +14,11 @@ interface SuppressionPayload {
 
 function parseSuppressionPayload(body: string): SuppressionPayload {
   const parsed = JSON.parse(body)
-  if (!parsed.data) {
-    throw new Error('Missing data field in payload')
-  }
-  const data = parsed.data as SuppressionPayload
-  if (!data.email || !data.reason) {
-    throw new Error('Missing required fields: email, reason')
-  }
+  if (!parsed.data || !['email.bounced','email.complained'].includes(parsed.type)) throw new Error('Unsupported suppression event');
+  const to=parsed.data.to;
+  if(!Array.isArray(to)||to.length!==1||typeof to[0]!=='string')throw new Error('Invalid suppression recipient');
+  const data:SuppressionPayload={email:to[0],reason:parsed.type==='email.bounced'?'bounce':'complaint',is_retry:false,retry_count:0};
+
   return data
 }
 
@@ -55,7 +52,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.LOVABLE_API_KEY
+        const apiKey = process.env.RESEND_WEBHOOK_SECRET
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -64,7 +61,7 @@ export const Route = createFileRoute("/lovable/email/suppression")({
           return Response.json({ error: 'Server configuration error' }, { status: 500 })
         }
 
-        // Verify HMAC signature using the Lovable API Key (same as auth-email-hook)
+        // Verify the Resend webhook signature using its separate signing secret.
         let payload: SuppressionPayload
         try {
           const verified = await verifyWebhookRequest({

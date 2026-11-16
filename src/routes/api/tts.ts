@@ -1,5 +1,6 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -26,7 +27,8 @@ function fallback(reason: Fallback["reason"], message: string): Response {
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused — AI credits are exhausted.";
+    case "credits":
+      return "Voice playback is paused for now. Try again later.";
     case "rate_limit": return "Voice playback is busy. Try again in a moment.";
     case "config":     return "Voice playback isn't configured on the server yet.";
     default:           return "Voice playback is temporarily unavailable.";
@@ -90,7 +92,16 @@ export const Route = createFileRoute("/api/tts")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
-        const admission = await requireAIAdmission(auth.userId);
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        // Before admission, so a refusal never uses up the user's AI allowance.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -101,6 +112,9 @@ export const Route = createFileRoute("/api/tts")({
           if (limited) return limited;
         }
 
+        // True from the moment the provider is called: only then can a thrown
+        // error be the provider being unreachable.
+        let providerCalled = false;
         try {
           const body = (input.body) as {
             text?: string;
@@ -120,13 +134,13 @@ export const Route = createFileRoute("/api/tts")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          const apiKey = process.env.LOVABLE_API_KEY;
+          const apiKey = aiApiKey(true);
           if (!apiKey) {
-            console.error("[tts] LOVABLE_API_KEY missing");
+            console.error("[tts] AI provider key missing");
             notifyOwnerAsync({
               severity: "critical",
               service: "tts",
-              message: "config_missing: LOVABLE_API_KEY not set",
+              message: "config_missing: AI provider key not set",
             });
             return fallback("config", messageFromReason("config"));
           }
@@ -151,14 +165,15 @@ export const Route = createFileRoute("/api/tts")({
 
           const instructions = buildInstructions(merged, mode);
 
-          const upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+          providerCalled = true;
+          const upstream = await fetch(aiEndpoint("audio/speech"), {
             method: "POST",
             headers: {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "openai/gpt-4o-mini-tts",
+              model: aiAudioModel("tts"),
               input: text.slice(0, 4000),
               voice: merged.voiceId,
               response_format: "mp3",
@@ -167,9 +182,11 @@ export const Route = createFileRoute("/api/tts")({
             }),
           });
 
+          providerCalled = false; // the provider answered: a later throw is not "unreachable"
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
             console.error("[tts] upstream failed", upstream.status, t);
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
@@ -210,6 +227,7 @@ export const Route = createFileRoute("/api/tts")({
           });
         } catch (e) {
           console.error("[tts] route error", e);
+          if (providerCalled) await refund.refundProviderFailure?.(null, request.signal);
           // Network / fetch error reaching the provider — genuine infra failure.
           notifyOwnerAsync({
             severity: "error",

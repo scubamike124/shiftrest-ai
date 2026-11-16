@@ -14,8 +14,11 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { Insights } from "@/lib/insights";
+import { estimateSourceLabel } from "@/lib/insight-labels";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
+import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -55,7 +58,7 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Sign in to load your brief");
-  const resp = await fetch("/api/insights", {
+  const resp = await aiFetchBackground("/api/insights", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -64,9 +67,8 @@ async function fetchBrief(context: string): Promise<AIBrief> {
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
     if (resp.status === 401) throw new Error("Sign in to load your brief");
-    throw new Error(e.error || "Brief unavailable");
+    throw new Error(aiRefusalText(await readAIRefusal(resp), "Brief unavailable"));
   }
   return resp.json();
 }
@@ -75,9 +77,12 @@ async function fetchBrief(context: string): Promise<AIBrief> {
 export function AIBriefCard({
   insights,
   recommendations = [],
+  includesAppleHealth = false,
 }: {
   insights: Insights;
   recommendations?: Recommendation[];
+  /** Fatigue and recovery below include Apple Health measurements (on this phone only). */
+  includesAppleHealth?: boolean;
 }) {
   const context = insights.contextString;
   const [hasSession, setHasSession] = useState<boolean | null>(null);
@@ -139,7 +144,7 @@ export function AIBriefCard({
           onClick={() => refetch()}
           disabled={isFetching}
           aria-label="Refresh brief"
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground active:scale-95 disabled:opacity-50 hit-area"
         >
           {isFetching ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -149,7 +154,7 @@ export function AIBriefCard({
         </button>
       </header>
 
-      {/* Fatigue + Recovery strip */}
+      {/* Fatigue + Recovery strip — estimates, labelled with their sources */}
       <div className="relative z-10 mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-border/60 bg-card/60 p-3">
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -179,6 +184,19 @@ export function AIBriefCard({
           </p>
         </div>
       </div>
+      <p
+        className="relative z-10 mt-2 text-[10px] leading-snug text-muted-foreground"
+        data-testid="score-provenance"
+      >
+        <span className="font-semibold text-foreground/80">Estimates, not measurements.</span>{" "}
+        {estimateSourceLabel(insights)}
+      </p>
+
+      {includesAppleHealth && (
+        <p className="relative z-10 mt-2 text-[11px] font-medium text-indigo-glow">
+          Estimate · includes your sleep and HRV from Apple Health
+        </p>
+      )}
 
       {/* 3-day fatigue forecast */}
       <div className="relative z-10 mt-3 flex gap-1.5">
@@ -233,7 +251,10 @@ export function AIBriefCard({
           })}
         </div>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          14-day fatigue horizon · debt {insights.sleepDebtHours.toFixed(1)}h
+          14-day fatigue horizon (estimate) ·{" "}
+          {insights.dataSources.sleepNights > 0
+            ? `estimated sleep debt ${insights.sleepDebtHours.toFixed(1)}h from ${insights.dataSources.sleepNights} measured night${insights.dataSources.sleepNights === 1 ? "" : "s"}`
+            : "sleep debt unknown (no recent wearable sleep data)"}
           {insights.hrvTrend != null
             ? ` · HRV ${insights.hrvTrend > 0 ? "+" : ""}${Math.round(insights.hrvTrend * 100)}%`
             : ""}
@@ -333,6 +354,11 @@ export function AIBriefCard({
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                       {r.detail}
                     </p>
+                    {r.dataSource && (
+                      <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-indigo-glow">
+                        {r.dataSource}
+                      </p>
+                    )}
                   </div>
                 </li>
               );

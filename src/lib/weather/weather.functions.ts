@@ -143,8 +143,8 @@ export const geocodeWeatherQuery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { query: string }) => geocodeSchema.parse(data))
   .handler(async ({ data }) => {
-    const { geocodeLocation } = await import("@/lib/weather.server");
-    const hit = await geocodeLocation(data.query);
-    if (!hit) return { ok: false as const };
-    return { ok: true as const, ...hit };
+    const { geocodeLocationDetailed } = await import("@/lib/weather.server");
+    const r = await geocodeLocationDetailed(data.query);
+    if (r.status !== "ok") return { ok: false as const, reason: r.status };
+    return { ok: true as const, lat: r.lat, lon: r.lon, label: r.label };
   });

@@ -46,6 +46,8 @@ import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback 
 import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { companionName, customCompanionName, defaultCompanionName, UNNAMED_SENTINEL } from "@/lib/companion/name";
 
 import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
@@ -56,9 +58,16 @@ import { CompanionQuickGrid, type CompanionQuickActionId } from "@/components/co
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
-
-
-
+import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { useIsNativeApp } from "@/hooks/use-native-app";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
+import {
+  CRISIS_LOCAL_REPLY,
+  hasCrisisCue,
+  shouldSendToAI,
+  showCardOnCrisis,
+} from "@/lib/safety/crisis-cues";
+import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
@@ -159,7 +168,10 @@ function CompanionPage() {
   const prefs = prefsQ.data;
 
   const companionOn = prefs?.assistantMode === "companion";
-  const aiName = prefs?.assistantName?.trim() || "RestPilot";
+  const { id: avatarId } = useAvatar();
+  // Aura (or the chosen look's name) by default; the customer's own name always wins.
+  const aiName = companionName(prefs?.assistantName, avatarId);
+  const aiDefaultName = defaultCompanionName(avatarId);
   const memoryOn = Boolean(prefs?.memoryEnabled);
 
   // Hydration-safe flag: time-aware greeting renders only after mount.
@@ -177,6 +189,7 @@ function CompanionPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(false);
   const [orbState, setOrbState] = useState<OrbState>("idle");
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -206,6 +219,8 @@ function CompanionPage() {
     const fresh = rt.transcript.filter((t) => !seen.has(t.id));
     if (fresh.length === 0) return;
     fresh.forEach((t) => seen.add(t.id));
+    // Same local crisis-cue check on what the user said in a live voice call.
+    if (fresh.some((t) => t.from === "user" && hasCrisisCue(t.text))) setCrisisCard(true);
     setMessages((cur) => [
       ...cur,
       ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg),
@@ -652,7 +667,13 @@ function CompanionPage() {
     // Gate only on send-in-flight and empty text. companionOn used to gate
     // here, which silently swallowed every voice turn for users who hadn't
     // toggled Companion Mode on — root cause of "Nova never replies".
-    if (!text || sending) return;
+    if (!text) return;
+    // Local crisis-cue check first: before the `sending` guard, intent
+    // routing, the AI consent gate and any AI or network call, so the crisis
+    // line shows with or without AI permission, even while a reply is still
+    // streaming. It never stops the conversation.
+    const crisis = showCardOnCrisis(text, () => setCrisisCard(true));
+    if (sending) return;
     const baseMessages: Msg[] = [...messages, { role: "user", content: text }];
     setMessages(baseMessages);
     setInput("");
@@ -684,10 +705,11 @@ function CompanionPage() {
       setPendingSoundIntent(null);
     }
 
+    // A crisis message is never turned into a sound, alarm or other action.
     // Slice 8 — action-first routing. Parse intent; if it maps to a known action
     // and suggestions are enabled, propose it (never auto-execute when
     // requireActionConfirmation is on).
-    if (localPrefs.actionSuggestionsEnabled) {
+    if (localPrefs.actionSuggestionsEnabled && !crisis) {
       try {
         const parsed = parseIntent(text);
         const favoriteSlug = hintsQ.data?.favoriteSoundTrack;
@@ -763,8 +785,15 @@ function CompanionPage() {
         track({ event: "voice_turn_failed", stage: "auth" });
         return;
       }
+      // Without AI permission, a crisis message gets the crisis card (already
+      // shown above; keep this after showCardOnCrisis) rather than a
+      // data-sharing prompt. Nothing is sent; the user can keep typing.
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        return;
+      }
       emitDebug("ai-req");
-      const resp = await fetch("/api/ai", {
+      const resp = await aiFetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -784,19 +813,17 @@ function CompanionPage() {
       if (!resp.ok || !resp.body) {
         emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);
-        const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
-        const fallback =
-          resp.status === 429
-            ? "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
-            : "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
-        if (resp.status === 429) {
-          toast.error("Daily AI limit reached.", {
-            description: "Upgrade for unlimited conversations.",
-            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
-          });
-        } else {
-          toast.error(errJson.error || "Companion is unavailable");
-        }
+        // The reason comes from the server's `code`, never from the status: a
+        // provider rate limit or a short request pause is not the user's limit.
+        const consentRefused = isAIConsentRefusal(resp);
+        const refusal = await readAIRefusal(resp);
+        const fallback = consentRefused
+          ? "Your message is still here, but it wasn't sent: AI features are off. Allow AI data sharing (Profile → Privacy) and try again."
+          : refusal.chatMessage ||
+            "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
+        // Upgrade prompt: only for the user's own allowance, never inside the
+        // iPhone app (Guideline 3.1.1). Both rules live in toastAIRefusal.
+        toastAIRefusal(refusal, "Companion is unavailable");
         setMessages([...baseMessages, { role: "assistant", content: fallback }]);
         track({ event: "voice_turn_failed", stage: "ai" });
         return;
@@ -1008,15 +1035,20 @@ function CompanionPage() {
                 <Label htmlFor="ai-name" className="text-sm font-medium">Your AI&apos;s name</Label>
                 <Input
                   id="ai-name"
-                  defaultValue={aiName}
+                  // Remount once prefs load so a blank placeholder can never be saved over a chosen name.
+                  key={prefs?.assistantName ?? "loading"}
+                  disabled={!prefs}
+                  defaultValue={customCompanionName(prefs?.assistantName)}
                   maxLength={40}
-                  placeholder="RestPilot"
+                  placeholder={aiDefaultName}
                   onBlur={(e) => {
-                    const v = e.currentTarget.value.trim() || "RestPilot";
-                    if (v !== aiName) savePref.mutate({ assistantName: v });
+                    const v = e.currentTarget.value.trim() || UNNAMED_SENTINEL;
+                    if (v !== (prefs?.assistantName ?? UNNAMED_SENTINEL)) savePref.mutate({ assistantName: v });
                   }}
                 />
-                <p className="text-xs text-muted-foreground">Up to 40 characters. Used in greetings and replies.</p>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to keep {aiDefaultName}. A name you choose (like Lisa) is used in greetings, chat and voice. Up to 40 characters.
+                </p>
               </div>
 
               <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-3">
@@ -1143,7 +1175,7 @@ function CompanionPage() {
       </div>
 
       {/* First-launch Companion intro (auto-shown once per device). */}
-      <CompanionIntroSheet />
+      <CompanionIntroSheet name={aiName} isCustom={customCompanionName(prefs?.assistantName) !== ""} />
 
       {/* Mic permission blocked — clear, dismissible, never a silent failure. */}
       {micState === "denied" && !micBannerDismissed && (
@@ -1197,7 +1229,7 @@ function CompanionPage() {
             aria-pressed={micState === "listening"}
           >
             <PilotPortrait state={orbToPortrait(orbState, micState === "listening")} size="xl" eager />
-            <span className="sr-only">{`Pilot — ${avatarStateLabel(orbState)}`}</span>
+            <span className="sr-only">{`${aiName} — ${avatarStateLabel(orbState)}`}</span>
           </button>
         </div>
         {/* Reserved presence slot — fixed height prevents column reflow. */}
@@ -1234,7 +1266,7 @@ function CompanionPage() {
               if (voiceSkipped === "disabled") {
                 updateLocal({ voiceRepliesEnabled: true });
                 setVoiceSkipped(null);
-                toast.success("Aura's voice is on.");
+                toast.success(`${aiName}'s voice is on.`);
                 // Replay the last assistant message so the user immediately hears voice.
                 const last = [...messages].reverse().find((m) => m.role === "assistant");
                 if (last?.content) {
@@ -1250,13 +1282,13 @@ function CompanionPage() {
             <VolumeX className="h-4 w-4 shrink-0 text-primary" />
             <span className="flex-1">
               {voiceSkipped === "disabled" && (
-                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable Aura's voice.</span></>
+                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable {aiName}&apos;s voice.</span></>
               )}
               {voiceSkipped === "quiet_hours" && (
-                <>🌙 Quiet Hours is on — Aura is staying silent. Adjust in settings if you'd like voice back.</>
+                <>🌙 Quiet Hours is on — {aiName} is staying silent. Adjust in settings if you&apos;d like voice back.</>
               )}
               {voiceSkipped === "autoplay_blocked" && (
-                <>🔈 Your browser blocked autoplay. Tap Aura once to unlock voice playback.</>
+                <>🔈 Your browser blocked autoplay. Tap {aiName} once to unlock voice playback.</>
               )}
               {voiceSkipped === "tts_error" && (
                 <>⚠️ Voice playback hit an error. Text is still here — try again or check your connection.</>
@@ -1480,6 +1512,12 @@ function CompanionPage() {
       {/* Now-playing strip — visible only when sounds are active. */}
       <NowPlayingStrip />
 
+      {crisisCard && (
+        <div className="mt-3">
+          <CrisisSupportCard onClose={() => setCrisisCard(false)} />
+        </div>
+      )}
+
       {/* Composer */}
       <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
         {localPrefs.voiceInputEnabled && (
@@ -1543,12 +1581,7 @@ function CompanionPage() {
       {rt.trial?.isTrial && (
         <div className="mt-2 flex items-center justify-center">
           {rt.trial.limitReached ? (
-            <Link
-              to="/paywall"
-              className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
-            >
-              Trial voice minutes used up · Upgrade →
-            </Link>
+            <VoiceTrialUsedUp />
           ) : (
             <span className="rounded-full border border-border bg-card px-3 py-1 text-[10px] font-medium text-muted-foreground">
               Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of {Math.round(rt.trial.capSeconds / 60)} min left
@@ -1575,5 +1608,25 @@ function CompanionPage() {
       />
 
     </main>
+  );
+}
+
+/** Live-voice trial exhausted. The Upgrade link is website-only: in the iPhone
+ *  app (App Store Guideline 3.1.1) it is plain text with no link. */
+function VoiceTrialUsedUp() {
+  if (useIsNativeApp()) {
+    return (
+      <span className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium text-muted-foreground">
+        Trial voice minutes used up
+      </span>
+    );
+  }
+  return (
+    <Link
+      to="/paywall"
+      className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
+    >
+      Trial voice minutes used up · Upgrade →
+    </Link>
   );
 }

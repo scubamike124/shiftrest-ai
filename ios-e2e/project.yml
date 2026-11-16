@@ -1,0 +1,60 @@
+# XcodeGen spec for the simulator end-to-end harness (CI only, never shipped).
+#
+#   E2EHost     a tiny app the UI tests are attached to; with -seedHealth it
+#               writes a known night into the simulator's Health store. The
+#               tests drive the real RestPilot shell (com.restpilotai.app) by
+#               bundle id.
+#   E2EUITests  XCUITest bundle: taps the iOS permission alerts and reads the
+#               results the shell's test page prints.
+#
+# Generated on the macOS runner with `xcodegen generate`; no Xcode project is
+# committed for it. Simulator only, ad-hoc signed, no Apple account.
+name: E2E
+options:
+  bundleIdPrefix: com.restpilotai.e2e
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: "5.0"
+targets:
+  E2EHost:
+    type: application
+    platform: iOS
+    sources:
+      - Host
+      # The exact reader the app ships, so the seeder's read-back tests it too.
+      - path: ../ios-app/plugins/restpilot-health/ios/Sources/RestPilotHealthPlugin/HealthReader.swift
+    info:
+      path: Host/Info.plist
+      properties:
+        CFBundleDisplayName: E2E Host
+        UILaunchScreen: {}
+        NSHealthShareUsageDescription: CI test host. Reads the sample night it writes.
+        NSHealthUpdateUsageDescription: CI test host. Writes a sample night into the simulator's Health store.
+    entitlements:
+      path: Host/E2EHost.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+  E2EUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: E2EHost
+    settings:
+      base:
+        TEST_TARGET_NAME: E2EHost
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  E2E:
+    build:
+      targets:
+        E2EHost: all
+        E2EUITests: [test]
+    test:
+      targets: [E2EUITests]

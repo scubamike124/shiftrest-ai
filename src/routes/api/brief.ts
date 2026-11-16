@@ -1,5 +1,6 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 /**
  * POST /api/brief — rewrite a structured plan into a conversational voice script.
  *
@@ -9,7 +10,7 @@ import { requireAIAdmission } from "@/lib/ai/admission.server";
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { AIError, DEFAULT_CHAT_MODEL, chatJSON } from "@/lib/ai/gateway.server";
+import { AIError, chatJSON } from "@/lib/ai/gateway.server";
 import { logAIRequest } from "@/lib/ai/log.server";
 import { BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
@@ -36,7 +37,7 @@ function reasonFromStatus(status: number): Fallback["reason"] {
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
     case "credits":
-      return "Voice briefing is paused — AI credits are exhausted. Try again later.";
+      return "Voice briefing is paused for now. Try again later.";
     case "rate_limit":
       return "Voice briefing is busy right now. Give it a moment and try again.";
     case "config":
@@ -80,7 +81,16 @@ export const Route = createFileRoute("/api/brief")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
-        const admission = await requireAIAdmission(auth.userId);
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        // Before admission, so a refusal never uses up the user's AI allowance.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -117,12 +127,12 @@ export const Route = createFileRoute("/api/brief")({
           );
         }
 
-        if (!process.env.LOVABLE_API_KEY) {
-          console.error("[brief] LOVABLE_API_KEY missing");
+        if (!aiApiKey()) {
+          console.error("[brief] AI provider key missing");
           notifyOwnerAsync({
             severity: "critical",
             service: "brief",
-            message: "config_missing: LOVABLE_API_KEY not set",
+            message: "config_missing: AI provider key not set",
           });
           return fallback("config", messageFromReason("config"));
         }
@@ -132,6 +142,7 @@ export const Route = createFileRoute("/api/brief")({
         // conversational surface.
         const timeDirective = buildTimeDirective({ localTime, timezone }).directive;
 
+        let providerUnreachable = false;
         try {
           // Load language pref up front so the briefing is generated directly in
           // the user's chosen language (no English-first then translate).
@@ -157,10 +168,16 @@ export const Route = createFileRoute("/api/brief")({
           console.log(`[brief] provider_start user=${userId ?? "-"} lang=${language}`);
           const providerT0 = Date.now();
           const result = await chatJSON({
+            task: "brief",
             messages: [
               { role: "system", content: system },
               { role: "user", content: plan },
             ],
+          }).catch((e: unknown) => {
+            // Without failover the gateway lets a transport error (provider
+            // unreachable) through unwrapped; an AIError carries its own status.
+            if (!(e instanceof AIError)) providerUnreachable = true;
+            throw e;
           });
           console.log(
             `[brief] provider_done ms=${Date.now() - providerT0} prompt_tokens=${result.promptTokens ?? "-"} completion_tokens=${result.completionTokens ?? "-"} chars=${result.text?.length ?? 0}`,
@@ -186,7 +203,7 @@ export const Route = createFileRoute("/api/brief")({
             logAIRequest(admin, {
               user_id: userId,
               intent: "brief",
-              model: DEFAULT_CHAT_MODEL,
+              model: result.model,
               prompt_tokens: result.promptTokens,
               completion_tokens: result.completionTokens,
               latency_ms: Date.now() - started,
@@ -199,6 +216,13 @@ export const Route = createFileRoute("/api/brief")({
           const status = e instanceof AIError ? e.status : 500;
           const message = e instanceof Error ? e.message : String(e);
           console.error("[brief] upstream failed", { status, message });
+          // The provider gave nothing (not a failure of ours or of the request):
+          // the request is given back. Not for a rejected request (4xx).
+          if (providerUnreachable) {
+            await refund.refundProviderFailure?.(null, request.signal);
+          } else if (e instanceof AIError && e.upstream) {
+            await refund.refundProviderFailure?.(status, request.signal);
+          }
           const reason = reasonFromStatus(status);
           // Alert on genuine infra failures only.
           if (reason === "credits") {

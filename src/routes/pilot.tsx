@@ -13,7 +13,11 @@ import { speakQueued, stopSpeaking, prepareVoicePlayback } from "@/lib/companion
 import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-history";
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
 import { greetingLabel } from "@/lib/time/day-part";
+import { aiFetch } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 
 export const Route = createFileRoute("/pilot")({
   ssr: false,
@@ -116,14 +120,15 @@ function PilotPage() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
-  const pilotName = (prefs?.assistantName?.trim() || "Pilot");
+  const { id: avatarId } = useAvatar();
+  const pilotName = companionName(prefs?.assistantName, avatarId);
 
   const dayGreeting = greetingLabel();
   const greeting: CoachMsg = {
     role: "assistant",
     content: signedIn
       ? `${dayGreeting} — I'm ${pilotName}. Tap the orb and tell me what's on your mind.`
-      : `${dayGreeting} — I'm Pilot. Tap the orb and tell me what's on your mind.`,
+      : `${dayGreeting} — I'm ${DEFAULT_COMPANION_NAME}. Tap the orb and tell me what's on your mind.`,
   };
 
   const { data: history } = useQuery({
@@ -241,7 +246,7 @@ function PilotPage() {
       llmAbortRef.current = ac;
       let resp: Response;
       try {
-        resp = await fetch("/api/ai", {
+        resp = await aiFetch("/api/ai", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -271,14 +276,9 @@ function PilotPage() {
       if (!resp.ok || !resp.body) {
         streamingRef.current = false;
         cancelAllAudio();
-        const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        if (resp.status === 429) {
-          toast.error("Daily AI limit reached.", {
-            action: { label: "Upgrade", onClick: () => (window.location.href = "/paywall") },
-          });
-        } else {
-          toast.error(err.error || "Pilot is unavailable.");
-        }
+        // Message chosen by the server's `code`, not the status. Upgrade prompt
+        // only for the user's own allowance, never in the iPhone app (3.1.1).
+        toastAIRefusal(await readAIRefusal(resp), "Pilot is unavailable.");
         setOrbState("idle");
         return;
       }
@@ -409,13 +409,20 @@ function PilotPage() {
       form.append("file", blob, "recording.wav");
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const sttRes = await fetch("/api/stt", {
+      const sttRes = await aiFetch("/api/stt", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
+      if (!sttRes.ok) {
+        streamingRef.current = false;
+        cancelAllAudio();
+        toastAIRefusal(await readAIRefusal(sttRes), "Couldn't transcribe — try again.");
+        setOrbState("idle");
+        return;
+      }
       const sttJson = (await sttRes.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!sttRes.ok || !sttJson.text) {
+      if (!sttJson.text) {
         streamingRef.current = false;
         cancelAllAudio();
         toast.error(sttJson.error || "Couldn't transcribe — try again.");
@@ -450,7 +457,7 @@ function PilotPage() {
     setOrbState("thinking");
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token;
-    const resp = await fetch("/api/ai", {
+    const resp = await aiFetch("/api/ai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -471,7 +478,9 @@ function PilotPage() {
     if (!resp.ok || !resp.body) {
       streamingRef.current = false;
       setOrbState("idle");
-      toast.error("Couldn't expand that — try asking again.");
+      const refusal = await readAIRefusal(resp);
+      if (refusal.kind === "other") toast.error("Couldn't expand that — try asking again.");
+      else toastAIRefusal(refusal, "Couldn't expand that — try asking again.");
       return;
     }
     // Reuse the streaming path by inlining a smaller reader (transcript-only update + speak).

@@ -31,7 +31,7 @@ export function SleepSoundsCard() {
 
       <Link
         to="/sleep"
-        className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary/15 px-4 text-xs font-semibold text-foreground transition hover:bg-primary/25"
+        className="hit-area mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary/15 px-4 text-xs font-semibold text-foreground transition hover:bg-primary/25"
       >
         <Play className="h-3.5 w-3.5 text-indigo-glow" />
         Open mixer

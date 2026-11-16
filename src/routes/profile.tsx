@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { requireSession } from "@/lib/require-session";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteAccountFn, exportAccountFn, purgeAiMemoryFn } from "@/lib/account.functions";
+import { clearDeviceAiCaches, clearPersonalDeviceData } from "@/lib/user/device-data";
 import {
   Bell as _UnusedBell,
   Moon,
@@ -44,11 +46,14 @@ import { getSubscriptionState } from "@/lib/subscription";
 import { createPortalSession } from "@/lib/billing.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { toast } from "sonner";
+import { geocodeWeatherQuery } from "@/lib/weather/weather.functions";
 import { WearableCard } from "@/components/WearableCard";
+import { AppleHealthCard } from "@/components/native/AppleHealthCard";
 import { NotificationsSection } from "@/components/NotificationsSection";
 import { AssistantSettings } from "@/components/AssistantSettings";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { VoiceSettings } from "@/components/voice/VoiceSettings";
+import { mondayIso } from "@/lib/schedule";
 
 export const Route = createFileRoute("/profile")({
   ssr: false,
@@ -71,6 +76,7 @@ function Profile() {
   const deleteAccount = useServerFn(deleteAccountFn);
   const exportAccount = useServerFn(exportAccountFn);
   const purgeAiMemory = useServerFn(purgeAiMemoryFn);
+  const geocodeQuery = useServerFn(geocodeWeatherQuery);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -93,6 +99,7 @@ function Profile() {
     queryClient.clear();
     try { await supabase.auth.signOut({ scope: "local" }); } catch { /* account is already deleted */ }
     try { localStorage.clear(); clearPrefsMigrationFlag(); } catch { /* unavailable storage */ }
+    clearPersonalDeviceData(); // also sessionStorage (AI recap caches)
     toast.success("Account deleted.");
     navigate({ to: "/auth", replace: true });
   }
@@ -105,6 +112,7 @@ function Profile() {
   });
   // perm state removed — NotificationsSection owns its own permission UI now.
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   // Local draft for the partner-name text input so we don't write on every keystroke.
   const [partnerDraft, setPartnerDraft] = useState(prefs.partnerName);
   useEffect(() => setPartnerDraft(prefs.partnerName), [prefs.partnerName]);
@@ -149,35 +157,12 @@ function Profile() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserEmail(data.session?.user.email ?? null);
+      setUserId(data.session?.user.id ?? null);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user.email ?? null);
+      setUserId(session?.user.id ?? null);
     });
-    // Handle return from Stripe Checkout: poll for the webhook-written row so
-    // Premium unlocks as soon as it lands (typically <5s, occasionally longer).
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("checkout") === "success") {
-        toast.success("Payment received — syncing your Premium access…");
-        window.history.replaceState({}, "", window.location.pathname);
-        let attempts = 0;
-        const maxAttempts = 15; // ~30s
-        const tick = async () => {
-          attempts += 1;
-          const { data: s } = await refetchSub();
-          if (s?.isPremium) {
-            toast.success("Premium unlocked.");
-            return;
-          }
-          if (attempts < maxAttempts) setTimeout(tick, 2000);
-          else
-            toast.error(
-              "We received your payment but couldn't confirm Premium yet. Refresh in a moment.",
-            );
-        };
-        setTimeout(tick, 1500);
-      }
-    }
     return () => sub.subscription.unsubscribe();
   }, [refetchSub]);
 
@@ -193,13 +178,16 @@ function Profile() {
     clearAllForUser(null); // also clear any anon-namespaced rows
     queryClient.clear();
     await supabase.auth.signOut();
+    // AI recaps, hydration logs, companion history and other personal data
+    // cached on this device (keeps device settings such as cookie consent).
+    clearPersonalDeviceData();
     toast.success("Signed out.");
     navigate({ to: "/auth", replace: true });
   }
 
   async function handleManageSubscription() {
     if (!isPaymentsConfigured()) {
-      toast.error("Payments aren't configured for this build yet.");
+      toast.error("Subscription management is unavailable in this build.");
       return;
     }
     setPortalLoading(true);
@@ -256,24 +244,21 @@ function Profile() {
     }
   }
 
+  // City lookup runs on the server (geocodeWeatherQuery). A direct browser
+  // call to the geocoder is blocked by the site's Content-Security-Policy
+  // (connect-src), which is why "Los Angeles" used to come back "not found".
   async function geocodeCity(
     name: string,
-  ): Promise<{ lat: number; lon: number; label: string } | null> {
+  ): Promise<
+    | { status: "ok"; lat: number; lon: number; label: string }
+    | { status: "not_found" | "unavailable" }
+  > {
     try {
-      const r = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`,
-      );
-      const j = await r.json();
-      const hit = j?.results?.[0];
-      if (!hit) return null;
-      const region = hit.admin1 ?? hit.country;
-      return {
-        lat: hit.latitude,
-        lon: hit.longitude,
-        label: region ? `${hit.name}, ${region}` : hit.name,
-      };
+      const r = await geocodeQuery({ data: { query: name } });
+      if (r.ok) return { status: "ok", lat: r.lat, lon: r.lon, label: r.label };
+      return { status: r.reason };
     } catch {
-      return null;
+      return { status: "unavailable" };
     }
   }
 
@@ -307,13 +292,23 @@ function Profile() {
           // Save coordinates for sunrise/sunset calculations, but leave the
           // user-facing label empty so we never display raw lat/lon.
           mutation.mutate({ lat, lon, locationLabel: "" });
-          toast.error("Couldn't look up your city — please type it below.");
+          toast.error("We found your position but couldn't name the city — please type it below.");
           return;
         }
-        mutation.mutate({ lat, lon, locationLabel: label });
+        try {
+          await mutation.mutateAsync({ lat, lon, locationLabel: label });
+        } catch {
+          return; // the mutation's onError already told the user and rolled back
+        }
         toast.success(`Location set to ${label}`);
       },
-      () => toast.error("Couldn't detect — enter your city below."),
+      (err) =>
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission is off for this site. Allow it in your browser settings, or type your city below."
+            : "Couldn't detect your location — type your city below.",
+        ),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60_000 },
     );
   }
 
@@ -326,12 +321,29 @@ function Profile() {
     }
     setGeocoding(true);
     try {
-      const hit = await geocodeCity(q);
-      if (!hit) {
-        toast.error("City not found — try a nearby larger city.");
+      if (q.length < 2) {
+        toast.error("Enter at least 2 letters of your city.");
         return;
       }
-      mutation.mutate({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      if (q.length > 80) {
+        toast.error("That's too long for a city name — enter just the city, or a ZIP code.");
+        return;
+      }
+      const hit = await geocodeCity(q);
+      if (hit.status !== "ok") {
+        toast.error(
+          hit.status === "unavailable"
+            ? "The city lookup isn't responding right now. Your city wasn't changed — please try again."
+            : "City not found — check the spelling or try a nearby larger city.",
+        );
+        return;
+      }
+      // Wait for the save: only say "set" once the server has stored it.
+      try {
+        await mutation.mutateAsync({ lat: hit.lat, lon: hit.lon, locationLabel: hit.label });
+      } catch {
+        return; // the mutation's onError already told the user and rolled back
+      }
       setCityDraft("");
       toast.success(`Location set to ${hit.label}`);
     } finally {
@@ -394,7 +406,7 @@ function Profile() {
               </p>
             </div>
           </div>
-          {subState.tier !== "lifetime" && (
+          {isPaymentsConfigured() && subState.tier !== "lifetime" && (
             <button
               type="button"
               onClick={handleManageSubscription}
@@ -416,8 +428,8 @@ function Profile() {
               <Sparkles className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold">Upgrade to Premium</p>
-              <p className="text-xs text-muted-foreground">Unlock the full AI Sleep Coach</p>
+              <p className="text-sm font-semibold">App preview access</p>
+              <p className="text-xs text-muted-foreground">View test access and feature availability</p>
             </div>
           </div>
           <ChevronRight className="relative h-5 w-5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
@@ -427,8 +439,8 @@ function Profile() {
       <section className="rounded-2xl border border-border bg-card p-4">
         {userEmail ? (
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-primary">
                 <LogOut className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -437,8 +449,9 @@ function Profile() {
               </div>
             </div>
             <button
+              type="button"
               onClick={handleSignOut}
-              className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold"
+              className="min-h-11 shrink-0 whitespace-nowrap rounded-full bg-secondary px-4 text-sm font-semibold sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
             >
               Sign Out
             </button>
@@ -458,6 +471,8 @@ function Profile() {
           </Link>
         )}
       </section>
+
+      <AppearanceSettings userId={userId} />
 
       {userEmail ? (
         <PasswordChangeCard />
@@ -484,9 +499,10 @@ function Profile() {
             </div>
           </div>
           <button
+            type="button"
             onClick={detectLocation}
             disabled={!signedIn}
-            className="rounded-full bg-secondary px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+            className="min-h-11 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold disabled:opacity-50 sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs"
           >
             Detect
           </button>
@@ -631,11 +647,28 @@ function Profile() {
 
       <VoiceSettings prefs={prefs} signedIn={signedIn} onChange={update} />
 
-      <WearableCard />
+      <AppleHealthCard />
+
+      <WearableCard signedIn={signedIn} />
 
       <NotificationsSection signedIn={signedIn} />
 
       <section className="rounded-2xl border border-border bg-card">
+        <Link to="/settings/privacy" className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
+              <Shield className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold">Privacy &amp; AI data sharing</p>
+              <p className="text-xs text-muted-foreground">
+                Choose whether RestPilot may send your data to its AI providers.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </Link>
+        <Divider />
         <Link to="/privacy" className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-primary">
@@ -708,6 +741,7 @@ function Profile() {
             setPurging(true);
             try {
               await purgeAiMemory({ data: undefined });
+              clearDeviceAiCaches();
               toast.success("AI memory cleared.");
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Purge failed.");
@@ -750,7 +784,7 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Cancel active subscriptions and permanently delete your account.
+                    Permanently delete your account and data.
               </p>
             </div>
           </div>
@@ -762,7 +796,12 @@ function Profile() {
             <AlertDialogHeader>
               <AlertDialogTitle className="font-serif text-2xl">Delete your account?</AlertDialogTitle>
               <AlertDialogDescription className="leading-relaxed">
-                This permanently removes your account, saved plans, and personal data. We cancel recurring Stripe subscriptions before deleting your account. Records held by payment providers may remain under their retention policies. This cannot be undone.
+                  This permanently removes your account, saved plans, and personal data. We cancel
+                  recurring website subscriptions before deleting your account. A subscription
+                  bought through the App Store is billed by Apple and is not cancelled by deleting
+                  your account: cancel it in iPhone Settings, your name, Subscriptions. Records held
+                  by payment providers may remain under their retention policies. This cannot be
+                  undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-2">
@@ -825,7 +864,7 @@ function EmployersSection() {
         <button
           onClick={() => setEditing("new")}
           aria-label="Add employer"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hit-area"
         >
           <PlusIcon className="h-4 w-4" />
         </button>
@@ -909,7 +948,7 @@ function EmployerEditor({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm hit-area"
           >
             ✕
           </button>
@@ -1069,13 +1108,7 @@ function RotationSection({
       })
     : "this week";
   function setThisWeekAsA() {
-    const now = new Date();
-    const mon = new Date(now);
-    mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    const y = mon.getFullYear();
-    const m = String(mon.getMonth() + 1).padStart(2, "0");
-    const d = String(mon.getDate()).padStart(2, "0");
-    update("cycleAnchor", `${y}-${m}-${d}`);
+    update("cycleAnchor", mondayIso());
   }
   return (
     <section className="rounded-2xl border border-border bg-card">
@@ -1091,8 +1124,13 @@ function RotationSection({
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <button
               key={n}
-              onClick={() => update("cycleWeeks", n)}
-              className={`min-w-[44px] rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              onClick={() => {
+                update("cycleWeeks", n);
+                // Without a saved anchor the rotation has no fixed Week A;
+                // pin it to this week, which is what the schedule shows now.
+                if (n > 1 && !prefs.cycleAnchor) setThisWeekAsA();
+              }}
+              className={`min-h-11 min-w-[44px] rounded-full border px-3 py-1.5 text-sm font-semibold transition sm:min-h-0 sm:text-xs ${
                 cw === n
                   ? "border-transparent bg-primary text-primary-foreground"
                   : "border-border bg-secondary text-foreground"
@@ -1167,6 +1205,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="New password"
           placeholder="New password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -1175,6 +1214,7 @@ function PasswordChangeCard() {
         <input
           type="password"
           autoComplete="new-password"
+          aria-label="Confirm new password"
           placeholder="Confirm new password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
@@ -1183,7 +1223,7 @@ function PasswordChangeCard() {
         <button
           type="submit"
           disabled={saving || !password || !confirm}
-          className="h-10 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          className="h-10 rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50 hit-area"
         >
           {saving ? "Saving…" : "Update password"}
         </button>

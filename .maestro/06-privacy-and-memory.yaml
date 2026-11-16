@@ -1,0 +1,27 @@
+appId: com.restpilotai.app
+name: Privacy controls (export, erase AI memory, memory page) are reachable in the app
+tags: [core]
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 90000
+# The bottom nav is visible in the server-rendered HTML before the page hydrates,
+# and a tap that lands first does nothing (CI run 43750694354: the tap was
+# accepted, the screen stayed on Home). Retry until the Profile page is up.
+- retry:
+    maxRetries: 4
+    commands:
+      - tapOn: "Profile"
+      - extendedWaitUntil:
+          visible: "Your preferences"
+          timeout: 15000
+- scrollUntilVisible:
+    # Each row's accessible name includes its description.
+    element: "Export my data.*"
+    direction: DOWN
+    # Profile is long (voices, personality, settings); scroll faster and longer.
+    speed: 80
+    timeout: 120000
+- assertVisible: "Erase AI memory.*"
+- takeScreenshot: maestro-06-privacy

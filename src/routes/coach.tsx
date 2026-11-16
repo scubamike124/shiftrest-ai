@@ -16,6 +16,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
+import { CRISIS_LOCAL_REPLY, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
+import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
 export const Route = createFileRoute("/coach")({
   ssr: false,
@@ -120,6 +124,7 @@ function Coach() {
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [crisisCard, setCrisisCard] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Voice settings — voice/personality/speed/name are configured on /profile.
@@ -178,7 +183,12 @@ function Coach() {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed) return;
+    // Local crisis-cue check first: before the `sending` guard, the AI consent
+    // gate and any AI or network call, so the crisis line shows with or
+    // without AI permission, even while a reply is still streaming.
+    const crisis = showCardOnCrisis(trimmed, () => setCrisisCard(true));
+    if (sending) return;
     const userMsg: Msg = { role: "user", content: trimmed };
     const baseMessages = [...messages, userMsg];
     setMessages(baseMessages);
@@ -190,9 +200,16 @@ function Coach() {
     scrollToBottom();
 
     try {
+      // Without AI permission, a crisis message gets the card (already shown
+      // above; keep this after showCardOnCrisis) rather than a data-sharing
+      // prompt. Nothing is sent; the user can keep typing.
+      if (!(await shouldSendToAI(crisis, aiConsentWouldAsk))) {
+        setMessages([...baseMessages, { role: "assistant", content: CRISIS_LOCAL_REPLY }]);
+        return;
+      }
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
-      const resp = await fetch("/api/ai", {
+      const resp = await aiFetch("/api/ai", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -208,16 +225,16 @@ function Coach() {
         }),
       });
 
+      if (isAIConsentRefusal(resp)) {
+        // The consent dialog already asked; the message was not sent.
+        toast.message("Your message wasn't sent. Allow AI features to chat with the coach.");
+        setMessages(baseMessages);
+        return;
+      }
       if (!resp.ok || !resp.body) {
-        const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
-        if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
-          toast.error("You've hit today's free AI limit.", {
-            description: "Upgrade for unlimited conversations.",
-            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
-          });
-        } else {
-          toast.error(errJson.error || "Coach is unavailable");
-        }
+        // Message chosen by the server's `code`, not the status. Upgrade prompt
+        // only for the user's own allowance, never in the iPhone app (3.1.1).
+        toastAIRefusal(await readAIRefusal(resp), "Coach is unavailable");
         setMessages(baseMessages);
         return;
       }
@@ -340,6 +357,11 @@ function Coach() {
           })}
         </div>
 
+        {crisisCard && (
+          <div className="mt-3">
+            <CrisisSupportCard onClose={() => setCrisisCard(false)} />
+          </div>
+        )}
 
         {messages.length <= 1 && (
           <div className="mt-5 flex flex-col gap-2">

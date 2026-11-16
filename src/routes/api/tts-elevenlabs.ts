@@ -1,5 +1,5 @@
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 // ElevenLabs TTS route — mirrors /api/tts contract (text + voice + mode → MP3)
 // so speak.ts can swap providers behind a flag without UI changes.
 
@@ -14,16 +14,20 @@ type Fallback = {
 function fallback(reason: Fallback["reason"], message: string): Response {
   // Return non-2xx so the client's `!resp.ok` fallback branch kicks in and
   // routes to OpenAI instead of treating this JSON envelope as audio bytes.
-  const status = reason === "credits" ? 402 : reason === "rate_limit" ? 429 : 502;
+  // Never 402/429: those statuses belong to the user's own allowance and rate
+  // limit (src/lib/ai/refusal.ts). A provider problem is a 503 (or 502).
+  const status = reason === "credits" || reason === "rate_limit" ? 503 : 502;
+  const code = reason === "rate_limit" ? "ai_provider_busy" : "ai_provider_unavailable";
   return Response.json(
-    { fallback: true, reason, message } satisfies Fallback,
+    { fallback: true, reason, message, code } satisfies Fallback & { code: string },
     { status, headers: { "x-tts-provider": "elevenlabs", "x-tts-reason": reason } },
   );
 }
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused — provider credits exhausted.";
+    case "credits":
+      return "Voice playback is paused for now. Try again later.";
     case "rate_limit": return "ElevenLabs is rate-limiting. Try again in a moment.";
     case "config":     return "ElevenLabs isn't configured on the server yet.";
     default:           return "ElevenLabs voice is temporarily unavailable.";
@@ -42,7 +46,16 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const auth = await requireUser(request);
         if ("response" in auth) return auth.response;
-        const admission = await requireAIAdmission(auth.userId);
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        // Before admission, so a refusal never uses up the user's AI allowance.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(auth.userId);
+          if (refused) return refused;
+        }
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -53,6 +66,9 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           if (limited) return limited;
         }
 
+        // True from the moment the provider is called: only then can a thrown
+        // error be the provider being unreachable.
+        let providerCalled = false;
         try {
           const reqBody = (input.body) as {
             text?: string;
@@ -99,6 +115,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             `[tts-elevenlabs] provider_start voice=${voiceId} mode=${mode} textLen=${textLen}`,
           );
           const providerT0 = Date.now();
+          providerCalled = true;
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
             {
@@ -125,8 +142,10 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           );
 
 
+          providerCalled = false; // the provider answered: a later throw is not "unreachable"
           if (!upstream.ok) {
             const upstreamBody = await upstream.text().catch(() => "");
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
@@ -155,6 +174,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });
         } catch (e) {
+          if (providerCalled) await refund.refundProviderFailure?.(null, request.signal);
           console.error(
             `[tts-elevenlabs] provider_failure reason=network ms=${Date.now() - t0} err=${e instanceof Error ? e.message : String(e)}`,
           );

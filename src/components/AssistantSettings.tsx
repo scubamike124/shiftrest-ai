@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Sparkles, Brain } from "lucide-react";
 import type { AssistantMode, Prefs } from "@/lib/prefs";
+import { useAvatar } from "@/lib/companion/use-avatar";
+import { customCompanionName, defaultCompanionName, UNNAMED_SENTINEL } from "@/lib/companion/name";
 import { AIMemoryManager } from "./AIMemoryManager";
 import { ModeGridBoundary } from "./debug/ModeGridBoundary";
 
@@ -23,8 +25,10 @@ const MODE_OPTIONS: { value: AssistantMode; label: string; desc: string }[] = [
 ];
 
 export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
-  const [name, setName] = useState(prefs.assistantName);
-  useEffect(() => setName(prefs.assistantName), [prefs.assistantName]);
+  const { id: avatarId } = useAvatar();
+  const defaultName = defaultCompanionName(avatarId);
+  const [name, setName] = useState(customCompanionName(prefs.assistantName));
+  useEffect(() => setName(customCompanionName(prefs.assistantName)), [prefs.assistantName]);
 
   return (
     <section className="rounded-2xl border border-border bg-card p-4 space-y-5">
@@ -44,15 +48,15 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => {
-            const trimmed = name.trim() || "RestPilot";
-            if (trimmed !== prefs.assistantName) onChange("assistantName", trimmed);
+            const stored = name.trim() || UNNAMED_SENTINEL;
+            if (stored !== prefs.assistantName) onChange("assistantName", stored);
           }}
           maxLength={40}
-          placeholder="RestPilot"
+          placeholder={defaultName}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
         />
         <p className="text-xs text-muted-foreground">
-          What should the AI call itself? (e.g. “Luna”, “Coach”, “Pilot”.)
+          Your companion is {defaultName} by default. Give it your own name (e.g. “Lisa”) and it’s used everywhere; leave blank to keep {defaultName}.
         </p>
       </div>
 
@@ -131,7 +135,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
                 aria-checked={prefs.memoryEnabled}
                 disabled={!signedIn}
                 onClick={() => onChange("memoryEnabled", !prefs.memoryEnabled)}
-                className={`relative h-6 w-11 rounded-full transition disabled:opacity-50 ${
+                className={`hit-area h-6 w-11 rounded-full transition disabled:opacity-50 ${
                   prefs.memoryEnabled ? "bg-primary" : "bg-muted"
                 }`}
               >
@@ -189,7 +193,7 @@ export function AssistantSettings({ prefs, signedIn, onChange }: Props) {
                 aria-checked={value}
                 disabled={!signedIn}
                 onClick={() => onChange(key, !value)}
-                className={`relative h-6 w-11 rounded-full transition disabled:opacity-50 ${value ? "bg-primary" : "bg-muted"}`}
+                className={`hit-area h-6 w-11 rounded-full transition disabled:opacity-50 ${value ? "bg-primary" : "bg-muted"}`}
               >
                 <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background transition ${value ? "left-[22px]" : "left-0.5"}`} />
               </button>

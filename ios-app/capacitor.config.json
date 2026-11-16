@@ -1,0 +1,29 @@
+{
+  "appId": "com.restpilotai.app",
+  "appName": "RestPilot",
+  "webDir": "www",
+  "appendUserAgent": "RestPilotWebOAuth/1 RestPilotApp/1.0.0",
+  "server": {
+    "url": "https://restpilotai.com/",
+    "androidScheme": "https",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "oauth.lovable.app",
+      "appleid.apple.com",
+      "idmsa.apple.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "backgroundColor": "#0b1020",
+      "launchShowDuration": 3000,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 250,
+      "showSpinner": false
+    }
+  },
+  "ios": {
+    "backgroundColor": "#0b1020"
+  }
+}

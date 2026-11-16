@@ -12,8 +12,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mintRealtimeSession } from "@/lib/realtime/openai.functions";
+import {
+  ensureAIConsent,
+  getAIConsentState,
+  isAIConsentError,
+  subscribeAIConsent,
+} from "@/lib/ai/consent-client";
 import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
-import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
 
 export type TrialSnapshot = {
@@ -105,7 +110,6 @@ export function useOpenAIRealtime() {
   });
 
   const flushUsage = useCallback(async () => {
-    if (!isPaymentsConfigured()) return;
     const now = performance.now();
     const last = lastFlushAtRef.current ?? sessionStartAtRef.current;
     if (last == null) return;
@@ -113,8 +117,7 @@ export function useOpenAIRealtime() {
     if (seconds < 1) return;
     lastFlushAtRef.current = now;
     try {
-      const env = getStripeEnvironment();
-      const state = await recordUsage({ data: { seconds, environment: env } });
+      const state = await recordUsage({ data: { seconds } });
       if (state.isTrial) {
         setTrial({
           isTrial: true,
@@ -308,6 +311,13 @@ export function useOpenAIRealtime() {
 
   const connect = useCallback(async () => {
     if (pcRef.current) return;
+    // Explicit permission to share data with third-party AI (Guideline
+    // 5.1.2(i)): ask before the microphone opens or a session is minted.
+    if (!(await ensureAIConsent({ interactive: true }))) {
+      setError("Voice needs your permission to use AI. Allow AI features to start a conversation.");
+      setStatus("error");
+      return;
+    }
     setError(null);
     setStatus("connecting");
     setTranscript([]);
@@ -341,7 +351,6 @@ export function useOpenAIRealtime() {
       // 2) Mint ephemeral client_secret.
       const tTokenStart = performance.now();
       console.info("[realtime] token-fetch-start", { at: tTokenStart });
-      const environment = isPaymentsConfigured() ? getStripeEnvironment() : undefined;
       const session = await mint({
         data: {
           localTime: new Date().toISOString(),
@@ -349,7 +358,6 @@ export function useOpenAIRealtime() {
             (typeof Intl !== "undefined" &&
               Intl.DateTimeFormat().resolvedOptions().timeZone) ||
             null,
-          ...(environment && { environment }),
         },
       });
 
@@ -516,7 +524,11 @@ export function useOpenAIRealtime() {
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (msg.includes("trial_limit_reached")) {
+      if (isAIConsentError(e)) {
+        setError(
+          "Voice needs your permission to use AI. Allow AI features to start a conversation.",
+        );
+      } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");
       } else {
@@ -531,6 +543,16 @@ export function useOpenAIRealtime() {
     await teardown();
     setStatus("idle");
   }, [teardown]);
+
+  // Withdrawing AI permission (Profile → Privacy) ends a live session at once:
+  // the browser talks to OpenAI directly, so the server can't stop it.
+  useEffect(
+    () =>
+      subscribeAIConsent(() => {
+        if (getAIConsentState().status === "denied" && pcRef.current) void disconnect();
+      }),
+    [disconnect],
+  );
 
   const toggleMute = useCallback(() => {
     const next = !muted;

@@ -27,7 +27,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/privacy",
     title: "Privacy Policy",
     summary: "What data we collect, why, how long we keep it, and your rights.",
-    effective: LEGAL_EFFECTIVE,
+    effective: "2026-11-15", // AI providers and AI permission added
     category: "core",
   },
   {
@@ -68,7 +68,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/subscription",
     title: "Subscription Terms",
     summary:
-      "Billing, auto-renewal, cancellation, refunds, free trials, and lifetime access.",
+      "Billing, auto-renewal, cancellation, refunds, free trials, and existing lifetime access.",
     effective: LEGAL_EFFECTIVE,
     category: "billing",
   },
@@ -77,7 +77,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/third-parties",
     title: "Subprocessors & Integrations",
     summary: "Third parties we share data with and what they receive.",
-    effective: LEGAL_EFFECTIVE,
+    effective: "2026-11-15", // AI providers and AI permission added
     category: "disclosure",
   },
   {

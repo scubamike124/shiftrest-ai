@@ -1,0 +1,103 @@
+# FAST checks on every pull request (target: a few minutes, free on public repos).
+#
+#   "Lint, typecheck, unit tests"  - ESLint on the lines a PR adds or changes
+#       (scripts/qa/lint-changed.mjs; the repository carries ~6.4k pre-existing
+#       findings, so whole-file lint would fail any PR touching an old file),
+#       tsc --noEmit, and node --test tests/*.test.mjs.
+#   "Production build"  - npm run build (Vite/TanStack/Nitro node output).
+#
+# Both job names are intended as REQUIRED checks on codex/restpilot-railway-migration.
+# Branch protection is deliberately NOT applied to main: Lovable's bot pushes to
+# main directly and protection could break production syncing.
+name: QA fast checks
+on:
+  pull_request:
+  # Also on pushes to the integration branch, so the branch head has a status.
+  push:
+    branches: [codex/restpilot-railway-migration]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-fast-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - id: install
+        run: npm ci --no-audit --no-fund
+      # Lint only what this change adds. On a PR: against the PR base. On a push:
+      # against the previous head (github.event.before). Skipped for promotion
+      # PRs whose head is the integration branch itself (e.g. #4): every line
+      # there was already gated when its own PR merged, and the promotion diff
+      # carries the repository's ~6.4k pre-existing findings.
+      - name: Lint (changed lines)
+        if: >-
+          (github.event_name == 'pull_request' &&
+           !(github.head_ref == 'codex/restpilot-railway-migration' &&
+             github.event.pull_request.head.repo.full_name == github.repository)) ||
+          (github.event_name == 'push' && !github.event.forced &&
+           github.event.before != '0000000000000000000000000000000000000000')
+        env:
+          LINT_BASE: ${{ github.event_name == 'push' && github.event.before || format('origin/{0}', github.base_ref) }}
+        run: |
+          if ! git cat-file -e "$LINT_BASE^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$LINT_BASE" 2>/dev/null || {
+              echo "::notice::Lint base $LINT_BASE is not available; changed-lines lint skipped."; exit 0; }
+          fi
+          node scripts/qa/lint-changed.mjs "$LINT_BASE"
+      # Typecheck and unit tests always report, even when lint fails.
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Unit tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          npm run test:repair 2>&1 | tee unit-tests.log
+      - name: Unit-test summary
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          { echo "### Unit tests"; grep -E '^# (tests|pass|fail)' unit-tests.log | sed 's/^# /- /' || echo "- no TAP summary found"; } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build
+        env:
+          # Public, non-secret placeholders: the build only needs well-formed values.
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          VITE_SUPABASE_PROJECT_ID: ci-placeholder
+        run: npm run build
+      - name: Smoke the built server
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: |
+          set -euo pipefail
+          PORT=43100 HOST=127.0.0.1 node .output/server/index.mjs > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:43100/api/public/health >/dev/null && break; sleep 0.5; done
+          for p in / /auth /pricing /legal /sleep /manifest.webmanifest /sw.js; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:43100$p")
+            echo "$p -> $code"
+            [ "$code" = "200" ] || { cat server.log | tail -40; exit 1; }
+          done

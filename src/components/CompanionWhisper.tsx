@@ -3,6 +3,7 @@ import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Eye, X, Wand2 } from "lucide-react";
 import { aiAdjustPlan, type AdjustPlanResponse } from "@/lib/ai-client";
 import type { Insights } from "@/lib/insights";
+import { pickObservation } from "@/lib/insight-labels";
 
 /**
  * CompanionWhisper — surfaces ONE proactive observation the AI noticed about the
@@ -30,28 +31,8 @@ function saveDismissed(set: Set<string>) {
   }
 }
 
-function pickObservation(insights: Insights | null): { id: string; text: string } | null {
-  if (!insights) return null;
-  // Highest-leverage signal first.
-  if (Math.abs(insights.sleepDebtHours) >= 2) {
-    const sign = insights.sleepDebtHours > 0 ? "under" : "over";
-    return {
-      id: `debt-${Math.round(insights.sleepDebtHours)}`,
-      text: `You slept ${Math.abs(insights.sleepDebtHours).toFixed(1)}h ${sign} target over the last 7 nights.`,
-    };
-  }
-  if (insights.hrvTrend != null && insights.hrvTrend <= -0.07) {
-    return {
-      id: `hrv-${Math.round(insights.hrvTrend * 100)}`,
-      text: `Your HRV is trending ${Math.round(Math.abs(insights.hrvTrend) * 100)}% below your 7-day baseline — your body is asking for more recovery.`,
-    };
-  }
-  const firstSignal = insights.signals[0];
-  if (firstSignal) {
-    return { id: `sig-${firstSignal.slice(0, 24)}`, text: firstSignal };
-  }
-  return null;
-}
+// Pure, so the wording can be tested for every data combination.
+export { pickObservation };
 
 export function CompanionWhisper({
   insights,
@@ -114,14 +95,14 @@ export function CompanionWhisper({
               <button
                 onClick={adjust}
                 disabled={loading || !signedIn}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60 hit-area"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 {loading ? "Thinking…" : "Adjust tomorrow's plan"}
               </button>
               <button
                 onClick={dismiss}
-                className="inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                className="inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hit-area"
               >
                 Not now
               </button>
@@ -156,7 +137,7 @@ export function CompanionWhisper({
         <button
           onClick={dismiss}
           aria-label="Dismiss"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hit-area"
         >
           <X className="h-3.5 w-3.5" />
         </button>

@@ -1,5 +1,10 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
+import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.server";
+import { DATA_HONESTY } from "@/lib/ai/guardrails";
+import { normalizeInsights } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
+import { providerFailure, providerFailureResponse } from "@/lib/ai/refusal";
 import { createFileRoute } from "@tanstack/react-router";
 
 // Produces a personalized, proactive briefing the dashboard renders on every open.
@@ -27,7 +32,9 @@ Rules:
 - Always include exact units spelled fully ("100 milligrams", "30 minutes", "65 degrees Fahrenheit").
 - top_actions must be ordered by impact. Avoid duplicates.
 - If no shift today, focus on recovery, anchor sleep, and prep for next shift.
-- Tone: warm, confident, never preachy.`;
+- Tone: warm, confident, never preachy.
+
+${DATA_HONESTY}`;
 
 export const Route = createFileRoute("/api/insights")({
   server: {
@@ -37,10 +44,20 @@ export const Route = createFileRoute("/api/insights")({
           const { requireUser } = await import("@/lib/api/auth.server");
           const auth = await requireUser(request);
           if ("response" in auth) return auth.response;
-        const admission = await requireAIAdmission(auth.userId);
+          // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+          // Before admission, so a refusal never uses up the user's AI allowance.
+          {
+            const { requireAIConsent } = await import("@/lib/ai/consent.server");
+            const refused = await requireAIConsent(auth.userId);
+            if (refused) return refused;
+          }
+          // The handle gives this request back if the provider fails it (below).
+          const refund: AIRefundHandle = {};
+          const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
+
 
           {
             const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -55,33 +72,56 @@ export const Route = createFileRoute("/api/insights")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          const apiKey = process.env.LOVABLE_API_KEY;
-          if (!apiKey) {
+          const apiKey = aiApiKey();
+          if (!apiKey || !process.env.AI_CHAT_MODEL) {
             return new Response(JSON.stringify({ error: "AI not configured" }), {
               status: 500,
               headers: { "Content-Type": "application/json" },
             });
           }
 
-          const upstream = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            {
+          let upstream: Response;
+          try {
+            upstream = await fetch(aiEndpoint("chat/completions"), {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
-                max_tokens: 2048,
-                messages: [
-                  { role: "system", content: SYSTEM },
-                  { role: "user", content: context },
-                ],
-                response_format: { type: "json_object" },
-              }),
-            },
-          );
+              body: JSON.stringify(
+                buildChatBody({
+                  model: modelForTask("structured") ?? "not-configured",
+                  maxTokens: 2048,
+                  messages: [
+                    { role: "system", content: SYSTEM },
+                    { role: "user", content: context },
+                  ],
+                  jsonMode: true,
+                  reasoningEffort: reasoningForTask("structured"),
+                }),
+              ),
+            });
+          } catch (e) {
+            // The provider could not be reached: a retryable 503 with a provider code,
+            // never a bare 500 carrying the raw error text.
+            console.error("insights network error", e instanceof Error ? e.message : String(e));
+            const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+            notifyOwnerAsync({
+              severity: "error",
+              service: "insights",
+              message: "network_error",
+              meta: { error: e instanceof Error ? e.message : String(e) },
+            });
+            await refund.refundProviderFailure?.(null, request.signal);
+            const failure = providerFailure(null);
+            return Response.json(
+              { error: failure.message, code: failure.code, retryable: true },
+              {
+                status: failure.status,
+                headers: { "Retry-After": String(failure.retryAfterSeconds) },
+              },
+            );
+          }
 
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
@@ -95,17 +135,11 @@ export const Route = createFileRoute("/api/insights")({
                 meta: { snippet: t.slice(0, 240) },
               });
             }
-            return new Response(
-              JSON.stringify({
-                error:
-                  upstream.status === 429
-                    ? "Rate limit reached."
-                    : upstream.status === 402
-                    ? "AI credits exhausted."
-                    : "Insights unavailable.",
-              }),
-              { status: upstream.status, headers: { "Content-Type": "application/json" } },
-            );
+            // Never pass the provider's status through: its 429 is not this user's
+            // limit, its 401 is not the user's session. Retryable 503 (502 for a
+            // rejected request) with an ai_provider_* code.
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
+            return providerFailureResponse(upstream.status);
           }
 
           const data = (await upstream.json()) as {
@@ -124,7 +158,15 @@ export const Route = createFileRoute("/api/insights")({
               headers: { "Content-Type": "application/json" },
             });
           }
-          return Response.json(parsed);
+          const normalized = normalizeInsights(parsed);
+          if (!normalized.ok) {
+            console.error("insights output rejected", normalized.reason);
+            return new Response(JSON.stringify({ error: "Bad AI response" }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return Response.json(normalized.value);
         } catch (e) {
           console.error("insights route error:", e);
           const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");

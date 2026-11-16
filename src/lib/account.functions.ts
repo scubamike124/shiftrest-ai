@@ -26,6 +26,19 @@ const USER_TABLES = [
   "profiles",
 ] as const;
 
+/**
+ * A column that exists on `table` and is unique per user, for stable export
+ * paging. Tables without an `id` column must be listed here, or PostgREST
+ * rejects the query and the whole export fails.
+ */
+function exportOrderColumn(table: string): string {
+  if (table === "user_prefs" || table === "notification_prefs") return "user_id";
+  if (table === "companion_skills") return "skill";
+  // Composite primary key (user_id, environment).
+  if (table === "trial_usage" || table === "store_entitlements") return "environment";
+  return "id";
+}
+
 async function attemptStripeCancel(userId: string): Promise<{ canceled: boolean; reason?: string }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: subs, error: lookupError } = await supabaseAdmin
@@ -125,7 +138,8 @@ export const deleteAccountFn = createServerFn({ method: "POST" })
         severity: "warning",
         service: "account.delete",
         message: `User ${uid} deleted their account`,
-        meta: { email: userEmail, deleted: deleted.length, failed: failed.length, stripe },
+        // No email or other contact data: this alert row outlives the account.
+        meta: { deleted: deleted.length, failed: failed.length, stripe },
       });
     } catch {
       /* noop */
@@ -195,10 +209,11 @@ export const exportAccountFn = createServerFn({ method: "POST" })
       };
     };
     const pageSize = 500;
-    for (const t of tables) {
+    // Store purchases and trial usage are the user's records too.
+    const exportTables = [...tables, "trial_usage", "store_entitlements"] as const;
+    for (const t of exportTables) {
       const key = t === "profiles" ? "id" : "user_id";
-      const order = t === "user_prefs" || t === "notification_prefs" ? "user_id"
-        : t === "companion_skills" ? "skill" : "id";
+      const order = exportOrderColumn(t);
       const allRows: JsonValue[] = [];
       for (let offset = 0; ; ) {
         const { data: rows, error } = await client.from(t).select("*")

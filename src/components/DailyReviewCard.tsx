@@ -36,10 +36,13 @@ export function DailyReviewCard({
   signedIn,
   context,
   enabled = true,
+  hasWearableSleep = false,
 }: {
   signedIn: boolean;
   context: string;
   enabled?: boolean;
+  /** True only when recent measured wearable sleep was in `context`. */
+  hasWearableSleep?: boolean;
 }) {
   const [data, setData] = useState<DailyReviewResponse | null>(() => readCache());
   const [loading, setLoading] = useState(false);
@@ -72,10 +75,13 @@ export function DailyReviewCard({
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400/15 text-amber-300">
             <Sun className="h-3.5 w-3.5" />
           </span>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">Today's recap</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">
+            Today's recap · AI-written
+          </p>
         </div>
         <button onClick={() => load(true)} disabled={loading} aria-label="Refresh recap"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground transition hover:text-foreground disabled:opacity-50">
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground transition hover:text-foreground disabled:opacity-50 hit-area"
+        >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
       </header>
@@ -89,93 +95,117 @@ export function DailyReviewCard({
       {error && !data && (
         <div className="mt-4 text-sm text-muted-foreground">
           <p>{error}</p>
-          <button onClick={() => load(true)} className="mt-2 text-sm font-semibold text-primary">Try again</button>
+          <button
+            onClick={() => load(true)}
+            className="hit-area mt-2 text-sm font-semibold text-primary"
+          >
+            Try again
+          </button>
         </div>
       )}
 
-      {data && (() => {
-        const TrendIcon = TREND_ICON[data.metrics.recoveryTrend];
-        const trendTone = TREND_TONE[data.metrics.recoveryTrend];
-        return (
-          <div className="mt-3 space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-lg font-semibold leading-snug" style={{ fontFamily: "var(--font-display)" }}>
-                {data.headline}
-              </h3>
-              <WhyButton
-                recommendationId={data.recommendationId}
-                intent="daily_review"
-                headline={data.headline}
-                why={`Recovery trend: ${data.metrics.recoveryTrend}.`}
-                expectedOutcome={data.tomorrowFocus}
-              />
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Recovery trend</p>
-                <p className={`mt-1 inline-flex items-center gap-1 text-sm font-semibold ${trendTone}`}>
-                  <TrendIcon className="h-3.5 w-3.5" /> {data.metrics.recoveryTrend}
-                </p>
+      {data &&
+        (() => {
+          const TrendIcon = TREND_ICON[data.metrics.recoveryTrend];
+          const trendTone = TREND_TONE[data.metrics.recoveryTrend];
+          return (
+            <div className="mt-3 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <h3
+                  className="text-lg font-semibold leading-snug"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {data.headline}
+                </h3>
+                <WhyButton
+                  recommendationId={data.recommendationId}
+                  intent="daily_review"
+                  headline={data.headline}
+                  why={`Recovery trend: ${data.metrics.recoveryTrend}.`}
+                  expectedOutcome={data.tomorrowFocus}
+                />
               </div>
-              {data.metrics.sleepRecoveredMin != null && (
+
+              <div className="grid gap-2 sm:grid-cols-3">
                 <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sleep recovered</p>
-                  <p className="mt-1 text-sm font-semibold">{data.metrics.sleepRecoveredMin} min</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    Recovery trend
+                  </p>
+                  <p
+                    className={`mt-1 inline-flex items-center gap-1 text-sm font-semibold ${trendTone}`}
+                  >
+                    <TrendIcon className="h-3.5 w-3.5" /> {data.metrics.recoveryTrend}
+                  </p>
                 </div>
-              )}
-              {data.metrics.readinessDelta != null && (
-                <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Readiness Δ</p>
-                  <p className="mt-1 text-sm font-semibold">{data.metrics.readinessDelta > 0 ? "+" : ""}{data.metrics.readinessDelta}</p>
-                </div>
-              )}
-            </div>
-
-            {data.wins.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300">What helped</p>
-                <ul className="mt-1 space-y-1">
-                  {data.wins.map((w, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                      <span>{w}</span>
-                    </li>
-                  ))}
-                </ul>
+                {/* The model's numbers are only shown when they can rest on measured
+                  wearable sleep, and then as an AI estimate. Readiness is never
+                  sent to the model, so a "readiness" number would be invented. */}
+                {hasWearableSleep && data.metrics.sleepRecoveredMin != null && (
+                  <div className="rounded-2xl border border-border/60 bg-background/40 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Sleep recovered
+                    </p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {data.metrics.sleepRecoveredMin} min
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      AI estimate from your wearable sleep
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-            {data.drains.length > 0 && (
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-300">What drained</p>
-                <ul className="mt-1 space-y-1">
-                  {data.drains.map((w, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-300" />
-                      <span>{w}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3">
-              <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                <Target className="h-3 w-3" /> Tomorrow's small focus
+              <p className="text-[10px] text-muted-foreground">
+                {`Written by AI from your schedule${hasWearableSleep ? " and wearable sleep data" : ""}. Trends are estimates, not measurements.`}
               </p>
-              <p className="mt-1 text-sm">{data.tomorrowFocus}</p>
-            </div>
 
-            <RecommendationActions
-              recommendationId={data.recommendationId}
-              signedIn={signedIn}
-              size="sm"
-              className="mt-3"
-            />
-            <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
-          </div>
-        );
-      })()}
+              {data.wins.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-300">
+                    What helped
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {data.wins.map((w, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {data.drains.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-rose-300">
+                    What drained
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {data.drains.map((w, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-300" />
+                        <span>{w}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="rounded-2xl border border-primary/25 bg-primary/5 p-3">
+                <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                  <Target className="h-3 w-3" /> Tomorrow's small focus
+                </p>
+                <p className="mt-1 text-sm">{data.tomorrowFocus}</p>
+              </div>
+
+              <RecommendationActions
+                recommendationId={data.recommendationId}
+                signedIn={signedIn}
+                size="sm"
+                className="mt-3"
+              />
+              <FeedbackChips recommendationId={data.recommendationId} signedIn={signedIn} />
+            </div>
+          );
+        })()}
     </section>
   );
 }

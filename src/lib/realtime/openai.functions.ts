@@ -15,10 +15,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { loadTrialUsageState } from "@/lib/realtime/trial-usage.functions";
+import { companionName, DEFAULT_COMPANION_NAME } from "@/lib/companion/name";
+import { buildRealtimeInstructions } from "@/lib/realtime/instructions";
 import {
   VOICE_OPTIONS,
   DEFAULT_VOICE_PROFILE,
-  buildInstructions,
   type PersonalityKey,
   type VoiceProfile,
 } from "@/lib/voice/profile";
@@ -53,6 +54,17 @@ export type MintRealtimeSessionInput = {
 
 
 const DEFAULT_MODEL = "gpt-realtime";
+const DEFAULT_TRANSCRIBE_MODEL = "whisper-1";
+const REALTIME_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/;
+/**
+ * gpt-realtime and whisper-1 are deprecated by OpenAI (shutdown 2027-01-20 and
+ * 2027-02-26). AI_REALTIME_MODEL / AI_REALTIME_TRANSCRIBE_MODEL switch them
+ * without a code change; unset or invalid values keep today's models.
+ */
+function realtimeModel(name: "AI_REALTIME_MODEL" | "AI_REALTIME_TRANSCRIBE_MODEL", fallback: string): string {
+  const value = process.env[name]?.trim();
+  return value && REALTIME_MODEL_ID.test(value) ? value : fallback;
+}
 // OpenAI's own recommended Realtime voices for best natural quality.
 const DEFAULT_VOICE = "marin";
 
@@ -69,25 +81,21 @@ function clampRealtimeSpeed(n: unknown): number {
   return Math.min(1.5, Math.max(0.25, v));
 }
 
-// Reply-shape system prompt — keeps answers conversational and short so
-// audio starts fast and there are no long paragraph gaps between sentences.
-const REPLY_SHAPE = [
-  "You are RestPilot, a warm and calm sleep and rest companion.",
-  "Speak like a person on a phone call: one or two short sentences at a time.",
-  "Use plain, natural conversational language. No lists, no headings, no long paragraphs.",
-  "Give the shortest useful answer first. If there's more to share or you want the user to continue, end with a clear, inviting question like 'Want me to walk you through it step by step?' or 'Should I continue?' — never trail off or ask a soft, easy-to-miss question.",
-  "Pause after a beat so the user can respond. Never lecture.",
-].join(" ");
-
-/**
- * Speed on the Realtime API only changes playback rate — the model doesn't
- * self-adjust its cadence. Per OpenAI guidance, pair the speed multiplier
- * with an instruction so the delivery also feels paced correctly.
- */
-function pacingHint(speed: number): string {
-  if (speed < 0.95) return "Pace yourself calmly and unhurried, with soft breath between thoughts.";
-  if (speed > 1.05) return "Keep a brisk, energetic pace without rushing the words.";
-  return "Speak at a measured, natural pace.";
+/** Same naming rule as the app: the customer's name, else the chosen look's name, else Aura. */
+async function loadCompanionNameServer(userId: string): Promise<string> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [prefs, profile] = await Promise.all([
+      supabaseAdmin.from("user_prefs").select("assistant_name").eq("user_id", userId).maybeSingle(),
+      supabaseAdmin.from("profiles").select("companion_avatar_id").eq("id", userId).maybeSingle(),
+    ]);
+    return companionName(
+      (prefs.data as { assistant_name?: string | null } | null)?.assistant_name,
+      (profile.data as { companion_avatar_id?: string | null } | null)?.companion_avatar_id,
+    );
+  } catch {
+    return DEFAULT_COMPANION_NAME;
+  }
 }
 
 async function loadUserVoiceProfileServer(userId: string): Promise<VoiceProfile> {
@@ -129,6 +137,10 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: MintRealtimeSessionInput | undefined) => input ?? {})
   .handler(async ({ data: input, context }): Promise<RealtimeSessionResult> => {
+    // Explicit permission to share data with third-party AI (Guideline
+    // 5.1.2(i)): no OpenAI session is minted without it.
+    const { assertAIConsent } = await import("@/lib/ai/consent.server");
+    await assertAIConsent(context.userId);
 
 
     // Trial gate: hard-block minting once the trial voice cap is exhausted.
@@ -191,25 +203,13 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       console.warn("[realtime/openai] greeting-name-lookup-failed", e);
     }
 
-    // Compose instructions: reply-shape rules + personality/accent/language
-    // from buildInstructions() + pacing hint keyed to speed tier.
-    // If the user set a custom instructions override, buildInstructions()
-    // returns it verbatim and we still prepend the reply-shape rules so the
-    // conversation contract holds.
-    const personalityBlock = buildInstructions(
-      {
-        personality: voiceProfile.personality,
-        accent: voiceProfile.accent,
-        language: voiceProfile.language,
-        instructionsOverride: voiceProfile.instructionsOverride,
-      },
-      "normal",
+    // Reply-shape rules + personality/accent/language (or the user's custom
+    // override) + pacing hint, then the shared SAFETY_AND_CARE rules last so
+    // the live voice surface has the same safety guardrail as text and TTS.
+    const instructions = buildRealtimeInstructions(
+      voiceProfile,
+      await loadCompanionNameServer(context.userId),
     );
-    const instructions = [
-      REPLY_SHAPE,
-      personalityBlock,
-      pacingHint(voiceProfile.speed),
-    ].join(" ");
 
     const res = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       signal: AbortSignal.timeout(20_000),
@@ -221,14 +221,14 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
       body: JSON.stringify({
         session: {
           type: "realtime",
-          model: DEFAULT_MODEL,
+          model: realtimeModel("AI_REALTIME_MODEL", DEFAULT_MODEL),
           audio: {
             output: {
               voice: voiceProfile.voiceId,
               speed: voiceProfile.speed,
             },
             input: {
-              transcription: { model: "whisper-1" },
+              transcription: { model: realtimeModel("AI_REALTIME_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIBE_MODEL) },
               // semantic_vad with `auto` eagerness: end-of-turn is detected
               // in ~500ms after natural pauses instead of the multi-second
               // wait `low` imposes. Still tolerates mid-sentence pauses
@@ -287,7 +287,7 @@ export const mintRealtimeSession = createServerFn({ method: "POST" })
     return {
       clientSecret: value,
       expiresAt,
-      model: data.session?.model ?? DEFAULT_MODEL,
+      model: data.session?.model ?? realtimeModel("AI_REALTIME_MODEL", DEFAULT_MODEL),
       voice: data.session?.audio?.output?.voice ?? voiceProfile.voiceId,
       greetingName,
       greetingLabel,

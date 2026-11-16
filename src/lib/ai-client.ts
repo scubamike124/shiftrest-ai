@@ -5,6 +5,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Recommendation } from "@/lib/recommendations";
 import { lsGet, lsSet } from "@/lib/offline/cache";
+import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 
 async function authHeaders(): Promise<{ headers: HeadersInit; userId: string | null }> {
   const { data } = await supabase.auth.getSession();
@@ -68,14 +70,15 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
   }
 
   try {
-    const res = await fetch("/api/ai", {
+    const res = await aiFetchBackground("/api/ai", {
       method: "POST",
       headers,
       body: JSON.stringify({ ...localTimePayload(), ...payload }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(err.error || `AI request failed (${res.status})`);
+      // Text chosen by the server's `code` (request limit / allowance / provider
+      // busy), so a card never shows a raw "rate_limited" or a wrong reason.
+      throw new Error(aiRefusalText(await readAIRefusal(res), `AI request failed (${res.status})`));
     }
     const json = (await res.json()) as T;
     // Persist on success so the next offline open has something to show.

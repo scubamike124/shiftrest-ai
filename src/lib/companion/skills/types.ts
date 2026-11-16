@@ -46,7 +46,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     name: "Weather Intelligence",
     summary: "Rain, heat, wind, and air-quality alerts before they affect your day.",
     details:
-      "Reelo watches your local forecast and air quality and surfaces a clothing suggestion plus heads-up alerts. Pure read-only; no account needed.",
+      "RestPilot watches your local forecast and air quality and surfaces a clothing suggestion plus heads-up alerts. Pure read-only; no account needed.",
     builtin: true,
     available: true,
     risk: "safe",
@@ -57,7 +57,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     name: "Calendar Agenda",
     summary: "See today's schedule, upcoming events, and tomorrow's preview inline.",
     details:
-      "Connects a read-only ICS feed (Apple, Google 'secret address', Outlook). Reelo shows today's agenda, what's coming up, and tomorrow — and warns when an early meeting means an earlier bedtime. Read-only: never adds, moves, or deletes events.",
+      "Connects a read-only ICS feed (Apple, Google 'secret address', Outlook). RestPilot shows today's agenda, what's coming up, and tomorrow — and warns when an early meeting means an earlier bedtime. Read-only: never adds, moves, or deletes events.",
     builtin: true,
     available: true,
     risk: "safe",
@@ -79,7 +79,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     name: "Traffic Intelligence",
     summary: "Drive times, unusual delays, and 'leave earlier' warnings for Home and Work.",
     details:
-      "Saves Home, Work, and custom destinations. Estimates current drive time, learns your normal baseline, and surfaces unusual delays plus alternative routes. Read-only — Reelo never starts navigation for you.",
+      "Saves Home, Work, and custom destinations. Estimates current drive time, learns your normal baseline, and surfaces unusual delays plus alternative routes. Read-only — RestPilot never starts navigation for you.",
     builtin: true,
     available: true,
     risk: "safe",
@@ -100,8 +100,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     id: "comms_email",
     name: "Email Drafts",
     summary: "Draft emails from chat — sending always asks first.",
-    details:
-      "Drafts stay on this device until you tap Send. Outgoing messages go through Reelo Mail.",
+    details: "Drafts stay on this device until you tap Send.",
     builtin: true,
     available: false,
     risk: "destructive",
@@ -121,9 +120,9 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
   {
     id: "routines",
     name: "Learned Routines",
-    summary: "Approve multi-step routines Reelo notices in your day.",
+    summary: "Approve multi-step routines RestPilot notices in your day.",
     details:
-      "Reelo only proposes routines after spotting a repeated pattern. Nothing runs until you Approve, and you can pause or delete at any time.",
+      "RestPilot only proposes routines after spotting a repeated pattern. Nothing runs until you Approve, and you can pause or delete at any time.",
     builtin: true,
     available: false,
     risk: "safe",
@@ -134,7 +133,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     name: "Personal Intelligence",
     summary: "Tasks, reminders, email notes, and follow-ups — woven into your daily plan.",
     details:
-      "A private inbox for tasks, reminders, and email follow-ups. Reelo detects priority, surfaces overdue items, suggests follow-ups for things sitting too long, and combines Calendar, Weather, and Traffic so you know when to leave earlier or wind down sooner. Read-only — Reelo never sends or deletes anything for you.",
+      "A private inbox for tasks, reminders, and email follow-ups. RestPilot detects priority, surfaces overdue items, suggests follow-ups for things sitting too long, and combines Calendar, Weather, and Traffic so you know when to leave earlier or wind down sooner. Read-only — RestPilot never sends or deletes anything for you.",
     builtin: true,
     available: true,
     risk: "safe",
@@ -167,7 +166,7 @@ export const SKILL_CATALOG: readonly SkillDescriptor[] = [
     name: "Quiet Mode",
     summary: "Mute the Companion voice and pause non-urgent nudges with one tap.",
     details:
-      "Turns off Companion voice replies and skips non-urgent notifications until you turn it off. Defers to your operating system's Do Not Disturb / Focus — Reelo never overrides OS privacy restrictions.",
+      "Turns off Companion voice replies and skips non-urgent notifications until you turn it off. Defers to your operating system's Do Not Disturb / Focus — RestPilot never overrides OS privacy restrictions.",
     builtin: true,
     available: true,
     risk: "safe",

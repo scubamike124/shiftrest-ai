@@ -31,39 +31,48 @@ export async function getSubscriptionState(): Promise<SubscriptionState> {
 
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) return empty;
-  if (!isPaymentsConfigured()) return empty;
 
-  const env = getStripeEnvironment();
-  const { data } = await supabase
+  // Status is read from the database, which the webhook keeps in sync, so a
+  // build without website checkout (Railway before Stripe is set up, or the
+  // iOS app) still shows paid and lifetime members their plan. Without a
+  // publishable key the real customers' rows are the live ones.
+  const env = isPaymentsConfigured() ? getStripeEnvironment() : "live";
+  const { data: rows } = await supabase
     .from("subscriptions")
-    .select(
-      "price_id, status, current_period_end, cancel_at_period_end, stripe_customer_id",
-    )
+    .select("price_id, status, current_period_end, cancel_at_period_end, stripe_customer_id")
     .eq("user_id", session.session.user.id)
     .eq("environment", env)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(20);
 
-  if (!data) return empty;
+  if (!rows?.length) return empty;
 
-  const tier = TIER_BY_PRICE[data.price_id] ?? "free";
-  const expiresAt = data.current_period_end ? new Date(data.current_period_end) : null;
   const now = new Date();
-  const isPremium =
-    data.status === "lifetime" ||
-    ((data.status === "active" || data.status === "trialing") &&
-      (!expiresAt || expiresAt > now)) ||
-    (data.status === "canceled" && !!expiresAt && expiresAt > now);
-
-  return {
-    tier,
-    status: data.status,
-    expiresAt,
-    cancelAtPeriodEnd: !!data.cancel_at_period_end,
-    isPremium,
-    stripeCustomerId: data.stripe_customer_id ?? null,
+  const toState = (data: (typeof rows)[number]): SubscriptionState => {
+    const tier = TIER_BY_PRICE[data.price_id] ?? "free";
+    const expiresAt = data.current_period_end ? new Date(data.current_period_end) : null;
+    const isPremium =
+      data.status === "lifetime" ||
+      ((data.status === "active" || data.status === "trialing") &&
+        (!expiresAt || expiresAt > now)) ||
+      (data.status === "canceled" && !!expiresAt && expiresAt > now);
+    return {
+      tier,
+      status: data.status,
+      expiresAt,
+      cancelAtPeriodEnd: !!data.cancel_at_period_end,
+      isPremium,
+      stripeCustomerId: data.stripe_customer_id ?? null,
+    };
   };
+  // A newer incomplete checkout must not hide an older paid or lifetime row.
+  const states = rows.map(toState);
+  // Lifetime ranks first, as in the server's entitlement merge.
+  return (
+    states.find((s) => s.isPremium && s.tier === "lifetime") ??
+    states.find((s) => s.isPremium) ??
+    states[0]
+  );
 }
 
 export async function restorePurchases(): Promise<SubscriptionState> {

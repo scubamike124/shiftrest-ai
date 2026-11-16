@@ -1,0 +1,30 @@
+appId: com.restpilotai.app
+name: Apple sandbox purchase of the monthly plan (BLOCKED)
+tags: [blocked, iap]
+---
+# BLOCKED. The StoreKit configuration (ios-app/ios/App/RestPilot.storekit, #27:
+# monthly $7.99, annual $49.99, 2-week free trial, no lifetime) only applies to
+# runs launched from Xcode/XCTest (SKTestSession), not to Maestro or
+# `simctl launch`, and the purchase UI goes through RevenueCat (#28), which
+# needs the owner's RevenueCat project + public appl_ key + StoreKit Testing
+# certificate. Unblock with: App Store Connect products and a Sandbox Apple
+# Account on a signed TestFlight build (run this flow there), or an XCTest
+# SKTestSession lane for the simulator.
+- launchApp
+- extendedWaitUntil:
+    visible: "Profile"
+    timeout: 90000
+- tapOn: "App preview"
+- tapOn:
+    text: "(Monthly|\\$7\\.99).*"
+- extendedWaitUntil:
+    visible:
+      text: "(Subscribe|Confirm|\\[Environment: Sandbox\\]|Sandbox).*"
+    timeout: 30000
+- takeScreenshot: maestro-30-iap-sheet
+- tapOn:
+    text: "(Subscribe|Confirm)"
+- extendedWaitUntil:
+    visible:
+      text: "(You're all set|Subscribed|Active).*"
+    timeout: 60000

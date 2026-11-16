@@ -5,13 +5,24 @@ import {
   createStripeClient,
   getStripeErrorMessage,
 } from "@/lib/stripe.server";
+import { getRequest } from "@tanstack/react-start/server";
+import { appleSubscriptionBlocksCheckout } from "@/lib/entitlements/checkout-guard";
+import {
+  APP_PURCHASE_REFUSED_MESSAGE,
+  isNativeAppUserAgent,
+} from "@/lib/entitlements/app-request-guard";
 
 type CheckoutResult = { clientSecret: string } | { error: string };
 type PortalResult = { url: string } | { error: string };
 
-// Prices that should NOT get a free trial (one-time purchase)
-const ONE_TIME_PRICES = new Set(["restpilot_lifetime"]);
-const CHECKOUT_PRICES = new Set(["restpilot_monthly", "restpilot_annual", "restpilot_lifetime"]);
+// Only the recurring plans can be bought. The $99 lifetime membership was
+// permanently discontinued for new customers (owner decision, Nov 14 2026).
+// Existing lifetime entitlements are still honored by the webhook and the
+// subscription readers; only new purchases are refused here.
+const CHECKOUT_PRICES = new Set(["restpilot_monthly", "restpilot_annual"]);
+const DISCONTINUED_PRICES = new Set(["restpilot_lifetime"]);
+const LIFETIME_DISCONTINUED_MESSAGE =
+  "Lifetime membership is no longer offered. Choose the monthly or annual plan.";
 
 function validateEnvironment(environment: unknown): StripeEnv {
   if (environment !== "sandbox" && environment !== "live") {
@@ -70,14 +81,26 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     (data: { priceId: string; returnUrl: string; environment: StripeEnv }) => {
+      if (data && DISCONTINUED_PRICES.has(data.priceId)) throw new Error(LIFETIME_DISCONTINUED_MESSAGE);
       if (!data || !CHECKOUT_PRICES.has(data.priceId)) throw new Error("Invalid priceId");
       const environment = validateEnvironment(data.environment);
       return { priceId: data.priceId, returnUrl: validateReturnUrl(data.returnUrl, environment), environment };
     },
   )
   .handler(async ({ data, context }): Promise<CheckoutResult> => {
+    // Guideline 3.1.1: no website checkout from inside the iPhone app.
+    if (isNativeAppUserAgent(getRequest()?.headers.get("user-agent"))) {
+      return { error: APP_PURCHASE_REFUSED_MESSAGE };
+    }
     try {
       const { supabase, userId } = context;
+      // Duplicate-billing guard: never sell a Stripe subscription to someone
+      // already subscribed through the App Store. Inert unless IAP_ENABLED=true,
+      // so with IAP off the requests sent to Stripe are unchanged.
+      if (process.env.IAP_ENABLED === "true") {
+        const refusal = await appleSubscriptionBlocksCheckout(supabase, userId, process.env);
+        if (refusal) return { error: refusal };
+      }
       const { data: userRes } = await supabase.auth.getUser();
       const email = userRes.user?.email ?? undefined;
 
@@ -88,51 +111,27 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       if (stripePrice.lookup_key !== data.priceId || !stripePrice.active) {
         throw new Error("Price is not available");
       }
-      // Hard guard: a known one-time price MUST be one-time in Stripe. If it
-      // ever syncs as recurring, fail loudly instead of opening a subscription
-      // checkout with a trial.
-      const forcedOneTime = ONE_TIME_PRICES.has(data.priceId);
-      if (forcedOneTime && stripePrice.type !== "one_time") {
-        throw new Error(
-          `Price "${data.priceId}" must be a one-time Stripe price but is configured as recurring. Fix it in Stripe and retry.`,
-        );
-      }
-      if (!forcedOneTime && (stripePrice.type !== "recurring"
+      if (stripePrice.type !== "recurring"
         || stripePrice.recurring?.interval !== (data.priceId === "restpilot_monthly" ? "month" : "year")
-        || stripePrice.recurring.interval_count !== 1)) {
+        || stripePrice.recurring.interval_count !== 1) {
         throw new Error("Subscription price is not configured for the selected plan");
       }
-      const isRecurring = !forcedOneTime && stripePrice.type === "recurring";
-      const offerTrial = isRecurring;
 
       const customerId = await resolveOrCreateCustomer(stripe, { email, userId });
 
-      let productDescription: string | undefined;
-      if (!isRecurring) {
-        const productId =
-          typeof stripePrice.product === "string"
-            ? stripePrice.product
-            : stripePrice.product.id;
-        const product = await stripe.products.retrieve(productId);
-        productDescription = product.name;
-      }
-
+      // Subscription mode only: one-time (payment-mode) checkout is no longer
+      // created for any product.
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
-        mode: isRecurring ? "subscription" : "payment",
+        mode: "subscription",
         ui_mode: "embedded_page",
         return_url: data.returnUrl,
         customer: customerId,
-        ...(!isRecurring && {
-          payment_intent_data: { description: productDescription, metadata: { userId } },
-        }),
         metadata: { userId, priceId: data.priceId },
-        ...(isRecurring && {
-          subscription_data: {
-            metadata: { userId },
-            ...(offerTrial && { trial_period_days: 14 }),
-          },
-        }),
+        subscription_data: {
+          metadata: { userId },
+          trial_period_days: 14,
+        },
       });
 
       return { clientSecret: session.client_secret ?? "" };
@@ -149,6 +148,9 @@ export const createPortalSession = createServerFn({ method: "POST" })
     return { environment, ...(data.returnUrl !== undefined && { returnUrl: validateReturnUrl(data.returnUrl, environment) }) };
   })
   .handler(async ({ data, context }): Promise<PortalResult> => {
+    if (isNativeAppUserAgent(getRequest()?.headers.get("user-agent"))) {
+      return { error: APP_PURCHASE_REFUSED_MESSAGE };
+    }
     try {
       const { supabase, userId } = context;
       const { data: sub, error: lookupError } = await supabase

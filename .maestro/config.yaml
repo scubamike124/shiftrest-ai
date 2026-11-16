@@ -1,0 +1,26 @@
+# Maestro flows for the RestPilot iPhone app (ios-app/, Capacitor shell).
+# CI (.github/workflows/ios-maestro.yml) points the simulator build at the
+# hermetic E2E stack (tests/e2e/support/serve.mjs on the macOS runner), so
+# signed-in flows never touch staging or production data.
+#
+# Waits after launchApp are 90 s. On the hosted simulator WebKit sometimes takes
+# ~45 s to start a web process, and the first navigation starts two of them
+# (the site's Cross-Origin-Opener-Policy header forces a process swap).
+#
+# Tags:
+#   core      every run
+#   offline   run after the stack is stopped (the workflow does that)
+#   healthkit runs only when the build declares HealthKit (PR #17)
+#   blocked   written, excluded until the prerequisite exists (see each flow)
+flows:
+  - "*.yaml"
+# Signed-in flows reuse the session from 03, so order matters.
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - App launches to the RestPilot home screen
+    - Sign-in screen in the app shell (no Google button, no Safari install prompt)
+    - Sign in with the seeded QA account and use the bottom navigation
+    - Turning on iPhone reminders shows the iOS notification permission prompt
+    - Account deletion is reachable in the app and needs typed confirmation (cancelled here)
+    - Privacy controls (export, erase AI memory, memory page) are reachable in the app

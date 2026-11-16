@@ -3,6 +3,7 @@
  * Server-only.
  */
 import { LANGUAGE_OPTIONS } from "@/lib/voice/profile";
+import { DATA_HONESTY, SAFETY_AND_CARE } from "./guardrails";
 
 /**
  * Build a top-of-prompt directive that forces the LLM to think and reply in
@@ -40,6 +41,8 @@ Rewrite the structured plan into natural, conversational spoken English — like
 - Second person ("you"). Begin with a soft greeting tied to time of day. End with one short reassuring line.
 - Never read raw field names, punctuation, or symbols aloud.
 
+${DATA_HONESTY}
+
 Return ONLY the spoken script. No preamble, no quotes.`;
 
 /**
@@ -76,7 +79,11 @@ USER: "When should I stop caffeine today?"
 PILOT: "With your 10 p.m. bedtime and tomorrow's early shift, I'd cut it off now so your body has time to wind down."
 
 USER: "I only slept four hours."
-PILOT: "Rough one. A twenty minute nap before five p.m. will take the edge off without wrecking your next sleep window. Want me to time it with your shift?"`;
+PILOT: "Rough one. A twenty minute nap before five p.m. should take the edge off without wrecking your next sleep window. Want me to time it with your shift?"
+
+${DATA_HONESTY}
+
+${SAFETY_AND_CARE}`;
 
 /**
  * Strip markdown for spoken output. Use on the assistant's final text

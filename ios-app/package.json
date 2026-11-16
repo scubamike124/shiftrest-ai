@@ -1,0 +1,26 @@
+{
+  "name": "restpilot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "add:android": "npx cap add android",
+    "add:ios": "npx cap add ios",
+    "sync": "npx cap sync",
+    "open:android": "npx cap open android",
+    "open:ios": "npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/app": "6.0.3",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "@capacitor/local-notifications": "6.1.3",
+    "@capacitor/preferences": "6.0.4",
+    "@capacitor/splash-screen": "6.0.4",
+    "@revenuecat/purchases-capacitor": "9.2.2",
+    "restpilot-health": "file:plugins/restpilot-health"
+  }
+}

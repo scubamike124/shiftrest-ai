@@ -149,7 +149,11 @@ export function TrafficDestinationsCard({
     try {
       const hit = await geocode({ data: { query: q } });
       if (!hit.ok) {
-        toast.error("No match found. Try a different address.");
+        toast.error(
+          hit.reason === "unavailable"
+            ? "The address lookup isn't responding right now. Nothing was changed — please try again."
+            : "No match found. Try a different address.",
+        );
         return;
       }
       await saveCoords(hit.lat, hit.lon, hit.label);
@@ -197,9 +201,9 @@ export function TrafficDestinationsCard({
         <div className="flex-1">
           <p className="text-sm font-semibold">Traffic destinations</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-            Save Home, Work, or any place you go often. Reelo estimates drive
-            time and warns when traffic is worse than normal. Read-only — Reelo
-            never starts navigation for you.
+            Save Home, Work, or any place you go often. RestPilot estimates drive time and warns
+            when traffic is worse than normal. Read-only — RestPilot never starts navigation for
+            you.
           </p>
         </div>
       </div>

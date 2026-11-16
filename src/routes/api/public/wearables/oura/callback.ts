@@ -1,11 +1,12 @@
 // Oura OAuth callback.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyOAuthState } from "@/lib/wearables/oauth-state.server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { exchangeCode, OURA_SCOPES } from "@/lib/wearables/oura.server";
 
 function appOrigin() {
-  return process.env.PUBLIC_APP_URL || "https://shift-rest-ai.lovable.app";
+  return process.env.PUBLIC_APP_URL || "https://restpilotai.com";
 }
 
 function getAdmin() {
@@ -27,12 +28,16 @@ export const Route = createFileRoute("/api/public/wearables/oura/callback")({
           const back = new URL(`${appOrigin()}/profile`);
           back.searchParams.set(status, "oura");
           if (reason) back.searchParams.set("reason", reason);
-          return Response.redirect(back.toString(), 302);
+          // Not Response.redirect(): its headers are immutable, and the global
+          // security-headers middleware (src/start.ts) must add headers to every
+          // response. That threw "TypeError: immutable" and turned every OAuth
+          // return into a 500, so wearables could never finish connecting.
+          return new Response(null, { status: 302, headers: { Location: back.toString() } });
         };
         if (err) return redirectBack("error", err);
         if (!code || !state) return redirectBack("error", "missing_code");
 
-        const userId = state.split(":")[0];
+        const userId = verifyOAuthState(state, "oura");
         if (!userId) return redirectBack("error", "bad_state");
 
         try {

@@ -18,7 +18,16 @@ function fixture(options = {}) {
         select() { if(options.exportRows) return { eq(column,uid) {
           assert.equal(column,table==='profiles'?'id':'user_id'); assert.equal(uid,'user-test');
           return { order(column) {
-            assert.equal(column, table==='user_prefs'||table==='notification_prefs'?'user_id':table==='companion_skills'?'skill':'id');
+                    assert.equal(
+                      column,
+                      table === "user_prefs" || table === "notification_prefs"
+                        ? "user_id"
+                        : table === "companion_skills"
+                          ? "skill"
+                          : table === "trial_usage" || table === "store_entitlements"
+                            ? "environment"
+                            : "id",
+                    );
             return { async range(from,to) {
               calls.push(`export:${table}:${from}`);
               if(options.exportFailTable===table && from>=500) return {data:null,error:{message:'secret SQL'}};

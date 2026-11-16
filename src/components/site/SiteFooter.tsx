@@ -27,7 +27,7 @@ export function SiteFooter() {
           title="Product"
           links={[
             { to: "/features", label: "Features" },
-            { to: "/pricing", label: "Pricing" },
+            { to: "/pricing", label: "App preview" },
             { to: "/science", label: "The Science" },
             { to: "/dashboard", label: "Dashboard" },
             { to: "/safety", label: "Safety Center" },

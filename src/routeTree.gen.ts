@@ -74,6 +74,7 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsAvatarRouteImport } from './routes/settings.avatar'
 import { Route as SettingsCompanionRouteImport } from './routes/settings.companion'
 import { Route as SettingsMorningRouteImport } from './routes/settings.morning'
+import { Route as SettingsPrivacyRouteImport } from './routes/settings.privacy'
 import { Route as SettingsSkillsRouteImport } from './routes/settings.skills'
 import { Route as AuthenticatedLabPilotRealtimeRouteImport } from './routes/_authenticated/lab.pilot-realtime'
 import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
@@ -90,6 +91,7 @@ import { Route as ApiPublicHooksAiLearnRouteImport } from './routes/api/public/h
 import { Route as ApiPublicHooksDispatchAlarmsRouteImport } from './routes/api/public/hooks/dispatch-alarms'
 import { Route as ApiPublicHooksNotifyRouteImport } from './routes/api/public/hooks/notify'
 import { Route as ApiPublicHooksSubscriptionLifecycleRouteImport } from './routes/api/public/hooks/subscription-lifecycle'
+import { Route as ApiPublicIapRevenuecatRouteImport } from './routes/api/public/iap/revenuecat'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicWearablesCronRouteImport } from './routes/api/public/wearables/cron'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
@@ -424,6 +426,11 @@ const SettingsMorningRoute = SettingsMorningRouteImport.update({
   path: '/settings/morning',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsPrivacyRoute = SettingsPrivacyRouteImport.update({
+  id: '/settings/privacy',
+  path: '/settings/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
   id: '/settings/skills',
   path: '/settings/skills',
@@ -507,6 +514,11 @@ const ApiPublicHooksSubscriptionLifecycleRoute =
     path: '/api/public/hooks/subscription-lifecycle',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicIapRevenuecatRoute = ApiPublicIapRevenuecatRouteImport.update({
+  id: '/api/public/iap/revenuecat',
+  path: '/api/public/iap/revenuecat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -622,6 +634,7 @@ export interface FileRoutesByFullPath {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -640,6 +653,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -711,6 +725,7 @@ export interface FileRoutesByTo {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal': typeof LegalIndexRoute
   '/settings': typeof SettingsIndexRoute
@@ -729,6 +744,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -804,6 +820,7 @@ export interface FileRoutesById {
   '/settings/avatar': typeof SettingsAvatarRoute
   '/settings/companion': typeof SettingsCompanionRoute
   '/settings/morning': typeof SettingsMorningRoute
+  '/settings/privacy': typeof SettingsPrivacyRoute
   '/settings/skills': typeof SettingsSkillsRoute
   '/legal/': typeof LegalIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -822,6 +839,7 @@ export interface FileRoutesById {
   '/api/public/hooks/dispatch-alarms': typeof ApiPublicHooksDispatchAlarmsRoute
   '/api/public/hooks/notify': typeof ApiPublicHooksNotifyRoute
   '/api/public/hooks/subscription-lifecycle': typeof ApiPublicHooksSubscriptionLifecycleRoute
+  '/api/public/iap/revenuecat': typeof ApiPublicIapRevenuecatRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/wearables/cron': typeof ApiPublicWearablesCronRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
@@ -897,6 +915,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal/'
     | '/settings/'
@@ -915,6 +934,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -986,6 +1006,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal'
     | '/settings'
@@ -1004,6 +1025,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -1078,6 +1100,7 @@ export interface FileRouteTypes {
     | '/settings/avatar'
     | '/settings/companion'
     | '/settings/morning'
+    | '/settings/privacy'
     | '/settings/skills'
     | '/legal/'
     | '/settings/'
@@ -1096,6 +1119,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/dispatch-alarms'
     | '/api/public/hooks/notify'
     | '/api/public/hooks/subscription-lifecycle'
+    | '/api/public/iap/revenuecat'
     | '/api/public/payments/webhook'
     | '/api/public/wearables/cron'
     | '/lovable/email/auth/preview'
@@ -1155,6 +1179,7 @@ export interface RootRouteChildren {
   SettingsAvatarRoute: typeof SettingsAvatarRoute
   SettingsCompanionRoute: typeof SettingsCompanionRoute
   SettingsMorningRoute: typeof SettingsMorningRoute
+  SettingsPrivacyRoute: typeof SettingsPrivacyRoute
   SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
@@ -1168,6 +1193,7 @@ export interface RootRouteChildren {
   ApiPublicHooksDispatchAlarmsRoute: typeof ApiPublicHooksDispatchAlarmsRoute
   ApiPublicHooksNotifyRoute: typeof ApiPublicHooksNotifyRoute
   ApiPublicHooksSubscriptionLifecycleRoute: typeof ApiPublicHooksSubscriptionLifecycleRoute
+  ApiPublicIapRevenuecatRoute: typeof ApiPublicIapRevenuecatRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicWearablesCronRoute: typeof ApiPublicWearablesCronRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -1636,6 +1662,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMorningRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/privacy': {
+      id: '/settings/privacy'
+      path: '/settings/privacy'
+      fullPath: '/settings/privacy'
+      preLoaderRoute: typeof SettingsPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/skills': {
       id: '/settings/skills'
       path: '/settings/skills'
@@ -1746,6 +1779,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/subscription-lifecycle'
       fullPath: '/api/public/hooks/subscription-lifecycle'
       preLoaderRoute: typeof ApiPublicHooksSubscriptionLifecycleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/iap/revenuecat': {
+      id: '/api/public/iap/revenuecat'
+      path: '/api/public/iap/revenuecat'
+      fullPath: '/api/public/iap/revenuecat'
+      preLoaderRoute: typeof ApiPublicIapRevenuecatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/payments/webhook': {
@@ -1939,6 +1979,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsAvatarRoute: SettingsAvatarRoute,
   SettingsCompanionRoute: SettingsCompanionRoute,
   SettingsMorningRoute: SettingsMorningRoute,
+  SettingsPrivacyRoute: SettingsPrivacyRoute,
   SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
@@ -1953,6 +1994,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksNotifyRoute: ApiPublicHooksNotifyRoute,
   ApiPublicHooksSubscriptionLifecycleRoute:
     ApiPublicHooksSubscriptionLifecycleRoute,
+  ApiPublicIapRevenuecatRoute: ApiPublicIapRevenuecatRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicWearablesCronRoute: ApiPublicWearablesCronRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,

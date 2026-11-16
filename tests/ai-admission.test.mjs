@@ -4,12 +4,47 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
+function loadProvider(env) {
+  const output = ts.transpileModule(readFileSync(new URL('../src/lib/ai/provider.server.ts', import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const module={exports:{}};
+  vm.runInNewContext(output,{exports:module.exports,module,process:{env},URL});
+  return module.exports;
+}
+
+function loadModels(env) {
+  const output = ts.transpileModule(readFileSync(new URL('../src/lib/ai/models.server.ts', import.meta.url), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const module={exports:{}};
+  vm.runInNewContext(output,{exports:module.exports,module,process:{env},URL});
+  return module.exports;
+}
+
+// The real, dependency-free refusal module (stable codes + bodies): the admission
+// and route modules import it, so the tests that load them provide the real thing.
+function loadRefusal() {
+  const output = ts.transpileModule(
+    readFileSync(new URL("../src/lib/ai/refusal.ts", import.meta.url), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const module = { exports: {} };
+  vm.runInNewContext(output, { exports: module.exports, module });
+  return module.exports;
+}
+
 function load(path, mocks = {}, env = {}, fetchOverride) {
   const output = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const module = { exports: {} };
   mocks = {
+    '@/lib/ai/provider.server': loadProvider(env),
+    './provider.server': loadProvider(env),
+    '@/lib/ai/models.server': loadModels(env),
+    './models.server': loadModels(env),
+    "@/lib/ai/refusal": loadRefusal(),
+    "./refusal": loadRefusal(),
+    '@/lib/ai/guardrails': { DATA_HONESTY: '' },
+    '@/lib/ai/intent-guards': {},
+    "@/lib/ai/intent-schemas": {},
     '@/lib/api/ratelimit.server': { enforceRateLimit: async () => null, RATE_LIMITS: {ai:{},tts:{},stt:{}} },
     '@/lib/api/lab-gate.server': { requireLabAccess: async () => null },
     ...mocks,
@@ -89,6 +124,8 @@ for (const route of routes) {
         '@/lib/api/auth.server': { requireUser: async () => mode === 'signed-out' ? { response: new Response(null, { status: 401 }) } : { userId: 'verified-user' } },
         '@/lib/ai/request.server': requestModule,
         '@/lib/ai/admission.server': { requireAIAdmission: async id => { admissions++; assert.equal(id, 'verified-user'); return new Response(null, { status: mode === 'limited' ? 429 : 503 }); } },
+        // AI consent granted here; tests/ai-consent.test.mjs covers refusals.
+        "@/lib/ai/consent.server": { requireAIConsent: async () => null },
         '@/lib/ai/gateway.server': { AIError: class extends Error {} },
         '@/lib/ai/context.server': {}, '@/lib/ai/log.server': {},
         '@/lib/ai/memory-extractor.server': {}, '@/lib/ops/alert.server': {},
@@ -125,7 +162,7 @@ test('JSON parser preserves valid object', async () => {
 });
 test('gateway bounds output and preserves shorter voice limit', async () => {
   const bodies = [];
-  const gateway = load('src/lib/ai/gateway.server.ts', {}, { LOVABLE_API_KEY: 'test-only' }, async (_url, opts) => {
+  const gateway = load('src/lib/ai/gateway.server.ts', {}, { OPENAI_API_KEY: 'test-only', AI_CHAT_MODEL: 'test-model', AI_STT_MODEL: 'test-stt' }, async (_url, opts) => {
     bodies.push(JSON.parse(opts.body));
     return Response.json({ choices: [{ message: { content: 'ok' } }] });
   });
@@ -146,6 +183,7 @@ test('Simli rejects unbounded or invalid session durations before provider', asy
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/api/auth.server': { requireUser: async () => ({ userId: 'verified-user' }) },
     '@/lib/ai/admission.server': { requireAIAdmission: async () => null },
+      "@/lib/ai/consent.server": { requireAIConsent: async () => null },
     '@/lib/ai/request.server': requestModule,
   }, { SIMLI_API_KEY: 'test-only' }, async () => { providerCalls++; return Response.json({}); });
   for (const duration of [-1, 0, 601, '600', 1.5]) {
@@ -161,6 +199,7 @@ test('legacy coach rejects oversize before forwarding', async () => {
   const { Route } = load('src/routes/api/coach.ts', {
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/ai/request.server': requestModule,
+    '@/lib/ai/forward.server': { aiForwardUrl: () => { throw new Error('must not forward oversize input'); }, DROP_FORWARD_HEADERS: [] },
   });
   const result = await Route.server.handlers.POST({ request: new Request('https://example.test/api/coach', {
     method: 'POST', body: JSON.stringify({ messages: ['a'.repeat(65536)] }),
@@ -186,9 +225,10 @@ test('STT rejects oversized multipart before parsing or provider', async () => {
     '@tanstack/react-router': { createFileRoute: () => config => config },
     '@/lib/api/auth.server': { requireUser: async () => ({ userId: 'verified-user' }) },
     '@/lib/ai/admission.server': { requireAIAdmission: async () => null },
+      "@/lib/ai/consent.server": { requireAIConsent: async () => null },
     '@/lib/ai/request.server': requestModule,
     '@supabase/supabase-js': {}, '@/lib/ai/log.server': {},
-  }, { LOVABLE_API_KEY: 'test-only' });
+  }, { OPENAI_API_KEY: 'test-only', AI_CHAT_MODEL: 'test-model', AI_STT_MODEL: 'test-stt' });
   const result = await Route.server.handlers.POST({ request: new Request('https://example.test/api/stt', {
     method: 'POST', headers: { 'Content-Type': 'multipart/form-data; boundary=test' }, body: new Uint8Array(25 * 1024 * 1024 + 1),
   }) });

@@ -1,4 +1,4 @@
-import { sendLovableEmail } from '@lovable.dev/email-js'
+import { sendProviderEmail } from '@/lib/email/provider.server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createFileRoute } from '@tanstack/react-router'
 
@@ -79,8 +79,8 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.LOVABLE_API_KEY
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+        const apiKey = process.env.RESEND_API_KEY
+        const supabaseUrl = process.env.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL
         const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
         if (!apiKey || !supabaseUrl || !supabaseServiceKey) {
@@ -236,11 +236,11 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
             }
 
             try {
-              await sendLovableEmail(
+              await sendProviderEmail(
                 {
                   run_id: payload.run_id,
                   to: payload.to,
-                  from: payload.from,
+                  from: process.env.EMAIL_FROM || payload.from,
                   reply_to: payload.reply_to,
 
                   sender_domain: payload.sender_domain,
@@ -253,7 +253,7 @@ export const Route = createFileRoute("/lovable/email/queue/process")({
                   unsubscribe_token: payload.unsubscribe_token,
                   message_id: payload.message_id,
                 },
-                { apiKey, sendUrl: process.env.LOVABLE_SEND_URL }
+                { apiKey }
               )
 
               // Log success

@@ -1,5 +1,5 @@
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 /**
  * /api/ai — single orchestrator for every AI intent.
  *
@@ -28,8 +28,12 @@ import {
   loadAssistantProfile,
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
-import { logAIRequest } from "@/lib/ai/log.server";
-import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
+import { logAIRequest, estimateTextTokens } from "@/lib/ai/log.server";
+import { providerFailureResponse } from "@/lib/ai/refusal";
+import { modelForTask } from "@/lib/ai/models.server";
+import { commuteTimes } from "@/lib/ai/intent-guards";
+import { normalizeIntentOutput } from "@/lib/ai/intent-schemas";
+import { proposeMemoriesFromChat } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
 import { BRIEF_SYSTEM as SHARED_BRIEF_SYSTEM, languageDirective } from "@/lib/ai/prompts.server";
@@ -37,9 +41,17 @@ import { buildTimeDirective } from "@/lib/ai/time-directive";
 import { classifyIntent } from "@/lib/ai/intent-hint.server";
 
 
+type CoachBody = {
+  intent: "coach";
+  messages: ChatMsg[];
+  context?: string | Record<string, unknown>;
+  surface?: "voice" | "text";
+  expand?: boolean;
+};
+
 type Body =
   ({ localTime?: string; timezone?: string } & (
-    | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
+  | CoachBody
     | { intent: "brief"; plan: string }
     | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
     | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
@@ -73,7 +85,7 @@ In addition to the schema below, ALWAYS include a top-level field:
   "tomorrow": string (<=110 chars, concrete effect on tomorrow's energy/sleep/readiness),
   "week":     string (<=110 chars, concrete effect over the next 5-7 days if they keep doing it)
 }
-Be specific and grounded — name a number, a window, or a body-clock outcome where possible. No hype, no emoji.`;
+Be specific and grounded — name a time window or a likely body-clock outcome where possible. These are predictions: phrase them as "likely"/"should", and never invent a measured number (sleep minutes, HRV, heart rate, stages) you were not given. No hype, no emoji.`;
 
 const BRIEF_SYSTEM = SHARED_BRIEF_SYSTEM;
 
@@ -96,11 +108,11 @@ Hard safety rule: never move the alarm outside ±windowMin from the target. If w
 Return ONLY valid JSON:
 {
   "wakeAt": ISO string strictly inside [target - windowMin, target + windowMin],
-  "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you wake near the end of a REM cycle instead of mid-deep sleep"),
+  "reason": string (<=110 chars, coach voice explaining the move — e.g. "I nudged you 18 minutes later so you're more likely to wake near the end of a cycle, not mid-deep sleep"),
   "cyclePosition": "rem_end"|"light_sleep"|"deep_avoid"|"natural",
   "confidence": "low"|"medium"|"high",
   "confidenceReason": string (<=120 chars, name the evidence — e.g. "High confidence: 3 nights of Oura data with a consistent sleep-onset window"),
-  "message": string (<=80 chars, warm one-liner shown when the alarm fires — e.g. "Morning. You're at the lightest moment of your cycle — easy start.")
+  "message": string (<=80 chars, warm one-liner shown when the alarm fires — e.g. "Morning. Timed for a likely light moment in your cycle — easy start.")
 }`;
 
 const COMMUTE_SYSTEM = `${COACH_VOICE}
@@ -130,8 +142,8 @@ Return ONLY valid JSON:
 {
   "action": string (<=70 chars, imperative — e.g. "Get 10 min of bright light before 9:30am"),
   "why": string (<=140 chars, the circadian/fatigue reason, references their real signal when possible),
-  "followBenefit": string (<=120 chars, concrete upside — e.g. "Locks in tonight's sleep onset and protects 90 min of deep sleep"),
-  "ignoreCost": string (<=120 chars, concrete consequence — e.g. "Tonight's sleep onset slides 25 min later and tomorrow's REM drops"),
+  "followBenefit": string (<=120 chars, concrete likely upside — e.g. "Should keep tonight's sleep onset on time before tomorrow's early shift"),
+  "ignoreCost": string (<=120 chars, concrete likely consequence — e.g. "Tonight's sleep onset is likely to slide later, shortening sleep before your shift"),
   "confidence": "low"|"medium"|"high",
   "confidenceReason": string (<=120 chars, what the confidence is based on — e.g. "Medium confidence: no wearable data today, working from your schedule alone"),
   "urgency": "now"|"soon"|"later",
@@ -174,7 +186,7 @@ Return ONLY valid JSON:
   "headline": string (<=80 chars, warm, e.g. "Solid recovery day — small win on caffeine timing"),
   "wins": [string (<=110 chars, each)],
   "drains": [string (<=110 chars, each — frame as data not failure)],
-  "metrics": {"sleepRecoveredMin": number|null, "readinessDelta": number|null, "recoveryTrend": "up"|"flat"|"down"|"unknown"},
+  "metrics": {"sleepRecoveredMin": number|null, "recoveryTrend": "up"|"flat"|"down"|"unknown"},
   "tomorrowFocus": string (<=130 chars, one small improvement to try)
 }
 1-3 items per list. Skip a metric (null) if you don't have the data.`;
@@ -215,8 +227,8 @@ Return ONLY valid JSON:
 Provide 4-7 blocks ordered chronologically across the relevant window.`;
 
 
-function jsonError(status: number, message: string) {
-  return new Response(JSON.stringify({ error: message }), {
+function jsonError(status: number, message: string, code?: string) {
+  return new Response(JSON.stringify(code ? { error: message, code } : { error: message }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -229,6 +241,22 @@ function getAdminClient() {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+/**
+ * Run a provider call. The gateway flags every provider failure it recognises
+ * (`AIError.upstream`); a raw error that escapes it with failover off (a network
+ * TypeError, an unparseable body) is the provider path failing too, so it is
+ * flagged here. Either way the browser never gets the provider's own status.
+ */
+async function viaProvider<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    if (e instanceof AIError) throw e;
+    console.error("ai provider call failed", e instanceof Error ? e.message : String(e));
+    throw new AIError(502, mapUpstreamError(502), { upstream: true });
+  }
 }
 
 async function getUserIdFromAuthHeader(
@@ -285,6 +313,14 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(401, "Sign in required");
         }
 
+        // Explicit permission to share data with third-party AI (Guideline
+        // 5.1.2(i)). Checked before any prompt is built or sent.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(userId, admin);
+          if (refused) return refused;
+        }
+
         // Per-user rate limit (server-side, cannot be bypassed by client).
         {
           const { enforceRateLimit, RATE_LIMITS } = await import("@/lib/api/ratelimit.server");
@@ -292,7 +328,9 @@ export const Route = createFileRoute("/api/ai")({
           if (limited) return limited;
         }
 
-        const admission = await requireAIAdmission(userId);
+        // The handle gives this request back if the provider fails it (see below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(userId, refund);
         if (admission) return admission;
 
         try {
@@ -316,7 +354,7 @@ export const Route = createFileRoute("/api/ai")({
               admin,
               userId,
               profile,
-              liveContext: body.context,
+              liveContext: body.context, // formatted (and sanitised) by buildSystemPrompt
               intent: "coach",
               surface: body.surface ?? "text",
               expand: body.expand ?? false,
@@ -326,12 +364,16 @@ export const Route = createFileRoute("/api/ai")({
 
             const trimmed = body.messages.slice(-20);
             const isVoice = (body.surface ?? "text") === "voice";
-            const upstream = await chatStream({
-              model: DEFAULT_CHAT_MODEL,
-              messages: [{ role: "system", content: systemWithTime }, ...trimmed],
-              maxTokens: isVoice && !body.expand ? 180 : undefined,
-            });
-
+            const coachTask = isVoice ? "voice" : "coach";
+            const coachModel = modelForTask(coachTask) ?? DEFAULT_CHAT_MODEL;
+            const upstream = await viaProvider(() =>
+              chatStream({
+                model: coachModel,
+                task: coachTask,
+                messages: [{ role: "system", content: systemWithTime }, ...trimmed],
+                maxTokens: isVoice && !body.expand ? 180 : undefined,
+              }),
+            );
 
             // Pipe upstream through a TransformStream so logging + memory
             // extraction complete *before* the response stream closes.
@@ -340,7 +382,12 @@ export const Route = createFileRoute("/api/ai")({
             const userTurn = lastUser?.content ?? "";
             const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
-            (async () => {
+            // Runs to completion on its own on Node (Railway): the server process
+            // outlives the client, so the usage row below is written even when the
+            // browser disconnects. Deliberately NOT registered with waitUntil: on
+            // Node, srvx keeps one settled promise per registered call for the life
+            // of the process. (Cloudflare's waitUntil, in main, is not needed here.)
+            void (async () => {
               const reader = upstream.body!.getReader();
               const writer = writable.getWriter();
               const decoder = new TextDecoder();
@@ -348,10 +395,35 @@ export const Route = createFileRoute("/api/ai")({
               let assistant = "";
               let usage: { p: number; c: number } | null = null;
 
+              // Prompt size for the estimate, used only when the provider sends
+              // no usage frame.
+              const promptChars =
+                systemWithTime.length + trimmed.reduce((n, m) => n + m.content.length, 0);
+              let completed = false;
+              // The provider's own stream failed (not a client cancel or a write
+              // to a client that left): the only mid-stream case that can be refunded.
+              let providerReadFailed = false;
+              // A client cancel is noticed even while the provider is silent:
+              // stop reading, and do not mistake the cancelled read for a finish.
+              let clientGone = false;
+              writer.closed.catch(() => {
+                clientGone = true;
+                reader.cancel().catch(() => {});
+              });
+
               try {
                 while (true) {
-                  const { done, value } = await reader.read();
+                  let step: ReadableStreamReadResult<Uint8Array>;
+                  try {
+                    step = await reader.read();
+                  } catch (readErr) {
+                    providerReadFailed = !clientGone;
+                    throw readErr;
+                  }
+                  const { done, value } = step;
                   if (done) break;
+                  // A failed write means the client is gone: this chunk was not
+                  // delivered, so it is not counted below.
                   await writer.write(value);
 
                   buf += decoder.decode(value, { stream: true });
@@ -381,22 +453,52 @@ export const Route = createFileRoute("/api/ai")({
                     }
                   }
                 }
-
-                // Upstream finished — persist BEFORE closing the writable.
-                if (userId) {
+                completed = !clientGone;
+              } catch (e) {
+                // Client cancel, or the provider stream broke mid-way.
+                console.error("coach stream failed", e);
+              } finally {
+                // Persist BEFORE closing the writable. Exactly once, on every
+                // path (finish, client abort, upstream error): if ANY answer
+                // text was delivered, the user used the AI and it is counted.
+                // The provider's usage frame is used when it arrived, else an
+                // estimate. A turn that delivered no text is never debited.
+                if (userId && assistant.length > 0) {
+                  // An all-zero usage frame is not a measurement.
+                  const reported = usage !== null && usage.p + usage.c > 0;
                   try {
                     await logAIRequest(admin, {
                       user_id: userId,
                       intent: "coach",
-                      model: DEFAULT_CHAT_MODEL,
-                      prompt_tokens: usage?.p ?? 0,
-                      completion_tokens: usage?.c ?? 0,
+                      model: coachModel,
+                      prompt_tokens: reported ? usage!.p : estimateTextTokens(promptChars),
+                      completion_tokens: reported ? usage!.c : estimateTextTokens(assistant.length),
                       latency_ms: Date.now() - started,
-                      status: "ok",
+                      status: completed ? "ok" : "partial",
                     });
-
-                    if (profile.memoryEnabled && userTurn && assistant) {
-                      await extractAndStoreMemories({
+                  } catch (e) {
+                    console.error("coach usage log failed", e);
+                  }
+                }
+                // The provider failed before any text reached the customer: their
+                // request is given back. Never when text was delivered (counted
+                // above), never on a client abort.
+                if (providerReadFailed && assistant.length === 0) {
+                  await refund.refundProviderFailure?.(null, request.signal);
+                }
+                if (completed && userId) {
+                  try {
+                    // Re-check: a revoke during the stream stops this extra
+                    // AI call too.
+                    const { checkAIConsent } = await import("@/lib/ai/consent.server");
+                    if (
+                      profile.memoryEnabled &&
+                      userTurn &&
+                      assistant &&
+                      (await checkAIConsent(userId, admin)) === "granted"
+                    ) {
+                      // Proposals only: the user accepts them on /memory before anything is saved.
+                      await proposeMemoriesFromChat({
                         admin,
                         userId,
                         userTurn,
@@ -407,9 +509,13 @@ export const Route = createFileRoute("/api/ai")({
                     console.error("coach capture failed", e);
                   }
                 }
-              } catch (e) {
-                console.error("coach stream failed", e);
-              } finally {
+                if (!completed) {
+                  try {
+                    await reader.cancel();
+                  } catch {
+                    // already closed
+                  }
+                }
                 try {
                   await writer.close();
                 } catch {
@@ -439,18 +545,21 @@ export const Route = createFileRoute("/api/ai")({
                 localTime: body.localTime,
                 timezone: body.timezone,
               }).directive;
-            const result = await chatJSON({
-              messages: [
-                { role: "system", content: briefSystem },
-                { role: "user", content: body.plan },
-              ],
-            });
+            const result = await viaProvider(() =>
+              chatJSON({
+                task: "brief",
+                messages: [
+                  { role: "system", content: briefSystem },
+                  { role: "user", content: body.plan },
+                ],
+              }),
+            );
 
             if (userId) {
               await logAIRequest(admin, {
                 user_id: userId,
                 intent: "brief",
-                model: DEFAULT_CHAT_MODEL,
+                model: result.model,
                 prompt_tokens: result.promptTokens,
                 completion_tokens: result.completionTokens,
                 latency_ms: Date.now() - started,
@@ -467,12 +576,11 @@ export const Route = createFileRoute("/api/ai")({
             const profile = userId
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
-            const ctxString = "context" in body ? body.context : undefined;
             const system = await buildSystemPrompt({
               admin,
               userId,
               profile,
-              liveContext: ctxString,
+              liveContext: "context" in body ? body.context : undefined,
               intent: body.intent,
             });
             const timeDirective = buildTimeDirective({
@@ -572,17 +680,23 @@ export const Route = createFileRoute("/api/ai")({
               }
             }
 
-            const result = await chatJSON({
-              messages: [
-                { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
-                { role: "user", content: userPayload },
-              ],
-            });
+            const result = await viaProvider(() =>
+              chatJSON({
+                task: "structured",
+                messages: [
+                  {
+                    role: "system",
+                    content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}`,
+                  },
+                  { role: "user", content: userPayload },
+                ],
+              }),
+            );
             if (userId) {
               await logAIRequest(admin, {
                 user_id: userId,
                 intent: body.intent,
-                model: DEFAULT_CHAT_MODEL,
+                model: result.model,
                 prompt_tokens: result.promptTokens,
                 completion_tokens: result.completionTokens,
                 latency_ms: Date.now() - started,
@@ -639,10 +753,29 @@ export const Route = createFileRoute("/api/ai")({
                 if (!parsed.cyclePosition) parsed.cyclePosition = "light_sleep";
                 if (!parsed.confidence) parsed.confidence = "low";
                 if (!parsed.confidenceReason) parsed.confidenceReason = "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
-                if (!parsed.message) parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
+                if (!parsed.message) parsed.message = "Good morning. Timed for a likely light moment in your cycle.";
               }
             }
 
+
+            if (body.intent === "commute") {
+              const times = commuteTimes(body.shiftStartIso, body.travelMin, body.prepMin);
+              if (times) Object.assign(parsed, times);
+            }
+
+            // Validate before anything reaches the UI: coerce types, default unknown
+            // enum values, drop malformed items and unknown keys (this also drops any
+            // readiness figure: no readiness data reaches the model).
+            const normalized = normalizeIntentOutput(body.intent, parsed, {
+              nowIso: new Date().toISOString(),
+              targetWakeIso: body.intent === "smart_alarm" ? body.targetWakeIso : undefined,
+              phase: body.intent === "jetlag_plan" ? body.phase : undefined,
+            });
+            if (!normalized.ok) {
+              console.warn("ai intent output rejected", body.intent, normalized.reason);
+              return jsonError(502, "AI returned incomplete data");
+            }
+            parsed = normalized.value;
 
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;
@@ -660,6 +793,10 @@ export const Route = createFileRoute("/api/ai")({
 
           return jsonError(400, "Unknown intent");
         } catch (e) {
+          // `status` is the PROVIDER's status when the provider failed. It drives the
+          // owner alerts and the log row below and is never sent to the browser: a
+          // provider 429 is not this user's limit.
+          const upstreamFailure = e instanceof AIError && e.upstream;
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
           // Alert owner ONLY on genuine infra failures — never on user
@@ -707,7 +844,17 @@ export const Route = createFileRoute("/api/ai")({
               error: msg,
             });
           }
-          return jsonError(status, msg);
+          // The provider gave this customer nothing (after this line's own
+          // failover): their request is given back, so an outage cannot use up the
+          // daily request allowance. Not for a rejected request (4xx), see
+          // isRefundableProviderStatus.
+          if (upstreamFailure) await refund.refundProviderFailure?.(status, request.signal);
+          // Provider rate limit / credits / auth / outage (after this line's own
+          // failover): a retryable 503 (or 502 for a request the provider rejected)
+          // with its own code, so the client says "the AI service is busy" and never
+          // "your limit".
+          if (upstreamFailure) return providerFailureResponse(status);
+          return jsonError(status, msg, "ai_internal_error");
         }
       },
     },

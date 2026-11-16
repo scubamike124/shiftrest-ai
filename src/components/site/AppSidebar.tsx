@@ -32,7 +32,7 @@ const nav = [
 ] as const;
 
 const footerNav = [
-  { to: "/paywall", label: "Upgrade", icon: Sparkles },
+  { to: "/paywall", label: "App preview", icon: Sparkles },
   { to: "/contact", label: "Help & Contact", icon: LifeBuoy },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;

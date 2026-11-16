@@ -11,7 +11,7 @@ export function SafetyNote({
   return (
     <Link
       to={to as never}
-      className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground/70 hover:text-primary"
+      className="hit-area inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground/70 hover:text-primary"
     >
       <ShieldAlert className="h-3 w-3" />
       {label}

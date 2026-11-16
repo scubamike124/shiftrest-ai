@@ -1,5 +1,7 @@
+import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIRequestBody } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
+import { providerFailure } from "@/lib/ai/refusal";
 /**
  * POST /api/stt — Forward audio to Lovable AI Gateway transcription.
  * Multipart in (file, optional language), JSON out ({ text }).
@@ -42,7 +44,16 @@ export const Route = createFileRoute("/api/stt")({
         const { requireUser } = await import("@/lib/api/auth.server");
         const authed = await requireUser(request);
         if ("response" in authed) return authed.response;
-        const admission = await requireAIAdmission(authed.userId);
+        // Explicit permission to share data with third-party AI (Guideline 5.1.2(i)).
+        // Before admission, so a refusal never uses up the user's AI allowance.
+        {
+          const { requireAIConsent } = await import("@/lib/ai/consent.server");
+          const refused = await requireAIConsent(authed.userId);
+          if (refused) return refused;
+        }
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(authed.userId, refund);
         if (admission) return admission;
 
         {
@@ -51,7 +62,7 @@ export const Route = createFileRoute("/api/stt")({
           if (limited) return limited;
         }
 
-        const apiKey = process.env.LOVABLE_API_KEY;
+        const apiKey = aiApiKey(true);
         if (!apiKey) {
           return Response.json(
             { error: "STT not configured" },
@@ -77,20 +88,40 @@ export const Route = createFileRoute("/api/stt")({
         const language = inbound.get("language");
 
         const upstreamForm = new FormData();
-        upstreamForm.append("model", "openai/gpt-4o-mini-transcribe");
+        upstreamForm.append("model", aiAudioModel("stt"));
         upstreamForm.append("file", file, "recording.wav");
         if (typeof language === "string" && language) {
           upstreamForm.append("language", language);
         }
 
-        const upstream = await fetch(
-          "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
-          {
+        let upstream: Response;
+        try {
+          upstream = await fetch(aiEndpoint("audio/transcriptions"), {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}` },
             body: upstreamForm,
-          },
-        );
+          });
+        } catch (e) {
+          // The provider could not be reached: a retryable 503 with a provider code.
+          console.error("[stt] network error", e instanceof Error ? e.message : String(e));
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: "error",
+            service: "stt",
+            message: "network_error",
+            meta: { error: e instanceof Error ? e.message : String(e) },
+          });
+          await refund.refundProviderFailure?.(null, request.signal);
+          const failure = providerFailure(null);
+          return Response.json(
+            {
+              error: "Voice is temporarily unavailable. Try again.",
+              code: failure.code,
+              retryable: true,
+            },
+            { status: failure.status },
+          );
+        }
 
         if (!upstream.ok) {
           const detail = await upstream.text().catch(() => "");
@@ -107,13 +138,17 @@ export const Route = createFileRoute("/api/stt")({
           });
           const msg =
             upstream.status === 402
-              ? "AI credits are exhausted."
+              ? "Voice is temporarily unavailable. Try again."
               : upstream.status === 429
                 ? "Voice is busy. Try again."
                 : "Couldn't transcribe that — try again.";
+          // Never pass the provider's status through (its 402/429 is not this user's
+          // limit): 503 retryable, or 502 for audio the provider rejected.
+          await refund.refundProviderFailure?.(upstream.status, request.signal);
+          const failure = providerFailure(upstream.status);
           return Response.json(
-            { error: msg },
-            { status: upstream.status === 402 ? 402 : 502 },
+            { error: msg, code: failure.code, retryable: failure.retryable },
+            { status: failure.status },
           );
         }
 
@@ -132,7 +167,7 @@ export const Route = createFileRoute("/api/stt")({
           logAIRequest(admin, {
             user_id: userId,
             intent: "stt",
-            model: "openai/gpt-4o-mini-transcribe",
+            model: aiAudioModel("stt"),
             prompt_tokens: payload.usage?.input_tokens ?? 0,
             completion_tokens: payload.usage?.output_tokens ?? 0,
             latency_ms: Date.now() - started,

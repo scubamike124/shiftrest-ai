@@ -167,7 +167,7 @@ export function RightNowCard({
           onClick={() => load(true)}
           disabled={loading}
           aria-label="Refresh"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground transition hover:text-foreground disabled:opacity-50 hit-area"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -187,7 +187,7 @@ export function RightNowCard({
           <p>{error}</p>
           <button
             onClick={() => load(true)}
-            className="mt-2 text-sm font-semibold text-primary"
+            className="hit-area mt-2 text-sm font-semibold text-primary"
           >
             Try again
           </button>

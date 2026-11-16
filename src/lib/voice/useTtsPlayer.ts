@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { VoiceId } from "@/lib/voice-rewriter";
 import { supabase } from "@/integrations/supabase/client";
+import { aiFetch } from "@/lib/ai/consent-client";
+import { aiRefusalTextFromBody } from "@/lib/ai/refusal-client";
 
 export type TtsState = "idle" | "loading" | "ready" | "playing" | "paused" | "error";
 
@@ -115,7 +117,7 @@ export function useTtsPlayer(opts: Options = {}) {
         let speakText = text;
 
         if (rewrite) {
-          const briefRes = await fetch("/api/brief", {
+          const briefRes = await aiFetch("/api/brief", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -131,7 +133,16 @@ export function useTtsPlayer(opts: Options = {}) {
             /* non-JSON */
           }
           if (!briefRes.ok || briefData.error || briefData.fallback || !briefData.script) {
-            toast.info(briefData.message || briefData.error || "Voice playback is temporarily unavailable.");
+            toast.info(
+              briefData.error || !briefRes.ok
+                ? aiRefusalTextFromBody(
+                    briefRes.status,
+                    briefData,
+                    briefData.message || "Voice playback is temporarily unavailable.",
+                    briefRes.headers.get("retry-after"),
+                  )
+                : briefData.message || "Voice playback is temporarily unavailable.",
+            );
             setState("error");
             return;
           }
@@ -142,7 +153,7 @@ export function useTtsPlayer(opts: Options = {}) {
         const token = sess.session?.access_token;
         const ttsBody: Record<string, unknown> = { text: speakText.slice(0, 4000) };
         if (voice) ttsBody.voice = voice;
-        const ttsRes = await fetch("/api/tts", {
+        const ttsRes = await aiFetch("/api/tts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -155,8 +166,12 @@ export function useTtsPlayer(opts: Options = {}) {
           let msg = "Voice playback is temporarily unavailable.";
           try {
             const j = await ttsRes.json();
-            if (j?.message) msg = j.message;
-            else if (j?.error) msg = j.error;
+            msg = aiRefusalTextFromBody(
+              ttsRes.status,
+              j,
+              j?.message || msg,
+              ttsRes.headers.get("retry-after"),
+            );
           } catch {
             /* keep default */
           }

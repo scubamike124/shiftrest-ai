@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BellRing, Smartphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { requestPermission, canRequestNotificationPermission } from "@/lib/notify";
+import { isNativeApp } from "@/lib/native-app";
 
 const KEY = "rp.smartAlarmCoach.dismissed.v1";
 
@@ -18,7 +19,8 @@ export function SmartAlarmCoach() {
     const dismissed = localStorage.getItem(KEY) === "1";
     const granted =
       "Notification" in window && Notification.permission === "granted";
-    setHidden(dismissed || granted);
+    // The app shell has no Home Screen install step and no Web Push.
+    setHidden(dismissed || granted || isNativeApp());
   }, []);
 
   if (hidden) return null;
@@ -89,21 +91,21 @@ export function SmartAlarmCoach() {
         <button
           type="button"
           onClick={enable}
-          className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground"
+          className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-semibold text-primary-foreground hit-area"
         >
           <BellRing className="h-3.5 w-3.5" /> Enable Notifications
         </button>
         <button
           type="button"
           onClick={() => setShowInstall((v) => !v)}
-          className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold"
+          className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-semibold hit-area"
         >
           <Smartphone className="h-3.5 w-3.5" /> How to Install
         </button>
         <button
           type="button"
           onClick={dismiss}
-          className="h-9 rounded-xl px-3 text-xs font-semibold text-muted-foreground"
+          className="h-9 rounded-xl px-3 text-xs font-semibold text-muted-foreground hit-area"
         >
           Not Now
         </button>

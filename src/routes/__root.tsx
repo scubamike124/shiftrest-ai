@@ -20,16 +20,20 @@ import { AppSidebar } from "../components/site/AppSidebar";
 import { CompanionDock } from "../components/companion/CompanionDock";
 import { DebugHUD } from "../components/companion/DebugHUD";
 import { Onboarding } from "../components/Onboarding";
+import { AIConsentDialog } from "../components/ai/AIConsentDialog";
 import { Toaster } from "../components/ui/sonner";
 import { CookieBanner } from "../components/legal/CookieBanner";
 import { UpdateBanner } from "../components/pwa/UpdateBanner";
 import { PreviewWarningBanner } from "../components/pwa/PreviewWarningBanner";
+import { NativeAppBridge } from "../components/native/NativeAppBridge";
 import { scheduleNextWindDown } from "../lib/notify";
 import { migrateLocalShiftsIfNeeded } from "../lib/shifts";
 import { migrateLocalPrefsIfNeeded } from "../lib/prefs";
 import { ensureDefaultEmployer } from "../lib/employers";
 import { installDebugNetworkProbe } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
+import { ThemeController } from "@/components/ThemeController";
+import { themeBootScript } from "@/lib/appearance";
 
 const LOVABLE_PUBLISH_MARKER = "publish-verify-marker-2026-07-06-alpha7q3";
 if (typeof window !== "undefined") (window as unknown as Record<string, string>).__LOVABLE_PUBLISH_MARKER = LOVABLE_PUBLISH_MARKER;
@@ -144,9 +148,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
+        {/* Applies the saved Appearance theme before first paint (no dark flash for Soft Light). */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript() }} />
       </head>
       <body>
         {children}
@@ -161,7 +167,7 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const surface = surfaceFor(pathname);
-  const { ready: authReady, hasSession, hasAccessToken } = useSession();
+  const { ready: authReady, hasSession, hasAccessToken, session } = useSession();
   const signedIn = authReady && hasSession && hasAccessToken;
 
   installDebugNetworkProbe();
@@ -231,9 +237,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ThemeController pathname={pathname} userId={session?.user?.id ?? null} />
       <PreviewWarningBanner />
+      <NativeAppBridge signedIn={signedIn} />
       {surface === "marketing" && (
-        <div className="flex min-h-dvh flex-col">
+        <div className="flex min-h-dvh w-full flex-col overflow-x-clip">
           <SiteHeader signedIn={signedIn} />
           <main className="flex-1">
             <Outlet />
@@ -245,7 +253,7 @@ function RootComponent() {
       {surface === "app" && (
         <div className="flex min-h-dvh w-full overflow-x-clip">
           <AppSidebar />
-          <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip pb-24 lg:pb-0">
+          <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip pt-[env(safe-area-inset-top)] pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-0">
             <div className="mx-auto w-full max-w-[480px] px-4 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
               <Outlet />
             </div>
@@ -262,6 +270,7 @@ function RootComponent() {
       )}
 
       {surface === "app" && authReady && signedIn && <Onboarding />}
+      {authReady && signedIn && <AIConsentDialog />}
       <DebugHUD
         signedIn={authReady ? signedIn : null}
         companionOn={false}
