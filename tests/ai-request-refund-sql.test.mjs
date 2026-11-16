@@ -282,6 +282,47 @@ db("refund twice: the second is a no-op", () => {
   assert.equal(counts(u).day, 1, "one refund of two requests");
 });
 
+db("a failed ledger insert rolls back the admission debit", () => {
+  const u = newUser();
+  consume(u);
+  sql(`create function public.fail_ledger_insert() returns trigger language plpgsql as $$
+       begin raise exception 'injected ledger write failure'; end $$;
+       create trigger fail_ledger_insert before insert on public.ai_request_ledger
+       for each row execute function public.fail_ledger_insert()`);
+  try {
+    assert.throws(() => consume(u), /injected ledger write failure/);
+    assert.equal(counts(u).day, 1, "no debit can survive without its ledger token");
+    assert.equal(counts(u).minute, 1);
+    assert.equal(ledger(u).length, 1);
+  } finally {
+    sql(`drop trigger fail_ledger_insert on public.ai_request_ledger;
+         drop function public.fail_ledger_insert()`);
+  }
+  assert.equal(consume(u).allowed, true, "admission recovers after the database failure");
+  assert.equal(counts(u).day, 2);
+});
+
+db("a failed counter refund rolls back its ledger state and remains safe to retry", () => {
+  const u = newUser();
+  const { token } = consume(u);
+  sql(`create function public.fail_allowance_update() returns trigger language plpgsql as $$
+       begin raise exception 'injected counter write failure'; end $$;
+       create trigger fail_allowance_update before update on public.ai_request_allowance
+       for each row execute function public.fail_allowance_update()`);
+  try {
+    assert.throws(() => refund(u, token), /injected counter write failure/);
+    assert.equal(counts(u).day, 1, "a failed refund grants no allowance");
+    assert.equal(ledger(u)[0].state, "consumed", "the earlier ledger update is rolled back");
+  } finally {
+    sql(`drop trigger fail_allowance_update on public.ai_request_allowance;
+         drop function public.fail_allowance_update()`);
+  }
+  assert.deepEqual(refund(u, token), { refunded: true });
+  assert.deepEqual(refund(u, token), { refunded: false, reason: "already_refunded" });
+  assert.equal(counts(u).day, 0, "retry grants exactly the original single debit");
+  assert.equal(counts(u).minute, 1);
+});
+
 db("concurrent refunds of one token: exactly one wins", async () => {
   const u = newUser();
   for (let i = 0; i < 4; i++) consume(u);
