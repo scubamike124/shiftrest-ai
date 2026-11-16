@@ -286,6 +286,22 @@ async function getUserIdFromAuthHeader(
   return data.user.id;
 }
 
+type WaitUntil = (p: Promise<unknown>) => void;
+
+/** Register background work with the runtime's waitUntil, when it exposes one. */
+function keepAlive(request: Request, work: Promise<unknown>): void {
+  try {
+    const r = request as Request & {
+      waitUntil?: WaitUntil;
+      runtime?: { cloudflare?: { context?: { waitUntil?: WaitUntil } } };
+    };
+    if (typeof r.waitUntil === "function") r.waitUntil(work);
+    else r.runtime?.cloudflare?.context?.waitUntil?.(work);
+  } catch (e) {
+    console.warn("waitUntil unavailable", e);
+  }
+}
+
 export const Route = createFileRoute("/api/ai")({
   server: {
     handlers: {
@@ -414,7 +430,7 @@ export const Route = createFileRoute("/api/ai")({
             const userTurn = lastUser?.content ?? "";
             const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
-            (async () => {
+            const pump = (async () => {
               const reader = upstream.body!.getReader();
               const writer = writable.getWriter();
               const decoder = new TextDecoder();
@@ -491,7 +507,7 @@ export const Route = createFileRoute("/api/ai")({
                       prompt_tokens: reported ? usage!.p : estimateTextTokens(promptChars),
                       completion_tokens: reported ? usage!.c : estimateTextTokens(assistant.length),
                       latency_ms: Date.now() - started,
-                      status: "ok",
+                      status: completed ? "ok" : "partial",
                     });
                   } catch (e) {
                     console.error("coach usage log failed", e);
@@ -533,6 +549,10 @@ export const Route = createFileRoute("/api/ai")({
                 }
               }
             })();
+            // On Cloudflare the worker may be torn down when the client leaves;
+            // waitUntil keeps it alive until the usage row is written. Absent
+            // (Node, tests): behaviour is unchanged.
+            keepAlive(request, pump);
 
             return new Response(readable, {
               status: 200,

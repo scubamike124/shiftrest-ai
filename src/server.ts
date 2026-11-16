@@ -59,11 +59,25 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
+      // Expose the Workers ExecutionContext's waitUntil on the request when the
+      // platform adapter has not (routes use it to finish usage logging after a
+      // client disconnect). No-op if already present or unavailable.
+      try {
+        const waitUntil = (ctx as { waitUntil?: (p: Promise<unknown>) => void } | null)?.waitUntil;
+        if (
+          typeof waitUntil === "function" &&
+          typeof (request as { waitUntil?: unknown }).waitUntil !== "function"
+        ) {
+          Object.defineProperty(request, "waitUntil", {
+            value: (p: Promise<unknown>) => waitUntil.call(ctx, p),
+            configurable: true,
+          });
+        }
+      } catch {
+        // read-only request object: routes fall back to current behaviour
+      }
       const response = await handler.fetch(request, env, ctx);
-      return withLaunchDebugCacheHeaders(
-        request,
-        await normalizeCatastrophicSsrResponse(response),
-      );
+      return withLaunchDebugCacheHeaders(request, await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {

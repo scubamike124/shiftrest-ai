@@ -139,18 +139,27 @@ function formatPreviousBlock(prev: { headline: string; rationale: string | null 
  * are dropped. Returns "" when there is nothing useful, so no line is added.
  */
 export function formatLiveContext(ctx: unknown): string {
-  if (typeof ctx === "string") return ctx.trim().slice(0, 4000);
+  const MAX = 4000;
+  if (typeof ctx === "string") return ctx.trim().slice(0, MAX);
   if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return "";
   const skip = new Set(["surface", "max_tokens"]);
   const lines: string[] = [];
   for (const [k, v] of Object.entries(ctx as Record<string, unknown>)) {
     if (skip.has(k)) continue;
     if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
+    // Keys are client-controlled too: collapse whitespace like values, keep a
+    // safe character set, and cap the length.
+    const key = k
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[^A-Za-z0-9 .-]/g, "")
+      .trim()
+      .slice(0, 40);
     const text = String(v).trim().replace(/\s+/g, " ").slice(0, 200);
-    if (text) lines.push(`${k.replace(/_/g, " ").slice(0, 40)}: ${text}`);
+    if (key && text) lines.push(`${key}: ${text}`);
     if (lines.length >= 20) break;
   }
-  return lines.join("\n");
+  return lines.join("\n").slice(0, MAX);
 }
 
 export async function buildSystemPrompt(opts: {
