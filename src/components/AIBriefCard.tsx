@@ -117,7 +117,9 @@ export function AIBriefCard({
     queryKey,
     queryFn: () => fetchBrief(context),
     staleTime: 1000 * 60 * 60 * 4, // 4 hours
-    retry: 1,
+    // A reconnect gets one attempt, including when the provider rejects it.
+    // Query retries would silently turn that attempt into another paid call.
+    retry: false,
     // The card retries once itself when the connection returns (debounced), so the
     // query does not also refetch on reconnect: one request per reconnect.
     refetchOnReconnect: false,
