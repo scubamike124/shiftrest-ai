@@ -17,6 +17,7 @@ import { getWearableSummary } from "@/lib/wearables/wearables.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 import { CRISIS_LOCAL_REPLY, shouldSendToAI, showCardOnCrisis } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
@@ -231,15 +232,9 @@ function Coach() {
         return;
       }
       if (!resp.ok || !resp.body) {
-        const errJson = await resp.json().catch(() => ({ error: "Request failed" }));
-        if (resp.status === 429 && /daily ai limit/i.test(errJson.error ?? "")) {
-          toast.error("You've hit today's free AI limit.", {
-            description: "Upgrade for unlimited conversations.",
-            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
-          });
-        } else {
-          toast.error(errJson.error || "Coach is unavailable");
-        }
+        // Message chosen by the server's `code`, not the status. Upgrade prompt
+        // only for the user's own allowance, never in the iPhone app (3.1.1).
+        toastAIRefusal(await readAIRefusal(resp), "Coach is unavailable");
         setMessages(baseMessages);
         return;
       }

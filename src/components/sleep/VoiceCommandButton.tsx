@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { parseIntent, type ParsedIntent } from "@/lib/voice/intent-router";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 import { executeIntent } from "@/lib/voice/intent-executor";
 // `fetch` in this file is aiFetch: speech-to-text needs AI consent (Guideline 5.1.2(i)).
 import { aiFetch as fetch } from "@/lib/ai/consent-client";
@@ -83,8 +84,9 @@ export function VoiceCommandButton({
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error || `Transcription failed (${res.status}).`);
+          throw new Error(
+            aiRefusalText(await readAIRefusal(res), `Transcription failed (${res.status}).`),
+          );
       }
       const { text } = (await res.json()) as { text?: string };
       const heard = (text ?? "").trim();

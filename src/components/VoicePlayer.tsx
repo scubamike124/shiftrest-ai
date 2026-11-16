@@ -10,6 +10,7 @@ import {
   prepareVoicePlayback,
 } from "@/lib/companion/speak";
 import { aiFetch } from "@/lib/ai/consent-client";
+import { aiRefusalTextFromBody } from "@/lib/ai/refusal-client";
 
 type Props = {
   // Returns the raw plan text. We call /api/brief to rewrite it, then route
@@ -98,7 +99,14 @@ export function VoicePlayer({ buildPlanText, className }: Props) {
         /* non-JSON */
       }
       if (!briefRes.ok || briefData.error) {
-        toast.info(briefData.error || "Voice briefing is temporarily unavailable.");
+        toast.info(
+          aiRefusalTextFromBody(
+            briefRes.status,
+            briefData,
+            "Voice briefing is temporarily unavailable.",
+            briefRes.headers.get("retry-after"),
+          ),
+        );
         return;
       }
       if (briefData.fallback) {

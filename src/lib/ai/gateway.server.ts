@@ -24,10 +24,19 @@ export type GatewayError = {
 };
 
 export class AIError extends Error {
+  /**
+   * For an upstream failure this is the PROVIDER's status (kept for owner alerts
+   * and ai_log). It must never be sent to the browser as-is: a provider 429 is
+   * not the user's limit, a 401 is not the user's session. The route answers
+   * with providerFailureResponse() (src/lib/ai/refusal.ts), AFTER failover.
+   */
   status: number;
-  constructor(status: number, message: string) {
+  /** True when the AI provider (not RestPilot, not the user) failed. */
+  upstream: boolean;
+  constructor(status: number, message: string, opts?: { upstream?: boolean }) {
     super(message);
     this.status = status;
+    this.upstream = opts?.upstream === true;
     this.name = "AIError";
   }
 }
@@ -57,9 +66,10 @@ function apiKey(): string {
   return k;
 }
 
+/** Log/alert wording only: it never reaches the browser (routes use refusal.ts for that). */
 export function mapUpstreamError(status: number): string {
-  if (status === 429) return "Rate limit reached. Try again in a moment.";
-  if (status === 402) return "AI provider quota reached. Please try again later.";
+  if (status === 429) return "The AI provider is busy. Try again in a moment.";
+  if (status === 402) return "AI is temporarily unavailable. Please try again later.";
   return "AI request failed.";
 }
 
@@ -142,7 +152,7 @@ async function jsonAttempt(
       body: JSON.stringify(body),
       ...(t.signal ? { signal: t.signal } : {}),
     });
-    if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
+    if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status), { upstream: true });
     const data = (await res.json()) as {
       choices?: { message?: { content?: string }; finish_reason?: string | null }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -157,7 +167,7 @@ async function jsonAttempt(
   } catch (e) {
     if (!guarded || e instanceof AIError) throw e;
     // Network failure, timeout or an unparseable body: a retryable upstream fault.
-    throw new AIError(502, mapUpstreamError(502));
+    throw new AIError(502, mapUpstreamError(502), { upstream: true });
   } finally {
     t.clear();
   }
@@ -199,7 +209,8 @@ export async function chatJSON(opts: {
     if (replyUsable(primary, opts.jsonMode)) return primary;
     console.error("ai primary unusable", { model, finishReason: primary.finishReason });
   } catch (e) {
-    primaryErr = e instanceof AIError ? e : new AIError(502, mapUpstreamError(502));
+    primaryErr =
+      e instanceof AIError ? e : new AIError(502, mapUpstreamError(502), { upstream: true });
     // A 400 under JSON mode may be the provider refusing response_format; other 4xx are our bug or auth.
     const retryable =
       isFailoverStatus(primaryErr.status) || (opts.jsonMode === true && primaryErr.status === 400);
@@ -256,27 +267,42 @@ export async function chatStream(opts: {
     guarded: boolean,
   ): Promise<Response> => {
     const t = guarded ? timeoutSignal() : { signal: undefined, clear() {} };
-    try {
-      const res = await fetch(aiEndpoint("chat/completions", base), {
+    const post = (body: Record<string, unknown>) =>
+      fetch(aiEndpoint("chat/completions", base), {
         method: "POST",
         headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
-        body: JSON.stringify(
-          buildChatBody({
-            model: m,
-            messages: opts.messages,
-            temperature: opts.temperature,
-            maxTokens,
-            stream: true,
-            reasoningEffort: reasoningForTask(task),
-          }),
-        ),
+        body: JSON.stringify(body),
         ...(t.signal ? { signal: t.signal } : {}),
       });
-      if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status));
+    try {
+      const body = buildChatBody({
+        model: m,
+        messages: opts.messages,
+        temperature: opts.temperature,
+        maxTokens,
+        stream: true,
+        reasoningEffort: reasoningForTask(task),
+      });
+      let res = await post(body);
+      // A provider that rejects stream_options must not break every reply. Only a
+      // 400/422 answer (no stream body came back, so nothing was delivered) is
+      // retried, ONCE for this model attempt, without it. Usage for that turn then
+      // comes from the route's estimate. Other statuses (429, 5xx...) are not retried
+      // here: failover below handles them. Worst case: two requests per model attempt.
+      if (!res.ok && (res.status === 400 || res.status === 422) && "stream_options" in body) {
+        console.warn(
+          `ai stream ${res.status} on stream_options.include_usage; retrying once without it`,
+          { model: m },
+        );
+        await res.body?.cancel().catch(() => {});
+        const { stream_options: _dropped, ...plain } = body;
+        res = await post(plain);
+      }
+      if (!res.ok) throw new AIError(res.status, mapUpstreamError(res.status), { upstream: true });
       return res;
     } catch (e) {
       if (!guarded || e instanceof AIError) throw e;
-      throw new AIError(502, mapUpstreamError(502));
+      throw new AIError(502, mapUpstreamError(502), { upstream: true });
     } finally {
       t.clear(); // the timeout guards connection and headers, not the stream body
     }
@@ -285,7 +311,8 @@ export async function chatStream(opts: {
   try {
     return await attempt(model, undefined, key, true);
   } catch (e) {
-    const err = e instanceof AIError ? e : new AIError(502, mapUpstreamError(502));
+    const err =
+      e instanceof AIError ? e : new AIError(502, mapUpstreamError(502), { upstream: true });
     if (!isFailoverStatus(err.status)) throw err;
     console.error("ai stream primary failed", { model, status: err.status });
     try {

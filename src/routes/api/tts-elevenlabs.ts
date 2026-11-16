@@ -14,9 +14,12 @@ type Fallback = {
 function fallback(reason: Fallback["reason"], message: string): Response {
   // Return non-2xx so the client's `!resp.ok` fallback branch kicks in and
   // routes to OpenAI instead of treating this JSON envelope as audio bytes.
-  const status = reason === "credits" ? 402 : reason === "rate_limit" ? 429 : 502;
+  // Never 402/429: those statuses belong to the user's own allowance and rate
+  // limit (src/lib/ai/refusal.ts). A provider problem is a 503 (or 502).
+  const status = reason === "credits" || reason === "rate_limit" ? 503 : 502;
+  const code = reason === "rate_limit" ? "ai_provider_busy" : "ai_provider_unavailable";
   return Response.json(
-    { fallback: true, reason, message } satisfies Fallback,
+    { fallback: true, reason, message, code } satisfies Fallback & { code: string },
     { status, headers: { "x-tts-provider": "elevenlabs", "x-tts-reason": reason } },
   );
 }

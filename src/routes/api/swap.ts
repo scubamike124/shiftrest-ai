@@ -4,6 +4,7 @@ import { DATA_HONESTY } from "@/lib/ai/guardrails";
 import { normalizeSwap } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
 import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { providerFailure, providerFailureResponse } from "@/lib/ai/refusal";
 import { createFileRoute } from "@tanstack/react-router";
 
 const SYSTEM = `You are RestPilot AI's recovery analyst. Evaluate whether a shift worker should accept a proposed extra shift, weighing it against their current week and recovery state.
@@ -71,26 +72,47 @@ export const Route = createFileRoute("/api/swap")({
             });
           }
 
-          const upstream = await fetch(
-            aiEndpoint("chat/completions"),
-            {
+          let upstream: Response;
+          try {
+            upstream = await fetch(aiEndpoint("chat/completions"), {
               method: "POST",
               headers: {
                 Authorization: `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(buildChatBody({
-                model: modelForTask("structured") ?? "not-configured",
-                maxTokens: 2048,
-                messages: [
-                  { role: "system", content: SYSTEM },
-                  { role: "user", content: context },
-                ],
-                jsonMode: true,
-                reasoningEffort: reasoningForTask("structured"),
-              })),
-            },
-          );
+              body: JSON.stringify(
+                buildChatBody({
+                  model: modelForTask("structured") ?? "not-configured",
+                  maxTokens: 2048,
+                  messages: [
+                    { role: "system", content: SYSTEM },
+                    { role: "user", content: context },
+                  ],
+                  jsonMode: true,
+                  reasoningEffort: reasoningForTask("structured"),
+                }),
+              ),
+            });
+          } catch (e) {
+            // The provider could not be reached: a retryable 503 with a provider code,
+            // never a bare 500 carrying the raw error text.
+            console.error("swap network error", e instanceof Error ? e.message : String(e));
+            const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+            notifyOwnerAsync({
+              severity: "error",
+              service: "swap",
+              message: "network_error",
+              meta: { error: e instanceof Error ? e.message : String(e) },
+            });
+            const failure = providerFailure(null);
+            return Response.json(
+              { error: failure.message, code: failure.code, retryable: true },
+              {
+                status: failure.status,
+                headers: { "Retry-After": String(failure.retryAfterSeconds) },
+              },
+            );
+          }
 
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
@@ -104,17 +126,10 @@ export const Route = createFileRoute("/api/swap")({
                 meta: { snippet: t.slice(0, 240) },
               });
             }
-            return new Response(
-              JSON.stringify({
-                error:
-                  upstream.status === 429
-                    ? "Rate limit reached."
-                    : upstream.status === 402
-                    ? "AI credits exhausted."
-                    : "Analysis unavailable.",
-              }),
-              { status: upstream.status, headers: { "Content-Type": "application/json" } },
-            );
+            // Never pass the provider's status through: its 429 is not this user's
+            // limit, its 401 is not the user's session. Retryable 503 (502 for a
+            // rejected request) with an ai_provider_* code.
+            return providerFailureResponse(upstream.status);
           }
 
           const data = (await upstream.json()) as {

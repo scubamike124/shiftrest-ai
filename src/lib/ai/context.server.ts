@@ -145,11 +145,80 @@ function formatPreviousBlock(
   return `\n\nYOUR PREVIOUS RECOMMENDATION FOR THIS INTENT (do not repeat verbatim — refresh the angle or move on if still valid):\n- "${prev.headline}"${prev.rationale ? ` — ${prev.rationale}` : ""}`;
 }
 
+/**
+ * The client's live context as prompt text. Routes send a string, but the
+ * Companion sends an object; interpolating that gave "[object Object]". Plain
+ * fields become "key: value" lines; client-only hints (surface, max_tokens)
+ * are dropped. Returns "" when there is nothing useful, so no line is added.
+ */
+export function formatLiveContext(ctx: unknown): string {
+  const MAX = 4000;
+  // Control and invisible characters (NUL, BEL, ESC, NEL, zero-width and
+  // bidi marks/overrides/isolates, line/paragraph separators, BOM) are removed
+  // from everything the client sends; tab, LF and CR are handled by the
+  // whitespace rules below.
+  const INVISIBLE =
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  // NEL, LS and PS are line breaks, not invisible: they become a newline (string
+  // path) or a space (single-line values/keys) BEFORE the stripping below.
+  // U+200C/U+200D (ZWNJ/ZWJ) are kept in values: they are part of Persian,
+  // Hindi and composite emoji. Keys drop them via their character filter.
+  const SEPARATORS = /[\u0085\u2028\u2029]/g;
+  // trim() does not remove ZWJ/ZWNJ, so a value made only of joiners and
+  // whitespace is checked explicitly: it has no visible content.
+  const hasVisible = (t: string) => t.replace(/[\s\u200C\u200D]/g, "") !== "";
+  if (typeof ctx === "string") {
+    if (!hasVisible(ctx.replace(INVISIBLE, ""))) return "";
+    return ctx
+      .replace(/\r\n?/g, "\n")
+      .replace(SEPARATORS, "\n")
+      .replace(INVISIBLE, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ?\n[ \n]*/g, "\n")
+      .trim()
+      .slice(0, MAX);
+  }
+  if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return "";
+  // Client-only hints, compared by a normalised key ("max tokens", maxTokens, MAX-TOKENS).
+  const skip = new Set(["surface", "maxtokens"]);
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(ctx as Record<string, unknown>)) {
+    if (
+      skip.has(
+        k
+          .replace(SEPARATORS, " ")
+          .replace(INVISIBLE, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ""),
+      )
+    )
+      continue;
+    if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
+    // Keys are client-controlled too: collapse whitespace like values, keep a
+    // safe character set, and cap the length.
+    const key = k
+      .replace(SEPARATORS, " ")
+      .replace(INVISIBLE, "")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[^A-Za-z0-9 .-]/g, "")
+      .trim()
+      .slice(0, 40);
+    const cleaned = String(v).replace(SEPARATORS, " ").replace(INVISIBLE, "");
+    if (!hasVisible(cleaned)) continue;
+    const text = cleaned.trim().replace(/\s+/g, " ").slice(0, 200);
+    if (key && text) lines.push(`${key}: ${text}`);
+    if (lines.length >= 20) break;
+  }
+  return lines.join("\n").slice(0, MAX);
+}
+
 export async function buildSystemPrompt(opts: {
   admin: SupabaseClient;
   userId: string | null;
   profile: AssistantProfile;
-  liveContext?: string;
+  liveContext?: unknown;
   intent?: string;
   /** "voice" = Pilot (spoken). "text" = Coach chat. Defaults to "text". */
   surface?: "voice" | "text";
@@ -254,8 +323,9 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
-  if (opts.liveContext) {
-    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
+  const liveContext = formatLiveContext(opts.liveContext);
+  if (liveContext) {
+    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${liveContext}`;
   }
 
 

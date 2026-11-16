@@ -59,6 +59,7 @@ import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 import {
   CRISIS_LOCAL_REPLY,
   hasCrisisCue,
@@ -811,20 +812,17 @@ function CompanionPage() {
       if (!resp.ok || !resp.body) {
         emitHttpStatus({ endpoint: "/api/ai", status: resp.status, at: Date.now() });
         emitDebug("ai-fail", `${resp.status}`);
-        const errJson = (await resp.json().catch(() => ({}))) as { error?: string };
-        const fallback = isAIConsentRefusal(resp)
+        // The reason comes from the server's `code`, never from the status: a
+        // provider rate limit or a short request pause is not the user's limit.
+        const consentRefused = isAIConsentRefusal(resp);
+        const refusal = await readAIRefusal(resp);
+        const fallback = consentRefused
           ? "Your message is still here, but it wasn't sent: AI features are off. Allow AI data sharing (Profile → Privacy) and try again."
-          : resp.status === 429
-            ? "You've reached today's AI limit. I saved what you said here, and you can keep typing or upgrade for more conversations."
-            : "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
-        if (resp.status === 429) {
-          toast.error("Daily AI limit reached.", {
-            description: "Upgrade for unlimited conversations.",
-            action: { label: "Upgrade", onClick: () => { window.location.href = "/paywall"; } },
-          });
-        } else {
-          toast.error(errJson.error || "Companion is unavailable");
-        }
+          : refusal.chatMessage ||
+            "I heard you, but I couldn't reach my AI brain just now. Your message is still here — try again in a moment or type below.";
+        // Upgrade prompt: only for the user's own allowance, never inside the
+        // iPhone app (Guideline 3.1.1). Both rules live in toastAIRefusal.
+        toastAIRefusal(refusal, "Companion is unavailable");
         setMessages([...baseMessages, { role: "assistant", content: fallback }]);
         track({ event: "voice_turn_failed", stage: "ai" });
         return;
