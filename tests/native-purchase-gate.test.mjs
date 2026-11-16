@@ -1,6 +1,19 @@
 // App Store Guideline 3.1.1: no upgrade or purchase prompt inside the iPhone app.
 // The app shell is recognised by window.Capacitor OR by the "RestPilotApp/" user
 // agent: Capacitor can arrive after the first requests, the user agent cannot.
+//
+// What this file covers:
+//   - detection (Capacitor, user agent, SSR, case) and what a refusal shows;
+//   - the live-voice trial gate and the shared AI-refusal toast gate (source checks);
+//   - three source scans of the client tree (src/, minus server-only files), each with
+//     an explicit per-file COUNT allowlist, so one more hit in an already-listed file
+//     fails too: (1) purchase-route strings in single, double or backtick quotes,
+//     relative or absolute restpilotai.com, after joining "a" + "b" literals;
+//     (2) upsell wording and prices; (3) "paywall" / "pricing" as bare literals.
+// What it does NOT cover: an upsell built from a variable or a template with
+// substitutions, text fetched at run time, images, or any native (Swift) code. A new
+// hit is not proof of a violation: the failure asks a reviewer to check the gate and
+// then update the list.
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
 import test from "node:test";
@@ -184,49 +197,121 @@ test("AI-limit prompts: only the shared helper has a /paywall toast action, gate
   assert.match(read("src/lib/ai/refusal.ts"), /const offerUpgrade = !opts\.native;/);
 });
 
-test("every /paywall or /pricing reference in src/ is listed with its gate", () => {
-  // Hits scanned on this line. On this line the website itself has no purchase flow
-  // (payments are off): /pricing and /paywall render "App preview" access, and
-  // inside the app /paywall renders NativeSubscription only behind the IAP flag.
-  // Each file below is neutral or gated; a new file must be reviewed and listed.
-  const allowed = new Map([
-    ["src/routes/legal.subscription.tsx", "legal text link"],
-    ["src/routes/legal.terms.tsx", "legal text link"],
-    ["src/routes/auth.tsx", "post-login return allowlist"],
-    ["src/routes/__root.tsx", "marketing route list"],
-    ["src/routes/sitemap[.]xml.ts", "sitemap"],
-    ["src/routes/pricing.tsx", "App preview page, no price or purchase"],
-    ["src/routes/paywall.tsx", "AppAwarePaywall: iOS shell uses IAP screen, else App preview"],
-    ["src/routes/index.tsx", "link text 'View app preview access', no price"],
-    ["src/routes/companion.tsx", "inside VoiceTrialUsedUp, native branch first"],
-    ["src/routes/profile.tsx", "card titled 'App preview access', no price or purchase"],
-    ["src/components/site/AppSidebar.tsx", "label 'App preview'"],
-    ["src/components/site/SiteHeader.tsx", "label 'App preview'"],
-    ["src/components/site/SiteFooter.tsx", "label 'App preview'"],
-    [
-      "src/components/subscription/NativeSubscription.tsx",
-      "in-app screen; website link only if paywall-policy externalPurchaseLink (US storefront and flag, default off)",
-    ],
-    ["src/lib/ai/refusal-client.ts", "toast action gated on isNativeApp()"],
-    ["src/lib/appearance.ts", "marketing route list"],
-  ]);
-  const out = execSync(
-    'git ls-files src | xargs grep -lE \'["`](/paywall|/pricing)|to="/(paywall|pricing)"\' || true',
-    {
-      cwd: new URL("..", import.meta.url).pathname,
-      encoding: "utf8",
-    },
-  );
-  const files = out
+// ---- client-tree scans -----------------------------------------------------------
+function clientFiles() {
+  const out = execSync("git ls-files src", {
+    cwd: new URL("..", import.meta.url).pathname,
+    encoding: "utf8",
+  });
+  return out
     .trim()
     .split("\n")
-    .filter(Boolean)
-    .filter((f) => !f.includes("email-templates") && !f.endsWith("routeTree.gen.ts"));
-  assert.deepEqual(
-    files.filter((f) => !allowed.has(f)),
-    [],
-    "new purchase entry points must be gated and listed here",
-  );
+    .filter((f) => /\.(ts|tsx)$/.test(f))
+    .filter(
+      (f) =>
+        !/\.server\.tsx?$|^src\/routes\/api\/|^src\/routes\/lovable\/|email-templates|routeTree\.gen|supabase\/types/.test(
+          f,
+        ),
+    );
+}
+/** "a" + "b" + "c" becomes "abc", so a path split across literals is still found. */
+function joinLiterals(text) {
+  let prev;
+  do {
+    prev = text;
+    text = text.replace(
+      /(["'`])([^"'`\n]*)\1\s*\+\s*(["'`])([^"'`\n]*)\3/g,
+      (_m, q, a, _q2, b) => q + a + b + q,
+    );
+  } while (text !== prev);
+  return text;
+}
+function countsFor(regex, files = clientFiles()) {
+  const counts = {};
+  for (const f of files) {
+    const n = (joinLiterals(read(f)).match(regex) ?? []).length;
+    if (n) counts[f] = n;
+  }
+  return counts;
+}
+const ROUTE_STRING = /(["'`])(?:https?:\/\/(?:www\.)?restpilotai\.com)?\/(?:paywall|pricing)\b/g;
+const UPSELL =
+  /\b(?:Upgrade|Subscribe|Premium|Go Pro|Get Pro)\b|\bupgrade (?:to|for|now)\b|\$\d+(?:[.,]\d\d)\b|\$\d+\s?(?:\/|per )|\bper (?:month|year)\b|\/(?:month|year)\b/g;
+const BARE_FRAGMENT = /(["'`])(?:paywall|pricing)\1/g;
+const REVIEW =
+  "a new hit must be reviewed (gated on isNativeApp()/useIsNativeApp(), or neutral) and then listed here";
+
+test("purchase-route strings: exact count per file (every quote style, absolute URLs, joined literals)", () => {
+  // Reviewed: every hit is neutral or gated. On this line the website has no purchase
+  // flow: /pricing and /paywall render "App preview" access; in the app /paywall shows
+  // NativeSubscription only behind the IAP flag on an iOS shell.
+  const expected = {
+    "src/components/site/AppSidebar.tsx": 1, // label "App preview"
+    "src/components/site/SiteFooter.tsx": 1, // label "App preview"
+    "src/components/site/SiteHeader.tsx": 1, // label "App preview"
+    "src/components/subscription/NativeSubscription.tsx": 1, // website link only if paywall-policy externalPurchaseLink (default off)
+    "src/lib/ai/refusal-client.ts": 1, // toast action gated on isNativeApp()
+    "src/lib/appearance.ts": 1, // marketing route list
+    "src/routes/__root.tsx": 1, // marketing route list
+    "src/routes/auth.tsx": 1, // post-login return allowlist
+    "src/routes/companion.tsx": 1, // VoiceTrialUsedUp, native branch first
+    "src/routes/index.tsx": 1, // "View app preview access", no price
+    "src/routes/legal.subscription.tsx": 1, // legal text link
+    "src/routes/legal.terms.tsx": 1, // legal text link
+    "src/routes/paywall.tsx": 1, // route definition (AppAwarePaywall)
+    "src/routes/pricing.tsx": 2, // route definition + canonical (App preview)
+    "src/routes/profile.tsx": 1, // card "App preview access"
+    "src/routes/sitemap[.]xml.ts": 1, // sitemap
+  };
+  assert.deepEqual(countsFor(ROUTE_STRING), expected, REVIEW);
+});
+
+test("upsell wording and prices in the client tree: exact count per file", () => {
+  // Reviewed. Most hits are code, comments or non-purchase text (a "Premium" model name,
+  // "subscribe" to a store). The ones users can see are gated: refusal.ts/refusal-client.ts
+  // (offerUpgrade is false in the app), companion.tsx (VoiceTrialUsedUp), NativeSubscription
+  // (the in-app screen), legal pages (documents), profile.tsx (neutral card, Stripe portal off).
+  const expected = {
+    "src/components/companion/Avatar.tsx": 1,
+    "src/components/companion/Avatar3D.tsx": 1,
+    "src/components/companion/CompanionQuickGrid.tsx": 1,
+    "src/components/subscription/NativeSubscription.tsx": 8,
+    "src/lib/ai/refusal-client.ts": 2,
+    "src/lib/ai/refusal.ts": 2,
+    "src/lib/entitlements/checkout-guard.ts": 1,
+    "src/lib/entitlements/merge.ts": 1,
+    "src/lib/entitlements/revenuecat.ts": 4,
+    "src/lib/insights.ts": 1,
+    "src/lib/realtime/openai.functions.ts": 1, // server text, replaced by useOpenAIRealtime
+    "src/lib/recommendations.ts": 1,
+    "src/lib/schedule.ts": 1,
+    "src/lib/sounds/mixer.ts": 1,
+    "src/lib/voice/intent-router.ts": 1,
+    "src/routes/coach.tsx": 1,
+    "src/routes/companion.tsx": 3,
+    "src/routes/legal.electronic-consent.tsx": 1,
+    "src/routes/legal.subscription.tsx": 3,
+    "src/routes/pilot.tsx": 2,
+    "src/routes/profile.tsx": 2,
+  };
+  assert.deepEqual(countsFor(UPSELL), expected, REVIEW);
+});
+
+test('"paywall" / "pricing" as bare string literals: only the two known non-URL uses', () => {
+  const expected = {
+    "src/lib/legal/consent.functions.ts": 1, // a consent-source name
+    "src/routes/index.tsx": 1, // a section id
+  };
+  assert.deepEqual(countsFor(BARE_FRAGMENT), expected, REVIEW);
+});
+
+test("the scans themselves catch the five known evasions (self-check of the regexes)", () => {
+  const hit = (re, text) => (joinLiterals(text).match(re) ?? []).length > 0;
+  assert.ok(hit(ROUTE_STRING, '<Link to="/paywall">Upgrade now</Link>'));
+  assert.ok(hit(ROUTE_STRING, "const t = { to: '/paywall' };"));
+  assert.ok(hit(ROUTE_STRING, 'const u = "https://restpilotai.com/pricing";'));
+  assert.ok(hit(ROUTE_STRING, 'const p = "/" + "pay" + "wall";'));
+  assert.ok(hit(UPSELL, "<p>Upgrade to Premium for unlimited AI</p>"));
 });
 
 test("no price or purchase wording in the app-preview screens", () => {
