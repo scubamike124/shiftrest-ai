@@ -53,7 +53,8 @@ async function ai(body, { db = fakeDb(), spy = provider() } = {}) {
 }
 
 // The old copy, in any of its spellings.
-const SAYS_USER_LIMIT = /today's (free )?AI limit|daily AI limit|your (AI )?limit reached|AI allowance/i;
+const SAYS_USER_LIMIT =
+  /today's (free )?AI limit|daily AI limit|your (AI )?limit reached|AI allowance/i;
 const SAYS_NOT_YOUR_LIMIT = /(isn't|is not) your limit/i;
 
 // ---- 1. each 429 source has its own code ------------------------------------
@@ -123,7 +124,10 @@ for (const [upstream, alert] of [
     assert.equal(json.code, "ai_provider_unavailable");
     assert.equal(json.retryable, true);
     assert.match(json.error, SAYS_NOT_YOUR_LIMIT);
-    assert.deepEqual(alerts.map((a) => a.message), [alert]);
+    assert.deepEqual(
+      alerts.map((a) => a.message),
+      [alert],
+    );
     assert.doesNotMatch(JSON.stringify(json), /credit|billing|api key/i, "no operator wording");
   });
 }
@@ -132,7 +136,10 @@ test("provider unreachable (network error): retryable 503 ai_provider_unavailabl
   const { res, json, alerts } = await ai(coachBody(), { spy: provider({ network: true }) });
   assert.equal(res.status, 503);
   assert.equal(json.code, "ai_provider_unavailable");
-  assert.deepEqual(alerts.map((a) => a.message), ["upstream_5xx"]);
+  assert.deepEqual(
+    alerts.map((a) => a.message),
+    ["upstream_5xx"],
+  );
 });
 
 test("provider rejects the request (400): 502 ai_provider_error, not retryable, not the user's limit", async () => {
@@ -167,12 +174,19 @@ test("no AI route sends the provider's own status to the browser", () => {
   for (const f of ["ai", "brief", "insights", "swap", "stt", "tts", "tts-elevenlabs"]) {
     const src = read(`src/routes/api/${f}.ts`);
     // (`meta: { status: upstream.status }` in an owner alert is fine.)
-    assert.doesNotMatch(src, /\{\s*status:\s*upstream\.status,\s*headers/, `${f}: Response with the provider's status`);
+    assert.doesNotMatch(
+      src,
+      /\{\s*status:\s*upstream\.status,\s*headers/,
+      `${f}: Response with the provider's status`,
+    );
     assert.doesNotMatch(src, /\?\s*402\s*:/, `${f}: 402 is never chosen as a response status`);
     assert.doesNotMatch(src, /\?\s*429\s*:/, `${f}: 429 is never chosen as a response status`);
   }
   // /api/ai answers a provider failure through the shared helper.
-  assert.match(read("src/routes/api/ai.ts"), /if \(upstreamFailure\) return providerFailureResponse\(status\);/);
+  assert.match(
+    read("src/routes/api/ai.ts"),
+    /if \(upstreamFailure\) return providerFailureResponse\(status\);/,
+  );
 });
 
 // ---- 2. each source gets its own message on the client -----------------------
@@ -195,7 +209,10 @@ test("server response -> client message: three sources, three different messages
   assert.doesNotMatch(a.title + a.chatMessage, /today's|tomorrow|unlimited/i);
 
   // Rate limit: says how long to wait, and that it is not the allowance.
-  assert.match(r.description, new RegExp(`^Wait ${rate.json.retry_after_seconds} seconds? and try again\\.$`));
+  assert.match(
+    r.description,
+    new RegExp(`^Wait ${rate.json.retry_after_seconds} seconds? and try again\\.$`),
+  );
   assert.match(r.chatMessage, /not your AI allowance/);
   assert.doesNotMatch(r.title + r.chatMessage, /today's|24 hours|upgrade/i);
 
@@ -233,20 +250,36 @@ test("upgrade prompt: only for the user's own allowance, and never in the native
   for (const k of Object.keys(cases)) {
     const d = describe(cases[k].res, cases[k].json, true);
     assert.equal(d.offerUpgrade, false, `native app, ${k}`);
-    assert.doesNotMatch(`${d.title} ${d.description} ${d.chatMessage}`, /upgrade|subscribe|\$\d|paywall|pricing/i, `native app, ${k}`);
+    assert.doesNotMatch(
+      `${d.title} ${d.description} ${d.chatMessage}`,
+      /upgrade|subscribe|\$\d|paywall|pricing/i,
+      `native app, ${k}`,
+    );
   }
 });
 
 test("a bare 429 without a code is NOT assumed to be the user's limit", () => {
   const { describeAIRefusal } = refusal();
   // The exact bodies the old server sent.
-  const oldProvider = describeAIRefusal(429, { error: "Rate limit reached. Try again in a moment." }, { native: false });
+  const oldProvider = describeAIRefusal(
+    429,
+    { error: "Rate limit reached. Try again in a moment." },
+    { native: false },
+  );
   assert.equal(oldProvider.kind, "provider_busy");
   assert.equal(oldProvider.offerUpgrade, false);
-  const oldRate = describeAIRefusal(429, { error: "rate_limited", retry_after_seconds: 37 }, { native: false });
+  const oldRate = describeAIRefusal(
+    429,
+    { error: "rate_limited", retry_after_seconds: 37 },
+    { native: false },
+  );
   assert.equal(oldRate.kind, "rate_limited");
   assert.equal(oldRate.description, "Wait 37 seconds and try again.");
-  const oldAllowance = describeAIRefusal(429, { error: "Daily AI limit reached. It resets in 24 hours." }, { native: false });
+  const oldAllowance = describeAIRefusal(
+    429,
+    { error: "Daily AI limit reached. It resets in 24 hours." },
+    { native: false },
+  );
   assert.equal(oldAllowance.kind, "daily_limit");
   // Nothing at all in the body (a proxy's 429): neutral, no upsell.
   for (const body of [null, {}, "nope", { error: 42 }]) {
@@ -263,15 +296,29 @@ test("the status never decides: the same status gives different messages for dif
   );
   assert.deepEqual(kinds, ["daily_limit", "rate_limited", "provider_busy", "provider_unavailable"]);
   // And a daily_limit code is honoured whatever the status.
-  assert.equal(describeAIRefusal(503, { code: "daily_limit" }, { native: false }).kind, "daily_limit");
+  assert.equal(
+    describeAIRefusal(503, { code: "daily_limit" }, { native: false }).kind,
+    "daily_limit",
+  );
   // Retry-After header is used when the body has no figure; wording handles 1.
-  const one = describeAIRefusal(429, { code: "rate_limited" }, { native: false, retryAfterHeader: "1" });
+  const one = describeAIRefusal(
+    429,
+    { code: "rate_limited" },
+    { native: false, retryAfterHeader: "1" },
+  );
   assert.equal(one.description, "Wait 1 second and try again.");
   const none = describeAIRefusal(429, { code: "rate_limited" }, { native: false });
   assert.equal(none.description, "Wait a moment and try again.");
   // Other refusals keep the server's own message and never upsell.
-  const other = describeAIRefusal(403, { error: "AI features are off.", code: "ai_consent_required" }, { native: false });
-  assert.deepEqual([other.kind, other.serverMessage, other.offerUpgrade], ["other", "AI features are off.", false]);
+  const other = describeAIRefusal(
+    403,
+    { error: "AI features are off.", code: "ai_consent_required" },
+    { native: false },
+  );
+  assert.deepEqual(
+    [other.kind, other.serverMessage, other.offerUpgrade],
+    ["other", "AI features are off.", false],
+  );
 });
 
 // ---- 3. what the user actually sees (toast) ---------------------------------
@@ -329,7 +376,10 @@ test("toast: provider busy / unavailable and rate limit never show an Upgrade ac
       const t = await toastFor(c, native);
       assert.equal(t.toasts.length, 1);
       assert.equal(t.toast.opts.action, undefined, `${c.json.code} native=${native}`);
-      assert.doesNotMatch(`${t.toast.title} ${t.toast.opts.description}`, /upgrade|today's AI limit|daily AI limit/i);
+      assert.doesNotMatch(
+        `${t.toast.title} ${t.toast.opts.description}`,
+        /upgrade|today's AI limit|daily AI limit/i,
+      );
     }
   }
 });
@@ -347,7 +397,11 @@ test("toast: the app never shows Upgrade even if a refusal claims offerUpgrade",
 test("companion, pilot and coach choose the message by code through the shared helper", () => {
   for (const f of ["companion", "pilot", "coach"]) {
     const src = read(`src/routes/${f}.tsx`);
-    assert.match(src, /import \{ readAIRefusal, toastAIRefusal \} from "@\/lib\/ai\/refusal-client";/, f);
+    assert.match(
+      src,
+      /import \{ readAIRefusal, toastAIRefusal \} from "@\/lib\/ai\/refusal-client";/,
+      f,
+    );
     assert.match(src, /toastAIRefusal\(/, f);
     assert.doesNotMatch(src, /\.status === 429/, `${f}: no message chosen by HTTP status`);
     assert.doesNotMatch(src, /today's (free )?AI limit|Daily AI limit|unlimited conversations/i, f);
@@ -360,7 +414,11 @@ test("companion, pilot and coach choose the message by code through the shared h
   // The Companion's in-conversation line comes from the same helper.
   assert.match(read("src/routes/companion.tsx"), /: refusal\.chatMessage \|\|/);
   // No copy anywhere promises a fixed reset.
-  for (const f of ["src/lib/ai/log.server.ts", "src/lib/realtime/useOpenAIRealtime.ts", "src/lib/realtime/session-cost.server.ts"]) {
+  for (const f of [
+    "src/lib/ai/log.server.ts",
+    "src/lib/realtime/useOpenAIRealtime.ts",
+    "src/lib/realtime/session-cost.server.ts",
+  ]) {
     assert.doesNotMatch(read(f), /resets in 24 hours/i, f);
   }
 });
@@ -386,13 +444,20 @@ for (const [label, spyOpts] of [
   ["provider outage (500)", { status: 500 }],
   ["provider unreachable", { network: true }],
 ]) {
-  for (const body of [coachBody(), { intent: "coach_tip" }, { intent: "brief", plan: "Sleep at 9am." }]) {
+  for (const body of [
+    coachBody(),
+    { intent: "coach_tip" },
+    { intent: "brief", plan: "Sleep at 9am." },
+  ]) {
     test(`no debit: ${label}, intent ${body.intent}`, async () => {
       const { res, db } = await ai(body, { spy: provider(spyOpts) });
       assert.notEqual(res.status, 200);
       assert.equal(db.debited, 0, "a request with no AI output costs the user nothing");
       // The failure is still recorded, with zero tokens, for the owner.
-      assert.deepEqual(db.aiLog.map((r) => [r.status, r.prompt_tokens, r.completion_tokens]), [["error", 0, 0]]);
+      assert.deepEqual(
+        db.aiLog.map((r) => [r.status, r.prompt_tokens, r.completion_tokens]),
+        [["error", 0, 0]],
+      );
     });
   }
 }
@@ -416,13 +481,17 @@ async function coachStream(spyOpts, { cancelAfterFirstChunk = false, body = coac
   return { res, db, spy, text };
 }
 
-const rows = (db) => db.aiLog.map((r) => [r.intent, r.status, r.prompt_tokens, r.completion_tokens]);
+const rows = (db) =>
+  db.aiLog.map((r) => [r.intent, r.status, r.prompt_tokens, r.completion_tokens]);
 
 test("free-usage gap closed: the provider stream breaks AFTER text was delivered -> one estimated debit", async () => {
   const { text, db, spy } = await coachStream({ breakStream: true });
   assert.match(text, /Nap at 3 pm\./, "the answer reached the browser");
   assert.equal(db.aiLog.length, 1, "exactly one usage row");
-  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce(
+    (n, m) => n + m.content.length,
+    0,
+  );
   assert.deepEqual(rows(db), [
     ["coach", "ok", Math.ceil(promptChars / 4), Math.ceil("Nap at 3 pm.".length / 4)],
   ]);
@@ -436,7 +505,10 @@ test("free-usage gap closed: the client cancels after partial text -> one estima
   );
   assert.match(text, /Nap at 3 pm\./);
   assert.equal(db.aiLog.length, 1, "exactly one usage row, not zero and not two");
-  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce(
+    (n, m) => n + m.content.length,
+    0,
+  );
   const [r] = db.aiLog;
   assert.equal(r.prompt_tokens, Math.ceil(promptChars / 4));
   assert.ok(r.completion_tokens >= Math.ceil("Nap at 3 pm.".length / 4));
@@ -457,9 +529,17 @@ test("normal completion with a usage frame debits the provider's numbers, once",
 
 test("normal completion WITHOUT a usage frame debits an estimate, never 0", async () => {
   const { db, spy } = await coachStream({ usage: null });
-  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce(
+    (n, m) => n + m.content.length,
+    0,
+  );
   assert.deepEqual(rows(db), [
-    ["coach", "ok", Math.ceil(promptChars / 4), Math.ceil("Nap at 3 pm. Then stay dark.".length / 4)],
+    [
+      "coach",
+      "ok",
+      Math.ceil(promptChars / 4),
+      Math.ceil("Nap at 3 pm. Then stay dark.".length / 4),
+    ],
   ]);
   assert.ok(db.debited > 0);
 });
@@ -524,9 +604,16 @@ test("ai_provider_error: not 'try again shortly', not your limit, no upgrade", (
     assert.match(r.chatMessage, /couldn't handle that request/);
     assert.match(r.chatMessage, /isn't your limit/);
     assert.match(r.chatMessage + r.description, /rephras|shorten/i);
-    assert.doesNotMatch(r.chatMessage + r.title + r.description, /try again shortly|upgrade|allowance/i);
+    assert.doesNotMatch(
+      r.chatMessage + r.title + r.description,
+      /try again shortly|upgrade|allowance/i,
+    );
   }
-  const unavailable = refusal().describeAIRefusal(503, { code: "ai_provider_unavailable" }, { native: false });
+  const unavailable = refusal().describeAIRefusal(
+    503,
+    { code: "ai_provider_unavailable" },
+    { native: false },
+  );
   assert.equal(unavailable.kind, "provider_unavailable");
 });
 
@@ -540,14 +627,24 @@ test("a provider 4xx on /api/ai reaches the user as request_rejected end to end"
 
 test("voice surfaces never show the raw 'rate_limited'", async () => {
   const h = toastHarness({ native: false });
-  const text = h.client.aiRefusalTextFromBody(429, { error: "rate_limited", code: "rate_limited", retry_after_seconds: 12 }, "fallback");
+  const text = h.client.aiRefusalTextFromBody(
+    429,
+    { error: "rate_limited", code: "rate_limited", retry_after_seconds: 12 },
+    "fallback",
+  );
   assert.doesNotMatch(text, /rate_limited/);
   assert.match(text, /too quickly/);
   assert.match(text, /12 seconds/);
   // Old server (no code) still gets the right words.
-  assert.doesNotMatch(h.client.aiRefusalTextFromBody(429, { error: "rate_limited" }, "fallback"), /rate_limited/);
+  assert.doesNotMatch(
+    h.client.aiRefusalTextFromBody(429, { error: "rate_limited" }, "fallback"),
+    /rate_limited/,
+  );
   // Unknown refusals keep the server's own words, then the fallback.
-  assert.equal(h.client.aiRefusalTextFromBody(200, { message: "Voice is off." }, "fallback"), "Voice is off.");
+  assert.equal(
+    h.client.aiRefusalTextFromBody(200, { message: "Voice is off." }, "fallback"),
+    "Voice is off.",
+  );
   assert.equal(h.client.aiRefusalTextFromBody(500, null, "fallback"), "fallback");
   // The two surfaces use the helper rather than the raw string.
   for (const f of ["src/components/VoicePlayer.tsx", "src/lib/voice/useTtsPlayer.ts"]) {
@@ -585,7 +682,11 @@ test("/api/ai passes the Companion's object context to the real prompt builder a
     stubs: {
       "@/lib/ai/context.server": {
         DEFAULT_ASSISTANT_PROFILE: { language: "en-US", accent: null, memoryEnabled: false },
-        loadAssistantProfile: async () => ({ language: "en-US", accent: null, memoryEnabled: false }),
+        loadAssistantProfile: async () => ({
+          language: "en-US",
+          accent: null,
+          memoryEnabled: false,
+        }),
         buildSystemPrompt: async (o) => {
           seen.push(o.liveContext);
           return "system";
@@ -594,11 +695,67 @@ test("/api/ai passes the Companion's object context to the real prompt builder a
     },
   });
   const res = await h.post({
-    request: jsonRequest(coachBody("hi", { context: { surface: "companion", companion_name: "Amber", max_tokens: 180 } })),
+    request: jsonRequest(
+      coachBody("hi", {
+        context: { surface: "companion", companion_name: "Amber", max_tokens: 180 },
+      }),
+    ),
   });
   await drain(res);
   assert.equal(res.status, 200);
-  assert.equal(typeof seen[0], "object", "the route forwards what the client sent; the builder formats it");
+  assert.equal(
+    typeof seen[0],
+    "object",
+    "the route forwards what the client sent; the builder formats it",
+  );
   // The companion's 180-token cap comes from surface:"voice" (not the context) and still applies.
   assert.equal(JSON.parse(spy.calls[0].body).max_tokens, 180);
+});
+
+// ---- 9. a gateway that rejects stream_options must not break replies --------
+
+const hasOpts = (call) => "stream_options" in JSON.parse(call.body);
+
+test("400 on stream_options then 200 without: the user gets the answer, two calls, one estimated debit", async () => {
+  const { res, text, db, spy } = await coachStream({ statuses: [400, 200], usage: null });
+  assert.equal(res.status, 200);
+  assert.match(text, /Nap at 3 pm\./);
+  assert.equal(spy.calls.length, 2);
+  assert.equal(hasOpts(spy.calls[0]), true);
+  assert.equal(hasOpts(spy.calls[1]), false);
+  assert.deepEqual(
+    { ...JSON.parse(spy.calls[1].body), stream_options: undefined },
+    { ...JSON.parse(spy.calls[0].body), stream_options: undefined },
+    "same body otherwise",
+  );
+  assert.equal(db.aiLog.length, 1);
+  assert.ok(db.debited > 0, "estimated, not 0");
+});
+
+test("400 on both calls: request_rejected, no debit, exactly two calls", async () => {
+  const { res, db, spy, text } = await coachStream({ status: 400 });
+  assert.equal(res.status, 502);
+  assert.equal(spy.calls.length, 2);
+  assert.equal(JSON.parse(text).code, "ai_provider_error");
+  assert.equal(describe(res, JSON.parse(text)).kind, "request_rejected");
+  assert.equal(db.debited, 0);
+});
+
+test("422 is retried once too", async () => {
+  const { res, spy } = await coachStream({ statuses: [422, 200] });
+  assert.equal(res.status, 200);
+  assert.equal(spy.calls.length, 2);
+});
+
+test("provider 429 with stream_options: no retry, ai_provider_busy as before", async () => {
+  const { res, db, spy, text } = await coachStream({ status: 429 });
+  assert.equal(spy.calls.length, 1);
+  assert.equal(res.status, 503);
+  assert.equal(JSON.parse(text).code, "ai_provider_busy");
+  assert.equal(db.debited, 0);
+});
+
+test("500 is not retried; a normal 200 makes exactly one call", async () => {
+  assert.equal((await coachStream({ status: 500 })).spy.calls.length, 1);
+  assert.equal((await coachStream({})).spy.calls.length, 1);
 });

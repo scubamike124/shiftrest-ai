@@ -108,14 +108,28 @@ export async function chatStream(opts: {
   temperature?: number;
   maxTokens?: number;
 }): Promise<Response> {
-  return gatewayFetch({
+  const body: Record<string, unknown> = {
     model: opts.model ?? DEFAULT_CHAT_MODEL,
     messages: opts.messages,
     temperature: opts.temperature,
     ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
     stream: true,
+  };
+  try {
     // OpenAI-compatible: ask for a final usage frame so the turn is logged
     // with the provider's numbers. Streams only; chatJSON already returns usage.
-    stream_options: { include_usage: true },
-  });
+    return await gatewayFetch({ ...body, stream_options: { include_usage: true } });
+  } catch (e) {
+    // A gateway that rejects stream_options must not break every reply. Only a
+    // 400/422 answer (no stream body was returned, so nothing was delivered and
+    // the rejected request was never answered) is retried, once, without it.
+    // Usage for that turn then comes from the route's estimate.
+    if (e instanceof AIError && e.upstream && (e.status === 400 || e.status === 422)) {
+      console.warn(
+        `[ai-gateway] ${e.status} on stream_options.include_usage; retrying once without it`,
+      );
+      return gatewayFetch(body);
+    }
+    throw e;
+  }
 }

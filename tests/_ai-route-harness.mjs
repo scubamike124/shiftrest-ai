@@ -122,6 +122,8 @@ const sse = (o) => `data: ${JSON.stringify(o)}\n\n`;
  */
 export function provider({
   status = 200,
+  /** Per-call statuses, consumed in order (then `status` applies). */
+  statuses = null,
   network = false,
   breakStream = false,
   breakBeforeText = false,
@@ -135,9 +137,10 @@ export function provider({
     const u = String(url);
     calls.push({ url: u, body: typeof init?.body === "string" ? init.body : "" });
     if (network) throw new TypeError("fetch failed");
-    if (status !== 200) {
+    const callStatus = statuses && statuses.length ? statuses.shift() : status;
+    if (callStatus !== 200) {
       return new Response(JSON.stringify({ error: { message: "upstream says no" } }), {
-        status,
+        status: callStatus,
         headers: { "content-type": "application/json" },
       });
     }
