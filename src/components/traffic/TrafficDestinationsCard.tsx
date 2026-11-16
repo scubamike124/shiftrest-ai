@@ -149,7 +149,11 @@ export function TrafficDestinationsCard({
     try {
       const hit = await geocode({ data: { query: q } });
       if (!hit.ok) {
-        toast.error("No match found. Try a different address.");
+        toast.error(
+          hit.reason === "unavailable"
+            ? "The address lookup isn't responding right now. Nothing was changed — please try again."
+            : "No match found. Try a different address.",
+        );
         return;
       }
       await saveCoords(hit.lat, hit.lon, hit.label);
