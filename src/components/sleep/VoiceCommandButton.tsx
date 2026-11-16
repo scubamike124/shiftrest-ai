@@ -42,70 +42,81 @@ export function VoiceCommandButton({
   const [transcript, setTranscript] = useState<string>("");
   const inflightRef = useRef(false);
 
-  const runIntent = useCallback(async (parsed: ParsedIntent) => {
-    setPhase({ kind: "executing" });
-    try {
-      const result = await executeIntent(parsed.intent, {
-        signedIn,
-        navigate: (to, search) => {
-          navigate({ to, search: (search ?? {}) as never }).catch(() => {});
-        },
-        openBreathing: onBreathing,
-      });
-      if (result.ok) {
-        toast.success(result.message, {
-          duration: 5000,
-          action: result.undo
-            ? { label: "Undo", onClick: () => { void result.undo?.(); } }
-            : undefined,
+  const runIntent = useCallback(
+    async (parsed: ParsedIntent) => {
+      setPhase({ kind: "executing" });
+      try {
+        const result = await executeIntent(parsed.intent, {
+          signedIn,
+          navigate: (to, search) => {
+            navigate({ to, search: (search ?? {}) as never }).catch(() => {});
+          },
+          openBreathing: onBreathing,
         });
-      } else {
-        toast(result.message);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Voice action failed.");
-    } finally {
-      setPhase({ kind: "idle" });
-    }
-  }, [signedIn, navigate, onBreathing]);
-
-  const transcribe = useCallback(async (blob: Blob) => {
-    setPhase({ kind: "transcribing" });
-    const form = new FormData();
-    form.append("file", blob, "command.wav");
-    form.append("language", "en");
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const res = await aiFetch("/api/stt", {
-        method: "POST",
-        body: form,
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) {
-        throw new Error(
-          aiRefusalText(await readAIRefusal(res), `Transcription failed (${res.status}).`),
-        );
-      }
-      const { text } = (await res.json()) as { text?: string };
-      const heard = (text ?? "").trim();
-      setTranscript(heard);
-      if (!heard) {
-        toast("I didn't hear anything.");
+        if (result.ok) {
+          toast.success(result.message, {
+            duration: 5000,
+            action: result.undo
+              ? {
+                  label: "Undo",
+                  onClick: () => {
+                    void result.undo?.();
+                  },
+                }
+              : undefined,
+          });
+        } else {
+          toast(result.message);
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Voice action failed.");
+      } finally {
         setPhase({ kind: "idle" });
-        return;
       }
-      const parsed = parseIntent(heard);
-      if (parsed.confidence >= 0.85) {
-        await runIntent(parsed);
-      } else {
-        setPhase({ kind: "confirming", parsed });
+    },
+    [signedIn, navigate, onBreathing],
+  );
+
+  const transcribe = useCallback(
+    async (blob: Blob) => {
+      setPhase({ kind: "transcribing" });
+      const form = new FormData();
+      form.append("file", blob, "command.wav");
+      form.append("language", "en");
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const res = await aiFetch("/api/stt", {
+          method: "POST",
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) {
+          throw new Error(
+            aiRefusalText(await readAIRefusal(res), `Transcription failed (${res.status}).`),
+          );
+        }
+        const { text } = (await res.json()) as { text?: string };
+        const heard = (text ?? "").trim();
+        setTranscript(heard);
+        if (!heard) {
+          toast("I didn't hear anything.");
+          setPhase({ kind: "idle" });
+          return;
+        }
+        const parsed = parseIntent(heard);
+        if (parsed.confidence >= 0.85) {
+          await runIntent(parsed);
+        } else {
+          setPhase({ kind: "confirming", parsed });
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Couldn't transcribe.");
+        setPhase({ kind: "idle" });
       }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't transcribe.");
-      setPhase({ kind: "idle" });
-    }
-  }, [runIntent]);
+    },
+    [runIntent],
+  );
 
   const startRecording = useCallback(async () => {
     if (inflightRef.current) return;
@@ -175,7 +186,8 @@ export function VoiceCommandButton({
             {phase.kind === "recording" && "Listening — say 'play rain' or 'goodnight'…"}
             {phase.kind === "transcribing" && "Transcribing…"}
             {phase.kind === "executing" && "Running…"}
-            {phase.kind === "idle" && (transcript ? `Heard: "${transcript}"` : "Tap the mic, then speak.")}
+            {phase.kind === "idle" &&
+              (transcript ? `Heard: "${transcript}"` : "Tap the mic, then speak.")}
             {phase.kind === "confirming" && `Heard: "${phase.parsed.raw}"`}
           </p>
         </div>
@@ -190,10 +202,17 @@ export function VoiceCommandButton({
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[12px]">
           <span className="text-muted-foreground">Not sure I got that right.</span>
           {phase.parsed.intent.kind === "unknown" && phase.parsed.intent.alternates?.length ? (
-            <span>Try: <strong>{phase.parsed.intent.alternates.join(", ")}</strong>.</span>
+            <span>
+              Try: <strong>{phase.parsed.intent.alternates.join(", ")}</strong>.
+            </span>
           ) : (
             <>
-              <Button size="sm" variant="default" className="h-7 px-3" onClick={() => void runIntent(phase.parsed)}>
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 px-3"
+                onClick={() => void runIntent(phase.parsed)}
+              >
                 <Check className="mr-1 h-3.5 w-3.5" /> Run anyway
               </Button>
               <Button size="sm" variant="ghost" className="h-7 px-3" onClick={cancel}>

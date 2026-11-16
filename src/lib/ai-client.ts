@@ -98,7 +98,6 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
 
 export { OfflineAiError };
 
-
 export type DailyPlanResponse = {
   headline: string;
   riskLevel: "low" | "medium" | "high";
@@ -177,7 +176,11 @@ export function aiCommute(input: {
   return postIntent<CommuteResponse>({ intent: "commute", ...input });
 }
 
-export type CoachTipResponse = { tip: string; generatedAt: string; recommendationId?: string | null };
+export type CoachTipResponse = {
+  tip: string;
+  generatedAt: string;
+  recommendationId?: string | null;
+};
 
 export function aiCoachTip(input: { context?: string } = {}) {
   return postIntent<CoachTipResponse>({ intent: "coach_tip", context: input.context });
@@ -199,9 +202,10 @@ export type TomorrowPreviewResponse = {
   recommendationId?: string | null;
 };
 export function aiTomorrowPreview(input: { context?: string } = {}) {
-  return postIntent<TomorrowPreviewResponse>({ intent: "tomorrow_preview", context: input.context }).then(
-    (r) => normalizeTomorrowPreview(r) as TomorrowPreviewResponse,
-  );
+  return postIntent<TomorrowPreviewResponse>({
+    intent: "tomorrow_preview",
+    context: input.context,
+  }).then((r) => normalizeTomorrowPreview(r) as TomorrowPreviewResponse);
 }
 
 export type DailyReviewResponse = {
@@ -237,4 +241,3 @@ export function aiPatternAlert(input: {
 }) {
   return postIntent<PatternAlertResponse>({ intent: "pattern_alert", ...input });
 }
-

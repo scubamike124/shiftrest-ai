@@ -26,10 +26,7 @@ function serviceClient(): SupabaseClient | null {
   });
 }
 
-export async function logAIRequest(
-  admin: SupabaseClient,
-  row: LogRow,
-): Promise<void> {
+export async function logAIRequest(admin: SupabaseClient, row: LogRow): Promise<void> {
   const { error } = await admin.from("ai_log").insert(row);
   if (error) console.error("ai_log insert failed", error);
 }

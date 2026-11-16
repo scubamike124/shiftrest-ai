@@ -46,8 +46,7 @@ export function mapUpstreamError(status: number): string {
   if (status === 429) return PROVIDER_BUSY_MESSAGE;
   // User-safe wording only. The operator detail (provider credits exhausted)
   // is delivered via notifyOwnerAsync + server logs, never to the client.
-  if (status === 402)
-    return "AI is temporarily unavailable. Please try again later.";
+  if (status === 402) return "AI is temporarily unavailable. Please try again later.";
   return "AI request failed.";
 }
 
@@ -115,6 +114,8 @@ export async function chatStream(opts: {
     temperature: opts.temperature,
     ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
     stream: true,
+    // OpenAI-compatible: ask for a final usage frame so the turn is logged
+    // with the provider's numbers. Streams only; chatJSON already returns usage.
+    stream_options: { include_usage: true },
   });
 }
-

@@ -21,6 +21,23 @@ export async function readAIRefusal(resp: Response): Promise<AIRefusal> {
   });
 }
 
+/**
+ * Same as readAIRefusal + aiRefusalText for a caller that has already parsed
+ * the JSON body (voice brief / TTS), so a rate limit never shows as the raw
+ * "rate_limited" string.
+ */
+export function aiRefusalTextFromBody(
+  status: number,
+  body: unknown,
+  fallback: string,
+  retryAfterHeader?: string | null,
+): string {
+  return aiRefusalText(
+    describeAIRefusal(status, body, { native: isNativeApp(), retryAfterHeader }),
+    fallback,
+  );
+}
+
 /** The one-line text for places that show an error string instead of a toast. */
 export function aiRefusalText(refusal: AIRefusal, fallback: string): string {
   if (refusal.kind === "other") return refusal.serverMessage || fallback;

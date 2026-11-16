@@ -62,10 +62,7 @@ export const Route = createFileRoute("/api/stt")({
 
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
-          return Response.json(
-            { error: "STT not configured" },
-            { status: 500 },
-          );
+          return Response.json({ error: "STT not configured" }, { status: 500 });
         }
 
         let inbound: FormData;
@@ -92,14 +89,11 @@ export const Route = createFileRoute("/api/stt")({
 
         let upstream: Response;
         try {
-          upstream = await fetch(
-            "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
-            {
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey}` },
-              body: upstreamForm,
-            },
-          );
+          upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}` },
+            body: upstreamForm,
+          });
         } catch (e) {
           // The provider could not be reached: a retryable 503 with a provider
           // code instead of an unhandled error. Nothing is debited.
@@ -114,7 +108,11 @@ export const Route = createFileRoute("/api/stt")({
           const { providerFailure } = await import("@/lib/ai/refusal");
           const failure = providerFailure(null);
           return Response.json(
-            { error: "Voice is temporarily unavailable. Try again.", code: failure.code, retryable: true },
+            {
+              error: "Voice is temporarily unavailable. Try again.",
+              code: failure.code,
+              retryable: true,
+            },
             { status: failure.status },
           );
         }
@@ -148,7 +146,8 @@ export const Route = createFileRoute("/api/stt")({
           );
         }
 
-        let payload: { text?: string; usage?: { input_tokens?: number; output_tokens?: number } } = {};
+        let payload: { text?: string; usage?: { input_tokens?: number; output_tokens?: number } } =
+          {};
         try {
           payload = await upstream.json();
         } catch {

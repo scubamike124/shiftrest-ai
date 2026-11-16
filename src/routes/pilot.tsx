@@ -69,7 +69,10 @@ function pickFiller(): string {
  * Split a growing text buffer into spoken-ready chunks at sentence boundaries
  * or after ~80 chars (whichever comes first). Returns [chunks, remainder].
  */
-function takeSpeakableChunks(buffer: string, opts: { force?: boolean } = {}): { chunks: string[]; rest: string } {
+function takeSpeakableChunks(
+  buffer: string,
+  opts: { force?: boolean } = {},
+): { chunks: string[]; rest: string } {
   const chunks: string[] = [];
   let rest = buffer;
   const re = /([^.!?\n]+?[.!?]+(?:["')\]]+)?|\n+)/g;
@@ -120,7 +123,7 @@ function PilotPage() {
     staleTime: 60_000,
     enabled: signedIn === true,
   });
-  const pilotName = (prefs?.assistantName?.trim() || "Pilot");
+  const pilotName = prefs?.assistantName?.trim() || "Pilot";
 
   const dayGreeting = greetingLabel();
   const greeting: CoachMsg = {
@@ -149,11 +152,12 @@ function PilotPage() {
   const [busy, setBusy] = useState(false);
   const [needsTap, setNeedsTap] = useState(false);
   const [crisisCard, setCrisisCard] = useState(false);
-  const [lastExchange, setLastExchange] = useState<{ user: string; messages: CoachMsg[] } | null>(null);
+  const [lastExchange, setLastExchange] = useState<{ user: string; messages: CoachMsg[] } | null>(
+    null,
+  );
   const mic = useMicRecorder();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const llmAbortRef = useRef<AbortController | null>(null);
-
 
   // === Audio pipeline ===
   // Pilot now routes ALL speech through the shared Companion pipeline
@@ -213,15 +217,16 @@ function PilotPage() {
   // Full cancel — used by barge-in and error paths. Aborts the LLM AND speech.
   const cancelAllAudio = useCallback(() => {
     cancelledRef.current = true;
-    try { llmAbortRef.current?.abort(); } catch { /* */ }
+    try {
+      llmAbortRef.current?.abort();
+    } catch {
+      /* */
+    }
     llmAbortRef.current = null;
     streamingRef.current = false;
     stopSpeaking();
     setNeedsTap(false);
   }, []);
-
-
-
 
   // Auto-scroll transcript
   useEffect(() => {
@@ -271,8 +276,6 @@ function PilotPage() {
         return;
       }
 
-
-
       if (!resp.ok || !resp.body) {
         streamingRef.current = false;
         cancelAllAudio();
@@ -312,7 +315,10 @@ function PilotPage() {
             if (line.endsWith("\r")) line = line.slice(0, -1);
             if (!line.startsWith("data: ")) continue;
             const json = line.slice(6).trim();
-            if (json === "[DONE]") { done = true; break; }
+            if (json === "[DONE]") {
+              done = true;
+              break;
+            }
             try {
               const parsed = JSON.parse(json);
               const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
@@ -346,13 +352,16 @@ function PilotPage() {
         if ((e as Error)?.name !== "AbortError") console.warn("pilot stream error", e);
       }
 
-
       streamingRef.current = false;
 
       // Flush any trailing un-spoken text.
       const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
       for (const c of tail) {
-        if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+        if (!firstSentenceFired) {
+          flushQueuedAudio();
+          cancelledRef.current = false;
+          firstSentenceFired = true;
+        }
 
         void enqueueSpeak(c);
       }
@@ -502,7 +511,11 @@ function PilotPage() {
       return;
     }
     // Reuse the streaming path by inlining a smaller reader (transcript-only update + speak).
-    setMessages((prev) => [...prev, { role: "user", content: "Tell me more." }, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: "Tell me more." },
+      { role: "assistant", content: "" },
+    ]);
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -521,7 +534,10 @@ function PilotPage() {
         if (line.endsWith("\r")) line = line.slice(0, -1);
         if (!line.startsWith("data: ")) continue;
         const json = line.slice(6).trim();
-        if (json === "[DONE]") { done = true; break; }
+        if (json === "[DONE]") {
+          done = true;
+          break;
+        }
         try {
           const parsed = JSON.parse(json);
           const chunk = parsed.choices?.[0]?.delta?.content as string | undefined;
@@ -536,7 +552,11 @@ function PilotPage() {
           const { chunks, rest } = takeSpeakableChunks(speakBuffer);
           speakBuffer = rest;
           for (const c of chunks) {
-            if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+            if (!firstSentenceFired) {
+              flushQueuedAudio();
+              cancelledRef.current = false;
+              firstSentenceFired = true;
+            }
 
             void enqueueSpeak(c);
           }
@@ -549,19 +569,21 @@ function PilotPage() {
     streamingRef.current = false;
     const { chunks: tail } = takeSpeakableChunks(speakBuffer, { force: true });
     for (const c of tail) {
-      if (!firstSentenceFired) { flushQueuedAudio(); cancelledRef.current = false; firstSentenceFired = true; }
+      if (!firstSentenceFired) {
+        flushQueuedAudio();
+        cancelledRef.current = false;
+        firstSentenceFired = true;
+      }
       void enqueueSpeak(c);
     }
-    if (signedIn && assistant.trim()) saveCoachMessage("assistant", assistant.trim()).catch(() => {});
+    if (signedIn && assistant.trim())
+      saveCoachMessage("assistant", assistant.trim()).catch(() => {});
   }, [lastExchange, cancelAllAudio, enqueueSpeak, signedIn]);
 
   const orbDisplayState: OrbState = mic.state === "listening" ? "listening" : orbState;
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const canExpand =
-    !!lastExchange &&
-    !!lastAssistant?.content &&
-    orbState === "idle" &&
-    !speakingRef.current;
+    !!lastExchange && !!lastAssistant?.content && orbState === "idle" && !speakingRef.current;
 
   return (
     <div className="min-h-[calc(100dvh-4rem)] bg-gradient-to-b from-background via-background to-primary/5 pb-24">
@@ -582,17 +604,17 @@ function PilotPage() {
                 <Settings2 className="mr-1.5 h-4 w-4" /> Customize
               </Link>
             </Button>
-
           </div>
         </header>
 
         {signedIn === false && (
           <div className="mt-6 rounded-xl border border-border bg-card/60 p-4 text-sm">
-            <Link to="/auth" className="underline">Sign in</Link> to talk with {pilotName} and save your conversation.
+            <Link to="/auth" className="underline">
+              Sign in
+            </Link>{" "}
+            to talk with {pilotName} and save your conversation.
           </div>
         )}
-
-
 
         <div className="flex flex-col items-center mt-10">
           <button
@@ -607,10 +629,7 @@ function PilotPage() {
             }
             className="outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-full"
           >
-            <PilotOrb
-              state={orbDisplayState}
-              level={mic.level}
-            />
+            <PilotOrb state={orbDisplayState} level={mic.level} />
             <span className="sr-only">{avatarStateLabel(orbDisplayState)}</span>
           </button>
 
@@ -644,11 +663,19 @@ function PilotPage() {
 
           {mic.state === "denied" && (
             <p className="mt-3 text-xs text-destructive max-w-sm text-center">
-              Microphone permission was denied. Enable it in your browser site settings, then reload.
+              Microphone permission was denied. Enable it in your browser site settings, then
+              reload.
             </p>
           )}
           {needsTap && (
-            <Button size="sm" className="mt-3" onClick={() => { setNeedsTap(false); prepareVoicePlayback(); }}>
+            <Button
+              size="sm"
+              className="mt-3"
+              onClick={() => {
+                setNeedsTap(false);
+                prepareVoicePlayback();
+              }}
+            >
               <Phone className="mr-1.5 h-4 w-4" /> Tap to hear reply
             </Button>
           )}
@@ -674,9 +701,10 @@ function PilotPage() {
           </Link>
         </div>
 
-
         <section className="mt-10">
-          <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">Transcript</h2>
+          <h2 className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">
+            Transcript
+          </h2>
           <div
             ref={transcriptRef}
             className="max-h-[40vh] overflow-y-auto space-y-3 rounded-2xl border border-border bg-card/40 p-4"
@@ -697,7 +725,8 @@ function PilotPage() {
         </section>
 
         <p className="mt-6 text-[10px] text-center text-muted-foreground/70 px-6">
-          {pilotName} is an AI sleep & recovery companion — not medical advice. For health concerns, talk to a clinician.
+          {pilotName} is an AI sleep & recovery companion — not medical advice. For health concerns,
+          talk to a clinician.
         </p>
       </div>
     </div>

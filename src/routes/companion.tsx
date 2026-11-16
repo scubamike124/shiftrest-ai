@@ -3,7 +3,23 @@ import { requireSession } from "@/lib/require-session";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mic, MicOff, Send, Settings2, Sparkles, Shield, ShieldCheck, Loader2, Square, Volume2, VolumeX, Lock, Volume1, AlertCircle, X } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Send,
+  Settings2,
+  Sparkles,
+  Shield,
+  ShieldCheck,
+  Loader2,
+  Square,
+  Volume2,
+  VolumeX,
+  Lock,
+  Volume1,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPrefs, savePrefs, type Prefs } from "@/lib/prefs";
@@ -12,10 +28,7 @@ import { PilotPortrait, type PortraitState } from "@/components/companion/PilotP
 import { avatarStateLabel } from "@/components/companion/Avatar";
 import { useMicRecorder } from "@/lib/voice/useMicRecorder";
 import { useOpenAIRealtime } from "@/lib/realtime/useOpenAIRealtime";
-import {
-  isYes,
-  isNo,
-} from "@/lib/voice/companion-sound-bridge";
+import { isYes, isNo } from "@/lib/voice/companion-sound-bridge";
 import { parseIntent, type Intent } from "@/lib/voice/intent-router";
 import { TRACKS } from "@/lib/sounds/catalog";
 import { fetchCompanionHints, listPendingProposals } from "@/lib/memory-proposals";
@@ -24,7 +37,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { DailyBrief } from "@/components/companion/DailyBrief";
 import { ActionCard } from "@/components/companion/ActionCard";
@@ -39,10 +59,20 @@ import {
 import { recordHistory } from "@/lib/companion/action-history";
 import { narrate } from "@/lib/companion/narration";
 import { BreathingOverlay } from "@/components/sleep/BreathingOverlay";
-import { loadLocalPrefs, saveLocalPrefs, type CompanionLocalPrefs } from "@/lib/companion/voice-action-prefs";
+import {
+  loadLocalPrefs,
+  saveLocalPrefs,
+  type CompanionLocalPrefs,
+} from "@/lib/companion/voice-action-prefs";
 import { inQuietHours } from "@/lib/companion/quiet-hours";
 import { getDayPart, greetingLabel } from "@/lib/time/day-part";
-import { speak, stopSpeaking, beginSpeakTurn, speakQueued, prepareVoicePlayback } from "@/lib/companion/speak";
+import {
+  speak,
+  stopSpeaking,
+  beginSpeakTurn,
+  speakQueued,
+  prepareVoicePlayback,
+} from "@/lib/companion/speak";
 import { bulletsToProse } from "@/lib/companion/speech-normalize";
 import { track } from "@/lib/companion/analytics";
 import { CompanionIntroSheet } from "@/components/companion/CompanionIntroSheet";
@@ -51,7 +81,10 @@ import { ThinkingShimmer } from "@/components/companion/ThinkingShimmer";
 import { MarkdownMessage } from "@/components/companion/MarkdownMessage";
 import { NowPlayingStrip } from "@/components/companion/NowPlayingStrip";
 import { WindDownQuickAction } from "@/components/companion/WindDownQuickAction";
-import { CompanionQuickGrid, type CompanionQuickActionId } from "@/components/companion/CompanionQuickGrid";
+import {
+  CompanionQuickGrid,
+  type CompanionQuickActionId,
+} from "@/components/companion/CompanionQuickGrid";
 
 import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
@@ -68,9 +101,6 @@ import {
 } from "@/lib/safety/crisis-cues";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 
-
-
-
 /** Force-show the morning brief on the companion screen when ?brief=1. */
 function forcedMorning(): boolean {
   if (typeof window === "undefined") return false;
@@ -84,7 +114,6 @@ function orbToPortrait(state: OrbState, listening: boolean): PortraitState {
   if (listening || state === "listening") return "speaking"; // glow/pulse while listening
   return "idle";
 }
-
 
 export const Route = createFileRoute("/companion")({
   ssr: false,
@@ -141,24 +170,19 @@ function timeGreeting(name: string): { hi: string; sub: string } {
   const part = getDayPart(now);
   const hi = `${greetingLabel(now)}, ${name}.`;
   const sub =
-    part === "morning" ? "Want help easing into the day?"
-    : part === "afternoon" ? "Need a reset before the next part of your day?"
-    : part === "evening" ? "Want me to help you wind down?"
-    : "Want something quiet to help you sleep?";
+    part === "morning"
+      ? "Want help easing into the day?"
+      : part === "afternoon"
+        ? "Need a reset before the next part of your day?"
+        : part === "evening"
+          ? "Want me to help you wind down?"
+          : "Want something quiet to help you sleep?";
   return { hi, sub };
 }
 
-
-
-
 function CompanionPage() {
   const qc = useQueryClient();
-  const {
-    session,
-    ready: sessionReady,
-    hasSession,
-    hasAccessToken,
-  } = useSession();
+  const { session, ready: sessionReady, hasSession, hasAccessToken } = useSession();
   // sessionEmail removed: Preferred Name is the sole source for personalization.
   const signedIn: boolean | null = sessionReady ? hasSession && hasAccessToken : null;
 
@@ -175,8 +199,9 @@ function CompanionPage() {
 
   // Hydration-safe flag: time-aware greeting renders only after mount.
   const [mountedGreeting, setMountedGreeting] = useState(false);
-  useEffect(() => { setMountedGreeting(true); }, []);
-
+  useEffect(() => {
+    setMountedGreeting(true);
+  }, []);
 
   const savePref = useMutation({
     mutationFn: (p: Partial<Prefs>) => savePrefs(p),
@@ -197,7 +222,14 @@ function CompanionPage() {
   // silenceMs widened from 1000 → 2200: natural mid-sentence pauses on iPhone
   // Safari often exceed 1s, which previously cut users off. noSpeechMs raised
   // to 10s so cold-start "thinking before speaking" isn't dropped as empty.
-  const { state: micState, level, reserved: micReserved, start: micStart, stop: micStop, release: micRelease } = useMicRecorder({ silenceMs: 2200, maxMs: 15_000, noSpeechMs: 10_000 });
+  const {
+    state: micState,
+    level,
+    reserved: micReserved,
+    start: micStart,
+    stop: micStop,
+    release: micRelease,
+  } = useMicRecorder({ silenceMs: 2200, maxMs: 15_000, noSpeechMs: 10_000 });
   const [transcribing, setTranscribing] = useState(false);
 
   // Voice engine — OpenAI Realtime over WebRTC. Replaces the legacy
@@ -220,10 +252,7 @@ function CompanionPage() {
     fresh.forEach((t) => seen.add(t.id));
     // Same local crisis-cue check on what the user said in a live voice call.
     if (fresh.some((t) => t.from === "user" && hasCrisisCue(t.text))) setCrisisCard(true);
-    setMessages((cur) => [
-      ...cur,
-      ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg),
-    ]);
+    setMessages((cur) => [...cur, ...fresh.map((t) => ({ role: t.from, content: t.text }) as Msg)]);
   }, [rt.transcript]);
   // Surface realtime errors as a toast (once per error).
   const rtErrorRef = useRef<string | null>(null);
@@ -256,14 +285,19 @@ function CompanionPage() {
   // We keep a ref to the latest messages so the event handler reads fresh data
   // without re-subscribing on every keystroke.
   const messagesSnapshotRef = useRef<Msg[]>([]);
-  useEffect(() => { messagesSnapshotRef.current = messages; }, [messages]);
+  useEffect(() => {
+    messagesSnapshotRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onTurnEnd = async () => {
       const last = messagesSnapshotRef.current.filter((m) => m.role === "assistant").slice(-1)[0];
       const { inferFromText, setEmotion } = await import("@/lib/companion/emotion");
-      if (localPrefs.companionMode === "sleep") { setEmotion("sleep"); return; }
+      if (localPrefs.companionMode === "sleep") {
+        setEmotion("sleep");
+        return;
+      }
       setEmotion(inferFromText(last?.content ?? ""));
     };
     const onStatus = async (e: Event) => {
@@ -295,18 +329,25 @@ function CompanionPage() {
   // Phase D — voice playback status from speak.ts events.
   const [voiceStatus, setVoiceStatus] = useState<"idle" | "speaking" | "failed">("idle");
   // Voice-off / quiet-hours / autoplay-blocked banner (never silently skip).
-  const [voiceSkipped, setVoiceSkipped] = useState<null | "disabled" | "quiet_hours" | "autoplay_blocked" | "tts_error">(null);
+  const [voiceSkipped, setVoiceSkipped] = useState<
+    null | "disabled" | "quiet_hours" | "autoplay_blocked" | "tts_error"
+  >(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     let failTimer: ReturnType<typeof setTimeout> | null = null;
     let unlocked = false;
     let firstGestureAt = 0;
     const recentFails: number[] = [];
-    const onFirstGesture = () => { firstGestureAt = Date.now(); };
+    const onFirstGesture = () => {
+      firstGestureAt = Date.now();
+    };
     const onStatus = (e: Event) => {
       const detail = (e as CustomEvent<{ status: string; reason?: string }>).detail;
       if (detail.status === "started") {
-        if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+        if (failTimer) {
+          clearTimeout(failTimer);
+          failTimer = null;
+        }
         setVoiceStatus("speaking");
         setVoiceSkipped(null);
         recentFails.length = 0;
@@ -322,7 +363,12 @@ function CompanionPage() {
         while (recentFails.length && now - recentFails[0] > 5000) recentFails.shift();
         const persistent = recentFails.length >= 2;
         setVoiceStatus("failed");
-        if (unlocked && !inGrace && persistent && (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")) {
+        if (
+          unlocked &&
+          !inGrace &&
+          persistent &&
+          (detail.reason === "autoplay_blocked" || detail.reason === "tts_error")
+        ) {
           setVoiceSkipped(detail.reason);
         }
         if (failTimer) clearTimeout(failTimer);
@@ -405,7 +451,6 @@ function CompanionPage() {
     else setOrbState("idle");
   }, [micState, transcribing, sending, voiceStatus, rt.status]);
 
-
   useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, sending]);
@@ -430,10 +475,13 @@ function CompanionPage() {
     // mid-prose loudness instead of a punchy, louder/faster cold start. Mirrors
     // the fix shipped for the Dashboard Voice Briefing.
     const tail =
-      part === "morning" ? "I'm here — how can I help this morning?"
-      : part === "afternoon" ? "I'm here — how can I help this afternoon?"
-      : part === "evening" ? "I'm here — how can I help this evening?"
-      : "I'm here — want something calming to help you sleep?";
+      part === "morning"
+        ? "I'm here — how can I help this morning?"
+        : part === "afternoon"
+          ? "I'm here — how can I help this afternoon?"
+          : part === "evening"
+            ? "I'm here — how can I help this evening?"
+            : "I'm here — want something calming to help you sleep?";
     const opener = `… ${label}, ${name}. ${tail}`;
     setMessages([{ role: "assistant", content: opener }]);
     greetingTextRef.current = opener;
@@ -478,7 +526,13 @@ function CompanionPage() {
       // Fallback: if unlock event never lands (some Safari versions don't
       // emit it until first playback), fire after 350ms anyway — by then
       // the AudioContext.resume() inside prepareVoicePlayback() has settled.
-      window.setTimeout(() => { if (!done) { done = true; window.removeEventListener("companion:voice-unlocked", onUnlock); fire(); } }, 350);
+      window.setTimeout(() => {
+        if (!done) {
+          done = true;
+          window.removeEventListener("companion:voice-unlocked", onUnlock);
+          fire();
+        }
+      }, 350);
     };
     window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
     window.addEventListener("click", onFirstGesture, { once: true });
@@ -499,7 +553,9 @@ function CompanionPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let lastLevelAt = performance.now();
-    const onLvl = () => { lastLevelAt = performance.now(); };
+    const onLvl = () => {
+      lastLevelAt = performance.now();
+    };
     window.addEventListener("companion:audio-level", onLvl as EventListener);
     const interval = window.setInterval(() => {
       if (voiceStatus !== "speaking") return;
@@ -524,7 +580,6 @@ function CompanionPage() {
     }
   }, [micState]);
 
-
   // Voice turn — OpenAI Realtime over WebRTC. First tap connects and starts
   // an always-on session (server-side VAD handles turn detection + barge-in).
   // Subsequent taps end the session. All state transitions
@@ -535,7 +590,11 @@ function CompanionPage() {
       return;
     }
     // Interrupt any pending greeting/TTS so the session opens cleanly.
-    try { stopSpeaking(); } catch { /* noop */ }
+    try {
+      stopSpeaking();
+    } catch {
+      /* noop */
+    }
     prepareVoicePlayback();
     setInput("");
     emitDebug("mic-start");
@@ -546,14 +605,21 @@ function CompanionPage() {
   // Legacy hold-to-talk handlers reduced to a simple tap toggle. Realtime is
   // always-on while the session is connected, so hold-to-talk is unnecessary.
   const handleMicTapRef = useRef(handleMicTap);
-  useEffect(() => { handleMicTapRef.current = handleMicTap; });
+  useEffect(() => {
+    handleMicTapRef.current = handleMicTap;
+  });
   async function cancelMicCapture() {
     await rt.disconnect();
   }
-  function handleMicPointerDown() { /* no-op: tap toggle only */ }
-  function handleMicPointerUp() { /* no-op: tap toggle only */ }
-  function handleMicClick() { void handleMicTap(); }
-
+  function handleMicPointerDown() {
+    /* no-op: tap toggle only */
+  }
+  function handleMicPointerUp() {
+    /* no-op: tap toggle only */
+  }
+  function handleMicClick() {
+    void handleMicTap();
+  }
 
   // Slice 10 — assistant TTS helper. Delegates to the centralized speak()
   // gate which enforces voice prefs, quiet hours, and cancel-prior policy.
@@ -566,13 +632,20 @@ function CompanionPage() {
     void speak(text, { voice: prefs?.voiceId ?? null, source: "manual" });
   }
 
-
   // Slice 9 — central confirm path: record history (executing → completed/failed)
   // and narrate the outcome (when voice replies are allowed).
-  async function runAction(action: CompanionAction): Promise<ReturnType<typeof executeAction> extends Promise<infer R> ? R : never> {
+  async function runAction(
+    action: CompanionAction,
+  ): Promise<ReturnType<typeof executeAction> extends Promise<infer R> ? R : never> {
     const d = describeAction(action);
     track({ event: "action_started", kind: action.kind, destructive: isDestructive(action) });
-    recordHistory({ kind: action.kind, label: d.title, status: "executing", message: "Working…", snapshot: action });
+    recordHistory({
+      kind: action.kind,
+      label: d.title,
+      status: "executing",
+      message: "Working…",
+      snapshot: action,
+    });
     const result = await executeAction(action, execCtx);
     recordHistory({
       kind: action.kind,
@@ -608,7 +681,13 @@ function CompanionPage() {
     const msg = messages[messageIndex];
     if (msg?.action) {
       const d = describeAction(msg.action);
-      recordHistory({ kind: msg.action.kind, label: d.title, status: "cancelled", message: "Cancelled.", snapshot: msg.action });
+      recordHistory({
+        kind: msg.action.kind,
+        label: d.title,
+        status: "cancelled",
+        message: "Cancelled.",
+        snapshot: msg.action,
+      });
       track({ event: "action_cancelled", kind: msg.action.kind });
     }
     setMessages((cur) =>
@@ -636,7 +715,6 @@ function CompanionPage() {
   }
 
   function handleQuickAction(id: CompanionQuickActionId) {
-
     switch (id) {
       case "fall_asleep":
       case "calm_down":
@@ -658,7 +736,6 @@ function CompanionPage() {
   }
 
   async function handleSend(e?: React.FormEvent, override?: string) {
-
     const fromForm = !!e;
     e?.preventDefault();
     const text = (override ?? input).trim();
@@ -678,7 +755,6 @@ function CompanionPage() {
     setInput("");
     // Phase E — clear any prior "Voice unavailable" badge as a new turn begins.
     setVoiceStatus((s) => (s === "failed" ? "idle" : s));
-
 
     // Pending text-based yes/no fallback (kept for accessibility & voice flows).
     if (pendingSoundIntent) {
@@ -733,8 +809,9 @@ function CompanionPage() {
         if (action && parsed.confidence >= 0.6) {
           // Compound: "play rain for 30 minutes" → add timer minutes to action.
           if (action.kind === "play_track") {
-            const m = text.match(/\bfor\s+(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i)
-              ?? text.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i);
+            const m =
+              text.match(/\bfor\s+(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i) ??
+              text.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes|m)\b/i);
             if (m) {
               const minutes = Math.max(1, Math.min(180, parseInt(m[1], 10)));
               proposeAction(baseMessages, { ...action, minutes });
@@ -767,8 +844,6 @@ function CompanionPage() {
     const ac = new AbortController();
     abortRef.current = ac;
 
-
-
     try {
       // A crisis message is never forwarded to an AI provider, with or without
       // AI permission: it gets the crisis card (already shown above; keep this
@@ -788,7 +863,8 @@ function CompanionPage() {
           ...baseMessages,
           {
             role: "assistant",
-            content: "I need your signed-in session before I can reach the AI backend. Please sign in again, then try once more.",
+            content:
+              "I need your signed-in session before I can reach the AI backend. Please sign in again, then try once more.",
           },
         ]);
         track({ event: "voice_turn_failed", stage: "auth" });
@@ -866,7 +942,8 @@ function CompanionPage() {
             const cutLen = pIdx + (rawTail.slice(pIdx).match(PARAGRAPH_RE)?.[0].length ?? 2);
             const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
             spokenChars += cutLen;
-            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+            if (segment)
+              speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
             continue;
           }
           // Otherwise wait until we have a sentence boundary past the min.
@@ -876,7 +953,8 @@ function CompanionPage() {
             if (!force) return;
             const segment = bulletsToProse(rawTail).trim();
             spokenChars += rawTail.length;
-            if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+            if (segment)
+              speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
             return;
           }
           // Don't flush a tiny first sentence; wait for more material.
@@ -884,7 +962,8 @@ function CompanionPage() {
           const cutLen = m.index + m[0].length;
           const segment = bulletsToProse(rawTail.slice(0, cutLen)).trim();
           spokenChars += cutLen;
-          if (segment) speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
+          if (segment)
+            speakQueued(segment, { voice: prefs?.voiceId ?? null, source: "assistant_reply" });
         }
       };
 
@@ -899,7 +978,10 @@ function CompanionPage() {
           if (line.endsWith("\r")) line = line.slice(0, -1);
           if (!line.startsWith("data: ")) continue;
           const json = line.slice(6).trim();
-          if (json === "[DONE]") { done = true; break; }
+          if (json === "[DONE]") {
+            done = true;
+            break;
+          }
           try {
             const evt = JSON.parse(json) as { choices?: { delta?: { content?: string } }[] };
             const delta = evt.choices?.[0]?.delta?.content;
@@ -909,13 +991,14 @@ function CompanionPage() {
               setMessages([...baseMessages, { role: "assistant", content: assistant }]);
               flushReady(false);
             }
-          } catch { /* noop */ }
+          } catch {
+            /* noop */
+          }
         }
       }
       // Flush whatever's left — force=true ignores the min-size gate.
       flushReady(true);
       emitDebug("ai-done", `${assistant.length}c`);
-
     } catch (e) {
       if ((e as { name?: string })?.name !== "AbortError") {
         emitDebug("ai-fail", (e as { message?: string })?.message ?? "err");
@@ -961,7 +1044,8 @@ function CompanionPage() {
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <h1 className="text-2xl font-semibold">Checking your secure session</h1>
         <p className="text-sm text-muted-foreground">
-          Nova will not call any protected backend service until your Supabase session and auth token are loaded.
+          Nova will not call any protected backend service until your Supabase session and auth
+          token are loaded.
         </p>
         <DebugHUD
           signedIn={null}
@@ -985,7 +1069,9 @@ function CompanionPage() {
         <p className="text-sm text-muted-foreground">
           Your private AI needs an authenticated session before it can load personal guidance.
         </p>
-        <Button asChild><Link to="/auth">Sign in</Link></Button>
+        <Button asChild>
+          <Link to="/auth">Sign in</Link>
+        </Button>
         <DebugHUD
           signedIn={false}
           companionOn={false}
@@ -1011,115 +1097,142 @@ function CompanionPage() {
         <div className="flex items-center gap-1">
           <ActionHistorySheet onRetry={handleRetry} />
           <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Companion settings">
-              <Settings2 className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl">
-            <SheetHeader className="text-left">
-              <SheetTitle>Companion settings</SheetTitle>
-              <SheetDescription>Foundation controls. Advanced memory and integrations come later.</SheetDescription>
-            </SheetHeader>
-            <div className="mt-4 space-y-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <Label htmlFor="companion-toggle" className="text-sm font-medium">Companion Mode</Label>
-                  <p className="text-xs text-muted-foreground">Warmer tone, follow-up questions, personal presence.</p>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Companion settings">
+                <Settings2 className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl">
+              <SheetHeader className="text-left">
+                <SheetTitle>Companion settings</SheetTitle>
+                <SheetDescription>
+                  Foundation controls. Advanced memory and integrations come later.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-4 space-y-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="companion-toggle" className="text-sm font-medium">
+                      Companion Mode
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Warmer tone, follow-up questions, personal presence.
+                    </p>
+                  </div>
+                  <Switch
+                    id="companion-toggle"
+                    checked={companionOn}
+                    onCheckedChange={(v) =>
+                      savePref.mutate({ assistantMode: v ? "companion" : "coach" })
+                    }
+                  />
                 </div>
-                <Switch
-                  id="companion-toggle"
-                  checked={companionOn}
-                  onCheckedChange={(v) =>
-                    savePref.mutate({ assistantMode: v ? "companion" : "coach" })
-                  }
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="ai-name" className="text-sm font-medium">Your AI&apos;s name</Label>
-                <Input
-                  id="ai-name"
-                  defaultValue={aiName}
-                  maxLength={40}
-                  placeholder="RestPilot"
-                  onBlur={(e) => {
-                    const v = e.currentTarget.value.trim() || "RestPilot";
-                    if (v !== aiName) savePref.mutate({ assistantName: v });
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">Up to 40 characters. Used in greetings and replies.</p>
-              </div>
-
-              <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-3">
-                <div>
-                  <Label htmlFor="memory-toggle" className="text-sm font-medium flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-primary" /> Memory consent
+                <div className="space-y-2">
+                  <Label htmlFor="ai-name" className="text-sm font-medium">
+                    Your AI&apos;s name
                   </Label>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Off by default. When on, your Companion may remember the things you confirm. Review or delete anything in{" "}
-                    <Link to="/memory" className="underline">Memory</Link>.
+                  <Input
+                    id="ai-name"
+                    defaultValue={aiName}
+                    maxLength={40}
+                    placeholder="RestPilot"
+                    onBlur={(e) => {
+                      const v = e.currentTarget.value.trim() || "RestPilot";
+                      if (v !== aiName) savePref.mutate({ assistantName: v });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Up to 40 characters. Used in greetings and replies.
                   </p>
                 </div>
-                <Switch
-                  id="memory-toggle"
-                  checked={memoryOn}
-                  onCheckedChange={(v) => savePref.mutate({ memoryEnabled: v })}
-                />
-              </div>
 
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
-                <p className="text-sm font-medium">Voice &amp; actions</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Mic is only used when you tap it. No background listening.
-                </p>
-                <div className="mt-3 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="va-voice-in" className="text-sm">Voice input</Label>
-                    <Switch
-                      id="va-voice-in"
-                      checked={localPrefs.voiceInputEnabled}
-                      onCheckedChange={(v) => updateLocal({ voiceInputEnabled: v })}
-                    />
+                <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 p-3">
+                  <div>
+                    <Label
+                      htmlFor="memory-toggle"
+                      className="text-sm font-medium flex items-center gap-2"
+                    >
+                      <Shield className="h-4 w-4 text-primary" /> Memory consent
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Off by default. When on, your Companion may remember the things you confirm.
+                      Review or delete anything in{" "}
+                      <Link to="/memory" className="underline">
+                        Memory
+                      </Link>
+                      .
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="va-voice-out" className="text-sm">Voice replies</Label>
-                    <Switch
-                      id="va-voice-out"
-                      checked={localPrefs.voiceRepliesEnabled}
-                      onCheckedChange={(v) => updateLocal({ voiceRepliesEnabled: v })}
-                    />
+                  <Switch
+                    id="memory-toggle"
+                    checked={memoryOn}
+                    onCheckedChange={(v) => savePref.mutate({ memoryEnabled: v })}
+                  />
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+                  <p className="text-sm font-medium">Voice &amp; actions</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Mic is only used when you tap it. No background listening.
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="va-voice-in" className="text-sm">
+                        Voice input
+                      </Label>
+                      <Switch
+                        id="va-voice-in"
+                        checked={localPrefs.voiceInputEnabled}
+                        onCheckedChange={(v) => updateLocal({ voiceInputEnabled: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="va-voice-out" className="text-sm">
+                        Voice replies
+                      </Label>
+                      <Switch
+                        id="va-voice-out"
+                        checked={localPrefs.voiceRepliesEnabled}
+                        onCheckedChange={(v) => updateLocal({ voiceRepliesEnabled: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="va-actions" className="text-sm">
+                        Action suggestions
+                      </Label>
+                      <Switch
+                        id="va-actions"
+                        checked={localPrefs.actionSuggestionsEnabled}
+                        onCheckedChange={(v) => updateLocal({ actionSuggestionsEnabled: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="va-confirm" className="text-sm">
+                        Always confirm before acting
+                      </Label>
+                      <Switch
+                        id="va-confirm"
+                        checked={localPrefs.requireActionConfirmation}
+                        onCheckedChange={(v) => updateLocal({ requireActionConfirmation: v })}
+                      />
+                    </div>
+                    <Link to="/settings/companion" className="block text-xs text-primary underline">
+                      More voice &amp; quiet-hours settings →
+                    </Link>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="va-actions" className="text-sm">Action suggestions</Label>
-                    <Switch
-                      id="va-actions"
-                      checked={localPrefs.actionSuggestionsEnabled}
-                      onCheckedChange={(v) => updateLocal({ actionSuggestionsEnabled: v })}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <Label htmlFor="va-confirm" className="text-sm">Always confirm before acting</Label>
-                    <Switch
-                      id="va-confirm"
-                      checked={localPrefs.requireActionConfirmation}
-                      onCheckedChange={(v) => updateLocal({ requireActionConfirmation: v })}
-                    />
-                  </div>
-                  <Link to="/settings/companion" className="block text-xs text-primary underline">
-                    More voice &amp; quiet-hours settings →
-                  </Link>
+                </div>
+
+                <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Privacy</p>
+                  <p className="mt-1">
+                    Conversations stay on your account. We never sell your data.{" "}
+                    <Link to="/legal/privacy" className="underline">
+                      Privacy policy
+                    </Link>
+                  </p>
                 </div>
               </div>
-
-              <div className="rounded-lg border border-border/60 p-3 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Privacy</p>
-                <p className="mt-1">
-                  Conversations stay on your account. We never sell your data.{" "}
-                  <Link to="/legal/privacy" className="underline">Privacy policy</Link>
-                </p>
-              </div>
-            </div>
             </SheetContent>
           </Sheet>
         </div>
@@ -1135,7 +1248,10 @@ function CompanionPage() {
           <span className="font-medium text-foreground/90">Private</span>
         </span>
         <span className="inline-flex items-center gap-1 rounded-full bg-background/60 px-2 py-0.5">
-          <ShieldCheck className={cn("h-3 w-3", memoryOn ? "text-emerald-400" : "text-muted-foreground")} aria-hidden />
+          <ShieldCheck
+            className={cn("h-3 w-3", memoryOn ? "text-emerald-400" : "text-muted-foreground")}
+            aria-hidden
+          />
           <span className="font-medium text-foreground/90">Memory {memoryOn ? "On" : "Off"}</span>
         </span>
         <span
@@ -1150,7 +1266,17 @@ function CompanionPage() {
           aria-live="polite"
         >
           {localPrefs.voiceInputEnabled ? (
-            <Mic className={cn("h-3 w-3", micState === "listening" ? "text-rose-300 animate-pulse" : micReserved ? "text-emerald-300" : "text-indigo-glow")} aria-hidden />
+            <Mic
+              className={cn(
+                "h-3 w-3",
+                micState === "listening"
+                  ? "text-rose-300 animate-pulse"
+                  : micReserved
+                    ? "text-emerald-300"
+                    : "text-indigo-glow",
+              )}
+              aria-hidden
+            />
           ) : (
             <MicOff className="h-3 w-3 text-muted-foreground" aria-hidden />
           )}
@@ -1164,7 +1290,10 @@ function CompanionPage() {
           {micReserved && micState !== "listening" && (
             <button
               type="button"
-              onClick={() => { micRelease(); toast.success("Microphone released."); }}
+              onClick={() => {
+                micRelease();
+                toast.success("Microphone released.");
+              }}
               className="ml-1 rounded-full px-1.5 text-[10px] font-semibold text-emerald-200 underline-offset-2 hover:underline"
               aria-label="Release microphone"
             >
@@ -1211,7 +1340,7 @@ function CompanionPage() {
               if (!localPrefs.voiceInputEnabled || micState === "denied") {
                 track({ event: "avatar_tap_to_talk", result: "fallback" });
                 const el = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(
-                  '[data-companion-composer] textarea, [data-companion-composer] input',
+                  "[data-companion-composer] textarea, [data-companion-composer] input",
                 );
                 el?.focus();
                 return;
@@ -1224,11 +1353,17 @@ function CompanionPage() {
             }}
             className="rounded-full transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label={
-              micState === "listening" ? "Stop listening" : `Tap to talk — ${avatarStateLabel(orbState)}`
+              micState === "listening"
+                ? "Stop listening"
+                : `Tap to talk — ${avatarStateLabel(orbState)}`
             }
             aria-pressed={micState === "listening"}
           >
-            <PilotPortrait state={orbToPortrait(orbState, micState === "listening")} size="xl" eager />
+            <PilotPortrait
+              state={orbToPortrait(orbState, micState === "listening")}
+              size="xl"
+              eager
+            />
             <span className="sr-only">{`Pilot — ${avatarStateLabel(orbState)}`}</span>
           </button>
         </div>
@@ -1258,7 +1393,6 @@ function CompanionPage() {
           ) : null}
         </div>
 
-
         {voiceSkipped && (
           <button
             type="button"
@@ -1282,23 +1416,29 @@ function CompanionPage() {
             <VolumeX className="h-4 w-4 shrink-0 text-primary" />
             <span className="flex-1">
               {voiceSkipped === "disabled" && (
-                <>🔇 Voice is currently turned off. <span className="font-medium underline">Tap here to enable Aura's voice.</span></>
+                <>
+                  🔇 Voice is currently turned off.{" "}
+                  <span className="font-medium underline">Tap here to enable Aura's voice.</span>
+                </>
               )}
               {voiceSkipped === "quiet_hours" && (
-                <>🌙 Quiet Hours is on — Aura is staying silent. Adjust in settings if you'd like voice back.</>
+                <>
+                  🌙 Quiet Hours is on — Aura is staying silent. Adjust in settings if you'd like
+                  voice back.
+                </>
               )}
               {voiceSkipped === "autoplay_blocked" && (
                 <>🔈 Your browser blocked autoplay. Tap Aura once to unlock voice playback.</>
               )}
               {voiceSkipped === "tts_error" && (
-                <>⚠️ Voice playback hit an error. Text is still here — try again or check your connection.</>
+                <>
+                  ⚠️ Voice playback hit an error. Text is still here — try again or check your
+                  connection.
+                </>
               )}
             </span>
           </button>
         )}
-
-
-
 
         <div className="mt-4 text-center">
           {(() => {
@@ -1306,9 +1446,7 @@ function CompanionPage() {
             // mountedGreeting is set in a useEffect below — server and first
             // client render show a time-neutral greeting so hydration matches;
             // the time-aware one appears one frame later.
-            const g = mountedGreeting
-              ? timeGreeting(name)
-              : { hi: `Hi, ${name}.`, sub: "" };
+            const g = mountedGreeting ? timeGreeting(name) : { hi: `Hi, ${name}.`, sub: "" };
             return (
               <>
                 <p className="text-base font-medium">{g.hi}</p>
@@ -1319,8 +1457,6 @@ function CompanionPage() {
             );
           })()}
         </div>
-
-
       </section>
 
       {/* Slice 5 — pending memory proposals (non-intrusive). */}
@@ -1344,7 +1480,6 @@ function CompanionPage() {
           forcedPeriod={search.period ?? (forcedMorning() ? "morning" : undefined)}
         />
       )}
-
 
       {/* Companion off — gentle CTA */}
       {!companionOn && (
@@ -1390,10 +1525,7 @@ function CompanionPage() {
                   <p className="mb-3 text-center text-[11px] uppercase tracking-[0.18em] text-muted-foreground/80">
                     Quick actions
                   </p>
-                  <CompanionQuickGrid
-                    disabled={sending}
-                    onAction={(id) => handleQuickAction(id)}
-                  />
+                  <CompanionQuickGrid disabled={sending} onAction={(id) => handleQuickAction(id)} />
                 </div>
               </>
             ) : (
@@ -1414,9 +1546,11 @@ function CompanionPage() {
           </div>
         )}
 
-
         {messages.map((m, i) => (
-          <div key={i} className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}>
+          <div
+            key={i}
+            className={cn("flex flex-col", m.role === "user" ? "items-end" : "items-start")}
+          >
             <div
               className={cn(
                 "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
@@ -1527,7 +1661,8 @@ function CompanionPage() {
             size="icon"
             className={cn(
               "h-11 w-11 shrink-0 transition",
-              realtimeActive && "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
+              realtimeActive &&
+                "bg-rose-500 text-white shadow-[0_0_0_4px_rgba(244,63,94,0.18)] hover:bg-rose-500",
             )}
             aria-label={realtimeActive ? "End voice conversation" : "Start voice conversation"}
             aria-pressed={realtimeActive}
@@ -1554,11 +1689,24 @@ function CompanionPage() {
           autoComplete="off"
         />
         {sending ? (
-          <Button type="button" size="icon" variant="secondary" className="h-11 w-11 shrink-0" aria-label="Stop" onClick={handleStop}>
+          <Button
+            type="button"
+            size="icon"
+            variant="secondary"
+            className="h-11 w-11 shrink-0"
+            aria-label="Stop"
+            onClick={handleStop}
+          >
             <Square className="h-4 w-4" />
           </Button>
         ) : (
-          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Send" disabled={!input.trim()}>
+          <Button
+            type="submit"
+            size="icon"
+            className="h-11 w-11 shrink-0"
+            aria-label="Send"
+            disabled={!input.trim()}
+          >
             <Send className="h-4 w-4" />
           </Button>
         )}
@@ -1574,7 +1722,13 @@ function CompanionPage() {
             End
           </button>
           <span className="text-[11px] text-muted-foreground">
-            {rt.status === "connecting" ? "Connecting…" : rt.status === "speaking" ? "Speaking…" : rt.status === "thinking" ? "Thinking…" : "Listening — speak naturally"}
+            {rt.status === "connecting"
+              ? "Connecting…"
+              : rt.status === "speaking"
+                ? "Speaking…"
+                : rt.status === "thinking"
+                  ? "Thinking…"
+                  : "Listening — speak naturally"}
           </span>
         </div>
       )}
@@ -1584,7 +1738,8 @@ function CompanionPage() {
             <VoiceTrialUsedUp />
           ) : (
             <span className="rounded-full border border-border bg-card px-3 py-1 text-[10px] font-medium text-muted-foreground">
-              Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of {Math.round(rt.trial.capSeconds / 60)} min left
+              Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of{" "}
+              {Math.round(rt.trial.capSeconds / 60)} min left
             </span>
           )}
         </div>
@@ -1606,7 +1761,6 @@ function CompanionPage() {
         companionMode={localPrefs.companionMode ?? "normal"}
         onReset={handleHardReset}
       />
-
     </main>
   );
 }

@@ -65,10 +65,7 @@ async function rpc<T>(
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error(`${fn} timeout`)), RPC_TIMEOUT_MS);
     });
-    const { data, error } = await Promise.race([
-      Promise.resolve(admin.rpc(fn, args)),
-      timeout,
-    ]);
+    const { data, error } = await Promise.race([Promise.resolve(admin.rpc(fn, args)), timeout]);
     if (error) {
       console.error(`[realtime] ${fn} failed`, error);
       return null;
@@ -86,7 +83,11 @@ export type StartResult =
   | { ok: true; sessionId: string; deadlineAt: number; maxSessionSeconds: number; debit: number }
   | {
       ok: false;
-      code: "voice_disabled" | "voice_session_active" | "ai_budget_exhausted" | "ai_budget_unavailable";
+      code:
+        | "voice_disabled"
+        | "voice_session_active"
+        | "ai_budget_exhausted"
+        | "ai_budget_unavailable";
       message: string;
     };
 
@@ -217,9 +218,7 @@ export async function reportRealtimeSession(
   if (!input.final) {
     if (!late) return { ...none, deadlineAt };
     const step = tokensForSeconds(REALTIME_COST.OVERAGE_STEP_SECONDS);
-    const bucket = Math.floor(
-      (now - deadlineAt) / (REALTIME_COST.OVERAGE_STEP_SECONDS * 1000),
-    );
+    const bucket = Math.floor((now - deadlineAt) / (REALTIME_COST.OVERAGE_STEP_SECONDS * 1000));
     const charged = await rpc<boolean>(admin, "charge_voice_overage", {
       _user_id: userId,
       _sid: input.sessionId,

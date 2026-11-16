@@ -24,10 +24,14 @@ function fallback(reason: Fallback["reason"], message: string): Response {
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused for now. Try again later.";
-    case "rate_limit": return "ElevenLabs is rate-limiting. Try again in a moment.";
-    case "config":     return "ElevenLabs isn't configured on the server yet.";
-    default:           return "ElevenLabs voice is temporarily unavailable.";
+    case "credits":
+      return "Voice playback is paused for now. Try again later.";
+    case "rate_limit":
+      return "ElevenLabs is rate-limiting. Try again in a moment.";
+    case "config":
+      return "ElevenLabs isn't configured on the server yet.";
+    default:
+      return "ElevenLabs voice is temporarily unavailable.";
   }
 }
 
@@ -79,7 +83,9 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           }
           const apiKey = process.env.ELEVENLABS_API_KEY;
           if (!apiKey) {
-            console.error("[tts-elevenlabs] provider_failure reason=config_missing ELEVENLABS_API_KEY not set");
+            console.error(
+              "[tts-elevenlabs] provider_failure reason=config_missing ELEVENLABS_API_KEY not set",
+            );
             const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
             notifyOwnerAsync({
               severity: "critical",
@@ -89,7 +95,8 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             return fallback("config", messageFromReason("config"));
           }
 
-          const voiceId = reqBody.voice && /^[a-zA-Z0-9]+$/.test(reqBody.voice) ? reqBody.voice : DEFAULT_VOICE;
+          const voiceId =
+            reqBody.voice && /^[a-zA-Z0-9]+$/.test(reqBody.voice) ? reqBody.voice : DEFAULT_VOICE;
           const mode = reqBody.mode ?? "normal";
           const textLen = text.length;
 
@@ -100,10 +107,41 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           // - encouraging: keeps speaker_boost for clarity in louder moments.
           // - thinking: same flat profile as normal.
           const preset =
-            mode === "sleep"        ? { stability: 0.78, similarity: 0.82, style: 0.05, speed: 0.86, prefix: "[slowly] ", boost: false }
-          : mode === "encouraging"  ? { stability: 0.50, similarity: 0.80, style: 0.40, speed: 1.00, prefix: "[warm] ",   boost: true  }
-          : mode === "thinking"     ? { stability: 0.70, similarity: 0.80, style: 0.08, speed: 0.92, prefix: "",          boost: false }
-                                    : { stability: 0.72, similarity: 0.80, style: 0.05, speed: 0.88, prefix: "",          boost: false };
+            mode === "sleep"
+              ? {
+                  stability: 0.78,
+                  similarity: 0.82,
+                  style: 0.05,
+                  speed: 0.86,
+                  prefix: "[slowly] ",
+                  boost: false,
+                }
+              : mode === "encouraging"
+                ? {
+                    stability: 0.5,
+                    similarity: 0.8,
+                    style: 0.4,
+                    speed: 1.0,
+                    prefix: "[warm] ",
+                    boost: true,
+                  }
+                : mode === "thinking"
+                  ? {
+                      stability: 0.7,
+                      similarity: 0.8,
+                      style: 0.08,
+                      speed: 0.92,
+                      prefix: "",
+                      boost: false,
+                    }
+                  : {
+                      stability: 0.72,
+                      similarity: 0.8,
+                      style: 0.05,
+                      speed: 0.88,
+                      prefix: "",
+                      boost: false,
+                    };
 
           console.log(
             `[tts-elevenlabs] provider_start voice=${voiceId} mode=${mode} textLen=${textLen}`,
@@ -134,13 +172,14 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             `[tts-elevenlabs] provider_headers ms=${Date.now() - providerT0} status=${upstream.status}`,
           );
 
-
           if (!upstream.ok) {
             const upstreamBody = await upstream.text().catch(() => "");
             const reason: Fallback["reason"] =
-              upstream.status === 402 ? "credits"
-              : upstream.status === 429 ? "rate_limit"
-              : "unavailable";
+              upstream.status === 402
+                ? "credits"
+                : upstream.status === 429
+                  ? "rate_limit"
+                  : "unavailable";
             console.error(
               `[tts-elevenlabs] provider_failure reason=${reason} status=${upstream.status} voice=${voiceId} mode=${mode} textLen=${textLen} ms=${Date.now() - t0} body=${upstreamBody.slice(0, 240)}`,
             );
@@ -152,7 +191,12 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
                 severity: reason === "credits" ? "critical" : "high",
                 service: "tts-elevenlabs",
                 message: `ElevenLabs upstream ${reason} (HTTP ${upstream.status})`,
-                meta: { status: upstream.status, voiceId, mode, snippet: upstreamBody.slice(0, 240) },
+                meta: {
+                  status: upstream.status,
+                  voiceId,
+                  mode,
+                  snippet: upstreamBody.slice(0, 240),
+                },
               });
             }
             return fallback(reason, messageFromReason(reason));

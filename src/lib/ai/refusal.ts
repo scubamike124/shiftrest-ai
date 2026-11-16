@@ -109,16 +109,13 @@ export function providerFailure(upstreamStatus: number | null): ProviderFailure 
 /** The Response for a provider failure. See providerFailure(). */
 export function providerFailureResponse(upstreamStatus: number | null): Response {
   const f = providerFailure(upstreamStatus);
-  return new Response(
-    JSON.stringify({ error: f.message, code: f.code, retryable: f.retryable }),
-    {
-      status: f.status,
-      headers: {
-        "Content-Type": "application/json",
-        ...(f.retryAfterSeconds ? { "Retry-After": String(f.retryAfterSeconds) } : {}),
-      },
+  return new Response(JSON.stringify({ error: f.message, code: f.code, retryable: f.retryable }), {
+    status: f.status,
+    headers: {
+      "Content-Type": "application/json",
+      ...(f.retryAfterSeconds ? { "Retry-After": String(f.retryAfterSeconds) } : {}),
     },
-  );
+  });
 }
 
 // ---------------------------------------------------------------- client side
@@ -128,6 +125,7 @@ export type AIRefusalKind =
   | "rate_limited"
   | "provider_busy"
   | "provider_unavailable"
+  | "request_rejected"
   | "other";
 
 export type AIRefusal = {
@@ -181,11 +179,8 @@ export function describeAIRefusal(
   if (code === AI_REFUSAL.DAILY_LIMIT) kind = "daily_limit";
   else if (code === AI_REFUSAL.RATE_LIMITED) kind = "rate_limited";
   else if (code === AI_REFUSAL.PROVIDER_BUSY) kind = "provider_busy";
-  else if (
-    code === AI_REFUSAL.PROVIDER_UNAVAILABLE ||
-    code === AI_REFUSAL.PROVIDER_ERROR ||
-    code === AI_REFUSAL.BUDGET_UNAVAILABLE
-  )
+  else if (code === AI_REFUSAL.PROVIDER_ERROR) kind = "request_rejected";
+  else if (code === AI_REFUSAL.PROVIDER_UNAVAILABLE || code === AI_REFUSAL.BUDGET_UNAVAILABLE)
     kind = "provider_unavailable";
   else if (code === null) {
     // Responses from before codes existed (an older server during a rollout).
@@ -243,6 +238,16 @@ export function describeAIRefusal(
         title: "The AI service is temporarily unavailable.",
         description: "This isn't your limit. Try again shortly.",
         chatMessage: `The AI service is temporarily unavailable. This isn't your limit. ${SAVED}: try again shortly.`,
+        offerUpgrade: false,
+      };
+    case "request_rejected":
+      return {
+        ...base,
+        kind,
+        retryAfterSeconds: null,
+        title: "The AI service couldn't handle that request.",
+        description: "This isn't your limit. Try rephrasing or shortening it.",
+        chatMessage: `The AI service couldn't handle that request. This isn't your limit. ${SAVED}: try rephrasing or shortening it.`,
         offerUpgrade: false,
       };
     default:

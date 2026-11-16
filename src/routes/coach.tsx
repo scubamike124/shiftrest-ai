@@ -175,7 +175,6 @@ function Coach() {
     setHydrated(true);
   }, [history, hydrated]);
 
-
   function scrollToBottom() {
     requestAnimationFrame(() => {
       listRef.current?.scrollTo({
@@ -184,7 +183,6 @@ function Coach() {
       });
     });
   }
-
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -248,7 +246,6 @@ function Coach() {
         setMessages(baseMessages);
         return;
       }
-
 
       // Add placeholder assistant message
       setMessages([...baseMessages, { role: "assistant", content: "" }]);
@@ -318,7 +315,6 @@ function Coach() {
     }
   }
 
-
   return (
     <main className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-10 border-b border-border bg-background/85 px-5 pb-3 pt-12 backdrop-blur-xl">
@@ -328,9 +324,7 @@ function Coach() {
           </span>
           <div className="flex-1">
             <h1 className="text-lg font-semibold">AI Sleep Coach</h1>
-            <p className="text-xs text-muted-foreground">
-              Circadian-rhythm expert · always on
-            </p>
+            <p className="text-xs text-muted-foreground">Circadian-rhythm expert · always on</p>
           </div>
           <button
             type="button"
@@ -357,11 +351,7 @@ function Coach() {
               <Bubble
                 key={i}
                 role={m.role}
-                onSpeak={
-                  m.role === "assistant" && m.content
-                    ? () => speak(m.content)
-                    : undefined
-                }
+                onSpeak={m.role === "assistant" && m.content ? () => speak(m.content) : undefined}
                 tts={isLast && m.role === "assistant" ? tts : undefined}
               >
                 {m.content || (sending && isLast ? <Typing /> : "")}
@@ -378,9 +368,7 @@ function Coach() {
 
         {messages.length <= 1 && (
           <div className="mt-5 flex flex-col gap-2">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">
-              Try asking
-            </p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Try asking</p>
             {STARTERS.map((s) => (
               <button
                 key={s}
@@ -393,9 +381,7 @@ function Coach() {
           </div>
         )}
 
-        <p className="mt-6 text-[10px] leading-relaxed text-muted-foreground/70">
-          {DISCLAIMER}
-        </p>
+        <p className="mt-6 text-[10px] leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
       </div>
 
       <form
@@ -508,7 +494,6 @@ function SpeakerRow({
   );
 }
 
-
 function AssistantBody({ children }: { children: React.ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   if (typeof children !== "string") return <>{children}</>;
@@ -548,7 +533,6 @@ function MarkdownText({ text }: { text: string }) {
     </div>
   );
 }
-
 
 function Typing() {
   return (

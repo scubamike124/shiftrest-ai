@@ -186,18 +186,30 @@ User state: ${insights.contextString}`;
 function SwapResultCard({ result }: { result: SwapResult }) {
   const verdictMeta =
     result.verdict === "take_it"
-      ? { icon: CheckCircle2, color: "var(--mint)", bg: "color-mix(in srgb, var(--mint) 14%, var(--card))" }
+      ? {
+          icon: CheckCircle2,
+          color: "var(--mint)",
+          bg: "color-mix(in srgb, var(--mint) 14%, var(--card))",
+        }
       : result.verdict === "skip_it"
-      ? { icon: XCircle, color: "var(--destructive)", bg: "color-mix(in srgb, var(--destructive) 14%, var(--card))" }
-      : { icon: AlertTriangle, color: "var(--amber)", bg: "color-mix(in srgb, var(--amber) 14%, var(--card))" };
+        ? {
+            icon: XCircle,
+            color: "var(--destructive)",
+            bg: "color-mix(in srgb, var(--destructive) 14%, var(--card))",
+          }
+        : {
+            icon: AlertTriangle,
+            color: "var(--amber)",
+            bg: "color-mix(in srgb, var(--amber) 14%, var(--card))",
+          };
   const VerdictIcon = verdictMeta.icon;
 
   const costColor =
     result.cost === "high"
       ? "var(--destructive)"
       : result.cost === "medium"
-      ? "var(--amber)"
-      : "var(--mint)";
+        ? "var(--amber)"
+        : "var(--mint)";
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,7 +235,10 @@ function SwapResultCard({ result }: { result: SwapResult }) {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-glow">
           Recovery Cost
         </p>
-        <p className="mt-1 text-2xl capitalize" style={{ fontFamily: "var(--font-display)", color: costColor }}>
+        <p
+          className="mt-1 text-2xl capitalize"
+          style={{ fontFamily: "var(--font-display)", color: costColor }}
+        >
           {result.cost}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{result.cost_reason}</p>

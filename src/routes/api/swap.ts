@@ -64,24 +64,21 @@ export const Route = createFileRoute("/api/swap")({
             });
           }
 
-          const upstream = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
-                messages: [
-                  { role: "system", content: SYSTEM },
-                  { role: "user", content: context },
-                ],
-                response_format: { type: "json_object" },
-              }),
+          const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
             },
-          );
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              messages: [
+                { role: "system", content: SYSTEM },
+                { role: "user", content: context },
+              ],
+              response_format: { type: "json_object" },
+            }),
+          });
 
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
@@ -112,7 +109,8 @@ export const Route = createFileRoute("/api/swap")({
             await recordAIUsage(auth.userId, {
               intent: "swap",
               model: "google/gemini-3-flash-preview",
-              promptTokens: data.usage?.prompt_tokens ?? estimateTextTokens(SYSTEM.length + context.length),
+              promptTokens:
+                data.usage?.prompt_tokens ?? estimateTextTokens(SYSTEM.length + context.length),
               completionTokens: data.usage?.completion_tokens ?? estimateTextTokens(raw.length),
             });
           }

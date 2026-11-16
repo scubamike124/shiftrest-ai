@@ -124,6 +124,9 @@ export function provider({
   status = 200,
   network = false,
   breakStream = false,
+  breakBeforeText = false,
+  /** After the first chunk, wait this long (ms) before the rest: a client can cancel in between. */
+  gapMs = 0,
   reply = "Nap at 3 pm.",
   usage = { prompt_tokens: 900, completion_tokens: 60 },
 } = {}) {
@@ -160,14 +163,28 @@ export function provider({
     const enc = new TextEncoder();
     const body = new ReadableStream({
       start(c) {
-        c.enqueue(enc.encode(sse({ choices: [{ delta: { content: reply } }] })));
-        if (breakStream) {
+        if (breakBeforeText) {
           c.error(new Error("provider stream broke"));
           return;
         }
-        c.enqueue(enc.encode(sse({ choices: [{ delta: {} }], usage })));
-        c.enqueue(enc.encode("data: [DONE]\n\n"));
-        c.close();
+        c.enqueue(enc.encode(sse({ choices: [{ delta: { content: reply } }] })));
+        if (breakStream) {
+          // After the browser has been sent the text.
+          setTimeout(() => c.error(new Error("provider stream broke")), 10);
+          return;
+        }
+        const rest = () => {
+          try {
+            c.enqueue(enc.encode(sse({ choices: [{ delta: { content: " Then stay dark." } }] })));
+            c.enqueue(enc.encode(sse({ choices: [{ delta: {} }], ...(usage ? { usage } : {}) })));
+            c.enqueue(enc.encode("data: [DONE]\n\n"));
+            c.close();
+          } catch {
+            /* the consumer cancelled */
+          }
+        };
+        if (gapMs) setTimeout(rest, gapMs);
+        else rest();
       },
     });
     return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });

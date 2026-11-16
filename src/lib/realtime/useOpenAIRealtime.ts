@@ -176,12 +176,16 @@ export function useOpenAIRealtime() {
     }
     try {
       dcRef.current?.close();
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     dcRef.current = null;
     try {
       pcRef.current?.getSenders().forEach((s) => s.track?.stop());
       pcRef.current?.close();
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     pcRef.current = null;
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
@@ -222,10 +226,7 @@ export function useOpenAIRealtime() {
         awaitingFirstReplyAudioRef.current = true;
       }
       setStatus("thinking");
-    } else if (
-      type === "response.output_audio.delta" ||
-      type === "response.audio.delta"
-    ) {
+    } else if (type === "response.output_audio.delta" || type === "response.audio.delta") {
       const now = performance.now();
       setStatus("speaking");
       const capturedFirstReply = awaitingFirstReplyAudioRef.current;
@@ -390,8 +391,7 @@ export function useOpenAIRealtime() {
         data: {
           localTime: new Date().toISOString(),
           timezone:
-            (typeof Intl !== "undefined" &&
-              Intl.DateTimeFormat().resolvedOptions().timeZone) ||
+            (typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone) ||
             null,
           ...(environment && { environment }),
         },
@@ -471,21 +471,15 @@ export function useOpenAIRealtime() {
           console.info("[realtime] peer-connection-established", {
             at: now,
             connectMs:
-              connectStartRef.current != null
-                ? Math.round(now - connectStartRef.current)
-                : null,
+              connectStartRef.current != null ? Math.round(now - connectStartRef.current) : null,
           });
           setStatus("listening");
           setMetrics((m) => ({
             ...m,
             pcConnectedMs:
-              connectStartRef.current != null
-                ? now - connectStartRef.current
-                : m.pcConnectedMs,
+              connectStartRef.current != null ? now - connectStartRef.current : m.pcConnectedMs,
             connectMs:
-              connectStartRef.current != null
-                ? now - connectStartRef.current
-                : m.connectMs,
+              connectStartRef.current != null ? now - connectStartRef.current : m.connectMs,
           }));
         } else if (s === "disconnected" || s === "failed") {
           console.warn("[realtime] peer-connection-state", {
@@ -524,7 +518,7 @@ export function useOpenAIRealtime() {
         if (greetingSent) return;
         greetingSent = true;
         const name = session.greetingName?.trim();
-        const label = (session.greetingLabel?.trim() || "Hi");
+        const label = session.greetingLabel?.trim() || "Hi";
         const opener = name ? `${label}, ${name}.` : `${label}.`;
         const greetingInstructions = name
           ? `Greet ${name} warmly by saying exactly: "${opener}" No second sentence. Do not ask how you can help until the user speaks.`
@@ -576,16 +570,16 @@ export function useOpenAIRealtime() {
       );
       if (!sdpRes.ok) {
         const detail = await sdpRes.text().catch(() => "");
-        throw new Error(
-          `OpenAI SDP exchange failed (${sdpRes.status}): ${detail.slice(0, 160)}`,
-        );
+        throw new Error(`OpenAI SDP exchange failed (${sdpRes.status}): ${detail.slice(0, 160)}`);
       }
       const answerSdp = await sdpRes.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (isAIConsentError(e)) {
-        setError("Voice needs your permission to use AI. Allow AI features to start a conversation.");
+        setError(
+          "Voice needs your permission to use AI. Allow AI features to start a conversation.",
+        );
       } else if (msg.includes("trial_limit_reached")) {
         setTrial({ isTrial: true, remainingSeconds: 0, capSeconds: 0, limitReached: true });
         setError("Trial voice minutes used up.");

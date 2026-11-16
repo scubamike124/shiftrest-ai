@@ -397,15 +397,85 @@ for (const [label, spyOpts] of [
   }
 }
 
-test("no debit: the provider stream breaks before it finishes", async () => {
+/** Run a coach stream; `cancelAfterFirstChunk` is a browser that gives up part way. */
+async function coachStream(spyOpts, { cancelAfterFirstChunk = false, body = coachBody() } = {}) {
   const db = fakeDb();
-  const h = loadRoute("ai", { db, spy: provider({ breakStream: true }) });
-  const res = await h.post({ request: jsonRequest(coachBody()) });
-  assert.equal(res.status, 200);
-  await drain(res).catch(() => "");
-  await settle();
+  const spy = provider(spyOpts);
+  const h = loadRoute("ai", { db, spy });
+  const res = await h.post({ request: jsonRequest(body) });
+  let text = "";
+  if (cancelAfterFirstChunk) {
+    const reader = res.body.getReader();
+    const first = await reader.read();
+    text = new TextDecoder().decode(first.value);
+    await reader.cancel();
+  } else {
+    text = await drain(res).catch(() => "");
+  }
+  await new Promise((r) => setTimeout(r, 120));
+  return { res, db, spy, text };
+}
+
+const rows = (db) => db.aiLog.map((r) => [r.intent, r.status, r.prompt_tokens, r.completion_tokens]);
+
+test("free-usage gap closed: the provider stream breaks AFTER text was delivered -> one estimated debit", async () => {
+  const { text, db, spy } = await coachStream({ breakStream: true });
+  assert.match(text, /Nap at 3 pm\./, "the answer reached the browser");
+  assert.equal(db.aiLog.length, 1, "exactly one usage row");
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  assert.deepEqual(rows(db), [
+    ["coach", "ok", Math.ceil(promptChars / 4), Math.ceil("Nap at 3 pm.".length / 4)],
+  ]);
+  assert.ok(db.debited > 0);
+});
+
+test("free-usage gap closed: the client cancels after partial text -> one estimated debit", async () => {
+  const { text, db, spy } = await coachStream(
+    { gapMs: 60, usage: null },
+    { cancelAfterFirstChunk: true },
+  );
+  assert.match(text, /Nap at 3 pm\./);
+  assert.equal(db.aiLog.length, 1, "exactly one usage row, not zero and not two");
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  const [r] = db.aiLog;
+  assert.equal(r.prompt_tokens, Math.ceil(promptChars / 4));
+  assert.ok(r.completion_tokens >= Math.ceil("Nap at 3 pm.".length / 4));
+  assert.ok(db.debited > 0);
+});
+
+test("no debit: the provider fails before ANY text was delivered", async () => {
+  const { text, db } = await coachStream({ breakBeforeText: true });
+  assert.doesNotMatch(text, /Nap at 3 pm/);
   assert.equal(db.debited, 0);
   assert.deepEqual(db.aiLog, []);
+});
+
+test("normal completion with a usage frame debits the provider's numbers, once", async () => {
+  const { db } = await coachStream({ usage: { prompt_tokens: 1234, completion_tokens: 56 } });
+  assert.deepEqual(rows(db), [["coach", "ok", 1234, 56]]);
+});
+
+test("normal completion WITHOUT a usage frame debits an estimate, never 0", async () => {
+  const { db, spy } = await coachStream({ usage: null });
+  const promptChars = JSON.parse(spy.calls[0].body).messages.reduce((n, m) => n + m.content.length, 0);
+  assert.deepEqual(rows(db), [
+    ["coach", "ok", Math.ceil(promptChars / 4), Math.ceil("Nap at 3 pm. Then stay dark.".length / 4)],
+  ]);
+  assert.ok(db.debited > 0);
+});
+
+test("an all-zero usage frame is not trusted: the turn is estimated, not logged as 0", async () => {
+  const { db } = await coachStream({ usage: { prompt_tokens: 0, completion_tokens: 0 } });
+  assert.ok(db.debited > 0);
+});
+
+test("the streaming request asks the provider for usage; non-stream requests are unchanged", async () => {
+  const stream = await coachStream({});
+  assert.deepEqual(JSON.parse(stream.spy.calls[0].body).stream_options, { include_usage: true });
+  const { spy } = await ai({ intent: "coach_tip" }, { spy: provider() });
+  const json = JSON.parse(spy.calls[0].body);
+  assert.equal(json.stream, undefined);
+  assert.equal(json.stream_options, undefined);
 });
 
 test("no debit: refused requests (rate limit, allowance used up) write nothing", async () => {
@@ -442,3 +512,93 @@ for (const [file, makeReq] of [
     assert.ok(db.debited > 0, `${file}: a served request is still counted`);
   });
 }
+
+// ---- 6. ai_provider_error has its own truthful wording ----------------------
+
+test("ai_provider_error: not 'try again shortly', not your limit, no upgrade", () => {
+  const body = { error: "x", code: "ai_provider_error", retryable: false };
+  for (const native of [false, true]) {
+    const r = refusal().describeAIRefusal(502, body, { native });
+    assert.equal(r.kind, "request_rejected");
+    assert.equal(r.offerUpgrade, false);
+    assert.match(r.chatMessage, /couldn't handle that request/);
+    assert.match(r.chatMessage, /isn't your limit/);
+    assert.match(r.chatMessage + r.description, /rephras|shorten/i);
+    assert.doesNotMatch(r.chatMessage + r.title + r.description, /try again shortly|upgrade|allowance/i);
+  }
+  const unavailable = refusal().describeAIRefusal(503, { code: "ai_provider_unavailable" }, { native: false });
+  assert.equal(unavailable.kind, "provider_unavailable");
+});
+
+test("a provider 4xx on /api/ai reaches the user as request_rejected end to end", async () => {
+  const { res, json } = await ai(coachBody(), { spy: provider({ status: 400 }) });
+  assert.equal(res.status, 502);
+  assert.equal(describe(res, json).kind, "request_rejected");
+});
+
+// ---- 7. voice brief / tts show the real reason ------------------------------
+
+test("voice surfaces never show the raw 'rate_limited'", async () => {
+  const h = toastHarness({ native: false });
+  const text = h.client.aiRefusalTextFromBody(429, { error: "rate_limited", code: "rate_limited", retry_after_seconds: 12 }, "fallback");
+  assert.doesNotMatch(text, /rate_limited/);
+  assert.match(text, /too quickly/);
+  assert.match(text, /12 seconds/);
+  // Old server (no code) still gets the right words.
+  assert.doesNotMatch(h.client.aiRefusalTextFromBody(429, { error: "rate_limited" }, "fallback"), /rate_limited/);
+  // Unknown refusals keep the server's own words, then the fallback.
+  assert.equal(h.client.aiRefusalTextFromBody(200, { message: "Voice is off." }, "fallback"), "Voice is off.");
+  assert.equal(h.client.aiRefusalTextFromBody(500, null, "fallback"), "fallback");
+  // The two surfaces use the helper rather than the raw string.
+  for (const f of ["src/components/VoicePlayer.tsx", "src/lib/voice/useTtsPlayer.ts"]) {
+    assert.match(read(f), /aiRefusalTextFromBody\(/, f);
+    assert.doesNotMatch(read(f), /msg = j\.error|toast\.info\(briefData\.error \|\|/, f);
+  }
+});
+
+// ---- 8. the Companion's object context never becomes "[object Object]" ------
+
+test("system prompt never contains [object Object]; useful context fields survive", async () => {
+  const ctxMod = makeLoader({
+    "./memory-rank.server": { fetchRankedMemories: async () => [] },
+    "./guardrails": { SAFETY_AND_CARE: "SAFE" },
+    "./patterns.server": { fetchActivePatterns: async () => [] },
+  })("src/lib/ai/context.server.ts");
+  const f = ctxMod.formatLiveContext;
+  const companion = { surface: "companion", companion_name: "Amber", max_tokens: 180 };
+  assert.doesNotMatch(f(companion), /\[object Object\]/);
+  assert.match(f(companion), /companion name: Amber/);
+  assert.doesNotMatch(f(companion), /max_tokens|surface/);
+  assert.equal(f({ surface: "companion", max_tokens: 180 }), "", "nothing useful: no line");
+  assert.equal(f({ nested: { a: 1 } }), "");
+  assert.equal(f("night shift tonight"), "night shift tonight");
+  assert.equal(f(undefined), "");
+});
+
+test("/api/ai passes the Companion's object context to the real prompt builder as text", async () => {
+  const seen = [];
+  const db = fakeDb();
+  const spy = provider();
+  const h = loadRoute("ai", {
+    db,
+    spy,
+    stubs: {
+      "@/lib/ai/context.server": {
+        DEFAULT_ASSISTANT_PROFILE: { language: "en-US", accent: null, memoryEnabled: false },
+        loadAssistantProfile: async () => ({ language: "en-US", accent: null, memoryEnabled: false }),
+        buildSystemPrompt: async (o) => {
+          seen.push(o.liveContext);
+          return "system";
+        },
+      },
+    },
+  });
+  const res = await h.post({
+    request: jsonRequest(coachBody("hi", { context: { surface: "companion", companion_name: "Amber", max_tokens: 180 } })),
+  });
+  await drain(res);
+  assert.equal(res.status, 200);
+  assert.equal(typeof seen[0], "object", "the route forwards what the client sent; the builder formats it");
+  // The companion's 180-token cap comes from surface:"voice" (not the context) and still applies.
+  assert.equal(JSON.parse(spy.calls[0].body).max_tokens, 180);
+});
