@@ -1072,3 +1072,37 @@ test("formatLiveContext: a hostile key with ZWJ/ZWNJ/newlines still cannot forge
   assert.equal(f({ note: "a\u202Eb\u2066c\u2069d\u200Be\u200Ff\u2060g\uFEFFh" }), "note: abcdefgh");
   assert.equal(f({ "max\u200Dtokens": 1, "max\u200Ctokens": 2 }), "");
 });
+
+// ---- 15. nothing visible -> no line; every cap pinned -------------------------
+
+test("formatLiveContext: a value or string with no visible content produces nothing", () => {
+  const f = formatLive();
+  const only = "\u200D\u200C \u200D\n\t";
+  assert.equal(f({ v: only }), "");
+  assert.equal(f({ v: only, ok: "x" }), "ok: x", "only the empty value is dropped");
+  assert.equal(f({ v: "\u200B\u2060\uFEFF\u0000" }), "");
+  assert.equal(f(only), "");
+  assert.equal(f("\u200D\u200C\u2028\u200B"), "");
+  // joiners inside real text still work
+  assert.equal(f({ v: "\u{1F469}\u200D\u2695\uFE0F" }), "v: \u{1F469}\u200D\u2695\uFE0F");
+});
+
+test("the prompt has no CURRENT CONTEXT section for a joiner-only context (real builder)", async () => {
+  for (const c of [{ v: "\u200D\u200C" }, "\u200D\u200C"]) {
+    assert.doesNotMatch(await realPrompt(c), /CURRENT CONTEXT/);
+  }
+});
+
+test("formatLiveContext caps: value 200, key 40, 20 lines, total 4000 (each pinned exactly)", () => {
+  const f = formatLive();
+  assert.equal(f({ v: "x".repeat(500) }), "v: " + "x".repeat(200), "value cap is exactly 200");
+  assert.equal(f({ ["K".repeat(100)]: "v" }), "K".repeat(40) + ": v", "key cap is exactly 40");
+  const thirty = {};
+  for (let i = 0; i < 30; i++) thirty["f" + String(i).padStart(2, "0")] = "v";
+  assert.equal(f(thirty).split("\n").length, 20, "line cap is exactly 20");
+  // 20 maximal lines are 4859 characters: the total cap is what cuts them.
+  const big = {};
+  for (let i = 0; i < 20; i++) big[String(i).padStart(2, "A") + "K".repeat(38)] = "x".repeat(200);
+  assert.equal(f(big).length, 4000, "total cap is exactly 4000");
+  assert.equal(f("z".repeat(9000)).length, 4000, "string path cap is exactly 4000");
+});

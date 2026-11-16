@@ -152,7 +152,11 @@ export function formatLiveContext(ctx: unknown): string {
   // U+200C/U+200D (ZWNJ/ZWJ) are kept in values: they are part of Persian,
   // Hindi and composite emoji. Keys drop them via their character filter.
   const SEPARATORS = /[\u0085\u2028\u2029]/g;
+  // trim() does not remove ZWJ/ZWNJ, so a value made only of joiners and
+  // whitespace is checked explicitly: it has no visible content.
+  const hasVisible = (t: string) => t.replace(/[\s\u200C\u200D]/g, "") !== "";
   if (typeof ctx === "string") {
+    if (!hasVisible(ctx.replace(INVISIBLE, ""))) return "";
     return ctx
       .replace(/\r\n?/g, "\n")
       .replace(SEPARATORS, "\n")
@@ -188,12 +192,9 @@ export function formatLiveContext(ctx: unknown): string {
       .replace(/[^A-Za-z0-9 .-]/g, "")
       .trim()
       .slice(0, 40);
-    const text = String(v)
-      .replace(SEPARATORS, " ")
-      .replace(INVISIBLE, "")
-      .trim()
-      .replace(/\s+/g, " ")
-      .slice(0, 200);
+    const cleaned = String(v).replace(SEPARATORS, " ").replace(INVISIBLE, "");
+    if (!hasVisible(cleaned)) continue;
+    const text = cleaned.trim().replace(/\s+/g, " ").slice(0, 200);
     if (key && text) lines.push(`${key}: ${text}`);
     if (lines.length >= 20) break;
   }
