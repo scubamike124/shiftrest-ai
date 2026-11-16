@@ -110,7 +110,10 @@ function announceIfWaiting(reg: ServiceWorkerRegistration): void {
   }
 }
 
-function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
+function wireUpdateDetection(
+  reg: ServiceWorkerRegistration,
+  initialController: ServiceWorker | null,
+): void {
   // Already-waiting at register time (returning visitor after deploy).
   announceIfWaiting(reg);
 
@@ -144,9 +147,20 @@ function wireUpdateDetection(reg: ServiceWorkerRegistration): void {
     console.info(`[pwa] reloading after SW activation (${source})`);
     window.location.reload();
   };
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    triggerReload("controllerchange");
-  });
+  // The first claim installs offline support without replacing this document's
+  // build. Reloading here would discard a customer's open form or sound mix.
+  // Track identity so a later upgrade still reloads, and reconcile any claim
+  // that occurred while register() was awaiting its registration result.
+  let controlledBy = initialController;
+  const onControllerChange = () => {
+    const next = navigator.serviceWorker.controller;
+    if (!next || next === controlledBy) return;
+    const replacingController = controlledBy !== null;
+    controlledBy = next;
+    if (replacingController) triggerReload("controllerchange");
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+  onControllerChange();
   // Belt-and-suspenders for iOS PWAs where controllerchange doesn't
   // always fire after clientsClaim(). The SW posts SW_ACTIVATED on
   // activate; the RELOAD_TOKEN sessionStorage guard prevents loops.
@@ -180,6 +194,7 @@ export async function registerAppShell(): Promise<void> {
     return;
   }
   try {
+    const initialController = navigator.serviceWorker.controller;
     const reg = await navigator.serviceWorker.register(SW_PATH, {
       scope: "/",
       updateViaCache: "none",
@@ -188,7 +203,7 @@ export async function registerAppShell(): Promise<void> {
       scope: reg.scope,
       hasController: !!navigator.serviceWorker.controller,
     });
-    wireUpdateDetection(reg);
+    wireUpdateDetection(reg, initialController);
 
     // Initial check after hydration settles.
     setTimeout(() => { reg.update().catch(() => { /* offline ok */ }); }, 4000);
