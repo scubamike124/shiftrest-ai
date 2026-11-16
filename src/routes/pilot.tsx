@@ -14,8 +14,8 @@ import { fetchCoachHistory, saveCoachMessage, type CoachMsg } from "@/lib/coach-
 import { Button } from "@/components/ui/button";
 import { fetchPrefs } from "@/lib/prefs";
 import { greetingLabel } from "@/lib/time/day-part";
-import { isNativeApp } from "@/lib/native-app";
 import { aiFetch } from "@/lib/ai/consent-client";
+import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 import { CrisisSupportCard } from "@/components/safety/CrisisSupportCard";
 import { CRISIS_LOCAL_REPLY, hasCrisisCue, withoutCrisisTurns } from "@/lib/safety/crisis-cues";
 
@@ -276,20 +276,9 @@ function PilotPage() {
       if (!resp.ok || !resp.body) {
         streamingRef.current = false;
         cancelAllAudio();
-        const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        if (resp.status === 429) {
-          // No upgrade prompt inside the iPhone app (Guideline 3.1.1).
-          toast.error(
-            "Daily AI limit reached.",
-            isNativeApp()
-              ? {}
-              : {
-                  action: { label: "Upgrade", onClick: () => (window.location.href = "/paywall") },
-                },
-          );
-        } else {
-          toast.error(err.error || "Pilot is unavailable.");
-        }
+        // Message chosen by the server's `code`, not the status. Upgrade prompt
+        // only for the user's own allowance, never in the iPhone app (3.1.1).
+        toastAIRefusal(await readAIRefusal(resp), "Pilot is unavailable.");
         setOrbState("idle");
         return;
       }
@@ -432,8 +421,15 @@ function PilotPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
+      if (!sttRes.ok) {
+        streamingRef.current = false;
+        cancelAllAudio();
+        toastAIRefusal(await readAIRefusal(sttRes), "Couldn't transcribe — try again.");
+        setOrbState("idle");
+        return;
+      }
       const sttJson = (await sttRes.json().catch(() => ({}))) as { text?: string; error?: string };
-      if (!sttRes.ok || !sttJson.text) {
+      if (!sttJson.text) {
         streamingRef.current = false;
         cancelAllAudio();
         toast.error(sttJson.error || "Couldn't transcribe — try again.");
@@ -500,7 +496,9 @@ function PilotPage() {
     if (!resp.ok || !resp.body) {
       streamingRef.current = false;
       setOrbState("idle");
-      toast.error("Couldn't expand that — try asking again.");
+      const refusal = await readAIRefusal(resp);
+      if (refusal.kind === "other") toast.error("Couldn't expand that — try asking again.");
+      else toastAIRefusal(refusal, "Couldn't expand that — try asking again.");
       return;
     }
     // Reuse the streaming path by inlining a smaller reader (transcript-only update + speak).

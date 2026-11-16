@@ -95,17 +95,10 @@ export const Route = createFileRoute("/api/swap")({
                 meta: { snippet: t.slice(0, 240) },
               });
             }
-            return new Response(
-              JSON.stringify({
-                error:
-                  upstream.status === 429
-                    ? "Rate limit reached."
-                    : upstream.status === 402
-                    ? "AI is temporarily unavailable."
-                    : "Analysis unavailable.",
-              }),
-              { status: upstream.status, headers: { "Content-Type": "application/json" } },
-            );
+            // Never pass the provider's status through: its 429 is not this
+            // user's limit. Retryable 503 (502 for a rejected request) + code.
+            const { providerFailureResponse } = await import("@/lib/ai/refusal");
+            return providerFailureResponse(upstream.status);
           }
 
           const data = (await upstream.json()) as {

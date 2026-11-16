@@ -22,6 +22,7 @@ import { recordTrialVoiceUsage } from "@/lib/realtime/trial-usage.functions";
 import { reportRealtimeSession } from "@/lib/realtime/session-report.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
 import { TRIAL_VOICE_HEARTBEAT_MS } from "@/lib/trial-limits";
+import { DAILY_LIMIT_MESSAGE } from "@/lib/ai/refusal";
 
 export type TrialSnapshot = {
   isTrial: boolean;
@@ -595,7 +596,7 @@ export function useOpenAIRealtime() {
       } else if (msg.includes("rate_limited")) {
         setError("Too many voice sessions. Try again in a moment.");
       } else if (msg.includes("ai_budget_exhausted")) {
-        setError("Daily AI limit reached. It resets in 24 hours.");
+        setError(DAILY_LIMIT_MESSAGE);
       } else if (msg.includes("ai_budget_unavailable")) {
         setError("Voice is temporarily unavailable. Please try again in a moment.");
       } else {

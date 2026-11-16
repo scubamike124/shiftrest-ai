@@ -10,6 +10,7 @@
 // if the counter itself fails we prefer to serve the user.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { AI_REFUSAL, RATE_LIMITED_MESSAGE } from "@/lib/ai/refusal";
 
 let cached: SupabaseClient | null = null;
 function admin(): SupabaseClient | null {
@@ -76,7 +77,10 @@ export async function enforceRateLimit(
   return new Response(
     JSON.stringify({
       error: "rate_limited",
-      message: "Too many requests. Try again in a moment.",
+      // Stable machine-readable reason: clients choose their message from
+      // this, so a short per-minute pause is never shown as the daily limit.
+      code: AI_REFUSAL.RATE_LIMITED,
+      message: RATE_LIMITED_MESSAGE,
       retry_after_seconds: resetInSec,
     }),
     {

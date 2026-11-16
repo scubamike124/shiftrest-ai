@@ -17,6 +17,7 @@ import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 import { normalizeBrief, type AIBrief } from "@/lib/ai-brief";
 
 
@@ -59,9 +60,8 @@ async function fetchBrief(context: string): Promise<AIBrief> {
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
     if (resp.status === 401) throw new Error("Sign in to load your brief");
-    throw new Error(e.error || "Brief unavailable");
+    throw new Error(aiRefusalText(await readAIRefusal(resp), "Brief unavailable"));
   }
   const brief = normalizeBrief(await resp.json().catch(() => null));
   if (!brief) throw new Error("Brief unavailable");

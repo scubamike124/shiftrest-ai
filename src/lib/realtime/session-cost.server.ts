@@ -132,7 +132,9 @@ export async function startRealtimeSession(
     return {
       ok: false,
       code: "ai_budget_exhausted",
-      message: "Not enough daily AI allowance left for a voice session. It resets in 24 hours.",
+      // Rolling 24-hour window (has_ai_budget): no fixed reset time to promise.
+      message:
+        "Not enough AI allowance left for a voice session. It frees up as your earlier use passes the 24-hour mark.",
     };
   }
   // null (RPC error/timeout) or anything unexpected: fail closed.

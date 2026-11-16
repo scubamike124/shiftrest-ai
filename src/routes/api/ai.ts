@@ -27,6 +27,7 @@ import {
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
 import { requireAIBudget, logAIRequest } from "@/lib/ai/log.server";
+import { providerFailureResponse } from "@/lib/ai/refusal";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
@@ -222,8 +223,8 @@ Provide 4-7 blocks ordered chronologically across the relevant window.`;
 /** /api/ai request body cap (characters). */
 const MAX_BODY_BYTES = 256 * 1024;
 
-function jsonError(status: number, message: string) {
-  return new Response(JSON.stringify({ error: message }), {
+function jsonError(status: number, message: string, code?: string) {
+  return new Response(JSON.stringify(code ? { error: message, code } : { error: message }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -730,6 +731,10 @@ export const Route = createFileRoute("/api/ai")({
 
           return jsonError(400, "Unknown intent");
         } catch (e) {
+          // `status` is the PROVIDER's status when the provider failed. It
+          // drives the owner alerts and the log row below and is never sent to
+          // the browser: a provider 429 is not this user's limit.
+          const upstreamFailure = e instanceof AIError && e.upstream;
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
           // Alert owner ONLY on genuine infra failures — never on user
@@ -777,7 +782,11 @@ export const Route = createFileRoute("/api/ai")({
               error: msg,
             });
           }
-          return jsonError(status, msg);
+          // Provider rate limit / credits / auth / outage: a retryable 503 (or
+          // 502 for a request the provider rejected) with its own code, so the
+          // client says "the AI service is busy" and never "your limit".
+          if (upstreamFailure) return providerFailureResponse(status);
+          return jsonError(status, msg, "ai_internal_error");
         }
       },
     },
