@@ -1,7 +1,13 @@
-# Read-only post-publish verification of the live website.
-# Manual only (workflow_dispatch). It sends HTTP GET requests to the target
-# site and prints a PASS/FAIL table. It never deploys, publishes, pushes,
-# signs in, comments or writes anything, and uses no secrets.
+# Post-publish verification of the live website. Manual only (workflow_dispatch).
+# Job `verify`: sends HTTP GET requests to the target site and prints a PASS/FAIL
+# table. It never deploys, publishes, pushes, signs in or writes anything, and
+# uses no secrets.
+# Job `signed-in-ai` (OPTIONAL, off unless run_signed_in_ai is ticked): signs in
+# with a test account and makes at most 6 real AI requests. It is the only job
+# that uses secrets, and they live in the `restpilot-signed-in-smoke` GitHub
+# Environment (main branch only, owner approval). By default its summary and
+# artifact are redacted; this is a PUBLIC repository. See
+# docs/SIGNED-IN-AI-SMOKE.md.
 # Run it from the GitHub mobile website: Actions > "Post-publish verify" >
 # Run workflow. The workflow file must be on the default branch (main) for
 # GitHub to list it there, and Actions must be enabled on the repository.
@@ -15,6 +21,24 @@ on:
         required: false
         default: "https://restpilotai.com"
         type: string
+      run_signed_in_ai:
+        description: "Also run the signed-in AI smoke (real AI calls, max 6, needs the test-account secrets)"
+        required: false
+        default: false
+        type: boolean
+      publish_transcript:
+        description: "Signed-in AI smoke only: publish the FULL replies in the summary and artifact (PUBLIC repo; made-up-data account only)"
+        required: false
+        default: false
+        type: boolean
+      signed_in_base_url:
+        description: "Site for the signed-in AI smoke only"
+        required: false
+        default: "https://restpilotai.com"
+        type: choice
+        options:
+          - https://restpilotai.com
+          - https://restpilot-web-staging.up.railway.app
 
 permissions:
   contents: read
@@ -53,3 +77,82 @@ jobs:
             cat verify.txt 2>/dev/null || echo 'no output'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # OPTIONAL. Real AI conversation with a test account the owner controls.
+  # Max 6 requests of at most 180 output tokens, enforced in
+  # scripts/signed-in-ai-smoke.mjs. Skipped (with a notice) unless asked for.
+  signed-in-ai:
+    if: ${{ inputs.run_signed_in_ai && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    # Secrets are stored in this Environment, restricted to main with a required
+    # reviewer, so an edited script on another branch cannot receive them.
+    environment: restpilot-signed-in-smoke
+    concurrency:
+      group: signed-in-ai-smoke
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Check test account and target
+        id: gate
+        env:
+          BASE_URL: ${{ inputs.signed_in_base_url }}
+          E2E_EMAIL: ${{ secrets.RESTPILOT_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.RESTPILOT_E2E_PASSWORD }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::error::signed-in AI smoke runs only from main"; exit 2; fi
+          case "$BASE_URL" in
+            https://restpilotai.com|https://restpilot-web-staging.up.railway.app) ;;
+            *) echo "Refusing target: $BASE_URL"; exit 2 ;;
+          esac
+          if [ -z "$E2E_EMAIL" ] || [ -z "$E2E_PASSWORD" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Signed-in AI smoke::UNVERIFIED: no test account configured (add RESTPILOT_E2E_EMAIL and RESTPILOT_E2E_PASSWORD)"
+            {
+              echo '### Signed-in AI smoke'
+              echo '**UNVERIFIED: no test account configured.** The Companion is not verified as a real AI conversation. See docs/SIGNED-IN-AI-SMOKE.md.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Signed-in AI smoke
+        if: steps.gate.outputs.have == 'true'
+        env:
+          RESTPILOT_E2E_EMAIL: ${{ secrets.RESTPILOT_E2E_EMAIL }}
+          RESTPILOT_E2E_PASSWORD: ${{ secrets.RESTPILOT_E2E_PASSWORD }}
+          RESTPILOT_REPORT_DIR: signed-in-ai-report
+          BASE_URL: ${{ inputs.signed_in_base_url }}
+          PUBLISH: ${{ inputs.publish_transcript }}
+        run: |
+          set -o pipefail
+          FLAG=""
+          if [ "$PUBLISH" = "true" ]; then FLAG="--publish-transcript"; fi
+          node scripts/signed-in-ai-smoke.mjs --base "$BASE_URL" $FLAG | tee smoke-output.txt
+      - name: Job summary
+        if: always() && steps.gate.outputs.have == 'true'
+        run: |
+          {
+            echo '### Signed-in AI smoke'
+            echo 'Report is redacted unless publish_transcript was ticked. This repository is public.'
+            echo '```'
+            cat smoke-output.txt 2>/dev/null || echo 'no output'
+            echo '```'
+            if [ -f signed-in-ai-report/signed-in-ai-report.md ]; then
+              cat signed-in-ai-report/signed-in-ai-report.md
+            else
+              echo 'No report was written.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report
+        if: always() && steps.gate.outputs.have == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signed-in-ai-report
+          path: signed-in-ai-report/
+          if-no-files-found: warn
+          retention-days: 3
