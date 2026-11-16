@@ -4,6 +4,7 @@
  * regardless of the caller's RLS context.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { AI_REFUSAL, dailyLimitBody } from "./refusal";
 
 type LogRow = {
   user_id: string;
@@ -25,10 +26,7 @@ function serviceClient(): SupabaseClient | null {
   });
 }
 
-export async function logAIRequest(
-  admin: SupabaseClient,
-  row: LogRow,
-): Promise<void> {
+export async function logAIRequest(admin: SupabaseClient, row: LogRow): Promise<void> {
   const { error } = await admin.from("ai_log").insert(row);
   if (error) console.error("ai_log insert failed", error);
 }
@@ -138,9 +136,11 @@ export async function recordAIUsage(
 }
 
 /**
- * Route gate. Returns a refusal Response (429 over cap, 503 retryable when the
- * cap cannot be verified) or null when the request may proceed. Run it AFTER
- * consent and rate limit. Pass `admin` if the route already has one.
+ * Route gate. Returns a refusal Response (429 `daily_limit` over cap, 503
+ * `ai_budget_unavailable` retryable when the cap cannot be verified) or null
+ * when the request may proceed. Run it AFTER consent and rate limit. Pass
+ * `admin` if the route already has one. Clients tell the refusals apart by
+ * `code` (src/lib/ai/refusal.ts), never by the status alone.
  */
 export async function requireAIBudget(
   userId: string,
@@ -155,13 +155,15 @@ export async function requireAIBudget(
       headers: { "Content-Type": "application/json", ...extra },
     });
   if (budget === "exhausted") {
-    return json(429, { error: "Daily AI limit reached. It resets in 24 hours." });
+    // The window is rolling (has_ai_budget sums the last 24 hours), so the
+    // message must not promise a reset at a fixed time.
+    return json(429, dailyLimitBody());
   }
   return json(
     503,
     {
       error: "AI is temporarily unavailable. Please try again in a moment.",
-      code: "ai_budget_unavailable",
+      code: AI_REFUSAL.BUDGET_UNAVAILABLE,
       retryable: true,
     },
     { "Retry-After": "10" },

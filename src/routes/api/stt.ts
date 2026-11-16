@@ -62,10 +62,7 @@ export const Route = createFileRoute("/api/stt")({
 
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
-          return Response.json(
-            { error: "STT not configured" },
-            { status: 500 },
-          );
+          return Response.json({ error: "STT not configured" }, { status: 500 });
         }
 
         let inbound: FormData;
@@ -90,14 +87,35 @@ export const Route = createFileRoute("/api/stt")({
           upstreamForm.append("language", language);
         }
 
-        const upstream = await fetch(
-          "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
-          {
+        let upstream: Response;
+        try {
+          upstream = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}` },
             body: upstreamForm,
-          },
-        );
+          });
+        } catch (e) {
+          // The provider could not be reached: a retryable 503 with a provider
+          // code instead of an unhandled error. Nothing is debited.
+          console.error("[stt] network error", e instanceof Error ? e.message : String(e));
+          const { notifyOwnerAsync } = await import("@/lib/ops/alert.server");
+          notifyOwnerAsync({
+            severity: "error",
+            service: "stt",
+            message: "network_error",
+            meta: { error: e instanceof Error ? e.message : String(e) },
+          });
+          const { providerFailure } = await import("@/lib/ai/refusal");
+          const failure = providerFailure(null);
+          return Response.json(
+            {
+              error: "Voice is temporarily unavailable. Try again.",
+              code: failure.code,
+              retryable: true,
+            },
+            { status: failure.status },
+          );
+        }
 
         if (!upstream.ok) {
           const detail = await upstream.text().catch(() => "");
@@ -118,13 +136,18 @@ export const Route = createFileRoute("/api/stt")({
               : upstream.status === 429
                 ? "Voice is busy. Try again."
                 : "Couldn't transcribe that — try again.";
+          // Never pass the provider's status through (its 402/429 is not this
+          // user's limit): 503 retryable, or 502 for audio the provider rejected.
+          const { providerFailure } = await import("@/lib/ai/refusal");
+          const failure = providerFailure(upstream.status);
           return Response.json(
-            { error: msg },
-            { status: upstream.status === 402 ? 402 : 502 },
+            { error: msg, code: failure.code, retryable: failure.retryable },
+            { status: failure.status },
           );
         }
 
-        let payload: { text?: string; usage?: { input_tokens?: number; output_tokens?: number } } = {};
+        let payload: { text?: string; usage?: { input_tokens?: number; output_tokens?: number } } =
+          {};
         try {
           payload = await upstream.json();
         } catch {

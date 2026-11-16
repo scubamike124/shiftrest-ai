@@ -70,24 +70,21 @@ export const Route = createFileRoute("/api/insights")({
             });
           }
 
-          const upstream = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-3-flash-preview",
-                messages: [
-                  { role: "system", content: SYSTEM },
-                  { role: "user", content: context },
-                ],
-                response_format: { type: "json_object" },
-              }),
+          const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
             },
-          );
+            body: JSON.stringify({
+              model: "google/gemini-3-flash-preview",
+              messages: [
+                { role: "system", content: SYSTEM },
+                { role: "user", content: context },
+              ],
+              response_format: { type: "json_object" },
+            }),
+          });
 
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
@@ -101,17 +98,10 @@ export const Route = createFileRoute("/api/insights")({
                 meta: { snippet: t.slice(0, 240) },
               });
             }
-            return new Response(
-              JSON.stringify({
-                error:
-                  upstream.status === 429
-                    ? "Rate limit reached."
-                    : upstream.status === 402
-                    ? "AI is temporarily unavailable."
-                    : "Insights unavailable.",
-              }),
-              { status: upstream.status, headers: { "Content-Type": "application/json" } },
-            );
+            // Never pass the provider's status through: its 429 is not this
+            // user's limit. Retryable 503 (502 for a rejected request) + code.
+            const { providerFailureResponse } = await import("@/lib/ai/refusal");
+            return providerFailureResponse(upstream.status);
           }
 
           const data = (await upstream.json()) as {
@@ -125,7 +115,8 @@ export const Route = createFileRoute("/api/insights")({
             await recordAIUsage(auth.userId, {
               intent: "insights",
               model: "google/gemini-3-flash-preview",
-              promptTokens: data.usage?.prompt_tokens ?? estimateTextTokens(SYSTEM.length + context.length),
+              promptTokens:
+                data.usage?.prompt_tokens ?? estimateTextTokens(SYSTEM.length + context.length),
               completionTokens: data.usage?.completion_tokens ?? estimateTextTokens(raw.length),
             });
           }

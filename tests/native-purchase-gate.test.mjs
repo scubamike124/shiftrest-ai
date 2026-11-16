@@ -93,14 +93,22 @@ test('navigation: no Upgrade or Pricing entries in the app', () => {
 });
 
 test('AI-limit prompts: no Upgrade action in the app (companion, coach, pilot)', () => {
+  // The three chat surfaces no longer build their own AI-limit toast: the one
+  // shared helper does, and it is the only place with a /paywall toast action.
   for (const f of ['companion', 'coach', 'pilot']) {
     const src = read(`src/routes/${f}.tsx`);
-    const n = (src.match(/window\.location\.href = "\/paywall"/g) ?? []).length;
-    const gated = (src.match(/isNativeApp\(\)\s*\?\s*\{\}\s*:\s*\{[\s\S]{0,300}?window\.location\.href = "\/paywall"/g) ?? []).length;
-    assert.equal(gated, n, `${f}: every /paywall toast action is gated`);
+    assert.equal((src.match(/window\.location\.href = "\/paywall"/g) ?? []).length, 0, `${f}: no /paywall toast action of its own`);
+    assert.match(src, /toastAIRefusal\(/, `${f}: uses the shared, gated helper`);
   }
+  const helper = read('src/lib/ai/refusal-client.ts');
+  const n = (helper.match(/window\.location\.href = "\/paywall"/g) ?? []).length;
+  const gated = (helper.match(/!refusal\.offerUpgrade \|\| isNativeApp\(\)\s*\?\s*\{ description \}\s*:\s*\{[\s\S]{0,300}?window\.location\.href = "\/paywall"/g) ?? []).length;
+  assert.equal(n, 1);
+  assert.equal(gated, n, 'the /paywall toast action is gated on isNativeApp()');
+  // The in-conversation line: no upgrade wording in the app (behaviour is
+  // covered in tests/ai-limit-truth.test.mjs).
+  assert.match(read('src/lib/ai/refusal.ts'), /const offerUpgrade = !opts\.native;/);
   const companion = read('src/routes/companion.tsx');
-  assert.match(companion, /\? isNativeApp\(\)\s*\? "You've reached today's AI limit\. I saved what you said here, and you can keep typing\."/);
   assert.match(companion, /function VoiceTrialUsedUp\(\) \{\s*if \(useIsNativeApp\(\)\) \{/);
 });
 
@@ -116,7 +124,9 @@ test('every link or redirect to /paywall or /pricing in the app UI is gated', ()
   // lead to the neutral notice in the app and are not purchase buttons.
   const allowed = new Set(['src/routes/legal.subscription.tsx', 'src/routes/legal.terms.tsx', 'src/routes/auth.tsx', 'src/routes/__root.tsx', 'src/routes/sitemap[.]xml.ts', 'src/routes/pricing.tsx', 'src/routes/paywall.tsx',
     'src/routes/index.tsx', 'src/routes/companion.tsx', 'src/routes/coach.tsx', 'src/routes/pilot.tsx', 'src/routes/profile.tsx',
-    'src/components/site/AppSidebar.tsx', 'src/components/site/SiteHeader.tsx', 'src/components/site/SiteFooter.tsx']);
+    'src/components/site/AppSidebar.tsx', 'src/components/site/SiteHeader.tsx', 'src/components/site/SiteFooter.tsx',
+    // The shared AI-refusal toast: its Upgrade action is gated on isNativeApp() (asserted above).
+    'src/lib/ai/refusal-client.ts']);
   const { execSync } = process.getBuiltinModule('node:child_process');
   const files = execSync("git ls-files src | xargs grep -lE '\"/(paywall|pricing)\"' || true", { cwd: new URL('..', import.meta.url).pathname, encoding: 'utf8' }).trim().split('\n').filter(Boolean)
     .filter((f) => !f.includes('email-templates') && !f.endsWith('routeTree.gen.ts'));

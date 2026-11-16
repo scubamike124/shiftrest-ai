@@ -59,11 +59,29 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const handler = await getServerEntry();
+      // Fallback only. On the shipped cloudflare-module preset nitro already
+      // sets request.waitUntil and request.runtime.cloudflare, and ctx is
+      // undefined here, so this block is a no-op. If a platform does pass a
+      // Workers ExecutionContext and nitro has not set them, expose its
+      // waitUntil (and the cloudflare marker routes check) on the request.
+      try {
+        const waitUntil = (ctx as { waitUntil?: (p: Promise<unknown>) => void } | null)?.waitUntil;
+        if (
+          typeof waitUntil === "function" &&
+          typeof (request as { waitUntil?: unknown }).waitUntil !== "function"
+        ) {
+          Object.defineProperty(request, "waitUntil", {
+            value: (p: Promise<unknown>) => waitUntil.call(ctx, p),
+            configurable: true,
+          });
+          const rt = ((request as { runtime?: Record<string, unknown> }).runtime ??= {});
+          rt.cloudflare ??= { context: ctx };
+        }
+      } catch {
+        // read-only request object: routes fall back to current behaviour
+      }
       const response = await handler.fetch(request, env, ctx);
-      return withLaunchDebugCacheHeaders(
-        request,
-        await normalizeCatastrophicSsrResponse(response),
-      );
+      return withLaunchDebugCacheHeaders(request, await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {

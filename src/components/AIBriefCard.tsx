@@ -17,8 +17,8 @@ import type { Insights } from "@/lib/insights";
 import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
+import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
 import { normalizeBrief, type AIBrief } from "@/lib/ai-brief";
-
 
 const ICONS: Record<string, typeof Sun> = {
   sun: Sun,
@@ -44,8 +44,6 @@ const REC_ICONS: Record<Recommendation["kind"], typeof Sun> = {
   recovery: Sparkles,
 };
 
-
-
 async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -59,15 +57,13 @@ async function fetchBrief(context: string): Promise<AIBrief> {
     body: JSON.stringify({ context }),
   });
   if (!resp.ok) {
-    const e = await resp.json().catch(() => ({}));
     if (resp.status === 401) throw new Error("Sign in to load your brief");
-    throw new Error(e.error || "Brief unavailable");
+    throw new Error(aiRefusalText(await readAIRefusal(resp), "Brief unavailable"));
   }
   const brief = normalizeBrief(await resp.json().catch(() => null));
   if (!brief) throw new Error("Brief unavailable");
   return brief;
 }
-
 
 export function AIBriefCard({
   insights,
@@ -102,15 +98,14 @@ export function AIBriefCard({
     enabled: !!context && hasSession === true,
   });
 
-
   const fatigueColor =
     insights.fatigueToday.band === "extreme"
       ? "var(--destructive)"
       : insights.fatigueToday.band === "high"
-      ? "var(--amber)"
-      : insights.fatigueToday.band === "moderate"
-      ? "var(--indigo-glow)"
-      : "var(--mint)";
+        ? "var(--amber)"
+        : insights.fatigueToday.band === "moderate"
+          ? "var(--indigo-glow)"
+          : "var(--mint)";
 
   return (
     <section
@@ -184,10 +179,10 @@ export function AIBriefCard({
             p.band === "extreme"
               ? "var(--destructive)"
               : p.band === "high"
-              ? "var(--amber)"
-              : p.band === "moderate"
-              ? "var(--indigo-glow)"
-              : "var(--mint)";
+                ? "var(--amber)"
+                : p.band === "moderate"
+                  ? "var(--indigo-glow)"
+                  : "var(--mint)";
           return (
             <div key={i} className="flex flex-1 flex-col items-center gap-1">
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -236,7 +231,6 @@ export function AIBriefCard({
             : ""}
         </p>
       </div>
-
 
       {/* AI body */}
       <div className="relative z-10 mt-4 min-h-[120px]">
@@ -339,8 +333,9 @@ export function AIBriefCard({
           </ol>
         </div>
       )}
-    <div className="mt-3 flex justify-end"><SafetyNote /></div>
+      <div className="mt-3 flex justify-end">
+        <SafetyNote />
+      </div>
     </section>
-
   );
 }

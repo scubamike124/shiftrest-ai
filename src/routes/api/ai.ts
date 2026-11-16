@@ -26,7 +26,8 @@ import {
   loadAssistantProfile,
   DEFAULT_ASSISTANT_PROFILE,
 } from "@/lib/ai/context.server";
-import { requireAIBudget, logAIRequest } from "@/lib/ai/log.server";
+import { requireAIBudget, logAIRequest, estimateTextTokens } from "@/lib/ai/log.server";
+import { providerFailureResponse } from "@/lib/ai/refusal";
 import { extractAndStoreMemories } from "@/lib/ai/memory-extractor.server";
 import { notifyOwnerAsync } from "@/lib/ops/alert.server";
 import { persistRecommendation } from "@/lib/ai/recommendations.server";
@@ -40,22 +41,38 @@ import {
   withoutCrisisTurns,
 } from "@/lib/safety/crisis-cues";
 
-
-type Body =
-  ({ localTime?: string; timezone?: string } & (
-    | { intent: "coach"; messages: ChatMsg[]; context?: string; surface?: "voice" | "text"; expand?: boolean }
-    | { intent: "brief"; plan: string }
-    | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
-    | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
-    | { intent: "commute"; shiftStartIso: string; travelMin: number; prepMin?: number; context?: string }
-    | { intent: "coach_tip"; context?: string }
-    | { intent: "right_now"; context?: string }
-    | { intent: "adjust_plan"; observation: string; context?: string }
-    | { intent: "tomorrow_preview"; context?: string }
-    | { intent: "daily_review"; context?: string }
-    | { intent: "pattern_alert"; patternKey: string; severity: number; signals: Record<string, unknown>; context?: string }
-    | { intent: "jetlag_plan"; tripId?: string; phase?: "pre" | "arrival" | "post"; context?: string }
-  ));
+type Body = { localTime?: string; timezone?: string } & (
+  | {
+      intent: "coach";
+      messages: ChatMsg[];
+      context?: string | Record<string, unknown>;
+      surface?: "voice" | "text";
+      expand?: boolean;
+    }
+  | { intent: "brief"; plan: string }
+  | { intent: "daily_plan"; horizon?: "24h" | "72h"; context?: string }
+  | { intent: "smart_alarm"; targetWakeIso: string; windowMin: number; context?: string }
+  | {
+      intent: "commute";
+      shiftStartIso: string;
+      travelMin: number;
+      prepMin?: number;
+      context?: string;
+    }
+  | { intent: "coach_tip"; context?: string }
+  | { intent: "right_now"; context?: string }
+  | { intent: "adjust_plan"; observation: string; context?: string }
+  | { intent: "tomorrow_preview"; context?: string }
+  | { intent: "daily_review"; context?: string }
+  | {
+      intent: "pattern_alert";
+      patternKey: string;
+      severity: number;
+      signals: Record<string, unknown>;
+      context?: string;
+    }
+  | { intent: "jetlag_plan"; tripId?: string; phase?: "pre" | "arrival" | "post"; context?: string }
+);
 
 // Shared voice contract — every JSON intent inherits this tone so the AI
 // sounds like the same trusted coach, not a stack of disconnected widgets.
@@ -218,12 +235,11 @@ Return ONLY valid JSON:
 }
 Provide 4-7 blocks ordered chronologically across the relevant window.`;
 
-
 /** /api/ai request body cap (characters). */
 const MAX_BODY_BYTES = 256 * 1024;
 
-function jsonError(status: number, message: string) {
-  return new Response(JSON.stringify({ error: message }), {
+function jsonError(status: number, message: string, code?: string) {
+  return new Response(JSON.stringify(code ? { error: message, code } : { error: message }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -268,6 +284,31 @@ async function getUserIdFromAuthHeader(
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
+}
+
+type WaitUntil = (p: Promise<unknown>) => void;
+
+/**
+ * Register background work with the runtime's waitUntil, ONLY on Cloudflare
+ * (request.runtime.cloudflare is set by nitro's cloudflare handler, srvx's
+ * Cloudflare adapter, or src/server.ts). On plain Node, srvx also provides
+ * request.waitUntil but its internal set keeps one settled promise per call, so
+ * registering there would retain a promise per streamed turn for the life of
+ * the process; the pump simply runs to completion without it.
+ */
+function keepAlive(request: Request, work: Promise<unknown>): void {
+  try {
+    const r = request as Request & {
+      waitUntil?: WaitUntil;
+      runtime?: { cloudflare?: { context?: { waitUntil?: WaitUntil } } };
+    };
+    const cf = r.runtime?.cloudflare;
+    if (!cf) return;
+    if (typeof r.waitUntil === "function") r.waitUntil(work);
+    else cf.context?.waitUntil?.(work);
+  } catch (e) {
+    console.warn("waitUntil unavailable", e);
+  }
 }
 
 export const Route = createFileRoute("/api/ai")({
@@ -320,10 +361,7 @@ export const Route = createFileRoute("/api/ai")({
           return jsonError(500, msg);
         }
 
-        const userId = await getUserIdFromAuthHeader(
-          admin,
-          request.headers.get("authorization"),
-        );
+        const userId = await getUserIdFromAuthHeader(admin, request.headers.get("authorization"));
 
         // Require authentication — anonymous callers were previously
         // able to invoke intents that skipped the AI budget gate.
@@ -394,7 +432,6 @@ export const Route = createFileRoute("/api/ai")({
               maxTokens: isVoice && !body.expand ? 180 : undefined,
             });
 
-
             // Pipe upstream through a TransformStream so logging + memory
             // extraction complete *before* the response stream closes.
             // (Fire-and-forget background work is killed on the edge runtime.)
@@ -402,7 +439,7 @@ export const Route = createFileRoute("/api/ai")({
             const userTurn = lastUser?.content ?? "";
             const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
 
-            (async () => {
+            const pump = (async () => {
               const reader = upstream.body!.getReader();
               const writer = writable.getWriter();
               const decoder = new TextDecoder();
@@ -410,10 +447,25 @@ export const Route = createFileRoute("/api/ai")({
               let assistant = "";
               let usage: { p: number; c: number } | null = null;
 
+              // Prompt size for the estimate, used only when the provider sends
+              // no usage frame.
+              const promptChars =
+                systemWithTime.length + trimmed.reduce((n, m) => n + m.content.length, 0);
+              let completed = false;
+              // A client cancel is noticed even while the provider is silent:
+              // stop reading, and do not mistake the cancelled read for a finish.
+              let clientGone = false;
+              writer.closed.catch(() => {
+                clientGone = true;
+                reader.cancel().catch(() => {});
+              });
+
               try {
                 while (true) {
                   const { done, value } = await reader.read();
                   if (done) break;
+                  // A failed write means the client is gone: this chunk was not
+                  // delivered, so it is not counted below.
                   await writer.write(value);
 
                   buf += decoder.decode(value, { stream: true });
@@ -443,20 +495,35 @@ export const Route = createFileRoute("/api/ai")({
                     }
                   }
                 }
-
-                // Upstream finished — persist BEFORE closing the writable.
-                if (userId) {
+                completed = !clientGone;
+              } catch (e) {
+                // Client cancel, or the provider stream broke mid-way.
+                console.error("coach stream failed", e);
+              } finally {
+                // Persist BEFORE closing the writable. Exactly once, on every
+                // path (finish, client abort, upstream error): if ANY answer
+                // text was delivered, the user used the AI and it is counted.
+                // The provider's usage frame is used when it arrived, else an
+                // estimate. A turn that delivered no text is never debited.
+                if (userId && assistant.length > 0) {
+                  // An all-zero usage frame is not a measurement.
+                  const reported = usage !== null && usage.p + usage.c > 0;
                   try {
                     await logAIRequest(admin, {
                       user_id: userId,
                       intent: "coach",
                       model: DEFAULT_CHAT_MODEL,
-                      prompt_tokens: usage?.p ?? 0,
-                      completion_tokens: usage?.c ?? 0,
+                      prompt_tokens: reported ? usage!.p : estimateTextTokens(promptChars),
+                      completion_tokens: reported ? usage!.c : estimateTextTokens(assistant.length),
                       latency_ms: Date.now() - started,
-                      status: "ok",
+                      status: completed ? "ok" : "partial",
                     });
-
+                  } catch (e) {
+                    console.error("coach usage log failed", e);
+                  }
+                }
+                if (completed && userId) {
+                  try {
                     // Re-check: a revoke during the stream stops this extra
                     // AI call too.
                     const { checkAIConsent } = await import("@/lib/ai/consent.server");
@@ -477,9 +544,13 @@ export const Route = createFileRoute("/api/ai")({
                     console.error("coach capture failed", e);
                   }
                 }
-              } catch (e) {
-                console.error("coach stream failed", e);
-              } finally {
+                if (!completed) {
+                  try {
+                    await reader.cancel();
+                  } catch {
+                    // already closed
+                  }
+                }
                 try {
                   await writer.close();
                 } catch {
@@ -487,6 +558,11 @@ export const Route = createFileRoute("/api/ai")({
                 }
               }
             })();
+            // On Cloudflare the worker may be torn down when the client leaves;
+            // waitUntil keeps it alive until the usage row is written. Only
+            // registered on Cloudflare (see keepAlive); on Node, and in tests,
+            // behaviour is unchanged.
+            keepAlive(request, pump);
 
             return new Response(readable, {
               status: 200,
@@ -496,7 +572,6 @@ export const Route = createFileRoute("/api/ai")({
                 Connection: "keep-alive",
               },
             });
-
           }
 
           if (body.intent === "brief") {
@@ -505,7 +580,9 @@ export const Route = createFileRoute("/api/ai")({
               ? await loadAssistantProfile(admin, userId)
               : DEFAULT_ASSISTANT_PROFILE;
             const briefSystem =
-              languageDirective(briefProfile.language, briefProfile.accent) + BRIEF_SYSTEM + buildTimeDirective({
+              languageDirective(briefProfile.language, briefProfile.accent) +
+              BRIEF_SYSTEM +
+              buildTimeDirective({
                 localTime: body.localTime,
                 timezone: body.timezone,
               }).directive;
@@ -531,7 +608,18 @@ export const Route = createFileRoute("/api/ai")({
           }
 
           // ---------- JSON intents (Bundle 2 + AI Coach hero) ----------
-          const jsonIntents = ["daily_plan", "smart_alarm", "commute", "coach_tip", "right_now", "adjust_plan", "tomorrow_preview", "daily_review", "pattern_alert", "jetlag_plan"] as const;
+          const jsonIntents = [
+            "daily_plan",
+            "smart_alarm",
+            "commute",
+            "coach_tip",
+            "right_now",
+            "adjust_plan",
+            "tomorrow_preview",
+            "daily_review",
+            "pattern_alert",
+            "jetlag_plan",
+          ] as const;
           type JsonIntent = (typeof jsonIntents)[number];
           if (jsonIntents.includes(body.intent as JsonIntent)) {
             const profile = userId
@@ -623,12 +711,17 @@ export const Route = createFileRoute("/api/ai")({
                   // Pick the named trip, else the next planned/active leg.
                   let q = admin
                     .from("trips")
-                    .select("id, label, origin_tz, dest_tz, dest_label, depart_utc, arrive_utc, status")
+                    .select(
+                      "id, label, origin_tz, dest_tz, dest_label, depart_utc, arrive_utc, status",
+                    )
                     .eq("user_id", userId);
                   if (body.tripId) {
                     q = q.eq("id", body.tripId);
                   } else {
-                    q = q.in("status", ["planned", "active"]).order("arrive_utc", { ascending: true }).limit(1);
+                    q = q
+                      .in("status", ["planned", "active"])
+                      .order("arrive_utc", { ascending: true })
+                      .limit(1);
                   }
                   const { data: t } = await q.maybeSingle();
                   trip = (t as Record<string, unknown> | null) ?? null;
@@ -644,7 +737,10 @@ export const Route = createFileRoute("/api/ai")({
 
             const result = await chatJSON({
               messages: [
-                { role: "system", content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}` },
+                {
+                  role: "system",
+                  content: `${system}${timeDirective}\n\n${intentSystem}\n\n${IMPACT_CONTRACT}`,
+                },
                 { role: "user", content: userPayload },
               ],
             });
@@ -699,7 +795,8 @@ export const Route = createFileRoute("/api/ai")({
                 }
                 if (sign === 0) {
                   const d = new Date(targetMs);
-                  const dayKey = d.getUTCFullYear() * 372 + (d.getUTCMonth() + 1) * 31 + d.getUTCDate();
+                  const dayKey =
+                    d.getUTCFullYear() * 372 + (d.getUTCMonth() + 1) * 31 + d.getUTCDate();
                   sign = dayKey % 2 === 0 ? 1 : -1;
                 }
                 const pick = targetMs + sign * magnitude;
@@ -708,11 +805,13 @@ export const Route = createFileRoute("/api/ai")({
                 parsed.reason = `Adjusted ${Math.abs(deltaMin)} min ${deltaMin > 0 ? "later" : "earlier"} to land closer to a light-sleep boundary in your cycle.`;
                 if (!parsed.cyclePosition) parsed.cyclePosition = "light_sleep";
                 if (!parsed.confidence) parsed.confidence = "low";
-                if (!parsed.confidenceReason) parsed.confidenceReason = "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
-                if (!parsed.message) parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
+                if (!parsed.confidenceReason)
+                  parsed.confidenceReason =
+                    "Low confidence: using a 90-min cycle estimate (no recent wearable data).";
+                if (!parsed.message)
+                  parsed.message = "Good morning. Easing you out of a light moment in your cycle.";
               }
             }
-
 
             // Persist as ai_recommendations so feedback can target it.
             let recommendationId: string | null = null;
@@ -727,9 +826,12 @@ export const Route = createFileRoute("/api/ai")({
             return Response.json({ ...parsed, recommendationId });
           }
 
-
           return jsonError(400, "Unknown intent");
         } catch (e) {
+          // `status` is the PROVIDER's status when the provider failed. It
+          // drives the owner alerts and the log row below and is never sent to
+          // the browser: a provider 429 is not this user's limit.
+          const upstreamFailure = e instanceof AIError && e.upstream;
           const status = e instanceof AIError ? e.status : 500;
           const msg = e instanceof AIError ? e.message : mapUpstreamError(status);
           // Alert owner ONLY on genuine infra failures — never on user
@@ -777,7 +879,11 @@ export const Route = createFileRoute("/api/ai")({
               error: msg,
             });
           }
-          return jsonError(status, msg);
+          // Provider rate limit / credits / auth / outage: a retryable 503 (or
+          // 502 for a request the provider rejected) with its own code, so the
+          // client says "the AI service is busy" and never "your limit".
+          if (upstreamFailure) return providerFailureResponse(status);
+          return jsonError(status, msg, "ai_internal_error");
         }
       },
     },

@@ -7,10 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchRankedMemories } from "./memory-rank.server";
 import { SAFETY_AND_CARE } from "./guardrails";
 import { fetchActivePatterns, type PatternKey } from "./patterns.server";
-import {
-  fetchFeedbackSummary,
-  fetchPreviousRecommendation,
-} from "./recommendations.server";
+import { fetchFeedbackSummary, fetchPreviousRecommendation } from "./recommendations.server";
 
 export type AssistantMode =
   | "coach"
@@ -27,10 +24,9 @@ export type AssistantProfile = {
   name: string;
   mode: AssistantMode;
   memoryEnabled: boolean;
-  language: string;     // BCP-47, e.g. "es-MX". Defaults to "en-US".
+  language: string; // BCP-47, e.g. "es-MX". Defaults to "en-US".
   accent: string | null;
 };
-
 
 const BASE_PERSONALITY = `You are {{NAME}} — a warm, sharp recovery and circadian-rhythm guide for shift workers (nurses, EMTs, pilots, factory crews, hospitality, security).
 
@@ -66,7 +62,6 @@ const MODE_OVERLAYS: Record<AssistantMode, string> = {
   supportive: `\n\nMode: SUPPORTIVE. Validate first, advise second. Especially gentle after poor sleep or hard shifts. Offer choices, never demands.`,
 };
 
-
 function renderPersonality(profile: AssistantProfile): string {
   const overlay = MODE_OVERLAYS[profile.mode] ?? MODE_OVERLAYS.coach;
   return BASE_PERSONALITY.replace("{{NAME}}", profile.name || "RestPilot") + overlay;
@@ -96,9 +91,7 @@ export async function fetchRelevantMemories(
 
 function formatMemoryBlock(memories: MemoryRow[]): string {
   if (memories.length === 0) return "";
-  const lines = memories.map((m) =>
-    `- (${m.category}${m.pinned ? ", pinned" : ""}) ${m.content}`,
-  );
+  const lines = memories.map((m) => `- (${m.category}${m.pinned ? ", pinned" : ""}) ${m.content}`);
   return `\n\nLONG-TERM MEMORY (things the user has told you or you've learned — refer to these naturally, do not list them back):\n${lines.join("\n")}`;
 }
 
@@ -115,9 +108,7 @@ const PATTERN_LABEL: Record<PatternKey, string> = {
   sleep_inconsistency: "sleep timing is drifting night to night",
 };
 
-function formatPatternBlock(
-  patterns: Awaited<ReturnType<typeof fetchActivePatterns>>,
-): string {
+function formatPatternBlock(patterns: Awaited<ReturnType<typeof fetchActivePatterns>>): string {
   if (patterns.length === 0) return "";
   const lines = patterns.map((p) => {
     const label = PATTERN_LABEL[p.pattern_key] ?? p.pattern_key;
@@ -127,28 +118,80 @@ function formatPatternBlock(
   return `\n\nACTIVE PATTERNS YOU'VE DETECTED (use these to anticipate problems before they happen; reference at least one when severity ≥ 3):\n${lines.join("\n")}`;
 }
 
-function formatFeedbackBlock(
-  summary: Awaited<ReturnType<typeof fetchFeedbackSummary>>,
-): string {
+function formatFeedbackBlock(summary: Awaited<ReturnType<typeof fetchFeedbackSummary>>): string {
   if (summary.length === 0) return "";
-  const lines = summary.map((s) =>
-    `- ${s.intent}: helpful ${s.helpful} · not helpful ${s.not_helpful} · ignored ${s.ignored}`,
+  const lines = summary.map(
+    (s) =>
+      `- ${s.intent}: helpful ${s.helpful} · not helpful ${s.not_helpful} · ignored ${s.ignored}`,
   );
   return `\n\nRECENT FEEDBACK (last 14 days — gently lean away from intents the user marks not helpful, lean toward what they call helpful):\n${lines.join("\n")}`;
 }
 
-function formatPreviousBlock(
-  prev: { headline: string; rationale: string | null } | null,
-): string {
+function formatPreviousBlock(prev: { headline: string; rationale: string | null } | null): string {
   if (!prev) return "";
   return `\n\nYOUR PREVIOUS RECOMMENDATION FOR THIS INTENT (do not repeat verbatim — refresh the angle or move on if still valid):\n- "${prev.headline}"${prev.rationale ? ` — ${prev.rationale}` : ""}`;
+}
+
+/**
+ * The client's live context as prompt text. Routes send a string, but the
+ * Companion sends an object; interpolating that gave "[object Object]". Plain
+ * fields become "key: value" lines; client-only hints (surface, max_tokens)
+ * are dropped. Returns "" when there is nothing useful, so no line is added.
+ */
+export function formatLiveContext(ctx: unknown): string {
+  const MAX = 4000;
+  // Control and invisible characters (NUL, BEL, ESC, NEL, zero-width and
+  // bidi marks/overrides/isolates, line/paragraph separators, BOM) are removed
+  // from everything the client sends; tab, LF and CR are handled by the
+  // whitespace rules below.
+  const INVISIBLE =
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  if (typeof ctx === "string") {
+    return ctx
+      .replace(/\r\n?/g, "\n")
+      .replace(INVISIBLE, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ?\n[ \n]*/g, "\n")
+      .trim()
+      .slice(0, MAX);
+  }
+  if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return "";
+  // Client-only hints, compared by a normalised key ("max tokens", maxTokens, MAX-TOKENS).
+  const skip = new Set(["surface", "maxtokens"]);
+  const lines: string[] = [];
+  for (const [k, v] of Object.entries(ctx as Record<string, unknown>)) {
+    if (
+      skip.has(
+        k
+          .replace(INVISIBLE, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ""),
+      )
+    )
+      continue;
+    if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
+    // Keys are client-controlled too: collapse whitespace like values, keep a
+    // safe character set, and cap the length.
+    const key = k
+      .replace(INVISIBLE, "")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[^A-Za-z0-9 .-]/g, "")
+      .trim()
+      .slice(0, 40);
+    const text = String(v).replace(INVISIBLE, "").trim().replace(/\s+/g, " ").slice(0, 200);
+    if (key && text) lines.push(`${key}: ${text}`);
+    if (lines.length >= 20) break;
+  }
+  return lines.join("\n").slice(0, MAX);
 }
 
 export async function buildSystemPrompt(opts: {
   admin: SupabaseClient;
   userId: string | null;
   profile: AssistantProfile;
-  liveContext?: string;
+  liveContext?: unknown;
   intent?: string;
   /** "voice" = Pilot (spoken). "text" = Coach chat. Defaults to "text". */
   surface?: "voice" | "text";
@@ -187,8 +230,6 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
-
-
   const isVoiceCoach = surface === "voice" && opts.intent === "coach";
 
   if (opts.userId && opts.profile.memoryEnabled) {
@@ -226,7 +267,9 @@ export async function buildSystemPrompt(opts: {
           .map((p) => PATTERN_LABEL[p.pattern_key] ?? p.pattern_key)
           .join("; ")}.`;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   if (opts.userId && !isVoiceCoach) {
@@ -237,15 +280,13 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
-
   // PERSONAL SIGNALS — real-time facts (sleep goal, last night, sleep debt,
   // HRV, next shift, local clock). Injected for every coach turn on both
   // voice and text so the model can answer specifically.
   if (opts.userId && opts.intent === "coach") {
     try {
-      const { fetchPersonalSignals, formatSignalsBlock } = await import(
-        "@/lib/ai/personal-signals.server"
-      );
+      const { fetchPersonalSignals, formatSignalsBlock } =
+        await import("@/lib/ai/personal-signals.server");
       const lines = await fetchPersonalSignals(opts.admin, opts.userId);
       prompt += formatSignalsBlock(lines, opts.intentHint);
     } catch (e) {
@@ -253,10 +294,10 @@ export async function buildSystemPrompt(opts: {
     }
   }
 
-  if (opts.liveContext) {
-    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${opts.liveContext}`;
+  const liveContext = formatLiveContext(opts.liveContext);
+  if (liveContext) {
+    prompt += `\n\nCURRENT CONTEXT (use this — do not ask the user to repeat it):\n${liveContext}`;
   }
-
 
   return prompt;
 }
@@ -277,9 +318,7 @@ async function formatTzBlock(admin: SupabaseClient, userId: string): Promise<str
     .maybeSingle();
 
   const home = normalizeTz((prefs as { home_tz?: string | null } | null)?.home_tz ?? "UTC");
-  const current = normalizeTz(
-    (prefs as { current_tz?: string | null } | null)?.current_tz ?? home,
-  );
+  const current = normalizeTz((prefs as { current_tz?: string | null } | null)?.current_tz ?? home);
   const basis = describeTzBasis(current, home);
 
   const now = new Date();
@@ -302,8 +341,13 @@ async function formatTzBlock(admin: SupabaseClient, userId: string): Promise<str
       .maybeSingle();
     if (trip) {
       const t = trip as {
-        label: string | null; origin_tz: string; dest_tz: string;
-        depart_utc: string; arrive_utc: string; dest_label: string | null; status: string;
+        label: string | null;
+        origin_tz: string;
+        dest_tz: string;
+        depart_utc: string;
+        arrive_utc: string;
+        dest_label: string | null;
+        status: string;
       };
       const destOffsetH = tzOffsetMinutes(new Date(t.arrive_utc), t.dest_tz) / 60;
       tripLine = `\n- ${t.status === "active" ? "Active" : "Upcoming"} trip${
@@ -331,18 +375,16 @@ export async function loadAssistantProfile(
     .select("assistant_name, assistant_mode, memory_enabled, voice_language, voice_accent")
     .eq("user_id", userId)
     .maybeSingle();
-  const row = (data ?? null) as
-    | {
-        assistant_name?: string | null;
-        assistant_mode?: string | null;
-        memory_enabled?: boolean | null;
-        voice_language?: string | null;
-        voice_accent?: string | null;
-      }
-    | null;
+  const row = (data ?? null) as {
+    assistant_name?: string | null;
+    assistant_mode?: string | null;
+    memory_enabled?: boolean | null;
+    voice_language?: string | null;
+    voice_accent?: string | null;
+  } | null;
   return {
     name: row?.assistant_name || "RestPilot",
-    mode: ((row?.assistant_mode as AssistantMode) || "coach"),
+    mode: (row?.assistant_mode as AssistantMode) || "coach",
     memoryEnabled: Boolean(row?.memory_enabled),
     language: row?.voice_language || "en-US",
     accent: row?.voice_accent || null,
@@ -356,4 +398,3 @@ export const DEFAULT_ASSISTANT_PROFILE: AssistantProfile = {
   language: "en-US",
   accent: null,
 };
-

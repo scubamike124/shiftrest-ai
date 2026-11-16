@@ -132,3 +132,17 @@ test("has_ai_budget() reads the guarded value", { skip }, () => {
   const [{ ok }] = db.json(`SELECT public.has_ai_budget(${quoteLiteral(USER)}::uuid) AS ok`);
   assert.equal(ok, true);
 });
+
+test(
+  "a 'partial' ai_log row (client left after part of an answer) counts toward the allowance",
+  { skip },
+  () => {
+    const P = "0e0e0e0e-0000-4000-8000-00000000000e";
+    db.sql(`INSERT INTO auth.users (id, email) VALUES (${quoteLiteral(P)}, 'e@example.invalid');`);
+    const ok = () => db.json(`SELECT public.has_ai_budget(${quoteLiteral(P)}::uuid) AS ok`)[0].ok;
+    assert.equal(ok(), true, "a new user is under the default cap");
+    db.sql(`INSERT INTO public.ai_log (user_id, intent, model, prompt_tokens, completion_tokens, status)
+          VALUES (${quoteLiteral(P)}, 'coach', 'm', 14000, 2000, 'partial');`);
+    assert.equal(ok(), false, "16000 tokens in a 'partial' row exceed the 15000 default cap");
+  },
+);
