@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, RefreshCw, Sparkles, Moon, Sun, Coffee, Bed, Car, Heart, Bell } from "lucide-react";
-import { aiTomorrowPreview, type TomorrowPreviewResponse, type TomorrowPreviewBlock } from "@/lib/ai-client";
+import {
+  aiTomorrowPreview,
+  OFFLINE_AI_MESSAGE,
+  type TomorrowPreviewResponse,
+  type TomorrowPreviewBlock,
+} from "@/lib/ai-client";
+import { useRetryOnReconnect } from "@/hooks/use-online";
 import { FeedbackChips } from "./FeedbackChips";
 import { ConfidenceBadge, RecommendationActions, WhyButton } from "./ai/trust";
 
@@ -75,6 +81,10 @@ export function TomorrowPreviewCard({
     if (signedIn && enabled && !data) load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, enabled]);
+
+  // R6: a card that failed because the device was offline retries once when the
+  // connection returns (debounced; see src/lib/offline-retry.ts).
+  useRetryOnReconnect(!data && error === OFFLINE_AI_MESSAGE, () => void load(true));
 
   if (!signedIn || !enabled) return null;
 

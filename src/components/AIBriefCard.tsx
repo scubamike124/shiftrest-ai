@@ -19,6 +19,8 @@ import type { Recommendation } from "@/lib/recommendations";
 import { supabase } from "@/integrations/supabase/client";
 import { aiFetchBackground } from "@/lib/ai/consent-client";
 import { aiRefusalText, readAIRefusal } from "@/lib/ai/refusal-client";
+import { OFFLINE_AI_MESSAGE } from "@/lib/ai-client";
+import { useRetryOnReconnect } from "@/hooks/use-online";
 
 
 const ICONS: Record<string, typeof Sun> = {
@@ -58,14 +60,23 @@ async function fetchBrief(context: string): Promise<AIBrief> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Sign in to load your brief");
-  const resp = await aiFetchBackground("/api/insights", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ context }),
-  });
+  let resp: Response;
+  try {
+    resp = await aiFetchBackground("/api/insights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ context }),
+    });
+  } catch (e) {
+    // The device is offline: say so (and let the card retry once on reconnect).
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error(OFFLINE_AI_MESSAGE);
+    }
+    throw e;
+  }
   if (!resp.ok) {
     if (resp.status === 401) throw new Error("Sign in to load your brief");
     throw new Error(aiRefusalText(await readAIRefusal(resp), "Brief unavailable"));
@@ -107,8 +118,16 @@ export function AIBriefCard({
     queryFn: () => fetchBrief(context),
     staleTime: 1000 * 60 * 60 * 4, // 4 hours
     retry: 1,
+    // The card retries once itself when the connection returns (debounced), so the
+    // query does not also refetch on reconnect: one request per reconnect.
+    refetchOnReconnect: false,
     enabled: !!context && hasSession === true,
   });
+  // R6: retry once on reconnect after an offline failure (src/lib/offline-retry.ts).
+  useRetryOnReconnect(
+    isError && error instanceof Error && error.message === OFFLINE_AI_MESSAGE,
+    () => void refetch(),
+  );
 
 
   const fatigueColor =
