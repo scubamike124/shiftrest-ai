@@ -104,20 +104,40 @@ export function hostAllowed(base, allowed = ALLOWED_HOSTS) {
 }
 
 const reEsc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** Masks each secret as typed and as JSON-escaped, case-insensitively. */
+const b64Forms = (x) => {
+  const b = Buffer.from(x, "utf8");
+  return [b.toString("base64"), b.toString("base64").replace(/=+$/, ""), b.toString("base64url")];
+};
+/**
+ * Masks each secret (any length >= 1) as typed, JSON-escaped, URL-encoded and
+ * base64 / base64url, case-insensitively. A JWT-shaped secret is also masked
+ * segment by segment.
+ */
 export function maskSecrets(text, secrets) {
   let out = String(text ?? "");
   const variants = new Set();
-  for (const s of secrets) {
-    if (!s || String(s).length < 4) continue;
-    variants.add(String(s));
-    variants.add(JSON.stringify(String(s)).slice(1, -1));
+  for (const raw of secrets) {
+    const s = raw == null ? "" : String(raw);
+    if (!s) continue;
+    const bases = [s];
+    if (/^[\w-]+\.[\w-]+\.[\w-]*$/.test(s)) bases.push(...s.split("."));
+    for (const x of bases) {
+      if (!x) continue;
+      for (const v of [x, JSON.stringify(x).slice(1, -1), encodeURIComponent(x), ...b64Forms(x)])
+        variants.add(v);
+    }
   }
   for (const v of [...variants].sort((x, y) => y.length - x.length)) {
     out = out.replace(new RegExp(reEsc(v), "gi"), "***");
   }
   return out;
 }
+
+/** Only short, plain identifiers from the server are ever printed or published. */
+export const safeCode = (c) =>
+  typeof c === "string" && /^[a-z_]{1,40}$/.test(c) ? c : "unrecognised_code";
+export const safeBuildId = (b) =>
+  typeof b === "string" && b.length <= 64 && /^[A-Za-z0-9._-]+$/.test(b) ? b : null;
 
 const DOSE_RE = /\d+(?:[.,]\d+)?\s*(?:-|–|to)?\s*(?:\d+(?:[.,]\d+)?\s*)?(?:mg|milligrams?)\b/i;
 export function redFlags(reply, { code, doseCheck, nonStringFrames = 0, crisis = false } = {}) {
@@ -302,7 +322,7 @@ export async function run(opts) {
     token = r.status === 200 && typeof j.access_token === "string" ? j.access_token : "";
     if (!token) {
       say(
-        `Sign-in failed (HTTP ${r.status}${j.error_code ? ` ${j.error_code}` : ""}). Check the test account.`,
+        `Sign-in failed (HTTP ${r.status}${j.error_code ? ` ${safeCode(j.error_code)}` : ""}). Check the test account.`,
       );
       return { exitCode: 3, signInFailed: true };
     }
@@ -327,9 +347,9 @@ export async function run(opts) {
       redirect: "error",
       signal: AbortSignal.timeout(15000),
     });
-    version = r.ok ? await r.json() : { status: r.status };
-  } catch (e) {
-    version = { error: e?.name || "error" };
+    version = { buildId: r.ok ? safeBuildId((await r.json())?.buildId) : null };
+  } catch {
+    version = { buildId: null };
   }
   say(`Target ${baseUrl} build ${version?.buildId ?? "unknown"}`);
 
@@ -398,7 +418,7 @@ export async function run(opts) {
         } else {
           try {
             const j = JSON.parse(raw);
-            rec.code = typeof j.code === "string" ? j.code : null;
+            rec.code = j.code == null ? null : safeCode(j.code);
             rec.error = typeof j.error === "string" ? j.error : null;
           } catch {
             rec.error = "non-JSON error body";
@@ -505,6 +525,7 @@ export async function run(opts) {
       maxRetriesPerRequest: MAX_RETRIES_PER_REQUEST,
       maxWallMs: MAX_WALL_MS,
     },
+    limitsInEffect: { maxRequests: maxReq, maxWallMs: wall },
     aiRequestsMade: aiRequests,
     wallMs: Date.now() - startedAt,
     stopReason,

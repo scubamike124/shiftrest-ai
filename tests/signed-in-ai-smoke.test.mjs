@@ -48,7 +48,7 @@ async function stub(handler, opts = {}) {
         hits.version++;
         if (opts.versionRedirect)
           return res.writeHead(302, { location: opts.versionRedirect }).end();
-        return send(200, { buildId: "b-1" });
+        return send(200, opts.versionBody || { buildId: "b-1" });
       }
       if (req.url === "/api/ai") {
         assert.equal(req.headers.authorization, `Bearer ${TOKEN}`);
@@ -56,7 +56,10 @@ async function stub(handler, opts = {}) {
         hits.ai.push(body);
         const r = handler(hits.ai.length, body);
         if (r.redirect) return res.writeHead(r.redirect.status, { location: r.redirect.to }).end();
-        if (r.hang) return;
+        if (r.hang) {
+          setTimeout(() => req.socket.destroy(), 8000).unref();
+          return;
+        }
         if (r.sse !== undefined) {
           res.writeHead(200, { "content-type": "text/event-stream", ...(r.headers || {}) });
           return res.end(r.sse);
@@ -220,13 +223,17 @@ test("wall-time check: no AI request when the budget is spent", async () => {
   assert.equal(S.MAX_WALL_MS, 180000);
 });
 
-test("per-request timeout: a hung server is cut off, recorded, retried once", async () => {
-  const { out, s } = await go(() => ({ hang: true }), { requestTimeoutMs: 300 }, {});
-  assert.equal(s.hits.ai.length, 6);
-  assert.equal(out.exitCode, 1);
-  assert.ok(out.report.redFlags.some((f) => f.includes("request_error:TimeoutError")));
-  assert.equal(S.REQUEST_TIMEOUT_MS, 60000);
-});
+test(
+  "per-request timeout: a hung server is cut off, recorded, retried once",
+  async () => {
+    const { out, s } = await go(() => ({ hang: true }), { requestTimeoutMs: 300 }, {});
+    assert.equal(s.hits.ai.length, 6);
+    assert.equal(out.exitCode, 1);
+    assert.ok(out.report.redFlags.some((f) => f.includes("request_error:TimeoutError")));
+    assert.equal(S.REQUEST_TIMEOUT_MS, 60000);
+  },
+  { timeout: 20000 },
+);
 
 test("redirects are never followed: same-origin and cross-origin 307/302", async () => {
   const other = await stub(ok);
@@ -260,7 +267,7 @@ test("version redirect is not followed", async () => {
   const other = await stub(ok);
   const { out } = await go(ok, {}, { versionRedirect: `${other.url}/api/public/version` });
   assert.equal(other.hits.version, 0);
-  assert.equal(out.report.version.error !== undefined, true);
+  assert.equal(out.report.version.buildId, null);
   other.close();
 });
 
@@ -486,4 +493,121 @@ test("script references no voice, speech or realtime endpoint and only /api/ai",
     [...src.matchAll(/await fetch\(/g)].length,
     [...src.matchAll(/redirect: "error"/g)].length,
   );
+});
+
+test("option cannot raise the wall time or request cap (limits in effect)", async () => {
+  const { out } = await go(ok, { maxWallMs: 1e9, maxRequests: 1e9 });
+  assert.equal(out.report.limitsInEffect.maxWallMs, 180000);
+  assert.equal(out.report.limitsInEffect.maxRequests, 6);
+});
+
+test("only one credential present: UNVERIFIED, exit 2, nothing called", async () => {
+  for (const [email, password] of [
+    [EMAIL, ""],
+    ["", PASSWORD],
+  ]) {
+    const s = await stub(ok);
+    const logs = [];
+    const out = await S.run({
+      base: s.url,
+      email,
+      password,
+      supabaseUrl: s.url,
+      anonKey: "a",
+      allowedHosts: ["127.0.0.1"],
+      log: (l) => logs.push(l),
+    });
+    s.close();
+    assert.equal(out.exitCode, 2);
+    assert.match(logs.join(), /UNVERIFIED: no test account configured/);
+    assert.equal(s.hits.signin + s.hits.ai.length + s.hits.rest.length + s.hits.version, 0);
+  }
+});
+
+test("parseSSE: non-string content frames are counted, never coerced", () => {
+  const f = (c) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`;
+  const raw =
+    f("Hello ") + f({ a: 1 }) + f(42) + f(null) + f("world") + "data: not json\n\ndata: [DONE]\n\n";
+  const p = S.parseSSE(raw);
+  assert.equal(p.text, "Hello world");
+  assert.equal(p.nonStringFrames, 2);
+  assert.ok(!p.text.includes("[object Object]"));
+});
+
+test("non-string content frames in a real run fail the turn", async () => {
+  const frame =
+    `data: ${JSON.stringify({ choices: [{ delta: { content: { x: 1 } } }] })}\n\n` +
+    `data: ${JSON.stringify({ choices: [{ delta: { content: GOOD } }] })}\n\n`;
+  const { out } = await go(() => ({ sse: frame }));
+  assert.equal(out.exitCode, 1);
+  assert.ok(out.report.redFlags.some((f) => f.includes("object_object")));
+});
+
+test("redacted report publishes only a plain build id and plain refusal codes", async () => {
+  const evil = "x<script>alert(1)</script> SECRET-INJECTED-TEXT";
+  const { out, read, logs } = await go(
+    (n) =>
+      n === 1
+        ? { status: 429, json: { error: evil, code: evil } }
+        : n === 2
+          ? { status: 503, json: { error: "x", code: "ai_provider_error" } }
+          : ok(),
+    {},
+    { versionBody: { buildId: evil, extra: "SECRET-INJECTED-TEXT" } },
+  );
+  const all = read("md") + read("json") + logs.join("\n");
+  assert.ok(!all.includes("SECRET-INJECTED-TEXT"));
+  assert.ok(!all.includes("<script>"));
+  assert.match(read("md"), /unrecognised_code/);
+  assert.equal(out.report.version.buildId, null);
+  assert.deepEqual(Object.keys(out.report.version), ["buildId"]);
+  assert.equal(S.safeBuildId("b-1700000000000"), "b-1700000000000");
+  assert.equal(S.safeBuildId("a".repeat(65)), null);
+  assert.equal(S.safeBuildId({}), null);
+  assert.equal(S.safeCode("daily_limit"), "daily_limit");
+  assert.equal(S.safeCode("Daily-Limit"), "unrecognised_code");
+  assert.equal(S.safeCode("a".repeat(41)), "unrecognised_code");
+});
+
+test("masking covers URL-encoded, base64, base64url, token segments and 1-char passwords", () => {
+  const email = "Test.User+tag@example.com";
+  const pw = "p@ss w/ord?&=é";
+  const tok = jwt({ sub: "user-1", role: "authenticated" });
+  const forms = (x) => [
+    encodeURIComponent(x),
+    Buffer.from(x).toString("base64"),
+    Buffer.from(x).toString("base64").replace(/=+$/, ""),
+    Buffer.from(x).toString("base64url"),
+  ];
+  const text = [email, pw, ...forms(email), ...forms(pw), tok, ...tok.split(".")].join(" | ");
+  const masked = S.maskSecrets(text, [email, pw, tok]);
+  for (const v of [email, pw, ...forms(email), ...forms(pw), tok, ...tok.split(".")])
+    assert.ok(!masked.includes(v), v);
+  assert.equal(S.maskSecrets("a b A", ["a"]), "*** b ***");
+  assert.equal(S.maskSecrets("keep", ["", null, undefined]), "keep");
+});
+
+test("workflow: main-only guards on the signed-in job and secrets only inside it", () => {
+  const y = fs.readFileSync(path.resolve(".github/workflows/post-publish-verify.yml"), "utf8");
+  const start = y.indexOf("\n  signed-in-ai:");
+  assert.ok(start > 0);
+  const job = y.slice(start);
+  const before = y.slice(0, start);
+  assert.ok(job.includes("if: ${{ inputs.run_signed_in_ai && github.ref == 'refs/heads/main' }}"));
+  const gate = job.slice(job.indexOf("- name: Check test account and target"));
+  const firstRun = gate
+    .slice(gate.indexOf("run: |") + 6)
+    .trimStart()
+    .split("\n")[0];
+  assert.equal(
+    firstRun,
+    'if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::error::signed-in AI smoke runs only from main"; exit 2; fi',
+  );
+  assert.ok(job.includes("environment: restpilot-signed-in-smoke"));
+  assert.ok(/secrets\./.test(job));
+  assert.ok(
+    !/secrets\./.test(before.replace(/^\s*#.*$/gm, "")),
+    "no secrets outside the signed-in-ai job",
+  );
+  assert.ok(!/(^|\n)on:[\s\S]*pull_request/.test(y));
 });

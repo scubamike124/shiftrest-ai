@@ -35,6 +35,12 @@ Repository `scubamike124/shiftrest-ai` > **Settings** > **Environments** >
 - Under **Environment secrets** add `RESTPILOT_E2E_EMAIL` and
   `RESTPILOT_E2E_PASSWORD`.
 
+Before adding the secrets, open **Settings > Environments >
+restpilot-signed-in-smoke** and check that **Deployment branches** shows `main`
+only and that you are listed as a required reviewer. That environment rule is
+the real control. The workflow's own `main`-only check just prevents accidents
+and is not a security boundary.
+
 Store them **there**, not as plain repository secrets, so a collaborator cannot
 run an edited script from another branch with the credentials. Create the
 environment before the first run, or GitHub creates an unprotected one.
@@ -54,9 +60,9 @@ The hard bound is in the script: **at most 6 AI requests** per run (retries
 count), each capped at **180 output tokens**, one retry per request, 3 minutes
 total. No voice, speech or realtime calls. It stops at the first "daily limit".
 
-Each request is roughly 1.5 to 2 thousand tokens including the prompt, so a
-run uses about 10,000 of the account's 15,000-token rolling-24-hour free
-allowance, about **$0.20** by the repo's own $20 per million accounting
+A run uses at most about 12,000 tokens (about $0.24 by the repo's internal
+$20-per-million accounting; the real provider cost is lower), against the
+account's 15,000-token rolling-24-hour free allowance
 (`docs/restpilot-upgrade-2026-11/VOICE-COST-MODEL.md`). The server checks the
 allowance **before** a request, so the last request can overshoot it by about
 one request. A tester/admin role or a subscription would change the cap, which

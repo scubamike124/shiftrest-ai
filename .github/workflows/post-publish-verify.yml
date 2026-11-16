@@ -82,7 +82,7 @@ jobs:
   # Max 6 requests of at most 180 output tokens, enforced in
   # scripts/signed-in-ai-smoke.mjs. Skipped (with a notice) unless asked for.
   signed-in-ai:
-    if: ${{ inputs.run_signed_in_ai }}
+    if: ${{ inputs.run_signed_in_ai && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     # Secrets are stored in this Environment, restricted to main with a required
@@ -105,6 +105,7 @@ jobs:
           E2E_EMAIL: ${{ secrets.RESTPILOT_E2E_EMAIL }}
           E2E_PASSWORD: ${{ secrets.RESTPILOT_E2E_PASSWORD }}
         run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::error::signed-in AI smoke runs only from main"; exit 2; fi
           case "$BASE_URL" in
             https://restpilotai.com|https://restpilot-web-staging.up.railway.app) ;;
             *) echo "Refusing target: $BASE_URL"; exit 2 ;;
