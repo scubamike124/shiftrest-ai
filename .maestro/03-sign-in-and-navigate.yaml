@@ -51,7 +51,20 @@ tags: [core]
     visible: "Memory is optional"
     timeout: 10000
 - tapOn: "Next"
-- tapOn: "Got it"
+# A tap that lands while the sheet is still animating to the last step can be lost
+# (CI run 43774105402: the tap completed, the sheet stayed open). Tap again until the
+# sheet reports it is gone; the dashboard assertion below is unchanged.
+- retry:
+    maxRetries: 3
+    commands:
+      - runFlow:
+          when:
+            visible: "Got it"
+          commands:
+            - tapOn: "Got it"
+      - extendedWaitUntil:
+          notVisible: "Got it"
+          timeout: 4000
 - extendedWaitUntil:
     visible:
       text: "Good (morning|afternoon|evening).*"
