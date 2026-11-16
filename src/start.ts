@@ -37,6 +37,9 @@ const CSP = [
     // Lovable AI + connector gateways
     "https://ai.gateway.lovable.dev",
     "https://connector-gateway.lovable.dev",
+    // Reverse geocoding for Profile > Location > Detect (a keyless browser API;
+    // without this entry the browser blocks the call and Detect cannot name the city).
+    "https://api.bigdatacloud.net",
     // OpenAI Realtime (WebRTC + WSS)
     "https://api.openai.com",
     "wss://api.openai.com",
