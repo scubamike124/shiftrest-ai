@@ -14,7 +14,9 @@ async function openMoreInsights(page: Page) {
   const more = page.locator("details", { has: page.getByText("More insights", { exact: true }) });
   if ((await more.count()) === 0) return;
   if (!(await more.first().evaluate((d) => (d as HTMLDetailsElement).open))) {
-    await more.first().locator("summary").click();
+    // Loaded cards contain their own nested details/summary disclosures.
+    // Only the direct summary toggles this outer mobile section.
+    await more.first().locator(":scope > summary").click();
   }
 }
 
