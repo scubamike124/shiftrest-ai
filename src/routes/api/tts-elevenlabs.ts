@@ -1,5 +1,5 @@
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 // ElevenLabs TTS route — mirrors /api/tts contract (text + voice + mode → MP3)
 // so speak.ts can swap providers behind a flag without UI changes.
 
@@ -53,7 +53,9 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
         }
-        const admission = await requireAIAdmission(auth.userId);
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -64,6 +66,9 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           if (limited) return limited;
         }
 
+        // True from the moment the provider is called: only then can a thrown
+        // error be the provider being unreachable.
+        let providerCalled = false;
         try {
           const reqBody = (input.body) as {
             text?: string;
@@ -110,6 +115,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             `[tts-elevenlabs] provider_start voice=${voiceId} mode=${mode} textLen=${textLen}`,
           );
           const providerT0 = Date.now();
+          providerCalled = true;
           const upstream = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
             {
@@ -136,8 +142,10 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
           );
 
 
+          providerCalled = false; // the provider answered: a later throw is not "unreachable"
           if (!upstream.ok) {
             const upstreamBody = await upstream.text().catch(() => "");
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
@@ -166,6 +174,7 @@ export const Route = createFileRoute("/api/tts-elevenlabs")({
             headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
           });
         } catch (e) {
+          if (providerCalled) await refund.refundProviderFailure?.(null, request.signal);
           console.error(
             `[tts-elevenlabs] provider_failure reason=network ms=${Date.now() - t0} err=${e instanceof Error ? e.message : String(e)}`,
           );

@@ -1,6 +1,6 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIRequestBody } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 import { providerFailure } from "@/lib/ai/refusal";
 /**
  * POST /api/stt — Forward audio to Lovable AI Gateway transcription.
@@ -51,7 +51,9 @@ export const Route = createFileRoute("/api/stt")({
           const refused = await requireAIConsent(authed.userId);
           if (refused) return refused;
         }
-        const admission = await requireAIAdmission(authed.userId);
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(authed.userId, refund);
         if (admission) return admission;
 
         {
@@ -109,6 +111,7 @@ export const Route = createFileRoute("/api/stt")({
             message: "network_error",
             meta: { error: e instanceof Error ? e.message : String(e) },
           });
+          await refund.refundProviderFailure?.(null, request.signal);
           const failure = providerFailure(null);
           return Response.json(
             {
@@ -141,6 +144,7 @@ export const Route = createFileRoute("/api/stt")({
                 : "Couldn't transcribe that — try again.";
           // Never pass the provider's status through (its 402/429 is not this user's
           // limit): 503 retryable, or 502 for audio the provider rejected.
+          await refund.refundProviderFailure?.(upstream.status, request.signal);
           const failure = providerFailure(upstream.status);
           return Response.json(
             { error: msg, code: failure.code, retryable: failure.retryable },
