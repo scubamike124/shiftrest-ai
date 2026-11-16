@@ -111,3 +111,26 @@ test("geocoder: a match, no match and a failed lookup are three different answer
   assert.equal(await withFetch(async () => new Response("{}"), () => geocodeLocation("Zzzzqqq")), null);
   assert.deepEqual(await withFetch(async () => new Response(JSON.stringify(la)), () => geocodeLocation("Los Angeles")), { lat: 34.05223, lon: -118.24368, label: "Los Angeles, California, US" });
 });
+
+test("the site's Permissions-Policy lets its own pages ask for location", () => {
+  const src = read("src/start.ts");
+  const line = src.split("\n").find((l) => /^\s*"camera=\(\)/.test(l)) ?? "";
+  assert.match(line, /geolocation=\(self\)/, "geolocation=() makes the browser refuse Detect whatever the user allows");
+  assert.ok(!/geolocation=\(\)/.test(line));
+  assert.ok(!/geolocation=\*/.test(line), "own pages only, never every origin");
+});
+
+test('weather and traffic lookups never say "No match found" when the lookup itself failed', () => {
+  for (const f of ["src/components/weather/WeatherLocationCard.tsx", "src/components/traffic/TrafficDestinationsCard.tsx"]) {
+    assert.match(read(f), /hit\.reason === "unavailable"/, f);
+  }
+  const traffic = read("src/lib/traffic/traffic.functions.ts");
+  assert.match(traffic, /reason: r\.status/);
+  assert.ok(!/const hit = await geocodeLocation\(/.test(traffic));
+});
+
+test("Profile gives an over-long city its own message before any lookup", () => {
+  const profile = read("src/routes/profile.tsx");
+  const tooLong = profile.indexOf("q.length > 80");
+  assert.ok(tooLong > 0 && tooLong < profile.indexOf("await geocodeCity(q)"));
+});

@@ -132,7 +132,9 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
   headers.set("x-frame-options", "SAMEORIGIN");
   headers.set(
     "permissions-policy",
-    "camera=(), geolocation=(), payment=(self), microphone=(self), usb=()",
+    // geolocation=(self): Profile > Detect, weather and traffic "use my location"
+    // need it. With geolocation=() the browser refuses every request, whatever the user allows.
+    "camera=(), geolocation=(self), payment=(self), microphone=(self), usb=()",
   );
   headers.set("cross-origin-opener-policy", "same-origin-allow-popups");
   headers.set("x-content-type-options", "nosniff");

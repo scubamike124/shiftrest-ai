@@ -317,6 +317,10 @@ function Profile() {
         toast.error("Enter at least 2 letters of your city.");
         return;
       }
+      if (q.length > 80) {
+        toast.error("That's too long for a city name — enter just the city, or a ZIP code.");
+        return;
+      }
       const hit = await geocodeCity(q);
       if (hit.status !== "ok") {
         toast.error(
