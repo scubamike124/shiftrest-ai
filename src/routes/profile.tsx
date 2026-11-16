@@ -185,7 +185,7 @@ function Profile() {
 
   async function handleManageSubscription() {
     if (!isPaymentsConfigured()) {
-      toast.error("Purchases are unavailable during the app test.");
+      toast.error("Subscription management is unavailable in this build.");
       return;
     }
     setPortalLoading(true);
@@ -758,7 +758,7 @@ function Profile() {
                 {deleting ? "Deleting…" : "Delete Account"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Cancel active subscriptions and permanently delete your account.
+                    Permanently delete your account and data.
               </p>
             </div>
           </div>
@@ -770,7 +770,12 @@ function Profile() {
             <AlertDialogHeader>
               <AlertDialogTitle className="font-serif text-2xl">Delete your account?</AlertDialogTitle>
               <AlertDialogDescription className="leading-relaxed">
-                This permanently removes your account, saved plans, and personal data. We cancel recurring Stripe subscriptions before deleting your account. Records held by payment providers may remain under their retention policies. This cannot be undone.
+                  This permanently removes your account, saved plans, and personal data. We cancel
+                  recurring website subscriptions before deleting your account. A subscription
+                  bought through the App Store is billed by Apple and is not cancelled by deleting
+                  your account: cancel it in iPhone Settings, your name, Subscriptions. Records held
+                  by payment providers may remain under their retention policies. This cannot be
+                  undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-2">
