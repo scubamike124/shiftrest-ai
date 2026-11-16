@@ -75,12 +75,24 @@ export function fakeDb({
   rateCount = 1,
   requestRetry = 0,
   requestBad = false,
+  /** How refund_ai_request answers: "ok", "error" (an error object), "throw" or "hang" (never settles). */
+  refund = "ok",
+  /** false: consume_ai_request answers like the pre-refund function (no token). */
+  withToken = true,
 } = {}) {
   const inserts = [];
   const rpcCalls = [];
+  const refunds = [];
+  let consumed = 0;
   return {
     inserts,
     rpcCalls,
+    /** Arguments of every refund_ai_request call. */
+    refunds,
+    /** Requests admitted by consume_ai_request. */
+    get consumed() {
+      return consumed;
+    },
     /** Rows written to ai_log (the table has_ai_budget sums). */
     get aiLog() {
       return inserts.filter((i) => i.table === "ai_log").map((i) => i.row);
@@ -99,9 +111,16 @@ export function fakeDb({
           : { data: { user: null }, error: { message: "bad" } };
       },
     },
-    async rpc(name) {
+    async rpc(name, args) {
       const n = String(name ?? "");
       rpcCalls.push(n);
+      if (n === "refund_ai_request") {
+        refunds.push(args);
+        if (refund === "throw") throw new Error("rpc exploded");
+        if (refund === "hang") return new Promise(() => {});
+        if (refund === "error") return { data: null, error: { message: "boom" } };
+        return { data: { refunded: true }, error: null };
+      }
       if (n === "has_ai_budget") return { data: budgetOk, error: null };
       if (n === "rate_limit_hit") return { data: rateCount, error: null };
       if (n === "consume_ai_request") {
@@ -110,7 +129,11 @@ export function fakeDb({
           data:
             requestRetry > 0
               ? { allowed: false, retry_after_seconds: requestRetry }
-              : { allowed: true, retry_after_seconds: 0 },
+              : {
+                  allowed: true,
+                  retry_after_seconds: 0,
+                  ...(withToken ? { token: `req-${++consumed}` } : (consumed++, {})),
+                },
           error: null,
         };
       }

@@ -1,5 +1,5 @@
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 /**
  * /api/ai — single orchestrator for every AI intent.
  *
@@ -328,7 +328,9 @@ export const Route = createFileRoute("/api/ai")({
           if (limited) return limited;
         }
 
-        const admission = await requireAIAdmission(userId);
+        // The handle gives this request back if the provider fails it (see below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(userId, refund);
         if (admission) return admission;
 
         try {
@@ -398,6 +400,9 @@ export const Route = createFileRoute("/api/ai")({
               const promptChars =
                 systemWithTime.length + trimmed.reduce((n, m) => n + m.content.length, 0);
               let completed = false;
+              // The provider's own stream failed (not a client cancel or a write
+              // to a client that left): the only mid-stream case that can be refunded.
+              let providerReadFailed = false;
               // A client cancel is noticed even while the provider is silent:
               // stop reading, and do not mistake the cancelled read for a finish.
               let clientGone = false;
@@ -408,7 +413,14 @@ export const Route = createFileRoute("/api/ai")({
 
               try {
                 while (true) {
-                  const { done, value } = await reader.read();
+                  let step: ReadableStreamReadResult<Uint8Array>;
+                  try {
+                    step = await reader.read();
+                  } catch (readErr) {
+                    providerReadFailed = !clientGone;
+                    throw readErr;
+                  }
+                  const { done, value } = step;
                   if (done) break;
                   // A failed write means the client is gone: this chunk was not
                   // delivered, so it is not counted below.
@@ -467,6 +479,12 @@ export const Route = createFileRoute("/api/ai")({
                   } catch (e) {
                     console.error("coach usage log failed", e);
                   }
+                }
+                // The provider failed before any text reached the customer: their
+                // request is given back. Never when text was delivered (counted
+                // above), never on a client abort.
+                if (providerReadFailed && assistant.length === 0) {
+                  await refund.refundProviderFailure?.(null, request.signal);
                 }
                 if (completed && userId) {
                   try {
@@ -826,6 +844,11 @@ export const Route = createFileRoute("/api/ai")({
               error: msg,
             });
           }
+          // The provider gave this customer nothing (after this line's own
+          // failover): their request is given back, so an outage cannot use up the
+          // daily request allowance. Not for a rejected request (4xx), see
+          // isRefundableProviderStatus.
+          if (upstreamFailure) await refund.refundProviderFailure?.(status, request.signal);
           // Provider rate limit / credits / auth / outage (after this line's own
           // failover): a retryable 503 (or 502 for a request the provider rejected)
           // with its own code, so the client says "the AI service is busy" and never

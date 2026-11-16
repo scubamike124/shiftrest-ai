@@ -1,6 +1,6 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 /**
  * POST /api/brief — rewrite a structured plan into a conversational voice script.
  *
@@ -88,7 +88,9 @@ export const Route = createFileRoute("/api/brief")({
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
         }
-        const admission = await requireAIAdmission(auth.userId);
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -140,6 +142,7 @@ export const Route = createFileRoute("/api/brief")({
         // conversational surface.
         const timeDirective = buildTimeDirective({ localTime, timezone }).directive;
 
+        let providerUnreachable = false;
         try {
           // Load language pref up front so the briefing is generated directly in
           // the user's chosen language (no English-first then translate).
@@ -170,6 +173,11 @@ export const Route = createFileRoute("/api/brief")({
               { role: "system", content: system },
               { role: "user", content: plan },
             ],
+          }).catch((e: unknown) => {
+            // Without failover the gateway lets a transport error (provider
+            // unreachable) through unwrapped; an AIError carries its own status.
+            if (!(e instanceof AIError)) providerUnreachable = true;
+            throw e;
           });
           console.log(
             `[brief] provider_done ms=${Date.now() - providerT0} prompt_tokens=${result.promptTokens ?? "-"} completion_tokens=${result.completionTokens ?? "-"} chars=${result.text?.length ?? 0}`,
@@ -208,6 +216,13 @@ export const Route = createFileRoute("/api/brief")({
           const status = e instanceof AIError ? e.status : 500;
           const message = e instanceof Error ? e.message : String(e);
           console.error("[brief] upstream failed", { status, message });
+          // The provider gave nothing (not a failure of ours or of the request):
+          // the request is given back. Not for a rejected request (4xx).
+          if (providerUnreachable) {
+            await refund.refundProviderFailure?.(null, request.signal);
+          } else if (e instanceof AIError && e.upstream) {
+            await refund.refundProviderFailure?.(status, request.signal);
+          }
           const reason = reasonFromStatus(status);
           // Alert on genuine infra failures only.
           if (reason === "credits") {
