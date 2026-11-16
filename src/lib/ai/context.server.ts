@@ -140,22 +140,47 @@ function formatPreviousBlock(prev: { headline: string; rationale: string | null 
  */
 export function formatLiveContext(ctx: unknown): string {
   const MAX = 4000;
-  if (typeof ctx === "string") return ctx.trim().slice(0, MAX);
+  // Control and invisible characters (NUL, BEL, ESC, NEL, zero-width and
+  // bidi marks/overrides/isolates, line/paragraph separators, BOM) are removed
+  // from everything the client sends; tab, LF and CR are handled by the
+  // whitespace rules below.
+  const INVISIBLE =
+    // eslint-disable-next-line no-control-regex -- matching control characters is the point
+    /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+  if (typeof ctx === "string") {
+    return ctx
+      .replace(/\r\n?/g, "\n")
+      .replace(INVISIBLE, "")
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ?\n[ \n]*/g, "\n")
+      .trim()
+      .slice(0, MAX);
+  }
   if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return "";
-  const skip = new Set(["surface", "max_tokens"]);
+  // Client-only hints, compared by a normalised key ("max tokens", maxTokens, MAX-TOKENS).
+  const skip = new Set(["surface", "maxtokens"]);
   const lines: string[] = [];
   for (const [k, v] of Object.entries(ctx as Record<string, unknown>)) {
-    if (skip.has(k)) continue;
+    if (
+      skip.has(
+        k
+          .replace(INVISIBLE, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, ""),
+      )
+    )
+      continue;
     if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
     // Keys are client-controlled too: collapse whitespace like values, keep a
     // safe character set, and cap the length.
     const key = k
+      .replace(INVISIBLE, "")
       .replace(/_/g, " ")
       .replace(/\s+/g, " ")
       .replace(/[^A-Za-z0-9 .-]/g, "")
       .trim()
       .slice(0, 40);
-    const text = String(v).trim().replace(/\s+/g, " ").slice(0, 200);
+    const text = String(v).replace(INVISIBLE, "").trim().replace(/\s+/g, " ").slice(0, 200);
     if (key && text) lines.push(`${key}: ${text}`);
     if (lines.length >= 20) break;
   }

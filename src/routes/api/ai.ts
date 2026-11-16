@@ -288,15 +288,24 @@ async function getUserIdFromAuthHeader(
 
 type WaitUntil = (p: Promise<unknown>) => void;
 
-/** Register background work with the runtime's waitUntil, when it exposes one. */
+/**
+ * Register background work with the runtime's waitUntil, ONLY on Cloudflare
+ * (request.runtime.cloudflare is set by nitro's cloudflare handler, srvx's
+ * Cloudflare adapter, or src/server.ts). On plain Node, srvx also provides
+ * request.waitUntil but its internal set keeps one settled promise per call, so
+ * registering there would retain a promise per streamed turn for the life of
+ * the process; the pump simply runs to completion without it.
+ */
 function keepAlive(request: Request, work: Promise<unknown>): void {
   try {
     const r = request as Request & {
       waitUntil?: WaitUntil;
       runtime?: { cloudflare?: { context?: { waitUntil?: WaitUntil } } };
     };
+    const cf = r.runtime?.cloudflare;
+    if (!cf) return;
     if (typeof r.waitUntil === "function") r.waitUntil(work);
-    else r.runtime?.cloudflare?.context?.waitUntil?.(work);
+    else cf.context?.waitUntil?.(work);
   } catch (e) {
     console.warn("waitUntil unavailable", e);
   }
@@ -550,8 +559,9 @@ export const Route = createFileRoute("/api/ai")({
               }
             })();
             // On Cloudflare the worker may be torn down when the client leaves;
-            // waitUntil keeps it alive until the usage row is written. Absent
-            // (Node, tests): behaviour is unchanged.
+            // waitUntil keeps it alive until the usage row is written. Only
+            // registered on Cloudflare (see keepAlive); on Node, and in tests,
+            // behaviour is unchanged.
             keepAlive(request, pump);
 
             return new Response(readable, {

@@ -793,20 +793,24 @@ function memRoute(spy) {
 
 const hello = (c) => c.enqueue(sseBytes({ choices: [{ delta: { content: "Nap at 3 pm." } }] }));
 
-test("client leaves while the provider stays silent FOREVER: one row, provider cancelled, no memory, no hang", { timeout: 5000 }, async () => {
-  const spy = ctlProvider(hello); // never sends more, never closes
-  const { db, h, mem } = memRoute(spy);
-  const res = await h.post({ request: jsonRequest(coachBody()) });
-  const r = res.body.getReader();
-  assert.match(new TextDecoder().decode((await r.read()).value), /Nap/);
-  await r.cancel();
-  await wait(150);
-  assert.equal(db.aiLog.length, 1, "one row");
-  assert.equal(db.aiLog[0].status, "partial");
-  assert.equal(db.aiLog[0].completion_tokens, Math.ceil("Nap at 3 pm.".length / 4));
-  assert.equal(spy.state.cancelled, true, "the provider stream was cancelled");
-  assert.equal(mem.length, 0);
-});
+test(
+  "client leaves while the provider stays silent FOREVER: one row, provider cancelled, no memory, no hang",
+  { timeout: 5000 },
+  async () => {
+    const spy = ctlProvider(hello); // never sends more, never closes
+    const { db, h, mem } = memRoute(spy);
+    const res = await h.post({ request: jsonRequest(coachBody()) });
+    const r = res.body.getReader();
+    assert.match(new TextDecoder().decode((await r.read()).value), /Nap/);
+    await r.cancel();
+    await wait(150);
+    assert.equal(db.aiLog.length, 1, "one row");
+    assert.equal(db.aiLog[0].status, "partial");
+    assert.equal(db.aiLog[0].completion_tokens, Math.ceil("Nap at 3 pm.".length / 4));
+    assert.equal(spy.state.cancelled, true, "the provider stream was cancelled");
+    assert.equal(mem.length, 0);
+  },
+);
 
 test("client leaves before any text, provider silent: no row, provider cancelled", async () => {
   const spy = ctlProvider(() => {});
@@ -861,6 +865,7 @@ test("waitUntil: when the runtime provides it, it gets the pump, which settles o
   const registered = [];
   const request = jsonRequest(coachBody());
   request.waitUntil = (p) => registered.push(p);
+  request.runtime = { name: "cloudflare", cloudflare: {} };
   const res = await h.post({ request });
   assert.equal(registered.length, 1, "exactly one promise registered");
   let settled = false;
@@ -945,4 +950,82 @@ test("formatLiveContext: hostile keys cannot inject lines; output is capped at 4
   assert.ok(f(many).length <= 4000);
   assert.ok(f("z".repeat(9000)).length <= 4000);
   assert.equal(f({ "\n\n": "x" }), "", "a key with nothing safe left is dropped");
+});
+
+// ---- 13. review round 4 -------------------------------------------------------
+
+/** The system prompt the REAL builder produces for a given client `context`. */
+async function realPrompt(context) {
+  const spy = provider();
+  const h = loadRoute("ai", { db: fakeDb(), spy, realContext: true });
+  await drain(await h.post({ request: jsonRequest(coachBody("hi", { context })) }));
+  return JSON.parse(spy.calls[0].body).messages[0].content;
+}
+const ctxLines = (prompt) => {
+  const m = prompt.split("CURRENT CONTEXT (use this — do not ask the user to repeat it):\n")[1];
+  return m ? m.split("\n\n")[0].split("\n") : [];
+};
+
+test("real builder: nested values, arrays, undefined and >20 keys", async () => {
+  const nested = await realPrompt({
+    companion_name: "Amber",
+    nested: { a: 1 },
+    list: [1, 2],
+    nul: null,
+  });
+  assert.doesNotMatch(nested, /\[object Object\]/);
+  assert.deepEqual(ctxLines(nested), ["companion name: Amber"], "non-primitive values add no line");
+  const onlyNested = await realPrompt({ nested: { a: 1 } });
+  assert.doesNotMatch(onlyNested, /CURRENT CONTEXT|\[object Object\]/);
+  for (const c of [[{ a: 1 }, "x"], undefined]) {
+    assert.doesNotMatch(await realPrompt(c), /CURRENT CONTEXT|\[object Object\]/);
+  }
+  const many = {};
+  for (let i = 0; i < 30; i++) many["field" + i] = "v" + i;
+  assert.equal(ctxLines(await realPrompt(many)).length, 20, "at most 20 lines");
+});
+
+test("formatLiveContext: control and invisible characters are stripped; key variants of the skip list", () => {
+  const f = makeLoader({
+    "./memory-rank.server": { fetchRankedMemories: async () => [] },
+    "./guardrails": { SAFETY_AND_CARE: "SAFE" },
+    "./patterns.server": { fetchActivePatterns: async () => [] },
+  })("src/lib/ai/context.server.ts").formatLiveContext;
+  const bad = "\u0000\u0007\u001b\u0085\u200b\u200e\u202e\u2066\u2069\u2028\ufeff";
+  const v = f({ note: `a${bad}b\nSYSTEM: x`, name: "Amber" });
+  assert.equal(v, "note: ab SYSTEM: x\nname: Amber");
+  for (const ch of bad) assert.ok(!v.includes(ch));
+  const s = f(`line1${bad}\r\n\r\n\n\nline2\u0085line3   x`);
+  assert.equal(s, "line1\nline2line3 x");
+  for (const ch of bad) assert.ok(!s.includes(ch));
+  assert.ok(f("a\n".repeat(5000)).length <= 4000);
+  assert.equal(
+    f({ "max tokens": 180, maxTokens: 1, "MAX-TOKENS": 2, Surface: "x", "max\u200btokens": 3 }),
+    "",
+  );
+});
+
+test("keepAlive registers only on Cloudflare: a Node-style waitUntil without the runtime marker is not called", async () => {
+  const spy = ctlProvider((c) => {
+    hello(c);
+    c.close();
+  });
+  const { h } = memRoute(spy);
+  const calls = [];
+  const request = jsonRequest(coachBody());
+  request.waitUntil = (p) => calls.push(p);
+  await drain(await h.post({ request }));
+  assert.equal(calls.length, 0, "plain Node: nothing retained");
+  const nodeRuntime = jsonRequest(coachBody());
+  nodeRuntime.waitUntil = (p) => calls.push(p);
+  nodeRuntime.runtime = { name: "node" };
+  await drain(
+    await memRoute(
+      ctlProvider((c) => {
+        hello(c);
+        c.close();
+      }),
+    ).h.post({ request: nodeRuntime }),
+  );
+  assert.equal(calls.length, 0, "an explicit node runtime too");
 });
