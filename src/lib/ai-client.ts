@@ -37,6 +37,9 @@ function aiCacheScope(payload: Record<string, unknown>): string {
   return `ai:${intent}${tail}`;
 }
 
+/** The message of an AI request that failed because the device was offline. */
+export const OFFLINE_AI_MESSAGE = "You're offline and I don't have a cached version of this yet.";
+
 class OfflineAiError extends Error {
   constructor(message: string) {
     super(message);
@@ -66,7 +69,7 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     const cached = lsGet<T>(scope, userId);
     if (cached) return cached.value;
-    throw new OfflineAiError("You're offline and I don't have a cached version of this yet.");
+    throw new OfflineAiError(OFFLINE_AI_MESSAGE);
   }
 
   try {
@@ -89,7 +92,7 @@ async function postIntent<T>(payload: Record<string, unknown>): Promise<T> {
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       const cached = lsGet<T>(scope, userId);
       if (cached) return cached.value;
-      throw new OfflineAiError("You're offline and I don't have a cached version of this yet.");
+      throw new OfflineAiError(OFFLINE_AI_MESSAGE);
     }
     throw e;
   }

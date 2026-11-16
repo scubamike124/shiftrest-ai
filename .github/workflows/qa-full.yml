@@ -69,7 +69,15 @@ jobs:
         if: always()
         with:
           name: e2e-full-${{ matrix.browser }}
-          path: tests/e2e/.results
+          # Only test reports/traces: do not upload the local TLS cert directory.
+          path: |
+            tests/e2e/.results/artifacts/
+            tests/e2e/.results/html/
+            tests/e2e/.results/results.json
+            tests/e2e/.results/junit.xml
+            tests/e2e/.results/summary.md
+            tests/e2e/.results/summary.json
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
 
@@ -108,7 +116,15 @@ jobs:
         if: always()
         with:
           name: live-readonly-${{ matrix.site }}
-          path: tests/e2e/.results
+          # Only test reports/traces: do not upload the local TLS cert directory.
+          path: |
+            tests/e2e/.results/artifacts/
+            tests/e2e/.results/html/
+            tests/e2e/.results/results.json
+            tests/e2e/.results/junit.xml
+            tests/e2e/.results/summary.md
+            tests/e2e/.results/summary.json
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
 
