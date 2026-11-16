@@ -129,7 +129,6 @@ export function AIBriefCard({
     () => void refetch(),
   );
 
-
   const fatigueColor =
     insights.fatigueToday.band === "extreme"
       ? "var(--destructive)"
