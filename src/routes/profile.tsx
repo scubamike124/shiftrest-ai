@@ -250,7 +250,8 @@ function Profile() {
   async function geocodeCity(
     name: string,
   ): Promise<
-    { status: "ok"; lat: number; lon: number; label: string } | { status: "not_found" | "unavailable" }
+    | { status: "ok"; lat: number; lon: number; label: string }
+    | { status: "not_found" | "unavailable" }
   > {
     try {
       const r = await geocodeQuery({ data: { query: name } });

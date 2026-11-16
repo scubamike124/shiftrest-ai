@@ -60,16 +60,26 @@ test("every outside host that browser code fetches is allowed by connect-src", (
 
 test("Profile looks a typed city up on the server, not from the browser", () => {
   const profile = read("src/routes/profile.tsx");
-  assert.ok(!profile.includes("geocoding-api.open-meteo.com"), "no direct geocoder call from the page");
+  assert.ok(
+    !profile.includes("geocoding-api.open-meteo.com"),
+    "no direct geocoder call from the page",
+  );
   assert.match(profile, /useServerFn\(geocodeWeatherQuery\)/);
-  assert.ok(allowed("api.bigdatacloud.net", connectSrc()), "the Detect reverse lookup host is allowed");
+  assert.ok(
+    allowed("api.bigdatacloud.net", connectSrc()),
+    "the Detect reverse lookup host is allowed",
+  );
 });
 
 test('Profile never says "City not found" when the lookup itself failed', () => {
   const profile = read("src/routes/profile.tsx");
   assert.match(profile, /hit\.status === "unavailable"/);
   assert.match(profile, /isn't responding right now/);
-  assert.match(profile, /mutateAsync\(\{ lat: hit\.lat/, "success is announced only after the save resolved");
+  assert.match(
+    profile,
+    /mutateAsync\(\{ lat: hit\.lat/,
+    "success is announced only after the save resolved",
+  );
   assert.match(profile, /PERMISSION_DENIED/, "a denied permission gets its own message");
 });
 
@@ -95,33 +105,99 @@ async function withFetch(fake, fn) {
 
 test("geocoder: a match, no match and a failed lookup are three different answers", async () => {
   const { geocodeLocationDetailed, geocodeLocation } = await loadGeocoder();
-  const la = { results: [{ latitude: 34.05223, longitude: -118.24368, name: "Los Angeles", admin1: "California", country_code: "US" }] };
+  const la = {
+    results: [
+      {
+        latitude: 34.05223,
+        longitude: -118.24368,
+        name: "Los Angeles",
+        admin1: "California",
+        country_code: "US",
+      },
+    ],
+  };
 
   let asked = "";
-  const ok = await withFetch(async (u) => { asked = String(u); return new Response(JSON.stringify(la)); }, () => geocodeLocationDetailed("  Los Angeles "));
-  assert.deepEqual(ok, { status: "ok", lat: 34.05223, lon: -118.24368, label: "Los Angeles, California, US" });
+  const ok = await withFetch(
+    async (u) => {
+      asked = String(u);
+      return new Response(JSON.stringify(la));
+    },
+    () => geocodeLocationDetailed("  Los Angeles "),
+  );
+  assert.deepEqual(ok, {
+    status: "ok",
+    lat: 34.05223,
+    lon: -118.24368,
+    label: "Los Angeles, California, US",
+  });
   assert.match(asked, /name=Los%20Angeles&/, "the query is trimmed and encoded");
 
-  assert.deepEqual(await withFetch(async () => new Response("{}"), () => geocodeLocationDetailed("Zzzzqqq")), { status: "not_found" });
-  assert.deepEqual(await withFetch(async () => new Response("busy", { status: 503 }), () => geocodeLocationDetailed("Los Angeles")), { status: "unavailable" });
-  assert.deepEqual(await withFetch(async () => { throw new TypeError("network"); }, () => geocodeLocationDetailed("Los Angeles")), { status: "unavailable" });
-  assert.deepEqual(await withFetch(async () => new Response("<html>"), () => geocodeLocationDetailed("Los Angeles")), { status: "unavailable" });
+  assert.deepEqual(
+    await withFetch(
+      async () => new Response("{}"),
+      () => geocodeLocationDetailed("Zzzzqqq"),
+    ),
+    { status: "not_found" },
+  );
+  assert.deepEqual(
+    await withFetch(
+      async () => new Response("busy", { status: 503 }),
+      () => geocodeLocationDetailed("Los Angeles"),
+    ),
+    { status: "unavailable" },
+  );
+  assert.deepEqual(
+    await withFetch(
+      async () => {
+        throw new TypeError("network");
+      },
+      () => geocodeLocationDetailed("Los Angeles"),
+    ),
+    { status: "unavailable" },
+  );
+  assert.deepEqual(
+    await withFetch(
+      async () => new Response("<html>"),
+      () => geocodeLocationDetailed("Los Angeles"),
+    ),
+    { status: "unavailable" },
+  );
 
   // The older helper keeps its contract for its other caller (traffic).
-  assert.equal(await withFetch(async () => new Response("{}"), () => geocodeLocation("Zzzzqqq")), null);
-  assert.deepEqual(await withFetch(async () => new Response(JSON.stringify(la)), () => geocodeLocation("Los Angeles")), { lat: 34.05223, lon: -118.24368, label: "Los Angeles, California, US" });
+  assert.equal(
+    await withFetch(
+      async () => new Response("{}"),
+      () => geocodeLocation("Zzzzqqq"),
+    ),
+    null,
+  );
+  assert.deepEqual(
+    await withFetch(
+      async () => new Response(JSON.stringify(la)),
+      () => geocodeLocation("Los Angeles"),
+    ),
+    { lat: 34.05223, lon: -118.24368, label: "Los Angeles, California, US" },
+  );
 });
 
 test("the site's Permissions-Policy lets its own pages ask for location", () => {
   const src = read("src/start.ts");
   const line = src.split("\n").find((l) => /^\s*"camera=\(\)/.test(l)) ?? "";
-  assert.match(line, /geolocation=\(self\)/, "geolocation=() makes the browser refuse Detect whatever the user allows");
+  assert.match(
+    line,
+    /geolocation=\(self\)/,
+    "geolocation=() makes the browser refuse Detect whatever the user allows",
+  );
   assert.ok(!/geolocation=\(\)/.test(line));
   assert.ok(!/geolocation=\*/.test(line), "own pages only, never every origin");
 });
 
 test('weather and traffic lookups never say "No match found" when the lookup itself failed', () => {
-  for (const f of ["src/components/weather/WeatherLocationCard.tsx", "src/components/traffic/TrafficDestinationsCard.tsx"]) {
+  for (const f of [
+    "src/components/weather/WeatherLocationCard.tsx",
+    "src/components/traffic/TrafficDestinationsCard.tsx",
+  ]) {
     assert.match(read(f), /hit\.reason === "unavailable"/, f);
   }
   const traffic = read("src/lib/traffic/traffic.functions.ts");
