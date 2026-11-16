@@ -1,3 +1,4 @@
+import { formatLegalDate } from "@/lib/legal/date";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import { LEGAL_DOCS, LEGAL_EFFECTIVE } from "@/lib/legal/meta";
@@ -43,7 +44,7 @@ function LegalIndex() {
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
           The full set of agreements, disclaimers, and disclosures that apply to
-          your use of RestPilot AI. Effective {formatDate(LEGAL_EFFECTIVE)}.
+          your use of RestPilot AI. Effective {formatLegalDate(LEGAL_EFFECTIVE)}.
           Documents are draft templates and will be finalized by qualified
           counsel before launch.
         </p>
@@ -99,12 +100,4 @@ function LegalIndex() {
       </footer>
     </section>
   );
-}
-
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }

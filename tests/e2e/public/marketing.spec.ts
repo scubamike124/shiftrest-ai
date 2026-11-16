@@ -30,37 +30,52 @@ const LEGAL = [
   "trademark",
 ];
 
-// Known, already-reported defects whose console noise is tolerated (and
-// annotated) on the page-render check; each has its own deterministic test below.
-const KNOWN_CONSOLE_DEFECTS: Record<string, { pattern: RegExp; id: string }> = {
-  "/legal": {
-    pattern: /Minified React error #418/,
-    id: "R3 legal effective-date hydration mismatch",
-  },
-};
-
 test.describe("marketing pages @readonly", () => {
   for (const { path, h1 } of MARKETING) {
     test(`${path} renders without errors @smoke`, async ({ page }) => {
-      const known = KNOWN_CONSOLE_DEFECTS[path];
-      const all = collectErrors(page);
+      const errors = collectErrors(page);
       const res = await page.goto(path);
       expect(res?.status(), `${path} status`).toBeLessThan(400);
       await expect(page.locator("h1").first()).toBeVisible();
       await expect(page.locator("h1").first()).toHaveText(h1);
       await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
-      const errors = known ? all.filter((e) => !known.pattern.test(e)) : all;
-      if (known && errors.length < all.length) {
-        test.info().annotations.push({ type: "known-defect", description: known.id });
-      }
       expect(errors, `${path} console errors`).toEqual([]);
     });
   }
 
-  // R3 (legal effective date off by one day in US time zones, React #418) is
-  // tolerated and annotated by the render check above. A browser assertion on
-  // the visible date was flaky (React sometimes keeps the server text after a
-  // hydration error), so the defect is tracked in QA-REPORT with repro steps.
+  for (const [path, date] of [
+    ["/legal", "June 27, 2026"],
+    ["/legal/terms", "June 27, 2026"],
+    ["/legal/privacy", "November 15, 2026"],
+  ] as const) {
+    test(`${path}: policy date matches SSR after hydration @smoke`, async ({ page, request }) => {
+      const errors = collectErrors(page);
+      const response = await request.get(path);
+      expect(response.status()).toBe(200);
+      // Check the actual server response as well as the hydrated browser text.
+      expect(await response.text()).toContain(date);
+      await page.goto(path);
+      await expect(page.locator("h1").first()).toBeVisible();
+      await expect(page.locator("body")).toContainText(
+        path === "/legal" ? `Effective ${date}.` : `Effective: ${date}`,
+      );
+      // Prove client navigation is active, so a static SSR page cannot hide a
+      // recoverable hydration mismatch. A document reload would lose this flag.
+      await page.evaluate(() => {
+        (window as Window & { legalHydrationProbe?: boolean }).legalHydrationProbe = true;
+      });
+      const next = path === "/legal/privacy" ? "terms" : "privacy";
+      const linkName = next === "terms" ? "Terms of Service" : "Privacy Policy";
+      await page.getByRole("link", { name: linkName, exact: true }).last().click();
+      await expect(page).toHaveURL(new RegExp(`/legal/${next}$`));
+      expect(
+        await page.evaluate(
+          () => (window as Window & { legalHydrationProbe?: boolean }).legalHydrationProbe,
+        ),
+      ).toBe(true);
+      expect(errors, `${path} hydration errors`).toEqual([]);
+    });
+  }
 
   test("home: primary calls to action lead to sign-up and the app preview @smoke", async ({
     page,
