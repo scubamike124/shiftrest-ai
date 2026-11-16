@@ -37,7 +37,7 @@ function reasonFromStatus(status: number): Fallback["reason"] {
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
     case "credits":
-      return "Voice briefing is paused — AI credits are exhausted. Try again later.";
+      return "Voice briefing is paused for now. Try again later.";
     case "rate_limit":
       return "Voice briefing is busy right now. Give it a moment and try again.";
     case "config":

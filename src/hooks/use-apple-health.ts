@@ -25,11 +25,9 @@ export function useAppleHealth() {
     let active = true;
     // Inside the app the plugin can answer "not available" before it is ready, so
     // re-probe a few times (bounded, cancelled on unmount). Probing only: no
-    // authorization is requested. The shell's user agent marks the app even if the
-    // Capacitor global is late.
-    const inApp =
-      isNativeApp() ||
-      (typeof navigator !== "undefined" && navigator.userAgent.includes("RestPilotApp/"));
+    // authorization is requested. isNativeApp() also reads the shell's user agent,
+    // so it is true even if the Capacitor global is late.
+    const inApp = isNativeApp();
     const stopProbing = watchAppleHealthAvailability({
       probe: appleHealthAvailable,
       native: inApp,

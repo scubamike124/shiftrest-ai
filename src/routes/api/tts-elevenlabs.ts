@@ -26,7 +26,8 @@ function fallback(reason: Fallback["reason"], message: string): Response {
 
 function messageFromReason(reason: Fallback["reason"]): string {
   switch (reason) {
-    case "credits":    return "Voice playback is paused — provider credits exhausted.";
+    case "credits":
+      return "Voice playback is paused for now. Try again later.";
     case "rate_limit": return "ElevenLabs is rate-limiting. Try again in a moment.";
     case "config":     return "ElevenLabs isn't configured on the server yet.";
     default:           return "ElevenLabs voice is temporarily unavailable.";
