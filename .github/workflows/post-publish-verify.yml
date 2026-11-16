@@ -15,6 +15,20 @@ on:
         required: false
         default: "https://restpilotai.com"
         type: string
+      run_signed_in_ai:
+        description: "Also run the signed-in AI smoke (real AI calls, max 6, needs the test-account secrets)"
+        required: false
+        default: false
+        type: boolean
+      signed_in_base_url:
+        description: "Site for the signed-in AI smoke only"
+        required: false
+        default: "https://restpilotai.com"
+        type: choice
+        options:
+          - https://restpilotai.com
+          - https://www.restpilotai.com
+          - https://restpilot-web-staging.up.railway.app
 
 permissions:
   contents: read
@@ -53,3 +67,74 @@ jobs:
             cat verify.txt 2>/dev/null || echo 'no output'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # OPTIONAL. Real AI conversation with a test account the owner controls.
+  # Max 6 requests of at most 180 output tokens, enforced in
+  # scripts/signed-in-ai-smoke.mjs. Skipped (with a notice) unless asked for.
+  signed-in-ai:
+    if: ${{ inputs.run_signed_in_ai }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    concurrency:
+      group: signed-in-ai-smoke
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check test account and target
+        id: gate
+        env:
+          BASE_URL: ${{ inputs.signed_in_base_url }}
+          E2E_EMAIL: ${{ secrets.RESTPILOT_E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.RESTPILOT_E2E_PASSWORD }}
+        run: |
+          case "$BASE_URL" in
+            https://restpilotai.com|https://www.restpilotai.com|https://restpilot-web-staging.up.railway.app) ;;
+            *) echo "Refusing target: $BASE_URL"; exit 2 ;;
+          esac
+          if [ -z "$E2E_EMAIL" ] || [ -z "$E2E_PASSWORD" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Signed-in AI smoke::UNVERIFIED: no test account configured (add RESTPILOT_E2E_EMAIL and RESTPILOT_E2E_PASSWORD)"
+            {
+              echo '### Signed-in AI smoke'
+              echo '**UNVERIFIED: no test account configured.** The Companion is not verified as a real AI conversation. See docs/SIGNED-IN-AI-SMOKE.md.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Signed-in AI smoke
+        if: steps.gate.outputs.have == 'true'
+        env:
+          RESTPILOT_E2E_EMAIL: ${{ secrets.RESTPILOT_E2E_EMAIL }}
+          RESTPILOT_E2E_PASSWORD: ${{ secrets.RESTPILOT_E2E_PASSWORD }}
+          RESTPILOT_REPORT_DIR: signed-in-ai-report
+          BASE_URL: ${{ inputs.signed_in_base_url }}
+        run: |
+          set -o pipefail
+          node scripts/signed-in-ai-smoke.mjs --base "$BASE_URL" | tee smoke-output.txt
+      - name: Job summary
+        if: always() && steps.gate.outputs.have == 'true'
+        run: |
+          {
+            echo '### Signed-in AI smoke'
+            echo '```'
+            cat smoke-output.txt 2>/dev/null || echo 'no output'
+            echo '```'
+            if [ -f signed-in-ai-report/signed-in-ai-report.md ]; then
+              cat signed-in-ai-report/signed-in-ai-report.md
+            else
+              echo 'No report was written.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload report
+        if: always() && steps.gate.outputs.have == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-in-ai-report
+          path: signed-in-ai-report/
+          if-no-files-found: warn
+          retention-days: 14
