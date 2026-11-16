@@ -72,6 +72,7 @@ test("every table with a user_id -> auth.users column is in the data export", ()
     "notification_log",
     "rate_limit_counter",
     "ai_request_allowance",
+    "ai_request_ledger",
     "email_send_log",
     "email_send_state",
     "email_unsubscribe_tokens",

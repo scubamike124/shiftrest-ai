@@ -1,6 +1,6 @@
 import { aiApiKey, aiEndpoint, aiAudioModel } from "@/lib/ai/provider.server";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -98,7 +98,9 @@ export const Route = createFileRoute("/api/tts")({
           const refused = await requireAIConsent(auth.userId);
           if (refused) return refused;
         }
-        const admission = await requireAIAdmission(auth.userId);
+        // The handle gives this request back if the provider fails it (below).
+        const refund: AIRefundHandle = {};
+        const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -109,6 +111,9 @@ export const Route = createFileRoute("/api/tts")({
           if (limited) return limited;
         }
 
+        // True from the moment the provider is called: only then can a thrown
+        // error be the provider being unreachable.
+        let providerCalled = false;
         try {
           const body = (input.body) as {
             text?: string;
@@ -159,6 +164,7 @@ export const Route = createFileRoute("/api/tts")({
 
           const instructions = buildInstructions(merged, mode);
 
+          providerCalled = true;
           const upstream = await fetch(aiEndpoint("audio/speech"), {
             method: "POST",
             headers: {
@@ -175,9 +181,11 @@ export const Route = createFileRoute("/api/tts")({
             }),
           });
 
+          providerCalled = false; // the provider answered: a later throw is not "unreachable"
           if (!upstream.ok) {
             const t = await upstream.text().catch(() => "");
             console.error("[tts] upstream failed", upstream.status, t);
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
             const reason: Fallback["reason"] =
               upstream.status === 402 ? "credits"
               : upstream.status === 429 ? "rate_limit"
@@ -218,6 +226,7 @@ export const Route = createFileRoute("/api/tts")({
           });
         } catch (e) {
           console.error("[tts] route error", e);
+          if (providerCalled) await refund.refundProviderFailure?.(null, request.signal);
           // Network / fetch error reaching the provider — genuine infra failure.
           notifyOwnerAsync({
             severity: "error",

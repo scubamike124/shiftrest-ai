@@ -3,7 +3,7 @@ import { buildChatBody, modelForTask, reasoningForTask } from "@/lib/ai/models.s
 import { DATA_HONESTY } from "@/lib/ai/guardrails";
 import { normalizeSwap } from "@/lib/ai/intent-schemas";
 import { readAIJson } from "@/lib/ai/request.server";
-import { requireAIAdmission } from "@/lib/ai/admission.server";
+import { requireAIAdmission, type AIRefundHandle } from "@/lib/ai/admission.server";
 import { providerFailure, providerFailureResponse } from "@/lib/ai/refusal";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -45,7 +45,9 @@ export const Route = createFileRoute("/api/swap")({
             const refused = await requireAIConsent(auth.userId);
             if (refused) return refused;
           }
-        const admission = await requireAIAdmission(auth.userId);
+          // The handle gives this request back if the provider fails it (below).
+          const refund: AIRefundHandle = {};
+          const admission = await requireAIAdmission(auth.userId, refund);
         if (admission) return admission;
         const input = await readAIJson(request);
         if ("response" in input) return input.response;
@@ -104,6 +106,7 @@ export const Route = createFileRoute("/api/swap")({
               message: "network_error",
               meta: { error: e instanceof Error ? e.message : String(e) },
             });
+            await refund.refundProviderFailure?.(null, request.signal);
             const failure = providerFailure(null);
             return Response.json(
               { error: failure.message, code: failure.code, retryable: true },
@@ -129,6 +132,7 @@ export const Route = createFileRoute("/api/swap")({
             // Never pass the provider's status through: its 429 is not this user's
             // limit, its 401 is not the user's session. Retryable 503 (502 for a
             // rejected request) with an ai_provider_* code.
+            await refund.refundProviderFailure?.(upstream.status, request.signal);
             return providerFailureResponse(upstream.status);
           }
 
