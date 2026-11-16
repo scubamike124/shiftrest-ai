@@ -59,6 +59,7 @@ import { DebugHUD } from "@/components/companion/DebugHUD";
 import { emitDebug, emitHttpStatus } from "@/lib/companion/debug-bus";
 import { useSession } from "@/hooks/use-session";
 import { aiConsentWouldAsk, aiFetch, isAIConsentRefusal } from "@/lib/ai/consent-client";
+import { useIsNativeApp } from "@/hooks/use-native-app";
 import { readAIRefusal, toastAIRefusal } from "@/lib/ai/refusal-client";
 import {
   CRISIS_LOCAL_REPLY,
@@ -1580,12 +1581,7 @@ function CompanionPage() {
       {rt.trial?.isTrial && (
         <div className="mt-2 flex items-center justify-center">
           {rt.trial.limitReached ? (
-            <Link
-              to="/paywall"
-              className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
-            >
-              Trial voice minutes used up · Upgrade →
-            </Link>
+            <VoiceTrialUsedUp />
           ) : (
             <span className="rounded-full border border-border bg-card px-3 py-1 text-[10px] font-medium text-muted-foreground">
               Trial voice: {Math.ceil(rt.trial.remainingSeconds / 60)} of {Math.round(rt.trial.capSeconds / 60)} min left
@@ -1612,5 +1608,25 @@ function CompanionPage() {
       />
 
     </main>
+  );
+}
+
+/** Live-voice trial exhausted. The Upgrade link is website-only: in the iPhone
+ *  app (App Store Guideline 3.1.1) it is plain text with no link. */
+function VoiceTrialUsedUp() {
+  if (useIsNativeApp()) {
+    return (
+      <span className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium text-muted-foreground">
+        Trial voice minutes used up
+      </span>
+    );
+  }
+  return (
+    <Link
+      to="/paywall"
+      className="rounded-full border border-primary/50 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary"
+    >
+      Trial voice minutes used up · Upgrade →
+    </Link>
   );
 }

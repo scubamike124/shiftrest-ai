@@ -156,6 +156,7 @@ export type AIRefusalKind =
   | "daily_requests"
   | "provider_busy"
   | "provider_unavailable"
+  | "usage_check_unavailable"
   | "request_rejected"
   | "other";
 
@@ -223,8 +224,8 @@ export function describeAIRefusal(
   else if (code === AI_REFUSAL.RATE_LIMITED) kind = daily ? "daily_requests" : "rate_limited";
   else if (code === AI_REFUSAL.PROVIDER_BUSY) kind = "provider_busy";
   else if (code === AI_REFUSAL.PROVIDER_ERROR) kind = "request_rejected";
-  else if (code === AI_REFUSAL.PROVIDER_UNAVAILABLE || code === AI_REFUSAL.BUDGET_UNAVAILABLE)
-    kind = "provider_unavailable";
+  else if (code === AI_REFUSAL.PROVIDER_UNAVAILABLE) kind = "provider_unavailable";
+  else if (code === AI_REFUSAL.BUDGET_UNAVAILABLE) kind = "usage_check_unavailable";
   else if (code === null) {
     // Responses from before codes existed (an older server during a rollout).
     if (rawError === "rate_limited") kind = "rate_limited";
@@ -297,6 +298,15 @@ export function describeAIRefusal(
         title: "The AI service is temporarily unavailable.",
         description: "This isn't your limit. Try again shortly.",
         chatMessage: `The AI service is temporarily unavailable. This isn't your limit. ${SAVED}: try again shortly.`,
+        offerUpgrade: false,
+      };
+    case "usage_check_unavailable":
+      return {
+        ...base,
+        kind,
+        title: "The usage check is temporarily unavailable.",
+        description: "This isn't your limit. Try again shortly.",
+        chatMessage: `The usage check is temporarily unavailable. This isn't your limit. ${SAVED}: try again shortly.`,
         offerUpgrade: false,
       };
     case "request_rejected":
