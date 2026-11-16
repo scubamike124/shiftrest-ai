@@ -147,13 +147,49 @@ test.describe("AI companion", () => {
     });
   });
 
-  test("AI decisions can be accepted", async ({ authedPage: page }) => {
+  test("AI decisions can be accepted and persist @smoke", async ({
+    authedPage: page,
+    backend,
+    user,
+  }) => {
+    const id = crypto.randomUUID();
+    const headline = "Protect tonight's recovery window";
+    await backend.seed([], {
+      ai_recommendations: [
+        {
+          id,
+          user_id: user.id,
+          intent: "sleep_plan",
+          headline,
+          rationale: "A consistent sleep window supports the upcoming shift.",
+          confidence: 0.9,
+          evidence_json: {},
+          predicted_impact_json: {},
+          pattern_id: null,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
     await page.goto("/decisions");
     await expect(page.getByRole("heading", { name: /What I decided today/i })).toBeVisible();
-    const accept = page.getByRole("button", { name: /^Accept$/ }).first();
-    // Say so instead of passing silently when there is nothing to accept.
-    test.skip((await accept.count()) === 0, "no decision to accept for this user");
+    const decision = page
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("heading", { name: headline, exact: true }) });
+    const accept = decision.getByRole("button", { name: "Accept", exact: true });
+    await expect(accept).toBeVisible();
     await accept.click();
+    await expect(decision.getByText("Accepted", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () => {
+        const rows = (await backend.dump(user)).tables.ai_feedback ?? [];
+        return rows
+          .filter((row) => row.recommendation_id === id)
+          .map((row) => ({ user_id: row.user_id, reaction: row.reaction }));
+      })
+      .toEqual([{ user_id: user.id, reaction: "helpful" }]);
+    await page.reload();
+    await expect(decision.getByText("Accepted", { exact: true })).toBeVisible();
+    await expect(decision.getByRole("button", { name: "Accept", exact: true })).toHaveCount(0);
     await expect(page.getByText(/Something went wrong/i)).toHaveCount(0);
   });
 });

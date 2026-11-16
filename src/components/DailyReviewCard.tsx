@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Sun, RefreshCw, TrendingUp, TrendingDown, Minus, CheckCircle2, AlertCircle, Target } from "lucide-react";
-import { aiDailyReview, type DailyReviewResponse } from "@/lib/ai-client";
+import { aiDailyReview, OFFLINE_AI_MESSAGE, type DailyReviewResponse } from "@/lib/ai-client";
+import { useRetryOnReconnect } from "@/hooks/use-online";
 import { FeedbackChips } from "./FeedbackChips";
 import { RecommendationActions, WhyButton } from "./ai/trust";
 
@@ -65,6 +66,10 @@ export function DailyReviewCard({
     if (signedIn && enabled && !data) load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, enabled]);
+
+  // R6: a card that failed because the device was offline retries once when the
+  // connection returns (debounced; see src/lib/offline-retry.ts).
+  useRetryOnReconnect(!data && error === OFFLINE_AI_MESSAGE, () => void load(true));
 
   if (!signedIn || !enabled) return null;
 

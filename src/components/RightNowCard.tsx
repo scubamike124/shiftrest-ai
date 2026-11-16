@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { SafetyNote } from "@/components/legal/SafetyNote";
 import { Link } from "@tanstack/react-router";
 import { Sparkles, AlertCircle, Clock, ArrowRight, RefreshCw, Info } from "lucide-react";
-import { aiRightNow, type RightNowResponse } from "@/lib/ai-client";
+import { aiRightNow, OFFLINE_AI_MESSAGE, type RightNowResponse } from "@/lib/ai-client";
+import { useRetryOnReconnect } from "@/hooks/use-online";
 import { FeedbackChips } from "./FeedbackChips";
 import { ConfidenceBadge, RecommendationActions, WhyButton } from "./ai/trust";
 
@@ -126,6 +127,10 @@ export function RightNowCard({
     if (signedIn && !data) load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, ctxFingerprint]);
+
+  // R6: a card that failed because the device was offline retries once when the
+  // connection returns (debounced; see src/lib/offline-retry.ts).
+  useRetryOnReconnect(!data && error === OFFLINE_AI_MESSAGE, () => void load(true));
 
   if (!signedIn) {
     return (
