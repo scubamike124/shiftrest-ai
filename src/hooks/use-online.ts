@@ -14,6 +14,7 @@
  *   caller forgets to gate it.
  */
 import { useEffect, useRef, useState } from "react";
+import { createReconnectRetry } from "@/lib/offline-retry";
 
 function initial(): boolean {
   if (typeof navigator === "undefined") return true; // SSR: assume online
@@ -56,4 +57,43 @@ export function useOnlineTransition(onReconnect: () => void): void {
     }
     wasOnlineRef.current = online;
   }, [online]);
+}
+
+/** Wait after "online" before retrying, so a flapping connection does not fire a burst. */
+export const RECONNECT_RETRY_DEBOUNCE_MS = 1500;
+
+/**
+ * For a card that can show the offline failure: retries ONCE per offline→online cycle
+ * (debounced, never on a timer, never for provider errors). `offlineFailed` must be true
+ * only while the card shows the offline failure. See src/lib/offline-retry.ts.
+ */
+export function useRetryOnReconnect(offlineFailed: boolean, retry: () => void): void {
+  const failedRef = useRef(offlineFailed);
+  failedRef.current = offlineFailed;
+  const retryRef = useRef(retry);
+  retryRef.current = retry;
+  const ctlRef = useRef<ReturnType<typeof createReconnectRetry> | null>(null);
+
+  useEffect(() => {
+    const ctl = createReconnectRetry({
+      debounceMs: RECONNECT_RETRY_DEBOUNCE_MS,
+      isOnline: () => navigator.onLine !== false,
+      shouldRetry: () => failedRef.current,
+      retry: () => retryRef.current(),
+    });
+    ctlRef.current = ctl;
+    window.addEventListener("online", ctl.onOnline);
+    window.addEventListener("offline", ctl.onOffline);
+    return () => {
+      window.removeEventListener("online", ctl.onOnline);
+      window.removeEventListener("offline", ctl.onOffline);
+      ctl.dispose();
+      ctlRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    // The card just failed offline: if the connection is already back, schedule.
+    ctlRef.current?.onStateChange();
+  }, [offlineFailed]);
 }
