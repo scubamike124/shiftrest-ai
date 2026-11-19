@@ -27,7 +27,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/privacy",
     title: "Privacy Policy",
     summary: "What data we collect, why, how long we keep it, and your rights.",
-    effective: "2026-11-15", // AI providers and AI permission added
+    effective: "2026-11-15", // AI providers, Apple Health, location, iPhone payments added
     category: "core",
   },
   {
@@ -77,7 +77,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     path: "/legal/third-parties",
     title: "Subprocessors & Integrations",
     summary: "Third parties we share data with and what they receive.",
-    effective: "2026-11-15", // AI providers and AI permission added
+    effective: "2026-11-15", // AI providers, Apple Health, location, iPhone payments added
     category: "disclosure",
   },
   {
