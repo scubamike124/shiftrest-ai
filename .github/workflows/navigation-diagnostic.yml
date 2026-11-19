@@ -4,6 +4,7 @@ on:
   push:
     branches: [codex/restpilot-navigation-diagnostic]
     paths:
+      - "tests/e2e/app/auth.spec.ts"
       - "tests/e2e/mobile/overflow.spec.ts"
       - ".github/workflows/navigation-diagnostic.yml"
 permissions:
@@ -35,12 +36,14 @@ jobs:
           --project=webkit-iphone-se
           --project=webkit-iphone-15
           --project=webkit-iphone-15-pro-max
-      - name: Upload only bounded navigation records
+      - name: Upload only bounded interaction records
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: restpilot-navigation-diagnostic
-          path: tests/e2e/.results/artifacts/**/navigation-diagnostic.json
+          path: |
+            tests/e2e/.results/artifacts/**/navigation-diagnostic.json
+            tests/e2e/.results/artifacts/**/auth-diagnostic.json
           include-hidden-files: true
           retention-days: 7
           if-no-files-found: warn
