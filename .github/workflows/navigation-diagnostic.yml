@@ -1,0 +1,45 @@
+# Evidence only on this isolated branch; never publishes RestPilot or calls model providers.
+name: RestPilot navigation diagnostic
+on:
+  push:
+    branches: [codex/restpilot-navigation-diagnostic]
+    paths:
+      - "tests/e2e/mobile/overflow.spec.ts"
+      - ".github/workflows/navigation-diagnostic.yml"
+permissions:
+  contents: read
+concurrency:
+  group: restpilot-navigation-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  navigation:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps webkit
+      - name: Build for the existing hermetic backend
+        run: |
+          eval "$(node tests/e2e/support/serve.mjs --print-build-env | sed 's/^/export /')"
+          npm run build
+      - name: Compare the unchanged baseline with scoped mouse and native touch
+        run: >-
+          npx playwright test -c tests/e2e mobile/overflow.spec.ts
+          --project=webkit-iphone-15-pro-max
+          --grep "bottom navigation reaches the main tabs|navigation diagnostic"
+          --trace=off
+      - name: Upload only bounded navigation records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: restpilot-navigation-diagnostic
+          path: tests/e2e/.results/artifacts/**/navigation-diagnostic.json
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: warn
