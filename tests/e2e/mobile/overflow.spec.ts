@@ -95,9 +95,9 @@ test.describe("mobile layout (signed in)", () => {
 
 // Evidence only: compare the existing mouse-click failure with scoped mouse
 // and native touch input. Keep the original navigation test above unchanged.
+test.use({ trace: "off", screenshot: "off", video: "off" });
 test.describe("navigation diagnostic", () => {
   test.skip(({ isMobile }) => !isMobile, "mobile viewports only");
-  test.use({ trace: "off", screenshot: "off", video: "off" });
 
   for (const activation of ["mouse click", "native tap"] as const) {
     test("App navigation: " + activation, async ({ authedPage: page }, testInfo) => {
